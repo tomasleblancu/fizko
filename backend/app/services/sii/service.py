@@ -7,7 +7,7 @@ import asyncio
 from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, update
 
 from app.integrations.sii import SIIClient
@@ -86,7 +86,9 @@ class SIIService:
         Returns:
             Dict con rut, password y cookies (si existen)
         """
-        stmt = select(SessionModel).where(SessionModel.id == session_id)
+        stmt = select(SessionModel).where(SessionModel.id == session_id).options(
+            selectinload(SessionModel.company)
+        )
         result = await self.db.execute(stmt)
         session = result.scalar_one_or_none()
 
