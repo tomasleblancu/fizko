@@ -1,0 +1,282 @@
+"""
+Tests de extracción real con el SII
+
+IMPORTANTE: Estos tests requieren credenciales válidas del SII.
+Configura las variables de entorno:
+    export SII_TEST_RUT="12345678-9"
+    export SII_TEST_PASSWORD="tu_password"
+
+O usa pytest con variables:
+    pytest --rut="12345678-9" --password="tu_password"
+"""
+import os
+import sys
+import pytest
+import logging
+from datetime import datetime
+
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+logger = logging.getLogger(__name__)
+
+
+def pytest_addoption(parser):
+    """Agrega opciones de línea de comandos para pytest"""
+    parser.addoption("--rut", action="store", help="RUT del contribuyente")
+    parser.addoption("--password", action="store", help="Contraseña del SII")
+
+
+@pytest.fixture(scope="module")
+def sii_credentials(request):
+    """
+    Fixture que obtiene credenciales desde variables de entorno o pytest args
+    """
+    rut = request.config.getoption("--rut") or os.getenv("SII_TEST_RUT")
+    password = request.config.getoption("--password") or os.getenv("SII_TEST_PASSWORD")
+
+    if not rut or not password:
+        pytest.skip("Credenciales SII no configuradas. Use --rut y --password o variables de entorno.")
+
+    return {
+        'tax_id': rut,
+        'password': password
+    }
+
+
+@pytest.fixture(scope="module")
+def sii_client(sii_credentials):
+    """
+    Fixture que crea un cliente SII para los tests
+    """
+    from apps.sii.rpa_v3 import SIIClient
+
+    logger.info(f"🔧 Creating SIIClient for {sii_credentials['tax_id']}")
+
+    client = SIIClient(
+        tax_id=sii_credentials['tax_id'],
+        password=sii_credentials['password'],
+        headless=True
+    )
+
+    yield client
+
+    # Cleanup
+    logger.info("🧹 Cleaning up SIIClient")
+    client.close()
+
+
+class TestAuthentication:
+    """Tests de autenticación"""
+
+    def test_login(self, sii_client):
+        """Test 1: Login exitoso"""
+        logger.info("=" * 80)
+        logger.info("TEST 1: Login")
+        logger.info("=" * 80)
+
+        success = sii_client.login()
+
+        assert success is True, "Login debe ser exitoso"
+        logger.info("✅ Login exitoso")
+
+    def test_get_cookies(self, sii_client):
+        """Test 2: Obtener cookies"""
+        logger.info("=" * 80)
+        logger.info("TEST 2: Get Cookies")
+        logger.info("=" * 80)
+
+        cookies = sii_client.get_cookies()
+
+        assert isinstance(cookies, list), "Cookies debe ser una lista"
+        assert len(cookies) > 0, "Debe haber al menos una cookie"
+
+        logger.info(f"✅ Obtenidas {len(cookies)} cookies")
+        for cookie in cookies[:3]:  # Mostrar primeras 3
+            logger.info(f"   - {cookie.get('name', 'N/A')}")
+
+    def test_is_authenticated(self, sii_client):
+        """Test 3: Verificar autenticación"""
+        logger.info("=" * 80)
+        logger.info("TEST 3: Is Authenticated")
+        logger.info("=" * 80)
+
+        is_auth = sii_client.is_authenticated()
+
+        assert is_auth is True, "Cliente debe estar autenticado"
+        logger.info("✅ Cliente autenticado correctamente")
+
+
+class TestContribuyente:
+    """Tests de extracción de contribuyente"""
+
+    def test_get_contribuyente(self, sii_client):
+        """Test 4: Obtener datos del contribuyente"""
+        logger.info("=" * 80)
+        logger.info("TEST 4: Get Contribuyente")
+        logger.info("=" * 80)
+
+        data = sii_client.get_contribuyente()
+
+        # Verificaciones básicas
+        assert isinstance(data, dict), "Datos deben ser un dict"
+        assert 'rut' in data, "Debe incluir RUT"
+        assert data['rut'] is not None, "RUT no puede ser None"
+
+        # Log de resultados
+        logger.info("✅ Datos del contribuyente obtenidos:")
+        logger.info(f"   RUT: {data.get('rut', 'N/A')}")
+        logger.info(f"   Razón Social: {data.get('razon_social', 'N/A')}")
+        logger.info(f"   Nombre: {data.get('nombre', 'N/A')}")
+        logger.info(f"   Email: {data.get('email', 'N/A')}")
+        logger.info(f"   Teléfono: {data.get('telefono', 'N/A')}")
+        logger.info(f"   Dirección: {data.get('direccion', 'N/A')}")
+        logger.info(f"   Comuna: {data.get('comuna', 'N/A')}")
+        logger.info(f"   Actividad: {data.get('actividad_economica', 'N/A')}")
+
+
+class TestDTEs:
+    """Tests de extracción de DTEs"""
+
+    def test_get_compras(self, sii_client):
+        """Test 5: Obtener documentos de compra"""
+        logger.info("=" * 80)
+        logger.info("TEST 5: Get Compras")
+        logger.info("=" * 80)
+
+        # Usar período actual o anterior
+        periodo = datetime.now().strftime("%Y%m")
+        logger.info(f"   Período: {periodo}")
+
+        result = sii_client.get_compras(periodo=periodo, tipo_doc="33")
+
+        # Verificaciones
+        assert isinstance(result, dict), "Resultado debe ser un dict"
+        assert 'status' in result, "Debe incluir status"
+        assert 'data' in result, "Debe incluir data"
+
+        logger.info(f"✅ Compras obtenidas:")
+        logger.info(f"   Status: {result.get('status', 'N/A')}")
+        logger.info(f"   Total documentos: {len(result.get('data', []))}")
+        logger.info(f"   Extraction method: {result.get('extraction_method', 'N/A')}")
+
+        # Mostrar primeros documentos si hay
+        docs = result.get('data', [])
+        if docs:
+            logger.info(f"   Primeros documentos:")
+            for doc in docs[:3]:
+                logger.info(f"      - {doc}")
+
+    def test_get_ventas(self, sii_client):
+        """Test 6: Obtener documentos de venta"""
+        logger.info("=" * 80)
+        logger.info("TEST 6: Get Ventas")
+        logger.info("=" * 80)
+
+        periodo = datetime.now().strftime("%Y%m")
+        logger.info(f"   Período: {periodo}")
+
+        result = sii_client.get_ventas(periodo=periodo, tipo_doc="33")
+
+        assert isinstance(result, dict), "Resultado debe ser un dict"
+        assert 'status' in result, "Debe incluir status"
+        assert 'data' in result, "Debe incluir data"
+
+        logger.info(f"✅ Ventas obtenidas:")
+        logger.info(f"   Status: {result.get('status', 'N/A')}")
+        logger.info(f"   Total documentos: {len(result.get('data', []))}")
+        logger.info(f"   Extraction method: {result.get('extraction_method', 'N/A')}")
+
+        docs = result.get('data', [])
+        if docs:
+            logger.info(f"   Primeros documentos:")
+            for doc in docs[:3]:
+                logger.info(f"      - {doc}")
+
+    def test_get_resumen(self, sii_client):
+        """Test 7: Obtener resumen"""
+        logger.info("=" * 80)
+        logger.info("TEST 7: Get Resumen")
+        logger.info("=" * 80)
+
+        periodo = datetime.now().strftime("%Y%m")
+        logger.info(f"   Período: {periodo}")
+
+        result = sii_client.get_resumen(periodo=periodo)
+
+        assert isinstance(result, dict), "Resultado debe ser un dict"
+        assert 'status' in result, "Debe incluir status"
+
+        logger.info(f"✅ Resumen obtenido:")
+        logger.info(f"   Status: {result.get('status', 'N/A')}")
+        logger.info(f"   Data: {result.get('data', 'N/A')}")
+
+
+class TestF29:
+    """Tests de extracción de formularios F29"""
+
+    def test_get_f29_lista(self, sii_client):
+        """Test 8: Obtener lista de formularios F29"""
+        logger.info("=" * 80)
+        logger.info("TEST 8: Get F29 Lista")
+        logger.info("=" * 80)
+
+        # Buscar F29 del año anterior
+        anio = str(datetime.now().year - 1)
+        logger.info(f"   Año: {anio}")
+
+        formularios = sii_client.get_f29_lista(anio=anio)
+
+        assert isinstance(formularios, list), "Resultado debe ser una lista"
+
+        logger.info(f"✅ F29 lista obtenida:")
+        logger.info(f"   Total formularios: {len(formularios)}")
+
+        if formularios:
+            logger.info(f"   Primeros formularios:")
+            for form in formularios[:3]:
+                logger.info(f"      - Folio: {form.get('folio', 'N/A')}, "
+                          f"Período: {form.get('periodo', 'N/A')}, "
+                          f"Tipo: {form.get('tipo', 'N/A')}")
+
+    @pytest.mark.skipif(
+        not os.getenv("SII_TEST_F29_FOLIO"),
+        reason="F29 folio no configurado (SII_TEST_F29_FOLIO)"
+    )
+    def test_get_f29_detalle(self, sii_client):
+        """Test 9: Obtener detalle de un F29 específico"""
+        logger.info("=" * 80)
+        logger.info("TEST 9: Get F29 Detalle")
+        logger.info("=" * 80)
+
+        # Usar folio desde variable de entorno
+        folio = os.getenv("SII_TEST_F29_FOLIO")
+        logger.info(f"   Folio: {folio}")
+
+        resultado = sii_client.get_f29_detalle(folio=folio)
+
+        assert isinstance(resultado, dict), "Resultado debe ser un dict"
+        assert 'status' in resultado, "Debe incluir status"
+
+        logger.info(f"✅ F29 detalle obtenido:")
+        logger.info(f"   Status: {resultado.get('status', 'N/A')}")
+        logger.info(f"   Folio: {resultado.get('folio', 'N/A')}")
+        logger.info(f"   Total campos: {resultado.get('total_campos', 0)}")
+        logger.info(f"   Total subtablas: {resultado.get('total_subtablas', 0)}")
+
+
+if __name__ == "__main__":
+    """
+    Ejecutar tests directamente:
+        python test_real_extraction.py --rut="12345678-9" --password="secret"
+    """
+    # Configurar Django
+    import django
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fizko_django.settings')
+    django.setup()
+
+    # Ejecutar pytest
+    sys.exit(pytest.main([__file__, "-v", "-s"] + sys.argv[1:]))

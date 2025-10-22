@@ -1,0 +1,50 @@
+[project]
+name = "fizko-backend"
+version = "0.1.0"
+description = "Fizko tax/accounting platform backend with multi-agent AI system"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.114.1,<0.116",
+    "httpx>=0.28,<0.29",
+    "uvicorn[standard]>=0.36,<0.37",
+    "openai>=1.40",
+    "openai-chatkit",
+    "python-dotenv>=1.0.0",
+    "asyncpg>=0.29.0",
+    "pyjwt>=2.8.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "requests>=2.31.0",
+    "supabase>=2.0.0",
+    "selenium>=4.0.0",
+    "webdriver-manager>=4.0.0",
+    "psycopg2-binary>=2.9.11",
+    "cryptography>=42.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6.4,<0.7",
+    "mypy>=1.8,<2",
+    "openai-chatkit>=1.0.2,<2",
+]
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["sessions*", "migrations*"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
+[dependency-groups]
+dev = [
+    "ipython>=9.6.0",
+]

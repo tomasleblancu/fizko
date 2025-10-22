@@ -1,0 +1,36 @@
+{
+  "name": "fizko-v2",
+  "version": "2.0.0",
+  "description": "Fizko - Plataforma de gestión tributaria y contable con IA para pequeñas empresas chilenas",
+  "private": true,
+  "scripts": {
+    "start": "concurrently --kill-others-on-fail --names backend,frontend \"npm run backend\" \"npm run frontend\"",
+    "frontend": "npm --prefix frontend install && npm --prefix frontend run dev",
+    "backend": "uv sync --directory backend && uv run --directory backend python -m uvicorn app.main:app --reload --port 8089",
+    "impor-ai": "npm --prefix impor-ai start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/akashi-labs/fizko-v2"
+  },
+  "keywords": [
+    "tax",
+    "accounting",
+    "chile",
+    "sii",
+    "payroll",
+    "AI",
+    "chatbot",
+    "openai",
+    "chatkit"
+  ],
+  "author": "Akashi Labs",
+  "license": "MIT"
+}
