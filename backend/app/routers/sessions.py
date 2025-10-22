@@ -410,30 +410,21 @@ async def save_sii_credentials(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
-    Save SII credentials during onboarding.
+    DEPRECATED: Use /api/sii/auth/login instead.
 
+    This endpoint is kept for backward compatibility but should not be used.
+    The new endpoint /api/sii/auth/login provides better SII integration
+    and real-time data extraction.
+
+    Save SII credentials during onboarding.
     Creates a MOCK active session immediately to allow user to pass onboarding,
     then processes credentials in background to fetch real company data.
 
     The mock company will be updated with real SII data once processed.
     """
-    from ..db.models import Profile
-
-    # Ensure user profile exists
+    # NOTE: Profile creation now handled by database trigger (011_add_profile_trigger.sql)
+    # If profile doesn't exist, it means the trigger hasn't been applied yet
     user_uuid = UUID(user_id)
-    stmt_profile = select(Profile).where(Profile.id == user_uuid)
-    result_profile = await db.execute(stmt_profile)
-    profile = result_profile.scalar_one_or_none()
-
-    if not profile:
-        # Create profile if it doesn't exist
-        # This can happen if user authenticated via Supabase but profile wasn't created
-        profile = Profile(
-            id=user_uuid,
-            email="",  # Will be updated later from Supabase auth
-        )
-        db.add(profile)
-        await db.flush()
 
     # Check if user already has a session
     stmt = select(Session).where(
