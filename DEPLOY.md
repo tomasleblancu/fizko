@@ -193,15 +193,45 @@ curl https://tu-backend.railway.app/health
 
 ### Migraciones de Base de Datos
 
-Las migraciones ya deberían estar aplicadas en Supabase. Si necesitas aplicar nuevas:
+**IMPORTANTE**: Debes aplicar todas las migraciones en Supabase **antes** de que los usuarios empiecen a registrarse.
 
-```bash
-# Desde Railway shell (Tools > Shell)
-cd migrations
-psql $DATABASE_URL -f 001_initial_schema.sql
+#### Aplicar Migraciones en Supabase
+
+1. Ve a **Supabase Dashboard > SQL Editor**
+2. Aplica las migraciones en orden:
+
+```sql
+-- 001_initial_schema.sql (tablas base)
+-- 002_add_sii_password.sql
+-- ...
+-- 011_add_profile_trigger.sql (CRÍTICO - crea perfiles automáticamente)
 ```
 
-O usa Supabase Dashboard > SQL Editor.
+#### Migration 011 - Profile Trigger (CRÍTICO)
+
+La migration `011_add_profile_trigger.sql` es **esencial** porque:
+- ✅ Crea automáticamente un perfil cuando un usuario se registra
+- ✅ Extrae datos de Google OAuth (nombre, avatar, email)
+- ✅ Previene errores cuando la app intenta acceder al perfil
+
+**Si tienes usuarios existentes sin perfil**, descomenta el bloque de BACKFILL en la migration 011 para crearles perfiles.
+
+#### Verificar que el Trigger Funciona
+
+```sql
+-- Verificar que el trigger existe
+SELECT tgname, tgenabled
+FROM pg_trigger
+WHERE tgname = 'on_auth_user_created';
+
+-- Verificar que todos los usuarios tienen perfil
+SELECT
+    COUNT(*) as users_without_profile
+FROM auth.users u
+LEFT JOIN public.profiles p ON p.id = u.id
+WHERE p.id IS NULL;
+-- Debería retornar 0
+```
 
 ### Monitoreo
 
