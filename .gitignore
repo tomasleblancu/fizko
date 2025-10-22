@@ -35,7 +35,8 @@ ENV/
 env/
 
 # Python package manager (uv)
-uv.lock
+# uv.lock should be committed for reproducible builds (like package-lock.json)
+# uv.lock
 .venv/
 
 # IDE
@@ -68,7 +69,7 @@ Thumbs.db
 backend/.venv/
 backend/sessions/
 backend/*.egg-info/
-backend/uv.lock
+# backend/uv.lock  # Commented - uv.lock should be committed
 
 # Frontend specific
 frontend/dist/
