@@ -38,7 +38,10 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY ./app ./app
-COPY ./migrations ./migrations
+
+# Copy migrations if they exist (optional for runtime)
+# Migrations should be applied separately via Supabase SQL Editor
+# COPY ./migrations ./migrations
 
 # Create necessary directories
 RUN mkdir -p /app/sessions /app/chrome-data /app/screenshots
