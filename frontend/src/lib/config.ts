@@ -1,16 +1,17 @@
 import { StartScreenPrompt } from "@openai/chatkit";
 
-export const CHATKIT_API_URL =
-  import.meta.env.VITE_CHATKIT_API_URL ??
-  (import.meta.env.PROD ? "https://fizko-ai.up.railway.app/chatkit" : "/chatkit");
+// Backend URL base - puede ser sobrescrito con VITE_BACKEND_URL
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ??
+  (import.meta.env.PROD ? "https://fizko-ai.up.railway.app" : "");
+
+export const CHATKIT_API_URL = BACKEND_URL ? `${BACKEND_URL}/chatkit` : "/chatkit";
 
 export const CHATKIT_API_DOMAIN_KEY =
   import.meta.env.VITE_CHATKIT_API_DOMAIN_KEY ?? "domain_pk_localhost_dev";
 
 // En producción, usar la URL completa del backend en Railway
 // En desarrollo, usar proxy local
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ??
-  (import.meta.env.PROD ? "https://fizko-ai.up.railway.app/api" : "/api");
+export const API_BASE_URL = BACKEND_URL ? `${BACKEND_URL}/api` : "/api";
 
 export const THEME_STORAGE_KEY = "fizko-theme";
 
