@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 
 interface Period {
@@ -57,25 +56,11 @@ export function PeriodCarousel({ onPeriodChange, onPrefetchPeriod, className }: 
   });
 
   const [periods] = useState<Period[]>(generatePeriods());
-  const [showLeftArrow, setShowLeftArrow] = useState(false);
-  const [showRightArrow, setShowRightArrow] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // Check scroll position to show/hide arrows
-  const checkScrollPosition = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const { scrollLeft, scrollWidth, clientWidth } = container;
-    setShowLeftArrow(scrollLeft > 10);
-    setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 10);
-  }, []);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-
-    checkScrollPosition();
 
     // Scroll to current period on mount
     const currentIndex = periods.findIndex(p => p.key === selectedPeriod.key);
@@ -85,10 +70,7 @@ export function PeriodCarousel({ onPeriodChange, onPrefetchPeriod, className }: 
         button.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       }
     }
-
-    container.addEventListener('scroll', checkScrollPosition);
-    return () => container.removeEventListener('scroll', checkScrollPosition);
-  }, [checkScrollPosition, periods, selectedPeriod.key]);
+  }, [periods, selectedPeriod.key]);
 
   // Notify parent when period changes
   useEffect(() => {
@@ -130,20 +112,6 @@ export function PeriodCarousel({ onPeriodChange, onPrefetchPeriod, className }: 
     }
   };
 
-  const scrollLeft = () => {
-    const container = scrollContainerRef.current;
-    if (container) {
-      container.scrollBy({ left: -200, behavior: 'smooth' });
-    }
-  };
-
-  const scrollRight = () => {
-    const container = scrollContainerRef.current;
-    if (container) {
-      container.scrollBy({ left: 200, behavior: 'smooth' });
-    }
-  };
-
   // Keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'ArrowLeft') {
@@ -167,38 +135,17 @@ export function PeriodCarousel({ onPeriodChange, onPrefetchPeriod, className }: 
   }, [handleKeyDown]);
 
   return (
-    <div className={clsx('relative group', className)}>
-      {/* Left fade gradient */}
-      <div
-        className={clsx(
-          'pointer-events-none absolute left-0 top-0 z-10 h-full w-12 bg-gradient-to-r from-white to-transparent transition-opacity duration-300 dark:from-slate-900',
-          showLeftArrow ? 'opacity-100' : 'opacity-0'
-        )}
-      />
-
-      {/* Left arrow (desktop only) */}
-      <button
-        onClick={scrollLeft}
-        className={clsx(
-          'absolute left-1 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-white p-1.5 shadow-lg transition-all hover:bg-slate-50 hover:shadow-xl lg:block dark:bg-slate-800 dark:hover:bg-slate-700',
-          showLeftArrow ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        )}
-        aria-label="Período anterior"
-      >
-        <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-      </button>
-
-      {/* Scrollable period container */}
+    <div className={clsx('overflow-hidden', className)}>
+      {/* Scrollable period container - NO gap, use margin on items instead */}
       <div
         ref={scrollContainerRef}
-        className="flex gap-2 py-2 scrollbar-hide snap-x snap-mandatory"
+        className="overflow-x-auto py-2 scrollbar-hide"
         style={{
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
-          overflowX: 'scroll',
-          width: '100%',
-          maxWidth: '100%',
-          paddingRight: '16px',
+          WebkitOverflowScrolling: 'touch',
+          display: 'flex',
+          whiteSpace: 'nowrap',
         }}
       >
         {periods.map((period) => {
@@ -210,12 +157,12 @@ export function PeriodCarousel({ onPeriodChange, onPrefetchPeriod, className }: 
               key={period.key}
               onClick={() => handlePeriodClick(period)}
               className={clsx(
-                'snap-center flex-shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 whitespace-nowrap',
+                'inline-block flex-shrink-0 rounded-full px-4 py-2 mr-2 text-sm font-medium transition-all duration-200 whitespace-nowrap',
                 isActive
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 ring-2 ring-blue-400 ring-offset-2 dark:ring-offset-slate-900'
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white ring-2 ring-inset ring-blue-300 dark:ring-blue-400'
                   : isCurrentMonth
                   ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-900/40'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 hover:shadow-md dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
               )}
             >
               {period.label}
@@ -223,26 +170,6 @@ export function PeriodCarousel({ onPeriodChange, onPrefetchPeriod, className }: 
           );
         })}
       </div>
-
-      {/* Right fade gradient */}
-      <div
-        className={clsx(
-          'pointer-events-none absolute right-0 top-0 z-10 h-full w-12 bg-gradient-to-l from-white to-transparent transition-opacity duration-300 dark:from-slate-900',
-          showRightArrow ? 'opacity-100' : 'opacity-0'
-        )}
-      />
-
-      {/* Right arrow (desktop only) */}
-      <button
-        onClick={scrollRight}
-        className={clsx(
-          'absolute right-1 top-1/2 z-20 hidden -translate-y-1/2 rounded-full bg-white p-1.5 shadow-lg transition-all hover:bg-slate-50 hover:shadow-xl lg:block dark:bg-slate-800 dark:hover:bg-slate-700',
-          showRightArrow ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        )}
-        aria-label="Período siguiente"
-      >
-        <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-      </button>
 
       {/* CSS to hide scrollbar */}
       <style>{`

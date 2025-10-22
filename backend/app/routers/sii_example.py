@@ -178,15 +178,17 @@ async def get_ventas_periodo(
 async def get_f29_lista(
     anio: str,
     session_id: int,
+    save_to_db: bool = True,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Obtiene lista de formularios F29 para un año
+    Obtiene lista de formularios F29 para un año y opcionalmente los guarda en DB
 
     Args:
         anio: Año (ej: "2024")
         session_id: ID de la sesión
+        save_to_db: Si True, guarda los formularios en la DB (default: True)
         current_user: Usuario autenticado
         db: Sesión de base de datos
 
@@ -194,34 +196,59 @@ async def get_f29_lista(
         Lista de formularios F29
 
     Example:
-        GET /api/sii/f29/2024?session_id=123
+        GET /api/sii/f29/2024?session_id=123&save_to_db=true
         Response:
         {
             "success": true,
             "data": [
                 {
                     "folio": "123456",
-                    "period": "01-2024",
-                    "contributor": "COMERCIAL ATAL SPA",
+                    "period": "2024-01",
+                    "contributor": "77794858-K",
                     "submission_date": "15/02/2024",
                     "status": "Vigente",
-                    "amount": 50000
+                    "amount": 50000,
+                    "id_interno_sii": "775148628"
                 }
             ],
-            "total_forms": 12
+            "total_forms": 12,
+            "saved_to_db": true,
+            "saved_count": 12
         }
     """
     try:
+        from sqlalchemy import select
+        from app.db.models import Session as SessionModel
+
         service = SIIService(db)
+
+        # Extraer formularios del SII
         formularios = await service.extract_f29_lista(
             session_id=session_id,
             anio=anio
         )
 
+        saved_count = 0
+        if save_to_db and formularios:
+            # Obtener company_id de la sesión
+            stmt = select(SessionModel).where(SessionModel.id == session_id)
+            result = await db.execute(stmt)
+            session = result.scalar_one_or_none()
+
+            if session:
+                # Guardar en la base de datos
+                saved_downloads = await service.save_f29_downloads(
+                    company_id=str(session.company_id),
+                    formularios=formularios
+                )
+                saved_count = len(saved_downloads)
+
         return {
             "success": True,
             "data": formularios,
             "total_forms": len(formularios),
+            "saved_to_db": save_to_db,
+            "saved_count": saved_count,
             "timestamp": datetime.utcnow().isoformat()
         }
 

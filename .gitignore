@@ -47,6 +47,10 @@ env/
 *~
 .DS_Store
 
+# MCP (Model Context Protocol)
+.mcp/
+.mcp.json
+
 # Logs
 logs/
 *.log

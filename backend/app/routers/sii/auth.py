@@ -11,8 +11,8 @@ from datetime import datetime
 from uuid import UUID
 
 from ...config.database import get_db
-from ...db.models import Company, CompanyTaxInfo, Session as SessionModel
-from ...dependencies import get_current_user_id, require_auth
+from ...db.models import Company, CompanyTaxInfo, Profile, Session as SessionModel
+from ...dependencies import get_current_user_id, require_auth, get_current_user
 
 router = APIRouter(
     prefix="/auth",
@@ -57,12 +57,14 @@ class SIILoginResponse(BaseModel):
 async def sii_login_and_setup(
     request: SIILoginRequest,
     current_user_id: UUID = Depends(get_current_user_id),
+    user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Endpoint completo de login SII y setup de compañía
 
     Flujo:
+    0. **NUEVO**: Crea perfil de usuario si no existe (usando datos de OAuth)
     1. Autentica con el SII usando RUT y password
     2. Extrae información del contribuyente
     3. Busca o crea la compañía en la DB
@@ -73,6 +75,7 @@ async def sii_login_and_setup(
     Args:
         request: RUT y password del SII
         current_user_id: ID del usuario autenticado (desde JWT)
+        user: Datos completos del usuario desde JWT (email, metadata, etc.)
         db: Sesión de base de datos
 
     Returns:
@@ -101,6 +104,52 @@ async def sii_login_and_setup(
             "contribuyente_info": {...}
         }
     """
+
+    # ========================================================================
+    # PASO 0: Crear perfil de usuario si no existe
+    # ========================================================================
+
+    # Check if profile exists
+    stmt = select(Profile).where(Profile.id == current_user_id)
+    result = await db.execute(stmt)
+    profile = result.scalar_one_or_none()
+
+    if not profile:
+        # Extract user data from JWT payload
+        # Supabase JWT contains: sub, email, user_metadata (from OAuth)
+        email = user.get("email", "")
+        user_metadata = user.get("user_metadata", {})
+        full_name = user_metadata.get("full_name", "")
+
+        # Split full_name into name and lastname
+        if full_name:
+            parts = full_name.split(" ", 1)
+            name = parts[0]
+            lastname = parts[1] if len(parts) > 1 else ""
+        else:
+            name = ""
+            lastname = ""
+
+        # Extract other fields from OAuth metadata
+        phone = user_metadata.get("phone")
+        avatar_url = user_metadata.get("avatar_url") or user_metadata.get("picture")
+
+        # Create profile
+        profile = Profile(
+            id=current_user_id,
+            email=email,
+            full_name=full_name,
+            name=name,
+            lastname=lastname,
+            phone=phone,
+            avatar_url=avatar_url,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(profile)
+        await db.flush()  # Ensure profile is created before continuing
+
+        print(f"[SII Auth] Created profile for user {current_user_id} during onboarding")
 
     # ========================================================================
     # PASO 1: Autenticar con el SII y extraer datos del contribuyente
@@ -153,8 +202,9 @@ async def sii_login_and_setup(
     # PASO 2: Buscar o crear Company en la DB
     # ========================================================================
 
-    # Normalizar RUT para búsqueda (mayúsculas)
-    rut_normalized = request.rut.upper()
+    # Normalizar RUT para búsqueda (minúsculas, sin puntos ni guiones)
+    # Ejemplo: "77.794.858-k" -> "77794858k"
+    rut_normalized = request.rut.replace(".", "").replace("-", "").lower()
 
     # Buscar compañía existente
     stmt = select(Company).where(Company.rut == rut_normalized)

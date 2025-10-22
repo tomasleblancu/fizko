@@ -16,6 +16,7 @@ from .specialized import (
     create_importaciones_agent,
     create_contabilidad_agent,
     create_f29_agent,
+    create_operacion_renta_agent,
 )
 from .triage_agent import create_triage_agent
 
@@ -27,7 +28,7 @@ class MultiAgentOrchestrator:
     Orchestrator for the multi-agent Fizko system.
 
     This class manages:
-    - Creation of all agents (Triage + 6 specialized agents)
+    - Creation of all agents (Triage + 7 specialized agents)
     - Handoff configuration between agents
     - Agent lifecycle and state management
     """
@@ -88,6 +89,11 @@ class MultiAgentOrchestrator:
             openai_client=self.openai_client,
         )
 
+        self.agents["operacion_renta_agent"] = create_operacion_renta_agent(
+            db=self.db,
+            openai_client=self.openai_client,
+        )
+
         total_init_time = time.time() - init_start
         logger.info(
             f"Initialized {len(self.agents)} agents: {', '.join(list(self.agents.keys()))}"
@@ -109,6 +115,7 @@ class MultiAgentOrchestrator:
             self.agents["importaciones_agent"],
             self.agents["contabilidad_agent"],
             self.agents["f29_agent"],
+            self.agents["operacion_renta_agent"],
         ]
 
         logger.info(

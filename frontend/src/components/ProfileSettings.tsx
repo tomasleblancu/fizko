@@ -67,16 +67,17 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
   }
 
   // Desktop view - similar structure to FinancialDashboard
+  // Styles are now in the wrapper container in Home.tsx (matching ChatKit pattern)
   return (
-    <section className="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200/60 bg-white/80 shadow-xl ring-1 ring-slate-200/60 backdrop-blur dark:border-slate-800/70 dark:bg-slate-900/70 dark:shadow-2xl dark:ring-slate-800/60">
+    <section className="flex h-full w-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-slate-200/60 p-6 dark:border-slate-800/60">
+      <div className="flex-shrink-0 border-b border-slate-200/70 bg-white/50 px-6 py-3 backdrop-blur dark:border-slate-800/70 dark:bg-slate-900/50">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               Configuración
             </h2>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
               Administra tu perfil y preferencias
             </p>
           </div>
@@ -84,7 +85,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
             <button
               onClick={onNavigateBack}
               className={clsx(
-                "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                 "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
               )}
             >

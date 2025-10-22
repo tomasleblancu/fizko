@@ -150,10 +150,15 @@ export function useSession() {
         updated_at: result.session.last_accessed_at || new Date().toISOString(),
       });
       setNeedsOnboarding(false);
+      setLoading(false);
+
+      // Force a refresh after successful onboarding to ensure state is in sync
+      console.log('[useSession] Onboarding complete, refreshing session...');
+      await fetchSession(true);
     }
 
     return result;
-  }, [authSession]);
+  }, [authSession, fetchSession]);
 
   useEffect(() => {
     fetchSession();

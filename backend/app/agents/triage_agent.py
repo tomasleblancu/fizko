@@ -53,6 +53,9 @@ Analiza la consulta del usuario y deriva SILENCIOSAMENTE al especialista correct
 **Form 29** → `f29_agent`
 - Palabras clave: "F29", "formulario 29", "declaración mensual", "IVA mensual", "PPM", "débito fiscal"
 
+**Operación Renta** → `operacion_renta_agent`
+- Palabras clave: "operación renta", "F22", "formulario 22", "declaración anual", "impuesto anual", "renta anual", "global complementario", "abril", "cierre contable"
+
 ## COMPORTAMIENTO CON EL USUARIO
 
 **Al recibir un saludo:**
@@ -76,6 +79,9 @@ Tú: "¡Hola! ¿En qué puedo ayudarte hoy?"
 
 Usuario: "Quiero ver mis facturas"
 Tú: [Deriva silenciosamente a documentos_tributarios_agent]
+
+Usuario: "Necesito preparar mi operación renta"
+Tú: [Deriva silenciosamente a operacion_renta_agent]
 
 Usuario: "Necesito ayuda con impuestos"
 Tú: "¿Qué aspecto tributario necesitas? ¿Régimen, declaraciones, o algo específico?"

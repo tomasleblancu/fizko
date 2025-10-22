@@ -26,17 +26,20 @@ export function CompanyInfoCard({ company, loading, scheme }: CompanyInfoCardPro
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-gradient-to-br from-blue-50 to-purple-50 p-6 dark:border-slate-800/70 dark:from-blue-950/30 dark:to-purple-950/30">
+    <div className="rounded-2xl border border-slate-200/70 bg-gradient-to-br from-blue-50 to-purple-50 p-3 dark:border-slate-800/70 dark:from-blue-950/30 dark:to-purple-950/30">
       {/* Company Info */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-lg">
-          <Building2 className="h-6 w-6" />
+      <div className="flex items-center gap-2.5">
+        {/* Desktop: Show icon */}
+        <div className="hidden lg:flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-md">
+          <Building2 className="h-4 w-4" />
         </div>
         <div className="flex-1">
-          <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+          {/* Mobile: Simplified - only company name */}
+          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
             {company.business_name}
           </h3>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          {/* Desktop: Show RUT */}
+          <p className="hidden lg:block text-xs text-slate-600 dark:text-slate-400">
             RUT: {company.rut}
           </p>
         </div>

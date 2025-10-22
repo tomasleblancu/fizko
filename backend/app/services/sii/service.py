@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, update
 
 from app.integrations.sii import SIIClient
-from app.db.models import Session as SessionModel, Company
+from app.db.models import Session as SessionModel, Company, Form29SIIDownload
 from app.integrations.sii.exceptions import (
     AuthenticationError,
     ExtractionError,
@@ -486,6 +486,106 @@ class SIIService:
 
         except AuthenticationError:
             return await self.extract_f29_lista(session_id, anio)
+
+    async def save_f29_downloads(
+        self,
+        company_id: str,
+        formularios: List[Dict[str, Any]]
+    ) -> List[Form29SIIDownload]:
+        """
+        Guarda/actualiza formularios F29 descargados del SII en la base de datos
+
+        Args:
+            company_id: UUID de la compañía
+            formularios: Lista de formularios F29 retornados por el SII
+
+        Returns:
+            Lista de Form29SIIDownload creados/actualizados
+
+        Example formulario dict:
+            {
+                "folio": "7904207766",
+                "period": "2024-01",
+                "contributor": "77794858-K",
+                "submission_date": "09/05/2024",
+                "status": "Vigente",
+                "amount": 42443,
+                "id_interno_sii": "775148628"  # Optional
+            }
+        """
+        saved_downloads = []
+
+        for formulario in formularios:
+            try:
+                # Parsear período (formato "YYYY-MM")
+                period_parts = formulario['period'].split('-')
+                period_year = int(period_parts[0])
+                period_month = int(period_parts[1])
+
+                # Parsear fecha de envío (formato "DD/MM/YYYY" -> date)
+                submission_date = None
+                if formulario.get('submission_date'):
+                    try:
+                        date_parts = formulario['submission_date'].split('/')
+                        submission_date = datetime(
+                            int(date_parts[2]),  # year
+                            int(date_parts[1]),  # month
+                            int(date_parts[0])   # day
+                        ).date()
+                    except (ValueError, IndexError) as e:
+                        logger.warning(f"Failed to parse submission_date: {e}")
+
+                # Buscar si ya existe
+                stmt = select(Form29SIIDownload).where(
+                    Form29SIIDownload.company_id == company_id,
+                    Form29SIIDownload.sii_folio == formulario['folio']
+                )
+                result = await self.db.execute(stmt)
+                existing = result.scalar_one_or_none()
+
+                if existing:
+                    # Actualizar registro existente
+                    existing.period_year = period_year
+                    existing.period_month = period_month
+                    existing.period_display = formulario['period']
+                    existing.contributor_rut = formulario['contributor']
+                    existing.submission_date = submission_date
+                    existing.status = formulario['status']
+                    existing.amount_cents = formulario['amount']
+                    existing.sii_id_interno = formulario.get('id_interno_sii')
+
+                    logger.debug(f"Updated F29 download: folio={formulario['folio']}")
+                    saved_downloads.append(existing)
+                else:
+                    # Crear nuevo registro
+                    download = Form29SIIDownload(
+                        company_id=company_id,
+                        sii_folio=formulario['folio'],
+                        sii_id_interno=formulario.get('id_interno_sii'),
+                        period_year=period_year,
+                        period_month=period_month,
+                        period_display=formulario['period'],
+                        contributor_rut=formulario['contributor'],
+                        submission_date=submission_date,
+                        status=formulario['status'],
+                        amount_cents=formulario['amount']
+                    )
+                    self.db.add(download)
+                    logger.debug(f"Created F29 download: folio={formulario['folio']}")
+                    saved_downloads.append(download)
+
+            except Exception as e:
+                logger.error(f"Error saving F29 download for folio {formulario.get('folio')}: {e}")
+                continue
+
+        # Commit todos los cambios
+        if self.is_async:
+            await self.db.commit()
+        else:
+            self.db.commit()
+
+        logger.info(f"✅ Saved {len(saved_downloads)} F29 downloads for company {company_id}")
+        return saved_downloads
 
 
 # Funciones helper para usar en routers

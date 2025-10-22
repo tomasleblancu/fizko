@@ -237,10 +237,12 @@ export function ChatKitPanel({
   );
 
   // Memoize static configurations
+  // Disable prompts on mobile to prevent click conflicts with input
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
   const startScreenConfig = useMemo(
     () => ({
       greeting: GREETING,
-      prompts: STARTER_PROMPTS,
+      prompts: isMobile ? [] : STARTER_PROMPTS,
     }),
     []
   );
@@ -316,14 +318,14 @@ export function ChatKitPanel({
   const blockingError = errors.script ?? activeError;
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-white shadow-lg transition-colors dark:bg-slate-900">
+    <div className="relative flex h-full w-full flex-col overflow-hidden">
       <ChatKit
         key={`${widgetInstanceKey}-${currentCompanyId || "no-company"}`}
         control={chatkit.control}
         className={
           blockingError || isInitializingSession
             ? "pointer-events-none opacity-0"
-            : "block h-full w-full"
+            : "h-full w-full"
         }
       />
       <ErrorOverlay
