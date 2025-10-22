@@ -43,7 +43,11 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend domain
+    allow_origins=[
+        "http://localhost:5171",  # Local development
+        "http://127.0.0.1:5171",  # Local development
+        "https://fizko-ai-mr.vercel.app",  # Production frontend
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
