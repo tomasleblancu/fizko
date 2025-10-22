@@ -52,12 +52,12 @@ ENV PORT=8000
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
-# Expose port
+# Expose port (Railway will override with its own PORT)
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# Health check (disabled in Railway, using Railway's healthcheck instead)
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+#     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run FastAPI with uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run FastAPI with uvicorn using shell form to allow variable expansion
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
