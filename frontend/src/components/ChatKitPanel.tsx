@@ -237,12 +237,10 @@ export function ChatKitPanel({
   );
 
   // Memoize static configurations
-  // Disable prompts on mobile to prevent click conflicts with input
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
   const startScreenConfig = useMemo(
     () => ({
       greeting: GREETING,
-      prompts: isMobile ? [] : STARTER_PROMPTS,
+      prompts: STARTER_PROMPTS,
     }),
     []
   );

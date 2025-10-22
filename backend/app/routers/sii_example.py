@@ -9,6 +9,7 @@ from datetime import datetime
 
 from app.services.sii import SIIService
 from app.database import get_db
+from app.config.database import AsyncSessionLocal
 from app.auth import get_current_user
 from app.models import User
 
@@ -256,6 +257,235 @@ async def get_f29_lista(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error extracting F29: {str(e)}")
+
+
+# ============================================================================
+# Endpoints de Descarga de PDFs de F29
+# ============================================================================
+
+@router.post("/f29/download-pdf/{download_id}")
+async def download_f29_pdf(
+    download_id: str,
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Descarga el PDF de un F29 y lo guarda en Supabase Storage
+
+    Args:
+        download_id: UUID del registro Form29SIIDownload
+        session_id: ID de la sesión
+        current_user: Usuario autenticado
+        db: Sesión de base de datos
+
+    Returns:
+        Resultado de la descarga con URL del PDF
+
+    Example:
+        POST /api/sii/f29/download-pdf/550e8400-e29b-41d4-a716-446655440000?session_id=123
+        Response:
+        {
+            "success": true,
+            "url": "https://...storage.supabase.co/...",
+            "size_mb": 0.15,
+            "validation_msg": "PDF appears to be a valid F29"
+        }
+    """
+    try:
+        service = SIIService(db)
+
+        result = await service.download_and_save_f29_pdf(
+            download_id=download_id,
+            session_id=session_id
+        )
+
+        if not result["success"]:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", "Failed to download PDF")
+            )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error downloading PDF: {str(e)}")
+
+
+@router.post("/f29/download-pdfs-batch")
+async def download_f29_pdfs_batch(
+    session_id: int,
+    year: int,
+    background_tasks: BackgroundTasks = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Descarga PDFs de todos los F29 de un año en batch (background task)
+
+    Args:
+        session_id: ID de la sesión
+        year: Año de los formularios
+        background_tasks: Background tasks de FastAPI
+        current_user: Usuario autenticado
+        db: Sesión de base de datos
+
+    Returns:
+        Información sobre el proceso iniciado
+
+    Example:
+        POST /api/sii/f29/download-pdfs-batch?session_id=123&year=2024
+        Response:
+        {
+            "success": true,
+            "message": "Batch download initiated for 12 PDFs",
+            "total_pending": 12,
+            "year": 2024
+        }
+    """
+    try:
+        from sqlalchemy import select
+        from app.db.models import Session as SessionModel, Form29SIIDownload
+
+        # Obtener company_id de la sesión
+        stmt = select(SessionModel).where(SessionModel.id == session_id)
+        result = await db.execute(stmt)
+        session = result.scalar_one_or_none()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Buscar F29 pendientes de descarga
+        stmt = select(Form29SIIDownload).where(
+            Form29SIIDownload.company_id == session.company_id,
+            Form29SIIDownload.period_year == year,
+            Form29SIIDownload.pdf_download_status == "pending",
+            Form29SIIDownload.sii_id_interno.isnot(None)  # Solo los que tienen ID
+        )
+
+        result = await db.execute(stmt)
+        pending_downloads = result.scalars().all()
+
+        if not pending_downloads:
+            return {
+                "success": True,
+                "message": "No pending PDFs to download",
+                "total_pending": 0,
+                "year": year
+            }
+
+        # Agregar task en background para cada PDF
+        async def download_pdf_task(download_id: str):
+            async with AsyncSessionLocal() as task_db:
+                service = SIIService(task_db)
+                result = await service.download_and_save_f29_pdf(
+                    download_id=str(download_id),
+                    session_id=session_id
+                )
+                logger.info(f"Background PDF download: {result}")
+
+        # Agregar todas las descargas al background
+        for download in pending_downloads:
+            if background_tasks:
+                background_tasks.add_task(download_pdf_task, download.id)
+
+        return {
+            "success": True,
+            "message": f"Batch download initiated for {len(pending_downloads)} PDFs",
+            "total_pending": len(pending_downloads),
+            "year": year
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error initiating batch download: {str(e)}")
+
+
+@router.get("/f29/download-status/{company_id}")
+async def get_f29_download_status(
+    company_id: str,
+    year: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Obtiene el estado de descarga de PDFs de F29
+
+    Args:
+        company_id: UUID de la compañía
+        year: Año opcional para filtrar
+        current_user: Usuario autenticado
+        db: Sesión de base de datos
+
+    Returns:
+        Estadísticas de descarga
+
+    Example:
+        GET /api/sii/f29/download-status/550e8400-e29b-41d4-a716-446655440000?year=2024
+        Response:
+        {
+            "success": true,
+            "total": 12,
+            "downloaded": 9,
+            "pending": 0,
+            "error": 3,
+            "downloads": [...]
+        }
+    """
+    try:
+        from uuid import UUID
+        from app.db.models import Form29SIIDownload
+
+        # Construir query
+        stmt = select(Form29SIIDownload).where(
+            Form29SIIDownload.company_id == UUID(company_id)
+        )
+
+        if year:
+            stmt = stmt.where(Form29SIIDownload.period_year == year)
+
+        stmt = stmt.order_by(
+            Form29SIIDownload.period_year,
+            Form29SIIDownload.period_month
+        )
+
+        result = await db.execute(stmt)
+        downloads = result.scalars().all()
+
+        # Calcular estadísticas
+        total = len(downloads)
+        downloaded = sum(1 for d in downloads if d.pdf_download_status == "downloaded")
+        pending = sum(1 for d in downloads if d.pdf_download_status == "pending")
+        error = sum(1 for d in downloads if d.pdf_download_status == "error")
+
+        # Serializar downloads
+        downloads_data = []
+        for d in downloads:
+            downloads_data.append({
+                "id": str(d.id),
+                "folio": d.sii_folio,
+                "period": d.period_display,
+                "status": d.pdf_download_status,
+                "has_id_interno": d.sii_id_interno is not None,
+                "pdf_url": d.pdf_storage_url,
+                "error": d.pdf_download_error,
+                "downloaded_at": d.pdf_downloaded_at.isoformat() if d.pdf_downloaded_at else None
+            })
+
+        return {
+            "success": True,
+            "total": total,
+            "downloaded": downloaded,
+            "pending": pending,
+            "error": error,
+            "downloads": downloads_data
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting download status: {str(e)}")
 
 
 # ============================================================================

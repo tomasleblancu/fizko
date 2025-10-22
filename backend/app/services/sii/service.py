@@ -587,6 +587,196 @@ class SIIService:
         logger.info(f"✅ Saved {len(saved_downloads)} F29 downloads for company {company_id}")
         return saved_downloads
 
+    async def download_and_save_f29_pdf(
+        self,
+        download_id: str,
+        session_id: int,
+        max_retries: int = 2
+    ) -> Dict[str, Any]:
+        """
+        Descarga el PDF de un F29 desde el SII y lo guarda en Supabase Storage
+
+        Args:
+            download_id: UUID del registro Form29SIIDownload
+            session_id: ID de la sesión para autenticación
+            max_retries: Número máximo de reintentos
+
+        Returns:
+            Dict con status, url y mensaje
+
+        Example:
+            >>> result = await service.download_and_save_f29_pdf(
+            ...     download_id="550e8400-e29b-41d4-a716-446655440000",
+            ...     session_id=123
+            ... )
+            >>> if result['success']:
+            ...     print(f"PDF guardado en: {result['url']}")
+        """
+        from uuid import UUID
+        from app.services.storage import get_pdf_storage
+        from app.utils.pdf_validator import is_valid_f29_pdf, get_pdf_size_mb
+
+        try:
+            # 1. Obtener el registro de descarga
+            stmt = select(Form29SIIDownload).where(
+                Form29SIIDownload.id == UUID(download_id)
+            )
+            result = await self.db.execute(stmt)
+            download = result.scalar_one_or_none()
+
+            if not download:
+                return {
+                    "success": False,
+                    "error": f"Download record not found: {download_id}"
+                }
+
+            # 2. Verificar que tiene id_interno_sii
+            if not download.sii_id_interno:
+                # Actualizar estado
+                download.pdf_download_status = "error"
+                download.pdf_download_error = "No id_interno_sii available for PDF download"
+                await self.db.commit()
+
+                return {
+                    "success": False,
+                    "error": "Cannot download PDF: missing id_interno_sii"
+                }
+
+            logger.info(f"📥 Downloading PDF for F29: folio={download.sii_folio}, period={download.period_display}")
+
+            # 3. Descargar PDF desde SII (con reintentos)
+            pdf_bytes = None
+            last_error = None
+
+            for attempt in range(max_retries):
+                try:
+                    # Función sincrónica que ejecuta Selenium
+                    def _download_pdf():
+                        creds = self._get_stored_credentials_sync(session_id)
+                        if not creds:
+                            raise ValueError(f"Session {session_id} not found")
+
+                        with SIIClient(
+                            tax_id=creds["rut"],
+                            password=creds["password"],
+                            cookies=creds.get("cookies"),
+                            headless=True
+                        ) as client:
+                            # Login fresco para F29
+                            client.login(force_new=True)
+
+                            # Descargar PDF
+                            pdf = client.get_f29_compacto(
+                                folio=download.sii_folio,
+                                id_interno_sii=download.sii_id_interno
+                            )
+
+                            # Actualizar cookies
+                            updated_cookies = client.get_cookies()
+                            self._save_cookies_sync(session_id, updated_cookies)
+
+                            return pdf
+
+                    # Ejecutar en thread
+                    pdf_bytes = await asyncio.to_thread(_download_pdf)
+
+                    if pdf_bytes:
+                        break  # Éxito, salir del loop
+
+                except Exception as e:
+                    last_error = str(e)
+                    logger.warning(f"⚠️ Attempt {attempt + 1} failed: {e}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(5)  # Esperar antes de reintentar
+
+            if not pdf_bytes:
+                error_msg = f"Failed to download PDF after {max_retries} attempts: {last_error}"
+                download.pdf_download_status = "error"
+                download.pdf_download_error = error_msg
+                await self.db.commit()
+
+                return {
+                    "success": False,
+                    "error": error_msg
+                }
+
+            # 4. Validar PDF
+            is_valid, validation_msg = is_valid_f29_pdf(pdf_bytes)
+            pdf_size_mb = get_pdf_size_mb(pdf_bytes)
+
+            logger.info(f"📄 PDF downloaded: {len(pdf_bytes)} bytes ({pdf_size_mb:.2f}MB)")
+            logger.info(f"🔍 Validation: {validation_msg}")
+
+            if not is_valid:
+                error_msg = f"Invalid PDF: {validation_msg}"
+                download.pdf_download_status = "error"
+                download.pdf_download_error = error_msg
+                await self.db.commit()
+
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "validation_msg": validation_msg
+                }
+
+            # 5. Subir a Supabase Storage
+            storage = get_pdf_storage()
+
+            success, storage_url, storage_error = storage.upload_pdf(
+                company_id=download.company_id,
+                year=download.period_year,
+                period=download.period_display,
+                folio=download.sii_folio,
+                pdf_bytes=pdf_bytes
+            )
+
+            if not success:
+                error_msg = f"Failed to upload PDF to storage: {storage_error}"
+                download.pdf_download_status = "error"
+                download.pdf_download_error = error_msg
+                await self.db.commit()
+
+                return {
+                    "success": False,
+                    "error": error_msg
+                }
+
+            # 6. Actualizar registro en DB
+            download.pdf_storage_url = storage_url
+            download.pdf_download_status = "downloaded"
+            download.pdf_download_error = None
+            download.pdf_downloaded_at = datetime.utcnow()
+
+            await self.db.commit()
+
+            logger.info(f"✅ PDF successfully downloaded and stored: {storage_url}")
+
+            return {
+                "success": True,
+                "url": storage_url,
+                "size_mb": pdf_size_mb,
+                "validation_msg": validation_msg
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Unexpected error downloading PDF: {e}")
+            import traceback
+            traceback.print_exc()
+
+            # Intentar actualizar estado de error
+            try:
+                if download:
+                    download.pdf_download_status = "error"
+                    download.pdf_download_error = str(e)
+                    await self.db.commit()
+            except:
+                pass
+
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
 
 # Funciones helper para usar en routers
 async def get_sii_service(db: AsyncSession) -> SIIService:
