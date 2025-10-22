@@ -161,7 +161,7 @@ export default function AdminCompanyView() {
       setF29SyncMessage(`Sincronizando F29 del año ${year}...`);
 
       const response = await fetch(
-        `${API_BASE_URL}/sii/f29/sync/${year}?session_id=${activeSession.session_id}&download_pdfs=true`,
+        `${API_BASE_URL}/sii/sync/f29/${year}?session_id=${activeSession.session_id}`,
         {
           method: 'POST',
           headers: {
@@ -179,15 +179,14 @@ export default function AdminCompanyView() {
       const data = await response.json();
 
       setF29SyncMessage(
-        `✅ Sincronización F29 completada: ${data.forms_synced} formularios sincronizados. ` +
-        `${data.pdfs_pending} PDFs descargándose en segundo plano.`
+        `✅ ${data.message || `${data.forms_synced} formularios F29 sincronizados exitosamente`}`
       );
 
       // Clear message after 10 seconds
       setTimeout(() => setF29SyncMessage(null), 10000);
     } catch (err) {
       setF29SyncMessage(
-        err instanceof Error ? err.message : 'Error al sincronizar F29'
+        `❌ ${err instanceof Error ? err.message : 'Error al sincronizar F29'}`
       );
     } finally {
       setSyncingF29(false);

@@ -17,6 +17,7 @@ from ...config.database import get_db
 from ...db.models import Session as SessionModel
 from ...dependencies import get_current_user_id, require_auth
 from ...services.sii.sync_service import SIISyncService
+from ...services.sii import SIIService
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +164,137 @@ async def sync_documents(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error en sincronización: {str(e)}"
+        )
+
+
+# ============================================================================
+# F29 Sync
+# ============================================================================
+
+@router.post("/f29/{year}")
+async def sync_f29_for_year(
+    year: int,
+    session_id: UUID,
+    current_user_id: UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Sincroniza formularios F29 del SII para un año específico
+
+    Extrae la lista de F29s desde el portal SII y los guarda en la base de datos.
+    No descarga PDFs automáticamente.
+
+    Args:
+        year: Año a sincronizar (ej: 2024)
+        session_id: ID de la sesión SII activa
+        current_user_id: ID del usuario autenticado
+        db: Sesión de base de datos
+
+    Returns:
+        Resultado de la sincronización con estadísticas
+
+    Example:
+        POST /api/sii/sync/f29/2024?session_id=550e8400-e29b-41d4-a716-446655440000
+
+        Response:
+        {
+            "success": true,
+            "forms_synced": 12,
+            "year": 2024,
+            "company_id": "...",
+            "message": "12 formularios F29 sincronizados exitosamente"
+        }
+    """
+    logger.info(
+        f"🔄 F29 sync requested by user {current_user_id}: "
+        f"session={session_id}, year={year}"
+    )
+
+    # Validar que la sesión pertenece al usuario actual y está activa
+    stmt = select(SessionModel).where(SessionModel.id == session_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+
+    if not session:
+        logger.warning(f"⚠️ Session {session_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sesión {session_id} no encontrada"
+        )
+
+    # Convertir current_user_id a UUID si es string
+    if isinstance(current_user_id, str):
+        from uuid import UUID as UUIDType
+        current_user_id = UUIDType(current_user_id)
+
+    if session.user_id != current_user_id:
+        logger.warning(
+            f"⚠️ User {current_user_id} attempted to sync session {session_id} "
+            f"belonging to user {session.user_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para sincronizar esta sesión"
+        )
+
+    if not session.is_active:
+        logger.warning(f"⚠️ Session {session_id} is not active")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La sesión no está activa. Por favor, vuelve a autenticarte con el SII."
+        )
+
+    try:
+        service = SIIService(db)
+
+        # Extraer formularios del SII
+        formularios = await service.extract_f29_lista(
+            session_id=str(session_id),
+            anio=str(year)
+        )
+
+        if not formularios:
+            logger.info(f"No F29 forms found for year {year}")
+            return {
+                "success": True,
+                "forms_synced": 0,
+                "year": year,
+                "company_id": str(session.company_id),
+                "message": f"No se encontraron formularios F29 para el año {year}"
+            }
+
+        # Guardar en la base de datos
+        saved_downloads = await service.save_f29_downloads(
+            company_id=str(session.company_id),
+            formularios=formularios
+        )
+
+        # Commit de cambios
+        await db.commit()
+
+        logger.info(f"✅ F29 sync completed: {len(saved_downloads)} forms synced")
+
+        return {
+            "success": True,
+            "forms_synced": len(saved_downloads),
+            "year": year,
+            "company_id": str(session.company_id),
+            "message": f"{len(saved_downloads)} formularios F29 sincronizados exitosamente"
+        }
+
+    except ValueError as e:
+        await db.rollback()
+        logger.error(f"❌ F29 sync validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"❌ F29 sync failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al sincronizar F29: {str(e)}"
         )
 
 
