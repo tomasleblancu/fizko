@@ -259,6 +259,123 @@ async def get_f29_lista(
         raise HTTPException(status_code=500, detail=f"Error extracting F29: {str(e)}")
 
 
+@router.post("/f29/sync/{year}")
+async def sync_f29_for_year(
+    year: int,
+    session_id: int,
+    download_pdfs: bool = True,
+    background_tasks: BackgroundTasks = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Sincronización completa de F29: Extrae lista del SII y opcionalmente descarga PDFs
+
+    Args:
+        year: Año a sincronizar (ej: 2024)
+        session_id: ID de la sesión
+        download_pdfs: Si True, descarga PDFs en background (default: True)
+        background_tasks: Background tasks de FastAPI
+        current_user: Usuario autenticado
+        db: Sesión de base de datos
+
+    Returns:
+        Resultado de la sincronización
+
+    Example:
+        POST /api/sii/f29/sync/2024?session_id=123&download_pdfs=true
+        Response:
+        {
+            "success": true,
+            "forms_synced": 12,
+            "pdfs_pending": 9,
+            "message": "F29 sync completed. PDF downloads initiated in background."
+        }
+    """
+    try:
+        from sqlalchemy import select
+        from app.db.models import Session as SessionModel
+
+        service = SIIService(db)
+
+        # 1. Extraer formularios del SII
+        formularios = await service.extract_f29_lista(
+            session_id=session_id,
+            anio=str(year)
+        )
+
+        if not formularios:
+            return {
+                "success": True,
+                "forms_synced": 0,
+                "pdfs_pending": 0,
+                "message": f"No F29 forms found for year {year}"
+            }
+
+        # 2. Obtener company_id de la sesión
+        stmt = select(SessionModel).where(SessionModel.id == session_id)
+        result = await db.execute(stmt)
+        session = result.scalar_one_or_none()
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # 3. Guardar en la base de datos
+        saved_downloads = await service.save_f29_downloads(
+            company_id=str(session.company_id),
+            formularios=formularios
+        )
+
+        # 4. Iniciar descargas de PDFs en background si se solicita
+        pdfs_pending = 0
+        if download_pdfs:
+            from app.db.models import Form29SIIDownload
+
+            # Buscar F29 pendientes con id_interno_sii
+            stmt = select(Form29SIIDownload).where(
+                Form29SIIDownload.company_id == session.company_id,
+                Form29SIIDownload.period_year == year,
+                Form29SIIDownload.pdf_download_status == "pending",
+                Form29SIIDownload.sii_id_interno.isnot(None)
+            )
+
+            result = await db.execute(stmt)
+            pending_downloads = result.scalars().all()
+            pdfs_pending = len(pending_downloads)
+
+            # Agregar task en background para cada PDF
+            async def download_pdf_task(download_id: str):
+                from app.config.database import AsyncSessionLocal
+                async with AsyncSessionLocal() as task_db:
+                    task_service = SIIService(task_db)
+                    result = await task_service.download_and_save_f29_pdf(
+                        download_id=str(download_id),
+                        session_id=session_id
+                    )
+                    logger.info(f"Background PDF download: {result}")
+
+            # Agregar todas las descargas al background
+            for download in pending_downloads:
+                if background_tasks:
+                    background_tasks.add_task(download_pdf_task, download.id)
+
+        return {
+            "success": True,
+            "forms_synced": len(saved_downloads),
+            "pdfs_pending": pdfs_pending,
+            "message": f"F29 sync completed. {pdfs_pending} PDF downloads initiated in background." if download_pdfs else "F29 sync completed without PDF downloads.",
+            "year": year,
+            "company_id": str(session.company_id)
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error syncing F29: {str(e)}")
+
+
 # ============================================================================
 # Endpoints de Descarga de PDFs de F29
 # ============================================================================

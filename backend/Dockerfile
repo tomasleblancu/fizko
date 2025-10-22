@@ -49,18 +49,17 @@ RUN mkdir -p /app/sessions /app/chrome-data /app/screenshots
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV PORT=8000
 
 # Chrome settings for headless mode
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
-# Expose port
-EXPOSE 8000
+# Expose port (Railway assigns dynamically)
+EXPOSE 8080
 
-# Health check
+# Health check (use $PORT from Railway)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
-# Run FastAPI with uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run FastAPI with uvicorn (use $PORT from Railway, default to 8080)
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}

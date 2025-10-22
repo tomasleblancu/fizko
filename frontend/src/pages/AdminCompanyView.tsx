@@ -27,6 +27,8 @@ export default function AdminCompanyView() {
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [syncingF29, setSyncingF29] = useState(false);
+  const [f29SyncMessage, setF29SyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCompanyData = async () => {
@@ -141,6 +143,54 @@ export default function AdminCompanyView() {
       );
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleSyncF29 = async (year: number) => {
+    if (!session?.access_token || !company) return;
+
+    // Get the first active session for this company
+    const activeSession = company.users.find((user) => user.is_active);
+    if (!activeSession) {
+      setF29SyncMessage('No hay sesiones activas para sincronizar');
+      return;
+    }
+
+    try {
+      setSyncingF29(true);
+      setF29SyncMessage(`Sincronizando F29 del año ${year}...`);
+
+      const response = await fetch(
+        `${API_BASE_URL}/sii/f29/sync/${year}?session_id=${activeSession.session_id}&download_pdfs=true`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al sincronizar F29');
+      }
+
+      const data = await response.json();
+
+      setF29SyncMessage(
+        `✅ Sincronización F29 completada: ${data.forms_synced} formularios sincronizados. ` +
+        `${data.pdfs_pending} PDFs descargándose en segundo plano.`
+      );
+
+      // Clear message after 10 seconds
+      setTimeout(() => setF29SyncMessage(null), 10000);
+    } catch (err) {
+      setF29SyncMessage(
+        err instanceof Error ? err.message : 'Error al sincronizar F29'
+      );
+    } finally {
+      setSyncingF29(false);
     }
   };
 
@@ -493,6 +543,53 @@ export default function AdminCompanyView() {
                     }`}
                   >
                     {syncMessage}
+                  </div>
+                )}
+              </div>
+
+              {/* F29 Sync Section */}
+              <div className="mb-6 space-y-3 border-t border-gray-200 pt-6 dark:border-gray-700">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Sincronizar Formularios F29
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleSyncF29(2024)}
+                    disabled={syncingF29}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-purple-300 bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 shadow-sm transition-colors hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-purple-600 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/30"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${syncingF29 ? 'animate-spin' : ''}`} />
+                    2024
+                  </button>
+
+                  <button
+                    onClick={() => handleSyncF29(2023)}
+                    disabled={syncingF29}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-purple-300 bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 shadow-sm transition-colors hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-purple-600 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/30"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${syncingF29 ? 'animate-spin' : ''}`} />
+                    2023
+                  </button>
+
+                  <button
+                    onClick={() => handleSyncF29(2022)}
+                    disabled={syncingF29}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-purple-300 bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 shadow-sm transition-colors hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-purple-600 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/30"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${syncingF29 ? 'animate-spin' : ''}`} />
+                    2022
+                  </button>
+                </div>
+
+                {f29SyncMessage && (
+                  <div
+                    className={`rounded-md border px-3 py-2 text-sm ${
+                      f29SyncMessage.includes('Error') || f29SyncMessage.includes('❌')
+                        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400'
+                        : 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400'
+                    }`}
+                  >
+                    {f29SyncMessage}
                   </div>
                 )}
               </div>
