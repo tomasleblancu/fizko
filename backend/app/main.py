@@ -49,7 +49,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_chatkit_server: FizkoServer | None = create_chatkit_server()
+# Lazy initialization of ChatKit server (only when first requested)
+_chatkit_server: FizkoServer | None = None
 
 # Include API routers
 app.include_router(admin.router)
@@ -66,14 +67,21 @@ app.include_router(sii_router)
 
 
 def get_chatkit_server() -> FizkoServer:
+    global _chatkit_server
     if _chatkit_server is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=(
-                "ChatKit dependencies are missing. Install the ChatKit Python "
-                "package to enable the conversational endpoint."
-            ),
-        )
+        try:
+            _chatkit_server = create_chatkit_server()
+            if _chatkit_server is None:
+                raise ValueError("Failed to create ChatKit server")
+        except Exception as e:
+            logger.error(f"Failed to initialize ChatKit server: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "ChatKit dependencies are missing or failed to initialize. "
+                    f"Error: {str(e)}"
+                ),
+            )
     return _chatkit_server
 
 
