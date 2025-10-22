@@ -120,7 +120,7 @@ export default function Home({
       <div className={containerClass}>
         <div className="mx-auto flex h-screen w-full max-w-7xl flex-col-reverse gap-6 p-6 lg:flex-row">
           {/* Chat Panel Container - Blurred background */}
-          <div className="relative flex h-full w-full flex-col lg:w-[35%]">
+          <div className="relative flex h-full w-full flex-col lg:w-[30%] lg:flex-none">
             <div className="relative flex flex-1 items-stretch overflow-hidden rounded-3xl bg-white/80 shadow-lg ring-1 ring-slate-200/60 backdrop-blur lg:shadow-xl dark:bg-slate-900/70 dark:shadow-xl lg:dark:shadow-2xl dark:ring-slate-800/60 blur-md pointer-events-none">
               <ChatKitPanel
                 theme={scheme}
@@ -159,7 +159,7 @@ export default function Home({
     <div className={containerClass}>
       <div className="mx-auto flex h-screen w-full max-w-7xl flex-col-reverse gap-0 p-0 lg:gap-6 lg:p-6 lg:flex-row">
         {/* Chat Panel Container */}
-        <div className="relative flex min-h-0 flex-1 w-full flex-col lg:w-[35%] lg:h-full">
+        <div className="relative flex min-h-0 flex-1 w-full flex-col lg:w-[30%] lg:flex-none lg:h-full">
           {/* ChatKit Panel */}
           <div className="relative flex flex-1 items-stretch overflow-hidden lg:rounded-3xl lg:border lg:border-slate-200 bg-white lg:shadow-lg lg:ring-1 lg:ring-slate-200/60 lg:bg-white/80 lg:backdrop-blur lg:shadow-xl dark:bg-slate-900 lg:dark:border-slate-800 lg:dark:shadow-xl lg:dark:bg-slate-900/70 lg:dark:shadow-2xl lg:dark:ring-slate-800/60">
             <ChatKitPanel
