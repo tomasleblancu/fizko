@@ -15,6 +15,7 @@ from .base import Base
 
 if TYPE_CHECKING:
     from .company import Company
+    from .form29_sii_download import Form29SIIDownload
 
 
 class Form29(Base):
@@ -96,3 +97,6 @@ class Form29(Base):
 
     # Relationships
     company: Mapped["Company"] = relationship("Company", back_populates="form29_records")
+    sii_download: Mapped[Optional["Form29SIIDownload"]] = relationship(
+        "Form29SIIDownload", back_populates="form29", uselist=False
+    )

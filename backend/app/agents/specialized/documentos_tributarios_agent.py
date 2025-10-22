@@ -34,6 +34,357 @@ def create_documentos_tributarios_agent(
     """
 
     @function_tool(strict_mode=False)
+    async def get_user_companies(
+        ctx: RunContextWrapper[FizkoContext],
+    ) -> dict[str, Any]:
+        """
+        Get all companies associated with the current user.
+        Use this first to get the company_id needed for other queries.
+
+        Returns:
+            List of companies with their IDs and basic info
+        """
+        from ...db.models import Company
+
+        user_id = ctx.context.request_context.get("user_id")
+        if not user_id:
+            return {"error": "Usuario no autenticado"}
+
+        try:
+            stmt = select(Company).where(Company.user_id == UUID(user_id))
+            result = await db.execute(stmt)
+            companies = result.scalars().all()
+
+            if not companies:
+                return {
+                    "message": "No tienes empresas registradas",
+                    "companies": []
+                }
+
+            return {
+                "total": len(companies),
+                "companies": [
+                    {
+                        "id": str(c.id),
+                        "rut": c.rut,
+                        "business_name": c.business_name,
+                        "trade_name": c.trade_name,
+                        "tax_regime": c.tax_regime,
+                    }
+                    for c in companies
+                ]
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting user companies: {e}")
+            return {"error": str(e)}
+
+    @function_tool(strict_mode=False)
+    async def search_documents_by_rut(
+        ctx: RunContextWrapper[FizkoContext],
+        company_id: str,
+        rut: str,
+        document_category: str = "both",
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """
+        Search documents by RUT (supplier or customer).
+
+        Args:
+            company_id: Company UUID
+            rut: RUT to search (format: 12345678-9)
+            document_category: "purchase" (from suppliers), "sales" (to customers), or "both"
+            limit: Number of documents to return (default 20, max 50)
+
+        Returns:
+            Documents from/to the specified RUT
+        """
+        from ...db.models import PurchaseDocument, SalesDocument
+
+        user_id = ctx.context.request_context.get("user_id")
+        if not user_id:
+            return {"error": "Usuario no autenticado"}
+
+        try:
+            results = {"purchase_documents": [], "sales_documents": []}
+
+            if document_category in ["purchase", "both"]:
+                purchase_stmt = select(PurchaseDocument).where(
+                    and_(
+                        PurchaseDocument.company_id == UUID(company_id),
+                        PurchaseDocument.sender_rut == rut,
+                    )
+                ).order_by(desc(PurchaseDocument.issue_date)).limit(min(limit, 50))
+
+                purchase_result = await db.execute(purchase_stmt)
+                purchases = purchase_result.scalars().all()
+
+                results["purchase_documents"] = [
+                    {
+                        "id": str(doc.id),
+                        "document_type": doc.document_type,
+                        "folio": doc.folio,
+                        "issue_date": doc.issue_date.isoformat(),
+                        "sender_name": doc.sender_name,
+                        "total_amount": float(doc.total_amount),
+                        "status": doc.status,
+                    }
+                    for doc in purchases
+                ]
+
+            if document_category in ["sales", "both"]:
+                sales_stmt = select(SalesDocument).where(
+                    and_(
+                        SalesDocument.company_id == UUID(company_id),
+                        SalesDocument.recipient_rut == rut,
+                    )
+                ).order_by(desc(SalesDocument.issue_date)).limit(min(limit, 50))
+
+                sales_result = await db.execute(sales_stmt)
+                sales = sales_result.scalars().all()
+
+                results["sales_documents"] = [
+                    {
+                        "id": str(doc.id),
+                        "document_type": doc.document_type,
+                        "folio": doc.folio,
+                        "issue_date": doc.issue_date.isoformat(),
+                        "recipient_name": doc.recipient_name,
+                        "total_amount": float(doc.total_amount),
+                        "status": doc.status,
+                    }
+                    for doc in sales
+                ]
+
+            total_found = len(results["purchase_documents"]) + len(results["sales_documents"])
+
+            return {
+                "rut": rut,
+                "total_found": total_found,
+                "results": results
+            }
+
+        except Exception as e:
+            logger.error(f"Error searching documents by RUT: {e}")
+            return {"error": str(e)}
+
+    @function_tool(strict_mode=False)
+    async def search_document_by_folio(
+        ctx: RunContextWrapper[FizkoContext],
+        company_id: str,
+        folio: int,
+        document_category: str = "both",
+    ) -> dict[str, Any]:
+        """
+        Search a specific document by its folio number.
+
+        Args:
+            company_id: Company UUID
+            folio: Folio number to search
+            document_category: "purchase", "sales", or "both"
+
+        Returns:
+            Document(s) with the specified folio
+        """
+        from ...db.models import PurchaseDocument, SalesDocument
+
+        user_id = ctx.context.request_context.get("user_id")
+        if not user_id:
+            return {"error": "Usuario no autenticado"}
+
+        try:
+            results = {"purchase_documents": [], "sales_documents": []}
+
+            if document_category in ["purchase", "both"]:
+                purchase_stmt = select(PurchaseDocument).where(
+                    and_(
+                        PurchaseDocument.company_id == UUID(company_id),
+                        PurchaseDocument.folio == folio,
+                    )
+                )
+                purchase_result = await db.execute(purchase_stmt)
+                purchases = purchase_result.scalars().all()
+
+                results["purchase_documents"] = [
+                    {
+                        "id": str(doc.id),
+                        "document_type": doc.document_type,
+                        "folio": doc.folio,
+                        "issue_date": doc.issue_date.isoformat(),
+                        "sender_rut": doc.sender_rut,
+                        "sender_name": doc.sender_name,
+                        "net_amount": float(doc.net_amount),
+                        "tax_amount": float(doc.tax_amount),
+                        "total_amount": float(doc.total_amount),
+                        "status": doc.status,
+                    }
+                    for doc in purchases
+                ]
+
+            if document_category in ["sales", "both"]:
+                sales_stmt = select(SalesDocument).where(
+                    and_(
+                        SalesDocument.company_id == UUID(company_id),
+                        SalesDocument.folio == folio,
+                    )
+                )
+                sales_result = await db.execute(sales_stmt)
+                sales = sales_result.scalars().all()
+
+                results["sales_documents"] = [
+                    {
+                        "id": str(doc.id),
+                        "document_type": doc.document_type,
+                        "folio": doc.folio,
+                        "issue_date": doc.issue_date.isoformat(),
+                        "recipient_rut": doc.recipient_rut,
+                        "recipient_name": doc.recipient_name,
+                        "net_amount": float(doc.net_amount),
+                        "tax_amount": float(doc.tax_amount),
+                        "total_amount": float(doc.total_amount),
+                        "status": doc.status,
+                    }
+                    for doc in sales
+                ]
+
+            total_found = len(results["purchase_documents"]) + len(results["sales_documents"])
+
+            if total_found == 0:
+                return {
+                    "folio": folio,
+                    "message": f"No se encontraron documentos con folio {folio}",
+                    "results": results
+                }
+
+            return {
+                "folio": folio,
+                "total_found": total_found,
+                "results": results
+            }
+
+        except Exception as e:
+            logger.error(f"Error searching document by folio: {e}")
+            return {"error": str(e)}
+
+    @function_tool(strict_mode=False)
+    async def get_documents_by_date_range(
+        ctx: RunContextWrapper[FizkoContext],
+        company_id: str,
+        start_date: str,
+        end_date: str,
+        document_category: str = "both",
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """
+        Get documents within a specific date range.
+
+        Args:
+            company_id: Company UUID
+            start_date: Start date (format: YYYY-MM-DD)
+            end_date: End date (format: YYYY-MM-DD)
+            document_category: "purchase", "sales", or "both"
+            limit: Maximum documents per category (default 50, max 100)
+
+        Returns:
+            Documents within the date range
+        """
+        from ...db.models import PurchaseDocument, SalesDocument
+        from datetime import datetime
+
+        user_id = ctx.context.request_context.get("user_id")
+        if not user_id:
+            return {"error": "Usuario no autenticado"}
+
+        try:
+            # Parse dates
+            start = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+            results = {"purchase_documents": [], "sales_documents": []}
+
+            if document_category in ["purchase", "both"]:
+                purchase_stmt = select(PurchaseDocument).where(
+                    and_(
+                        PurchaseDocument.company_id == UUID(company_id),
+                        PurchaseDocument.issue_date >= start,
+                        PurchaseDocument.issue_date <= end,
+                    )
+                ).order_by(desc(PurchaseDocument.issue_date)).limit(min(limit, 100))
+
+                purchase_result = await db.execute(purchase_stmt)
+                purchases = purchase_result.scalars().all()
+
+                purchase_total = sum(float(doc.total_amount) for doc in purchases)
+                purchase_iva = sum(float(doc.tax_amount) for doc in purchases)
+
+                results["purchase_documents"] = [
+                    {
+                        "id": str(doc.id),
+                        "document_type": doc.document_type,
+                        "folio": doc.folio,
+                        "issue_date": doc.issue_date.isoformat(),
+                        "sender_name": doc.sender_name,
+                        "total_amount": float(doc.total_amount),
+                        "tax_amount": float(doc.tax_amount),
+                    }
+                    for doc in purchases
+                ]
+
+                results["purchase_summary"] = {
+                    "count": len(purchases),
+                    "total_amount": purchase_total,
+                    "total_iva": purchase_iva,
+                }
+
+            if document_category in ["sales", "both"]:
+                sales_stmt = select(SalesDocument).where(
+                    and_(
+                        SalesDocument.company_id == UUID(company_id),
+                        SalesDocument.issue_date >= start,
+                        SalesDocument.issue_date <= end,
+                    )
+                ).order_by(desc(SalesDocument.issue_date)).limit(min(limit, 100))
+
+                sales_result = await db.execute(sales_stmt)
+                sales = sales_result.scalars().all()
+
+                sales_total = sum(float(doc.total_amount) for doc in sales)
+                sales_iva = sum(float(doc.tax_amount) for doc in sales)
+
+                results["sales_documents"] = [
+                    {
+                        "id": str(doc.id),
+                        "document_type": doc.document_type,
+                        "folio": doc.folio,
+                        "issue_date": doc.issue_date.isoformat(),
+                        "recipient_name": doc.recipient_name,
+                        "total_amount": float(doc.total_amount),
+                        "tax_amount": float(doc.tax_amount),
+                    }
+                    for doc in sales
+                ]
+
+                results["sales_summary"] = {
+                    "count": len(sales),
+                    "total_amount": sales_total,
+                    "total_iva": sales_iva,
+                }
+
+            return {
+                "date_range": {
+                    "start": start_date,
+                    "end": end_date,
+                },
+                "results": results
+            }
+
+        except ValueError as e:
+            return {"error": f"Formato de fecha inválido. Use YYYY-MM-DD. Error: {str(e)}"}
+        except Exception as e:
+            logger.error(f"Error getting documents by date range: {e}")
+            return {"error": str(e)}
+
+    @function_tool(strict_mode=False)
     async def get_purchase_documents(
         ctx: RunContextWrapper[FizkoContext],
         company_id: str,
@@ -342,10 +693,14 @@ def create_documentos_tributarios_agent(
         model=MODEL,
         instructions=DOCUMENTOS_TRIBUTARIOS_INSTRUCTIONS,
         tools=[
+            get_user_companies,
             get_purchase_documents,
             get_sales_documents,
             get_document_details,
             get_documents_summary,
+            search_documents_by_rut,
+            search_document_by_folio,
+            get_documents_by_date_range,
         ],
     )
 

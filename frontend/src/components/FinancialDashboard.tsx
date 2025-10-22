@@ -97,9 +97,9 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
   }
 
   // Desktop view with full container - NO SCROLL, flex layout
-  // Matching ChatKit container style from Home.tsx line 168
+  // Matching ChatKit visual style with explicit border for visibility
   return (
-    <section className="flex h-full flex-col overflow-hidden rounded-3xl bg-white/80 shadow-lg ring-1 ring-slate-200/60 backdrop-blur lg:shadow-xl dark:bg-slate-900/70 dark:shadow-xl lg:dark:shadow-2xl dark:ring-slate-800/60">
+    <section className="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white/80 shadow-lg ring-1 ring-slate-200/60 backdrop-blur lg:shadow-xl dark:border-slate-800 dark:bg-slate-900/70 dark:shadow-xl lg:dark:shadow-2xl dark:ring-slate-800/60">
       {/* Content - Flex layout WITHOUT scroll */}
       <div className="flex h-full flex-col gap-6 overflow-hidden p-6">
         {hasError && (

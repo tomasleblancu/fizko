@@ -18,6 +18,7 @@ from .chat import ChatKitAttachment, Conversation, Message
 from .company import Company, CompanyTaxInfo
 from .documents import PurchaseDocument, SalesDocument
 from .form29 import Form29
+from .form29_sii_download import Form29SIIDownload
 from .session import Session
 from .user import Profile
 
@@ -36,6 +37,7 @@ __all__ = [
     "SalesDocument",
     # Form29
     "Form29",
+    "Form29SIIDownload",
     # Chat
     "Conversation",
     "Message",

@@ -18,6 +18,7 @@ from ...utils.encryption import encrypt_password, decrypt_password
 if TYPE_CHECKING:
     from .documents import PurchaseDocument, SalesDocument
     from .form29 import Form29
+    from .form29_sii_download import Form29SIIDownload
     from .session import Session
 
 
@@ -72,6 +73,9 @@ class Company(Base):
     )
     form29_records: Mapped[list["Form29"]] = relationship(
         "Form29", back_populates="company", cascade="all, delete-orphan"
+    )
+    form29_sii_downloads: Mapped[list["Form29SIIDownload"]] = relationship(
+        "Form29SIIDownload", back_populates="company", cascade="all, delete-orphan"
     )
 
     @hybrid_property
