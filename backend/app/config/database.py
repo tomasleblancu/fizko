@@ -61,6 +61,7 @@ engine = create_async_engine(
     max_overflow=10,  # Maximum number of connections to create beyond pool_size
     connect_args={
         "server_settings": {"jit": "off"},
+        "statement_cache_size": 0,  # Disable prepared statements for pgbouncer compatibility
     }
 )
 
