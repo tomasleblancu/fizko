@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import clsx from "clsx";
 import { FileText } from "lucide-react";
 
@@ -14,8 +14,23 @@ import { ColorScheme } from "../hooks/useColorScheme";
 import { useAuth } from "../contexts/AuthContext";
 import { useSession } from "../hooks/useSession";
 import { useCompany } from "../hooks/useCompany";
+import { ChatProvider, useChat } from "../contexts/ChatContext";
 
 export default function Home({
+  scheme,
+  handleThemeChange,
+}: {
+  scheme: ColorScheme;
+  handleThemeChange: (scheme: ColorScheme) => void;
+}) {
+  return (
+    <ChatProvider>
+      <HomeContent scheme={scheme} handleThemeChange={handleThemeChange} />
+    </ChatProvider>
+  );
+}
+
+function HomeContent({
   scheme,
   handleThemeChange,
 }: {
@@ -27,6 +42,9 @@ export default function Home({
 
   // Lift company state to Home to avoid multiple fetches
   const { company, loading: companyLoading, error: companyError } = useCompany();
+
+  // Chat context for chateable components
+  const { setSendUserMessage } = useChat();
 
   const [sendMessage, setSendMessage] = useState<((text: string, metadata?: Record<string, any>) => Promise<void>) | null>(null);
 
@@ -54,15 +72,25 @@ export default function Home({
     hasAuthSession: !!authSession,
   });
 
-  const handleSendMessageReady = useCallback((sendFn: (text: string) => Promise<void>) => {
+  const handleSendMessageReady = useCallback((sendFn: (text: string, metadata?: Record<string, any>) => Promise<void>) => {
     setSendMessage(() => sendFn);
-  }, []);
+    // Also register in ChatContext for chateable components
+    setSendUserMessage(sendFn);
+  }, [setSendUserMessage]);
 
   // Refresh dashboard data after each agent response
   const handleResponseEnd = useCallback(() => {
     // Dashboard components will refresh automatically via their hooks
     console.log('[Home] Response ended, dashboard will auto-refresh');
   }, []);
+
+  // Initialize activeCompanyId from company data
+  useEffect(() => {
+    if (company?.id && !activeCompanyId) {
+      console.log('[Home] Initializing company ID:', company.id);
+      setActiveCompanyId(company.id);
+    }
+  }, [company?.id, activeCompanyId]);
 
   // Handle company_id changes from thread metadata
   const handleCompanyIdChange = useCallback((companyId: string | null) => {
@@ -159,7 +187,7 @@ export default function Home({
     <div className={containerClass}>
       <div className="mx-auto flex h-screen w-full max-w-7xl flex-col-reverse gap-0 p-0 lg:gap-6 lg:p-6 lg:flex-row">
         {/* Chat Panel Container */}
-        <div className="relative flex min-h-0 flex-1 w-full flex-col lg:w-[30%] lg:flex-none lg:h-full">
+        <div className="relative flex min-h-0 flex-1 w-full flex-col lg:w-[45%] lg:flex-none lg:h-full">
           {/* ChatKit Panel */}
           <div className="relative flex flex-1 items-stretch overflow-hidden lg:rounded-3xl lg:border lg:border-slate-200 bg-white lg:shadow-lg lg:ring-1 lg:ring-slate-200/60 lg:bg-white/80 lg:backdrop-blur lg:shadow-xl dark:bg-slate-900 lg:dark:border-slate-800 lg:dark:shadow-xl lg:dark:bg-slate-900/70 lg:dark:shadow-2xl lg:dark:ring-slate-800/60">
             <ChatKitPanel

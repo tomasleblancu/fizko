@@ -1,111 +1,56 @@
-"""Documentos Tributarios Agent - Expert in Chilean tax documents (DTE)."""
+"""Tools for Documentos Tributarios Agent - Chilean tax documents (DTE) queries."""
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
-from decimal import Decimal
-from datetime import date
-
-from agents import Agent, RunContextWrapper, function_tool
-from openai import AsyncOpenAI
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, desc
+from datetime import datetime, date
 from uuid import UUID
 
-from ...config.constants import MODEL, DOCUMENTOS_TRIBUTARIOS_INSTRUCTIONS
+from agents import RunContextWrapper, function_tool
+from sqlalchemy import select, and_, desc
+
+from ...config.database import AsyncSessionLocal
 from ..context import FizkoContext
 
 logger = logging.getLogger(__name__)
 
 
-def create_documentos_tributarios_agent(
-    db: AsyncSession,
-    openai_client: AsyncOpenAI,
-) -> Agent:
+@function_tool(strict_mode=False)
+async def search_documents_by_rut(
+    ctx: RunContextWrapper[FizkoContext],
+    rut: str,
+    company_id: str | None = None,
+    document_category: str = "both",
+    limit: int = 20,
+) -> dict[str, Any]:
     """
-    Create the Documentos Tributarios Agent.
+    Search documents by RUT (supplier or customer).
 
-    This agent helps with:
-    - Understanding Chilean tax documents (DTE)
-    - Querying purchase and sales documents
-    - Explaining document types and their tax implications
-    - Interpreting document amounts, IVA, and totals
+    Args:
+        rut: RUT to search (format: 12345678-9)
+        company_id: Company UUID (optional, uses context if not provided)
+        document_category: "purchase" (from suppliers), "sales" (to customers), or "both"
+        limit: Number of documents to return (default 20, max 50)
+
+    Returns:
+        Documents from/to the specified RUT
     """
+    from ...db.models import PurchaseDocument, SalesDocument
 
-    @function_tool(strict_mode=False)
-    async def get_user_companies(
-        ctx: RunContextWrapper[FizkoContext],
-    ) -> dict[str, Any]:
-        """
-        Get all companies associated with the current user.
-        Use this first to get the company_id needed for other queries.
+    user_id = ctx.context.request_context.get("user_id")
+    if not user_id:
+        return {"error": "Usuario no autenticado"}
 
-        Returns:
-            List of companies with their IDs and basic info
-        """
-        from ...db.models import Company
+    # Get company_id from context if not provided
+    if not company_id:
+        company_id = ctx.context.request_context.get("company_id")
+        if not company_id:
+            return {"error": "company_id no disponible en el contexto"}
 
-        user_id = ctx.context.request_context.get("user_id")
-        if not user_id:
-            return {"error": "Usuario no autenticado"}
-
-        try:
-            stmt = select(Company).where(Company.user_id == UUID(user_id))
-            result = await db.execute(stmt)
-            companies = result.scalars().all()
-
-            if not companies:
-                return {
-                    "message": "No tienes empresas registradas",
-                    "companies": []
-                }
-
-            return {
-                "total": len(companies),
-                "companies": [
-                    {
-                        "id": str(c.id),
-                        "rut": c.rut,
-                        "business_name": c.business_name,
-                        "trade_name": c.trade_name,
-                        "tax_regime": c.tax_regime,
-                    }
-                    for c in companies
-                ]
-            }
-
-        except Exception as e:
-            logger.error(f"Error getting user companies: {e}")
-            return {"error": str(e)}
-
-    @function_tool(strict_mode=False)
-    async def search_documents_by_rut(
-        ctx: RunContextWrapper[FizkoContext],
-        company_id: str,
-        rut: str,
-        document_category: str = "both",
-        limit: int = 20,
-    ) -> dict[str, Any]:
-        """
-        Search documents by RUT (supplier or customer).
-
-        Args:
-            company_id: Company UUID
-            rut: RUT to search (format: 12345678-9)
-            document_category: "purchase" (from suppliers), "sales" (to customers), or "both"
-            limit: Number of documents to return (default 20, max 50)
-
-        Returns:
-            Documents from/to the specified RUT
-        """
-        from ...db.models import PurchaseDocument, SalesDocument
-
-        user_id = ctx.context.request_context.get("user_id")
-        if not user_id:
-            return {"error": "Usuario no autenticado"}
-
-        try:
+    try:
+        async with AsyncSessionLocal() as session:
             results = {"purchase_documents": [], "sales_documents": []}
 
             if document_category in ["purchase", "both"]:
@@ -116,7 +61,7 @@ def create_documentos_tributarios_agent(
                     )
                 ).order_by(desc(PurchaseDocument.issue_date)).limit(min(limit, 50))
 
-                purchase_result = await db.execute(purchase_stmt)
+                purchase_result = await session.execute(purchase_stmt)
                 purchases = purchase_result.scalars().all()
 
                 results["purchase_documents"] = [
@@ -140,7 +85,7 @@ def create_documentos_tributarios_agent(
                     )
                 ).order_by(desc(SalesDocument.issue_date)).limit(min(limit, 50))
 
-                sales_result = await db.execute(sales_stmt)
+                sales_result = await session.execute(sales_stmt)
                 sales = sales_result.scalars().all()
 
                 results["sales_documents"] = [
@@ -164,35 +109,43 @@ def create_documentos_tributarios_agent(
                 "results": results
             }
 
-        except Exception as e:
-            logger.error(f"Error searching documents by RUT: {e}")
-            return {"error": str(e)}
+    except Exception as e:
+        logger.error(f"Error searching documents by RUT: {e}")
+        return {"error": str(e)}
 
-    @function_tool(strict_mode=False)
-    async def search_document_by_folio(
-        ctx: RunContextWrapper[FizkoContext],
-        company_id: str,
-        folio: int,
-        document_category: str = "both",
-    ) -> dict[str, Any]:
-        """
-        Search a specific document by its folio number.
 
-        Args:
-            company_id: Company UUID
-            folio: Folio number to search
-            document_category: "purchase", "sales", or "both"
+@function_tool(strict_mode=False)
+async def search_document_by_folio(
+    ctx: RunContextWrapper[FizkoContext],
+    folio: int,
+    company_id: str | None = None,
+    document_category: str = "both",
+) -> dict[str, Any]:
+    """
+    Search a specific document by its folio number.
 
-        Returns:
-            Document(s) with the specified folio
-        """
-        from ...db.models import PurchaseDocument, SalesDocument
+    Args:
+        folio: Folio number to search
+        company_id: Company UUID (optional, uses context if not provided)
+        document_category: "purchase", "sales", or "both"
 
-        user_id = ctx.context.request_context.get("user_id")
-        if not user_id:
-            return {"error": "Usuario no autenticado"}
+    Returns:
+        Document(s) with the specified folio
+    """
+    from ...db.models import PurchaseDocument, SalesDocument
 
-        try:
+    user_id = ctx.context.request_context.get("user_id")
+    if not user_id:
+        return {"error": "Usuario no autenticado"}
+
+    # Get company_id from context if not provided
+    if not company_id:
+        company_id = ctx.context.request_context.get("company_id")
+        if not company_id:
+            return {"error": "company_id no disponible en el contexto"}
+
+    try:
+        async with AsyncSessionLocal() as session:
             results = {"purchase_documents": [], "sales_documents": []}
 
             if document_category in ["purchase", "both"]:
@@ -202,7 +155,7 @@ def create_documentos_tributarios_agent(
                         PurchaseDocument.folio == folio,
                     )
                 )
-                purchase_result = await db.execute(purchase_stmt)
+                purchase_result = await session.execute(purchase_stmt)
                 purchases = purchase_result.scalars().all()
 
                 results["purchase_documents"] = [
@@ -228,7 +181,7 @@ def create_documentos_tributarios_agent(
                         SalesDocument.folio == folio,
                     )
                 )
-                sales_result = await db.execute(sales_stmt)
+                sales_result = await session.execute(sales_stmt)
                 sales = sales_result.scalars().all()
 
                 results["sales_documents"] = [
@@ -262,44 +215,51 @@ def create_documentos_tributarios_agent(
                 "results": results
             }
 
-        except Exception as e:
-            logger.error(f"Error searching document by folio: {e}")
-            return {"error": str(e)}
+    except Exception as e:
+        logger.error(f"Error searching document by folio: {e}")
+        return {"error": str(e)}
 
-    @function_tool(strict_mode=False)
-    async def get_documents_by_date_range(
-        ctx: RunContextWrapper[FizkoContext],
-        company_id: str,
-        start_date: str,
-        end_date: str,
-        document_category: str = "both",
-        limit: int = 50,
-    ) -> dict[str, Any]:
-        """
-        Get documents within a specific date range.
 
-        Args:
-            company_id: Company UUID
-            start_date: Start date (format: YYYY-MM-DD)
-            end_date: End date (format: YYYY-MM-DD)
-            document_category: "purchase", "sales", or "both"
-            limit: Maximum documents per category (default 50, max 100)
+@function_tool(strict_mode=False)
+async def get_documents_by_date_range(
+    ctx: RunContextWrapper[FizkoContext],
+    start_date: str,
+    end_date: str,
+    company_id: str | None = None,
+    document_category: str = "both",
+    limit: int = 50,
+) -> dict[str, Any]:
+    """
+    Get documents within a specific date range.
 
-        Returns:
-            Documents within the date range
-        """
-        from ...db.models import PurchaseDocument, SalesDocument
-        from datetime import datetime
+    Args:
+        start_date: Start date (format: YYYY-MM-DD)
+        end_date: End date (format: YYYY-MM-DD)
+        company_id: Company UUID (optional, uses context if not provided)
+        document_category: "purchase", "sales", or "both"
+        limit: Maximum documents per category (default 50, max 100)
 
-        user_id = ctx.context.request_context.get("user_id")
-        if not user_id:
-            return {"error": "Usuario no autenticado"}
+    Returns:
+        Documents within the date range
+    """
+    from ...db.models import PurchaseDocument, SalesDocument
 
-        try:
-            # Parse dates
-            start = datetime.strptime(start_date, "%Y-%m-%d").date()
-            end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    user_id = ctx.context.request_context.get("user_id")
+    if not user_id:
+        return {"error": "Usuario no autenticado"}
 
+    # Get company_id from context if not provided
+    if not company_id:
+        company_id = ctx.context.request_context.get("company_id")
+        if not company_id:
+            return {"error": "company_id no disponible en el contexto"}
+
+    try:
+        # Parse dates
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+        async with AsyncSessionLocal() as session:
             results = {"purchase_documents": [], "sales_documents": []}
 
             if document_category in ["purchase", "both"]:
@@ -311,7 +271,7 @@ def create_documentos_tributarios_agent(
                     )
                 ).order_by(desc(PurchaseDocument.issue_date)).limit(min(limit, 100))
 
-                purchase_result = await db.execute(purchase_stmt)
+                purchase_result = await session.execute(purchase_stmt)
                 purchases = purchase_result.scalars().all()
 
                 purchase_total = sum(float(doc.total_amount) for doc in purchases)
@@ -345,7 +305,7 @@ def create_documentos_tributarios_agent(
                     )
                 ).order_by(desc(SalesDocument.issue_date)).limit(min(limit, 100))
 
-                sales_result = await db.execute(sales_stmt)
+                sales_result = await session.execute(sales_stmt)
                 sales = sales_result.scalars().all()
 
                 sales_total = sum(float(doc.total_amount) for doc in sales)
@@ -378,39 +338,47 @@ def create_documentos_tributarios_agent(
                 "results": results
             }
 
-        except ValueError as e:
-            return {"error": f"Formato de fecha inválido. Use YYYY-MM-DD. Error: {str(e)}"}
-        except Exception as e:
-            logger.error(f"Error getting documents by date range: {e}")
-            return {"error": str(e)}
+    except ValueError as e:
+        return {"error": f"Formato de fecha inválido. Use YYYY-MM-DD. Error: {str(e)}"}
+    except Exception as e:
+        logger.error(f"Error getting documents by date range: {e}")
+        return {"error": str(e)}
 
-    @function_tool(strict_mode=False)
-    async def get_purchase_documents(
-        ctx: RunContextWrapper[FizkoContext],
-        company_id: str,
-        limit: int = 10,
-        document_type: str | None = None,
-        status: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Get purchase documents (documentos de compra - facturas recibidas).
 
-        Args:
-            company_id: Company UUID
-            limit: Number of documents to return (default 10, max 50)
-            document_type: Filter by document type (factura_compra, factura_exenta_compra, nota_credito_compra, nota_debito_compra, liquidacion_factura)
-            status: Filter by status (pending, approved, rejected, cancelled)
+@function_tool(strict_mode=False)
+async def get_purchase_documents(
+    ctx: RunContextWrapper[FizkoContext],
+    company_id: str | None = None,
+    limit: int = 10,
+    document_type: str | None = None,
+    status: str | None = None,
+) -> dict[str, Any]:
+    """
+    Get purchase documents (documentos de compra - facturas recibidas).
 
-        Returns:
-            List of purchase documents with details
-        """
-        from ...db.models import PurchaseDocument
+    Args:
+        company_id: Company UUID (optional, uses context if not provided)
+        limit: Number of documents to return (default 10, max 50)
+        document_type: Filter by document type (factura_compra, factura_exenta_compra, nota_credito_compra, nota_debito_compra, liquidacion_factura)
+        status: Filter by status (pending, approved, rejected, cancelled)
 
-        user_id = ctx.context.request_context.get("user_id")
-        if not user_id:
-            return {"error": "Usuario no autenticado"}
+    Returns:
+        List of purchase documents with details
+    """
+    from ...db.models import PurchaseDocument
 
-        try:
+    user_id = ctx.context.request_context.get("user_id")
+    if not user_id:
+        return {"error": "Usuario no autenticado"}
+
+    # Get company_id from context if not provided
+    if not company_id:
+        company_id = ctx.context.request_context.get("company_id")
+        if not company_id:
+            return {"error": "company_id no disponible en el contexto"}
+
+    try:
+        async with AsyncSessionLocal() as session:
             # Build query
             stmt = select(PurchaseDocument).where(
                 PurchaseDocument.company_id == UUID(company_id)
@@ -423,7 +391,7 @@ def create_documentos_tributarios_agent(
 
             stmt = stmt.order_by(desc(PurchaseDocument.issue_date)).limit(min(limit, 50))
 
-            result = await db.execute(stmt)
+            result = await session.execute(stmt)
             documents = result.scalars().all()
 
             return {
@@ -446,37 +414,45 @@ def create_documentos_tributarios_agent(
                 ]
             }
 
-        except Exception as e:
-            logger.error(f"Error getting purchase documents: {e}")
-            return {"error": str(e)}
+    except Exception as e:
+        logger.error(f"Error getting purchase documents: {e}")
+        return {"error": str(e)}
 
-    @function_tool(strict_mode=False)
-    async def get_sales_documents(
-        ctx: RunContextWrapper[FizkoContext],
-        company_id: str,
-        limit: int = 10,
-        document_type: str | None = None,
-        status: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Get sales documents (documentos de venta - facturas emitidas).
 
-        Args:
-            company_id: Company UUID
-            limit: Number of documents to return (default 10, max 50)
-            document_type: Filter by document type (factura_venta, boleta, factura_exenta, nota_credito_venta, nota_debito_venta, liquidacion_factura)
-            status: Filter by status (pending, approved, rejected, cancelled)
+@function_tool(strict_mode=False)
+async def get_sales_documents(
+    ctx: RunContextWrapper[FizkoContext],
+    company_id: str | None = None,
+    limit: int = 10,
+    document_type: str | None = None,
+    status: str | None = None,
+) -> dict[str, Any]:
+    """
+    Get sales documents (documentos de venta - facturas emitidas).
 
-        Returns:
-            List of sales documents with details
-        """
-        from ...db.models import SalesDocument
+    Args:
+        company_id: Company UUID (optional, uses context if not provided)
+        limit: Number of documents to return (default 10, max 50)
+        document_type: Filter by document type (factura_venta, boleta, factura_exenta, nota_credito_venta, nota_debito_venta, liquidacion_factura)
+        status: Filter by status (pending, approved, rejected, cancelled)
 
-        user_id = ctx.context.request_context.get("user_id")
-        if not user_id:
-            return {"error": "Usuario no autenticado"}
+    Returns:
+        List of sales documents with details
+    """
+    from ...db.models import SalesDocument
 
-        try:
+    user_id = ctx.context.request_context.get("user_id")
+    if not user_id:
+        return {"error": "Usuario no autenticado"}
+
+    # Get company_id from context if not provided
+    if not company_id:
+        company_id = ctx.context.request_context.get("company_id")
+        if not company_id:
+            return {"error": "company_id no disponible en el contexto"}
+
+    try:
+        async with AsyncSessionLocal() as session:
             # Build query
             stmt = select(SalesDocument).where(
                 SalesDocument.company_id == UUID(company_id)
@@ -489,7 +465,7 @@ def create_documentos_tributarios_agent(
 
             stmt = stmt.order_by(desc(SalesDocument.issue_date)).limit(min(limit, 50))
 
-            result = await db.execute(stmt)
+            result = await session.execute(stmt)
             documents = result.scalars().all()
 
             return {
@@ -512,36 +488,38 @@ def create_documentos_tributarios_agent(
                 ]
             }
 
-        except Exception as e:
-            logger.error(f"Error getting sales documents: {e}")
-            return {"error": str(e)}
+    except Exception as e:
+        logger.error(f"Error getting sales documents: {e}")
+        return {"error": str(e)}
 
-    @function_tool(strict_mode=False)
-    async def get_document_details(
-        ctx: RunContextWrapper[FizkoContext],
-        document_id: str,
-        document_category: str,
-    ) -> dict[str, Any]:
-        """
-        Get detailed information about a specific document.
 
-        Args:
-            document_id: Document UUID
-            document_category: Category of document ("purchase" or "sales")
+@function_tool(strict_mode=False)
+async def get_document_details(
+    ctx: RunContextWrapper[FizkoContext],
+    document_id: str,
+    document_category: str,
+) -> dict[str, Any]:
+    """
+    Get detailed information about a specific document.
 
-        Returns:
-            Detailed document information
-        """
-        from ...db.models import PurchaseDocument, SalesDocument
+    Args:
+        document_id: Document UUID
+        document_category: Category of document ("purchase" or "sales")
 
-        user_id = ctx.context.request_context.get("user_id")
-        if not user_id:
-            return {"error": "Usuario no autenticado"}
+    Returns:
+        Detailed document information
+    """
+    from ...db.models import PurchaseDocument, SalesDocument
 
-        try:
+    user_id = ctx.context.request_context.get("user_id")
+    if not user_id:
+        return {"error": "Usuario no autenticado"}
+
+    try:
+        async with AsyncSessionLocal() as session:
             if document_category == "purchase":
                 stmt = select(PurchaseDocument).where(PurchaseDocument.id == UUID(document_id))
-                result = await db.execute(stmt)
+                result = await session.execute(stmt)
                 doc = result.scalar_one_or_none()
 
                 if not doc:
@@ -561,13 +539,12 @@ def create_documentos_tributarios_agent(
                     "total_amount": float(doc.total_amount),
                     "status": doc.status,
                     "sii_track_id": doc.sii_track_id,
-                    "extra_data": doc.extra_data,
                     "created_at": doc.created_at.isoformat(),
                 }
 
             elif document_category == "sales":
                 stmt = select(SalesDocument).where(SalesDocument.id == UUID(document_id))
-                result = await db.execute(stmt)
+                result = await session.execute(stmt)
                 doc = result.scalar_one_or_none()
 
                 if not doc:
@@ -587,55 +564,61 @@ def create_documentos_tributarios_agent(
                     "total_amount": float(doc.total_amount),
                     "status": doc.status,
                     "sii_track_id": doc.sii_track_id,
-                    "extra_data": doc.extra_data,
                     "created_at": doc.created_at.isoformat(),
                 }
 
             else:
                 return {"error": "Categoría de documento inválida. Usa 'purchase' o 'sales'"}
 
-        except Exception as e:
-            logger.error(f"Error getting document details: {e}")
-            return {"error": str(e)}
+    except Exception as e:
+        logger.error(f"Error getting document details: {e}")
+        return {"error": str(e)}
 
-    @function_tool(strict_mode=False)
-    async def get_documents_summary(
-        ctx: RunContextWrapper[FizkoContext],
-        company_id: str,
-        month: int | None = None,
-        year: int | None = None,
-    ) -> dict[str, Any]:
-        """
-        Get a summary of purchase and sales documents for a period.
 
-        Args:
-            company_id: Company UUID
-            month: Month (1-12), optional
-            year: Year, optional
+@function_tool(strict_mode=False)
+async def get_documents_summary(
+    ctx: RunContextWrapper[FizkoContext],
+    company_id: str | None = None,
+    month: int | None = None,
+    year: int | None = None,
+) -> dict[str, Any]:
+    """
+    Get a summary of purchase and sales documents for a period.
 
-        Returns:
-            Summary with totals and counts by document type
-        """
-        from ...db.models import PurchaseDocument, SalesDocument
-        import datetime
+    Args:
+        company_id: Company UUID (optional, uses context if not provided)
+        month: Month (1-12), optional
+        year: Year, optional
 
-        user_id = ctx.context.request_context.get("user_id")
-        if not user_id:
-            return {"error": "Usuario no autenticado"}
+    Returns:
+        Summary with totals and counts by document type
+    """
+    from ...db.models import PurchaseDocument, SalesDocument
 
-        try:
+    user_id = ctx.context.request_context.get("user_id")
+    if not user_id:
+        return {"error": "Usuario no autenticado"}
+
+    # Get company_id from context if not provided
+    if not company_id:
+        company_id = ctx.context.request_context.get("company_id")
+        if not company_id:
+            return {"error": "company_id no disponible en el contexto"}
+
+    try:
+        async with AsyncSessionLocal() as session:
             # Use current month/year if not provided
             if month is None or year is None:
-                now = datetime.datetime.now()
+                now = datetime.now()
                 month = month or now.month
                 year = year or now.year
 
             # Date range for the month
-            start_date = datetime.date(year, month, 1)
+            start_date = date(year, month, 1)
             if month == 12:
-                end_date = datetime.date(year + 1, 1, 1)
+                end_date = date(year + 1, 1, 1)
             else:
-                end_date = datetime.date(year, month + 1, 1)
+                end_date = date(year, month + 1, 1)
 
             # Purchase documents summary
             purchase_stmt = select(PurchaseDocument).where(
@@ -645,7 +628,7 @@ def create_documentos_tributarios_agent(
                     PurchaseDocument.issue_date < end_date,
                 )
             )
-            purchase_result = await db.execute(purchase_stmt)
+            purchase_result = await session.execute(purchase_stmt)
             purchases = purchase_result.scalars().all()
 
             # Sales documents summary
@@ -656,7 +639,7 @@ def create_documentos_tributarios_agent(
                     SalesDocument.issue_date < end_date,
                 )
             )
-            sales_result = await db.execute(sales_stmt)
+            sales_result = await session.execute(sales_stmt)
             sales = sales_result.scalars().all()
 
             # Calculate totals
@@ -684,24 +667,6 @@ def create_documentos_tributarios_agent(
                 }
             }
 
-        except Exception as e:
-            logger.error(f"Error getting documents summary: {e}")
-            return {"error": str(e)}
-
-    agent = Agent(
-        name="documentos_tributarios_agent",
-        model=MODEL,
-        instructions=DOCUMENTOS_TRIBUTARIOS_INSTRUCTIONS,
-        tools=[
-            get_user_companies,
-            get_purchase_documents,
-            get_sales_documents,
-            get_document_details,
-            get_documents_summary,
-            search_documents_by_rut,
-            search_document_by_folio,
-            get_documents_by_date_range,
-        ],
-    )
-
-    return agent
+    except Exception as e:
+        logger.error(f"Error getting documents summary: {e}")
+        return {"error": str(e)}

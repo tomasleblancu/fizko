@@ -159,16 +159,22 @@ export function ChatKitPanel({
     [session?.access_token]
   );
 
-  // Build API URL with current company_id
+  // Build API URL with query params
   const apiUrl = useMemo(() => {
+    const params = new URLSearchParams();
+
+    // Add company_id if available
     if (currentCompanyId) {
-      const params = new URLSearchParams({ company_id: currentCompanyId });
-      const url = `${CHATKIT_API_URL}?${params.toString()}`;
-      console.log("[ChatKitPanel] API URL updated:", url);
-      return url;
+      params.set('company_id', currentCompanyId);
     }
-    console.log("[ChatKitPanel] API URL (no company):", CHATKIT_API_URL);
-    return CHATKIT_API_URL;
+
+    // Add ui_component parameter (null by default, will be set dynamically)
+    // This parameter indicates which UI component triggered the message
+    params.set('ui_component', 'null');
+
+    const url = `${CHATKIT_API_URL}?${params.toString()}`;
+    console.log("[ChatKitPanel] API URL with params:", url);
+    return url;
   }, [currentCompanyId]);
 
   // Memoize callbacks
@@ -232,6 +238,20 @@ export function ChatKitPanel({
         },
       },
       radius: "round" as const,
+      typography: {
+        baseSize: 16,
+        fontFamily: 'Questrial, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontFamilyMono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+        fontSources: [
+          {
+            family: 'Questrial',
+            src: 'https://fonts.gstatic.com/s/questrial/v19/QdVUSTchPBm7nuUeVf7EuQ.ttf',
+            weight: '400',
+            style: 'normal',
+            display: 'swap',
+          },
+        ],
+      },
     }),
     [theme]
   );
@@ -278,6 +298,7 @@ export function ChatKitPanel({
       fetch: customFetch,
       uploadStrategy: { type: "two_phase" },
     },
+    locale: "es-ES",
     theme: themeConfig,
     startScreen: startScreenConfig,
     composer: composerConfig,
@@ -292,9 +313,10 @@ export function ChatKitPanel({
   // Expose sendUserMessage to parent component
   useEffect(() => {
     if (onSendMessageReady && chatkit.sendUserMessage) {
-      const sendMessage = async (text: string, _metadata?: Record<string, any>) => {
+      const sendMessage = async (text: string, metadata?: Record<string, any>) => {
         await chatkit.sendUserMessage({
           text,
+          metadata,
         });
       };
       onSendMessageReady(sendMessage);

@@ -327,8 +327,8 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
           <TaxSummaryCard taxSummary={taxSummary} loading={isInitialLoading} scheme={scheme} isCompact={isDocumentsExpanded} />
         </div>
 
-        {/* Recent Documents - Fixed height, no flex-1 to prevent expansion */}
-        <div className="flex-shrink-0">
+        {/* Recent Documents - Expandable with flex-1 when expanded */}
+        <div className={isDocumentsExpanded ? "flex-1 min-h-0" : "flex-shrink-0"}>
           <RecentDocumentsCard
             documents={documents}
             loading={docsLoading}

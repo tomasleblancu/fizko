@@ -27,6 +27,7 @@ from .routers import (
     tax_summary,
 )
 from .routers.sii import router as sii_router
+from .utils.ui_component_context import extract_ui_component_context, format_ui_context_for_agent
 
 # Load environment variables from .env file
 load_dotenv()
@@ -110,6 +111,8 @@ async def chatkit_endpoint(
     agent_type: str = Query(
         "sii_general", description="Agent type to use: 'sii_general' (default) or 'remuneraciones'"
     ),
+    company_id: str | None = Query(None, description="Company ID from frontend query params"),
+    ui_component: str | None = Query(None, description="UI component that triggered the message"),
     server: FizkoServer = Depends(get_chatkit_server),
 ) -> Response:
     """ChatKit conversational endpoint."""
@@ -117,21 +120,51 @@ async def chatkit_endpoint(
     user = await get_optional_user(request)
     user_id = user.get("sub") if user else "anonymous"
 
+    # Priority: Query param > JWT token
+    if not company_id:
+        company_id = user.get("company_id") if user else None
+
     payload = await request.body()
 
     # Log request
     import json
 
+    # Extract message from payload to use for UI context extraction
+    user_message = ""
     try:
         payload_dict = json.loads(payload)
         logger.info(f"ChatKit request op: {payload_dict.get('op')}")
+
+        # Try to extract message from payload
+        if payload_dict.get("op") == "create_message" and "text" in payload_dict:
+            user_message = payload_dict["text"]
     except:
         pass
+
+    # Log query params to verify they arrive correctly
+    logger.info(f"📥 ChatKit query params - company_id: {company_id}, ui_component: {ui_component}")
+
+    # Extract UI component context if present
+    ui_context = extract_ui_component_context(
+        ui_component=ui_component,
+        message=user_message,
+        company_id=company_id,
+    )
+
+    # Format UI context for agent consumption
+    ui_context_text = format_ui_context_for_agent(ui_context)
+
+    if ui_context_text:
+        logger.info(f"📍 UI Context enriched for triage agent")
 
     context = {
         "request": request,
         "user_id": user_id,
         "user": user,
+        "company_id": company_id,
+        "ui_component": ui_component,
+        "ui_context": ui_context,
+        "ui_context_text": ui_context_text,
         "agent_type": agent_type,
     }
     result = await server.process(payload, context)

@@ -145,18 +145,61 @@ Create tables in Supabase using the SQL schema:
 
 ### 4. Run the Server
 
-```bash
-# Development
-uv run uvicorn app.main:app --reload --port 8089
+**IMPORTANT:** Local development now uses **production-parity configuration** to avoid "works on my machine" issues.
 
-# Production
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8089
+#### Recommended: Use the dev.sh script (Production Parity ✅)
+
+```bash
+# This runs with the SAME configuration as production:
+# - Gunicorn + 2 Uvicorn workers
+# - pgbouncer pooler (port 6543)
+# - Auto-reload enabled
+./dev.sh
+```
+
+#### Alternative: Manual commands
+
+```bash
+# Option A: Production parity (Gunicorn)
+uv run gunicorn app.main:app \
+  --workers 2 \
+  --worker-class uvicorn.workers.UvicornWorker \
+  --bind 0.0.0.0:8089 \
+  --reload
+
+# Option B: Quick development (Uvicorn only - NOT production-like)
+uv run uvicorn app.main:app --reload --port 8089
 ```
 
 The API will be available at:
 - API: `http://localhost:8089`
 - Docs: `http://localhost:8089/docs`
 - Health: `http://localhost:8089/health`
+
+### 5. Production Parity Checklist
+
+To ensure your local environment matches production:
+
+- ✅ **Database:** Use port **6543** (pgbouncer pooler), NOT 5432
+  ```
+  DATABASE_URL=postgresql+asyncpg://user:pass@db.project.supabase.co:6543/postgres?sslmode=require
+  ```
+
+- ✅ **Server:** Use **Gunicorn + Uvicorn workers** (via `./dev.sh`)
+  - 2 workers (same as Railway Starter)
+  - Auto-reload enabled for development
+  - Same timeout/graceful shutdown settings
+
+- ✅ **Environment:** Same `.env` variables as Railway
+  - All SUPABASE_* variables
+  - OPENAI_API_KEY
+  - ENCRYPTION_KEY
+  - ALLOWED_ORIGINS
+
+**Why production parity matters:**
+- pgbouncer (6543) disables prepared statements → local tests this behavior
+- Gunicorn manages workers → local tests process crashes/restarts
+- Same SSL/pooling settings → no DB connection surprises in production
 
 ## API Endpoints
 

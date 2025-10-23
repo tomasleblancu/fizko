@@ -52,18 +52,10 @@ export function PeriodSelector({ onPeriodChange }: PeriodSelectorProps) {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-        <Calendar className="h-4 w-4 text-slate-400" />
-        <span>Periodo</span>
-      </div>
-
       <div className="rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white to-slate-50 p-4 dark:border-slate-800/70 dark:from-slate-900/70 dark:to-slate-800/70">
         <div className="flex gap-3">
           {/* Month Selector */}
           <div className="flex-1">
-            <label htmlFor="month-select" className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-400">
-              Mes
-            </label>
             <select
               id="month-select"
               value={selectedMonth}
@@ -80,9 +72,6 @@ export function PeriodSelector({ onPeriodChange }: PeriodSelectorProps) {
 
           {/* Year Selector */}
           <div className="w-32">
-            <label htmlFor="year-select" className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-400">
-              Año
-            </label>
             <select
               id="year-select"
               value={selectedYear}

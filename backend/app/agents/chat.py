@@ -1,9 +1,9 @@
-"""ChatKit server integration for Fizko backend."""
+"""ChatKit server integration for Fizko backend - Unified Agent System."""
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+import os
 from typing import Any, AsyncIterator
 from uuid import uuid4
 
@@ -15,6 +15,7 @@ from chatkit.types import ThreadItem, ThreadMetadata, ThreadStreamEvent, UserMes
 from ..config.database import AsyncSessionLocal
 from ..stores import MemoryStore
 from .context import FizkoContext
+from .unified_agent import create_unified_agent
 
 try:
     from ..stores import SupabaseStore
@@ -22,14 +23,6 @@ try:
     SUPABASE_AVAILABLE = True
 except (ImportError, ValueError):
     SUPABASE_AVAILABLE = False
-
-try:
-    from .lazy_handoffs import lazy_handoffs_manager
-
-    MULTI_AGENT_AVAILABLE = True
-except (ImportError, ValueError) as e:
-    MULTI_AGENT_AVAILABLE = False
-    logging.warning(f"Multi-agent system not available: {e}")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -48,25 +41,18 @@ def _user_message_text(item: UserMessageItem) -> str:
     return " ".join(parts).strip()
 
 
-class FizkoServer(ChatKitServer[dict[str, Any]]):
-    """ChatKit server for Fizko tax/accounting assistant."""
+class FizkoChatKitServer(ChatKitServer):
+    """ChatKit server with unified Fizko agent."""
 
-    def __init__(self) -> None:
-        # Use SupabaseStore if available, otherwise fall back to MemoryStore
+    def __init__(self):
         if SUPABASE_AVAILABLE:
-            try:
-                self.store = SupabaseStore()
-                logger.info("Using SupabaseStore for thread persistence")
-            except Exception as e:
-                logger.warning(
-                    f"Failed to initialize SupabaseStore: {e}. Falling back to MemoryStore"
-                )
-                self.store = MemoryStore()
+            logger.info("Using SupabaseStore for thread persistence")
+            self.store = SupabaseStore()
         else:
-            logger.info("Using MemoryStore (in-memory only)")
+            logger.info("Supabase not available, using MemoryStore")
             self.store = MemoryStore()
 
-        # Initialize AttachmentStore
+        # Initialize attachment store
         from .memory_attachment_store import MemoryAttachmentStore
 
         self.attachment_store = MemoryAttachmentStore()
@@ -74,13 +60,7 @@ class FizkoServer(ChatKitServer[dict[str, Any]]):
         # Initialize ChatKitServer with both stores
         super().__init__(self.store, attachment_store=self.attachment_store)
 
-        # Multi-agent handoffs system
-        if not MULTI_AGENT_AVAILABLE:
-            raise RuntimeError(
-                "Multi-agent system is required but LazyHandoffsManager is not available."
-            )
-
-        logger.info("Multi-agent handoffs system ENABLED")
+        logger.info("Unified agent system ENABLED")
 
     async def respond(
         self,
@@ -89,7 +69,6 @@ class FizkoServer(ChatKitServer[dict[str, Any]]):
         context: dict[str, Any],
     ) -> AsyncIterator[ThreadStreamEvent]:
         import time
-        import os
 
         request_start = time.time()
         user_id = context.get("user_id", "unknown")
@@ -97,20 +76,20 @@ class FizkoServer(ChatKitServer[dict[str, Any]]):
 
         # Get database session for this request
         async with AsyncSessionLocal() as db:
-            # Get Triage Agent from lazy manager
-            selected_agent = await lazy_handoffs_manager.get_triage_agent(
-                thread_id=thread.id,
-                db=db,
-                user_id=user_id,
-            )
+            # Create OpenAI client (required by create_unified_agent)
+            from openai import AsyncOpenAI
+            import os
 
-            logger.info("Using Triage Agent as entry point")
+            openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+            # Create the unified agent for this request
+            agent = create_unified_agent(db=db, openai_client=openai_client)
 
         agent_context = FizkoContext(
             thread=thread,
             store=self.store,
             request_context=context,
-            current_agent_type="triage_agent",
+            current_agent_type="fizko_agent",
         )
 
         target_item: ThreadItem | None = item
@@ -133,15 +112,15 @@ class FizkoServer(ChatKitServer[dict[str, Any]]):
 
         # Run the agent with streaming
         result = Runner.run_streamed(
-            selected_agent,
+            agent,
             user_message,
             context=agent_context,
             session=session,
+            max_turns=10,  # Allow multiple turns if needed
         )
 
         # Stream response
         response_text_parts = []
-        current_agent = selected_agent.name
 
         async for event in stream_agent_response(agent_context, result):
             # Capture text content
@@ -150,19 +129,13 @@ class FizkoServer(ChatKitServer[dict[str, Any]]):
                     if hasattr(content, "text") and content.text:
                         response_text_parts.append(content.text)
 
-            # Check if agent changed (handoff)
-            if hasattr(event, "item") and hasattr(event.item, "agent_name"):
-                if event.item.agent_name and event.item.agent_name != current_agent:
-                    logger.info(f"Handoff: {current_agent} → {event.item.agent_name}")
-                    current_agent = event.item.agent_name
-
             yield event
 
         # Log final response
         if response_text_parts:
             full_response = "".join(response_text_parts)
             preview = full_response[:150] + ("..." if len(full_response) > 150 else "")
-            logger.info(f"Agent '{current_agent}' completed: {preview}")
+            logger.info(f"Agent '{agent.name}' completed: {preview}")
 
         return
 
@@ -170,13 +143,10 @@ class FizkoServer(ChatKitServer[dict[str, Any]]):
         self, thread: ThreadMetadata, context: dict[str, Any]
     ) -> ThreadItem | None:
         try:
-            items = await self.store.load_thread_items(thread.id, None, 1, "desc", context)
-        except Exception:
-            return None
+            async for event in self.store.load_thread(thread.id, context=context):
+                if hasattr(event, "item") and isinstance(event.item, UserMessageItem):
+                    return event.item
+        except Exception as e:
+            logger.error(f"Error loading latest thread item: {e}")
 
-        return items.data[0] if getattr(items, "data", None) else None
-
-
-def create_chatkit_server() -> FizkoServer | None:
-    """Return a configured Fizko server instance."""
-    return FizkoServer()
+        return None

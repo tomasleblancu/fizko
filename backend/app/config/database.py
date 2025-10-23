@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from ..db.models import Base
 
 # Set up logging for SQLAlchemy
-logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
-logging.getLogger("sqlalchemy.pool").setLevel(logging.INFO)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ if 'ssl=' in DATABASE_URL.lower() or 'sslmode=' in DATABASE_URL.lower():
             ssl_mode = "require"
         elif ssl_value in ('disable', 'allow', 'prefer', 'verify-ca', 'verify-full'):
             ssl_mode = ssl_value
-    # Remove SSL parameters from URL
+    # Remove SSL parameters from URL (we'll pass via connect_args)
     DATABASE_URL = re.sub(r'[?&](ssl|sslmode)=[^&]*&?', '', DATABASE_URL, flags=re.IGNORECASE)
     # Clean up trailing ? or &
     DATABASE_URL = re.sub(r'[?&]$', '', DATABASE_URL)
@@ -100,15 +100,19 @@ if 'ssl=' in DATABASE_URL.lower() or 'sslmode=' in DATABASE_URL.lower():
 if is_local:
     ssl_mode = "disable"
     logger.info("Localhost detected - SSL disabled for local development")
+else:
+    # For remote connections (like Supabase), default to require mode
+    # This allows self-signed certificates (needed for pgbouncer)
+    if ssl_mode == "prefer":
+        ssl_mode = "require"
+        logger.info("Remote connection detected - SSL mode set to 'require' (no cert verification)")
 
 # Log the sanitized connection info (hide password)
 safe_url = DATABASE_URL.split('@')[0].split(':')[0] + ':***@' + DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else DATABASE_URL
 logger.info(f"Connecting to database: {safe_url}")
 
-# Prepare connect_args with SSL
-connect_args = {
-    "server_settings": {"jit": "off"},
-}
+# Prepare connect_args based on connection type
+connect_args = {}
 
 # Add SSL if needed (not for local connections)
 if ssl_mode != "disable" and "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
@@ -120,24 +124,39 @@ if ssl_mode != "disable" and "localhost" not in DATABASE_URL and "127.0.0.1" not
     connect_args["ssl"] = ssl_context
     logger.info(f"SSL context configured with mode: {ssl_mode}")
 
+# For pgbouncer, add statement_cache_size=0 to connect_args
+# This is CRITICAL for pgbouncer transaction mode compatibility
+# Note: This is different from prepared_statement_cache_size (which goes in URL)
+if is_using_pooler:
+    connect_args["statement_cache_size"] = 0
+    logger.info("Added statement_cache_size=0 to connect_args for pgbouncer")
+
 # Create async engine with appropriate settings based on connection type
 if is_using_pooler:
-    # pgbouncer pooler: disable prepared statements and use NullPool
+    # pgbouncer pooler: Use NullPool and disable prepared statements
+    # NOTE: pgbouncer in transaction mode does NOT support prepared statements
+    # For production use only - local development should use direct connection (port 5432)
     from sqlalchemy.pool import NullPool
-    logger.info("Using NullPool with statement_cache_size=0 for pgbouncer compatibility")
+
+    logger.warning("⚠️  Using pgbouncer pooler - prepared statements disabled")
+    logger.warning("⚠️  For local development, use port 5432 (direct connection) instead")
+
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,
-        pool_pre_ping=True,
-        pool_recycle=1800,
         poolclass=NullPool,  # Let pgbouncer handle pooling
+        pool_pre_ping=False,  # Disable health checks (pgbouncer handles this)
         connect_args={
             **connect_args,
-            "statement_cache_size": 0,  # CRITICAL for pgbouncer transaction mode
+            "statement_cache_size": 0,  # Attempt to disable prepared statements
+        },
+        execution_options={
+            "compiled_cache": None,  # Disable query cache
         }
     )
 else:
     # Direct connection: use normal pooling with prepared statements
+    # For direct connections, we can disable JIT to improve query planning performance
     logger.info("Using standard pool with prepared statements for direct connection")
     engine = create_async_engine(
         DATABASE_URL,
@@ -146,7 +165,10 @@ else:
         pool_recycle=1800,
         pool_size=5,
         max_overflow=10,
-        connect_args=connect_args
+        connect_args={
+            **connect_args,
+            "server_settings": {"jit": "off"},  # Only for direct connections
+        }
     )
 
 # Create async session factory
@@ -165,15 +187,19 @@ from sqlalchemy.orm import sessionmaker
 # Convert async URL to sync URL
 SYNC_DATABASE_URL = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
 
+# Sync engine connect_args (psycopg2 also doesn't work with jit via pgbouncer)
+sync_connect_args = {}
+if not is_using_pooler:
+    # Only set jit=off for direct connections
+    sync_connect_args["options"] = "-c jit=off"
+
 sync_engine = create_engine(
     SYNC_DATABASE_URL,
     echo=False,
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
-    connect_args={
-        "options": "-c jit=off"
-    }
+    connect_args=sync_connect_args
 )
 
 # Create sync session factory

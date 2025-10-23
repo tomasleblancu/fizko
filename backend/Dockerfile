@@ -18,32 +18,20 @@ COPY pyproject.toml uv.lock ./
 RUN uv pip install --system --no-cache -r pyproject.toml
 
 # Stage 2: Runtime
-FROM python:3.11-slim
+# Using full python image for better browser compatibility
+FROM python:3.11
 
 WORKDIR /app
 
-# Install Chrome and ChromeDriver for Selenium (v3)
+# Install Chromium and ChromeDriver for Selenium
+# Using Chromium from Debian repos (easier than Chrome)
 RUN apt-get update && apt-get install -y \
+    chromium \
+    chromium-driver \
     wget \
-    gnupg \
-    unzip \
     curl \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
-    && CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d'.' -f1) \
-    && echo "Chrome version: $CHROME_VERSION" \
-    && wget -q "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_VERSION}" -O /tmp/chromedriver-version \
-    && CHROMEDRIVER_VERSION=$(cat /tmp/chromedriver-version) \
-    && echo "ChromeDriver version: $CHROMEDRIVER_VERSION" \
-    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip \
-    && unzip -q /tmp/chromedriver.zip -d /tmp \
-    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
-    && chmod +x /usr/local/bin/chromedriver \
-    && rm -rf /tmp/chromedriver* \
     && rm -rf /var/lib/apt/lists/* \
-    && google-chrome --version \
+    && chromium --version \
     && chromedriver --version
 
 # Copy Python packages from builder
@@ -64,10 +52,10 @@ RUN mkdir -p /app/sessions /app/chrome-data /app/screenshots
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Chrome settings for headless mode
-ENV CHROME_BIN=/usr/bin/google-chrome
-ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
-ENV CHROME_BINARY_PATH=/usr/bin/google-chrome
+# Chromium settings for headless mode
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
+ENV CHROME_BINARY_PATH=/usr/bin/chromium
 
 # Expose port (Railway assigns dynamically)
 EXPOSE 8080
@@ -76,5 +64,19 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
-# Run FastAPI with uvicorn (use $PORT from Railway, default to 8080)
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}
+# Run FastAPI with Gunicorn + Uvicorn workers for production
+# - 2 workers for small instances (Railway Starter)
+# - Use uvicorn.workers.UvicornWorker for ASGI support
+# - Timeout: 120s for long-running SII scraping tasks
+# - Graceful timeout: 30s for shutdown
+# - Keep-alive: 5s for connection reuse
+CMD gunicorn app.main:app \
+    --workers 2 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:${PORT:-8080} \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --keep-alive 5 \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level info

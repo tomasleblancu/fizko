@@ -3,6 +3,7 @@ import { FileText, Calendar, DollarSign, CheckCircle, Clock, AlertCircle, Maximi
 import type { TaxDocument } from '../types/fizko';
 import type { ColorScheme } from '../hooks/useColorScheme';
 import { RecentDocumentsCardSkeleton } from './RecentDocumentsCardSkeleton';
+import { ChateableWrapper } from './ChateableWrapper';
 
 interface RecentDocumentsCardProps {
   documents: TaxDocument[];
@@ -35,6 +36,57 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
     return new Date(dateStr).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' });
   };
 
+  const formatFullDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // Reset hours for date comparison
+    const resetTime = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const dateOnly = resetTime(date);
+    const todayOnly = resetTime(today);
+    const yesterdayOnly = resetTime(yesterday);
+
+    if (dateOnly.getTime() === todayOnly.getTime()) {
+      return 'Hoy';
+    } else if (dateOnly.getTime() === yesterdayOnly.getTime()) {
+      return 'Ayer';
+    } else {
+      return date.toLocaleDateString('es-CL', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      });
+    }
+  };
+
+  const formatDocumentTypeName = (docType: string) => {
+    // Convert snake_case to Title Case: "liquidacion_factura" → "Liquidación Factura"
+    return docType
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  // Group documents by date
+  const groupDocumentsByDate = (docs: TaxDocument[]) => {
+    const groups = new Map<string, TaxDocument[]>();
+
+    docs.forEach(doc => {
+      const dateKey = doc.issue_date;
+      if (!groups.has(dateKey)) {
+        groups.set(dateKey, []);
+      }
+      groups.get(dateKey)!.push(doc);
+    });
+
+    // Sort groups by date descending
+    return Array.from(groups.entries())
+      .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
+      .map(([date, docs]) => ({ date, docs }));
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status.toLowerCase()) {
       case 'emitida':
@@ -65,8 +117,8 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
 
   return (
     <div className={clsx(
-      "rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70",
-      isExpanded ? "flex h-[500px] flex-col" : ""
+      "rounded-2xl border border-slate-200/70 bg-white/90 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70",
+      isExpanded ? "flex h-full flex-col p-6" : "p-6"
     )}>
       <div className="mb-4 flex flex-shrink-0 items-center justify-between">
         <div className="flex items-center gap-3">
@@ -107,75 +159,156 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
         </div>
       ) : (
         <>
-          {/* Collapsed: Simple one-line list, NO scroll */}
+          {/* Collapsed: Detailed list, NO scroll */}
           {!isExpanded && (
             <div className="space-y-1.5">
-              {displayedDocuments.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-200/50 bg-slate-50/50 px-3 py-2 transition-colors hover:bg-slate-100 dark:border-slate-800/50 dark:bg-slate-800/30 dark:hover:bg-slate-800/50"
-                >
-                  {/* Date */}
-                  <span className="w-20 flex-shrink-0 text-xs text-slate-600 dark:text-slate-400">
-                    {formatDate(doc.issue_date)}
-                  </span>
+              {displayedDocuments.map((doc) => {
+                // Determine if it's a purchase or sale based on document_type prefix
+                const isVenta = doc.document_type.toLowerCase().startsWith('venta_');
+                const isCompra = doc.document_type.toLowerCase().startsWith('compra_');
 
-                  {/* Provider/Description */}
-                  <span className="flex-1 truncate px-3 text-sm text-slate-700 dark:text-slate-300">
-                    {doc.description || doc.document_type}
-                  </span>
+                // Clean document type: remove "venta_" or "compra_" prefix
+                const cleanDocType = doc.document_type.replace(/^(venta_|compra_)/i, '');
 
-                  {/* Amount */}
-                  <span className="flex-shrink-0 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    {formatCurrency(doc.amount)}
-                  </span>
-                </div>
-              ))}
+                // Check if it's a credit note (nota de crédito)
+                const isNotaCredito = cleanDocType.toLowerCase().includes('nota') && cleanDocType.toLowerCase().includes('credito');
+
+                // Clean description: remove document type prefix if present
+                const cleanDescription = doc.description
+                  ? doc.description.replace(new RegExp(`^(${doc.document_type}|${cleanDocType})\\s*-?\\s*`, 'i'), '')
+                  : '';
+
+                // Format amount with sign
+                // Credit notes have opposite sign: venta NC = negative, compra NC = positive
+                let amountSign = '';
+                let amountColor = 'text-slate-900 dark:text-slate-100';
+
+                if (isVenta) {
+                  amountSign = isNotaCredito ? '-' : '+';
+                  amountColor = isNotaCredito
+                    ? 'text-rose-600 dark:text-rose-400'
+                    : 'text-emerald-600 dark:text-emerald-400';
+                } else if (isCompra) {
+                  amountSign = isNotaCredito ? '+' : '-';
+                  amountColor = isNotaCredito
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-rose-600 dark:text-rose-400';
+                }
+
+                return (
+                  <ChateableWrapper
+                    key={doc.id}
+                    message={`Muéstrame detalles del documento ${formatDocumentTypeName(cleanDocType)} #${doc.document_number} de ${formatCurrency(doc.amount)}`}
+                    contextData={{
+                      documentId: doc.id,
+                      documentType: doc.document_type,
+                      documentNumber: doc.document_number,
+                      amount: doc.amount,
+                      issueDate: doc.issue_date,
+                      description: doc.description,
+                    }}
+                    uiComponent="DocumentListItem"
+                  >
+                    <div className="flex items-center justify-between py-2 px-1 rounded-lg">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                          {cleanDescription || 'Sin descripción'}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          {formatDocumentTypeName(cleanDocType)} #{doc.document_number}
+                        </p>
+                      </div>
+                      <div className="ml-4 flex-shrink-0">
+                        <span className={clsx("text-sm font-semibold", amountColor)}>
+                          {amountSign}{formatCurrency(doc.amount)}
+                        </span>
+                      </div>
+                    </div>
+                  </ChateableWrapper>
+                );
+              })}
             </div>
           )}
 
           {/* Expanded: Detailed view WITH scroll for all documents */}
           {isExpanded && (
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-2">
-              {displayedDocuments.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-200/50 bg-slate-50/50 p-3 transition-all hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800/50 dark:bg-slate-800/30 dark:hover:border-slate-700 dark:hover:bg-slate-800/50"
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    {getStatusIcon(doc.status)}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                          {doc.document_type} {doc.document_number}
-                        </p>
-                        <span className={clsx(
-                          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                          getStatusColor(doc.status)
-                        )}>
-                          {doc.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {formatDate(doc.issue_date)}
-                        </span>
-                        {doc.description && (
-                          <span className="truncate">{doc.description}</span>
-                        )}
-                      </div>
-                    </div>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
+              {groupDocumentsByDate(displayedDocuments).map(({ date, docs }) => (
+                <div key={date}>
+                  {/* Date header */}
+                  <div className="sticky top-0 z-10 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/40 dark:to-purple-950/40 backdrop-blur-sm -mx-2 px-2 py-2 mb-3 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
+                    <h4 className="text-sm font-bold text-blue-900 dark:text-blue-100">
+                      {formatFullDate(date)}
+                    </h4>
                   </div>
-                  <div className="ml-3 flex flex-col items-end">
-                    <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                      {formatCurrency(doc.amount)}
-                    </span>
-                    {doc.tax_amount && (
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        IVA: {formatCurrency(doc.tax_amount)}
-                      </span>
-                    )}
+
+                  {/* Documents for this date */}
+                  <div className="space-y-1.5">
+                    {docs.map((doc) => {
+                      // Determine if it's a purchase or sale based on document_type prefix
+                      const isVenta = doc.document_type.toLowerCase().startsWith('venta_');
+                      const isCompra = doc.document_type.toLowerCase().startsWith('compra_');
+
+                      // Clean document type: remove "venta_" or "compra_" prefix
+                      const cleanDocType = doc.document_type.replace(/^(venta_|compra_)/i, '');
+
+                      // Check if it's a credit note (nota de crédito)
+                      const isNotaCredito = cleanDocType.toLowerCase().includes('nota') && cleanDocType.toLowerCase().includes('credito');
+
+                      // Clean description: remove document type prefix if present
+                      const cleanDescription = doc.description
+                        ? doc.description.replace(new RegExp(`^(${doc.document_type}|${cleanDocType})\\s*-?\\s*`, 'i'), '')
+                        : '';
+
+                      // Format amount with sign
+                      // Credit notes have opposite sign: venta NC = negative, compra NC = positive
+                      let amountSign = '';
+                      let amountColor = 'text-slate-900 dark:text-slate-100';
+
+                      if (isVenta) {
+                        amountSign = isNotaCredito ? '-' : '+';
+                        amountColor = isNotaCredito
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : 'text-emerald-600 dark:text-emerald-400';
+                      } else if (isCompra) {
+                        amountSign = isNotaCredito ? '+' : '-';
+                        amountColor = isNotaCredito
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-rose-600 dark:text-rose-400';
+                      }
+
+                      return (
+                        <ChateableWrapper
+                          key={doc.id}
+                          message={`Muéstrame detalles del documento ${formatDocumentTypeName(cleanDocType)} #${doc.document_number} de ${formatCurrency(doc.amount)}`}
+                          contextData={{
+                            documentId: doc.id,
+                            documentType: doc.document_type,
+                            documentNumber: doc.document_number,
+                            amount: doc.amount,
+                            issueDate: doc.issue_date,
+                            description: doc.description,
+                          }}
+                          uiComponent="DocumentExpandedItem"
+                        >
+                          <div className="flex items-center justify-between py-2 px-1 rounded-lg">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                                {cleanDescription || 'Sin descripción'}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                {formatDocumentTypeName(cleanDocType)} #{doc.document_number}
+                              </p>
+                            </div>
+                            <div className="ml-4 flex-shrink-0">
+                              <span className={clsx("text-sm font-semibold", amountColor)}>
+                                {amountSign}{formatCurrency(doc.amount)}
+                              </span>
+                            </div>
+                          </div>
+                        </ChateableWrapper>
+                      );
+                    })}
                   </div>
                 </div>
               ))}

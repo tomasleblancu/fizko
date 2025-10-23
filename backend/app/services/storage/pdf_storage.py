@@ -29,10 +29,11 @@ class F29PDFStorage:
     def __init__(self):
         """Inicializa el cliente de Supabase"""
         supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_ANON_KEY")  # Service role key para backend
+        # Usar SERVICE_ROLE_KEY para operaciones del backend (bypassa RLS)
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 
         if not supabase_url or not supabase_key:
-            raise ValueError("SUPABASE_URL and SUPABASE_ANON_KEY must be set")
+            raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_KEY) must be set")
 
         self.client: Client = create_client(supabase_url, supabase_key)
         logger.info(f"📦 F29PDFStorage initialized for bucket: {self.BUCKET_NAME}")

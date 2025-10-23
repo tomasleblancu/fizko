@@ -13,6 +13,7 @@ import {
   TrendingDown,
   Activity,
   ArrowLeft,
+  Download,
 } from 'lucide-react';
 import { CompanyDetail } from '../types/admin';
 import { API_BASE_URL } from '../lib/config';
@@ -29,6 +30,8 @@ export default function AdminCompanyView() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [syncingF29, setSyncingF29] = useState(false);
   const [f29SyncMessage, setF29SyncMessage] = useState<string | null>(null);
+  const [downloadingF29PDFs, setDownloadingF29PDFs] = useState(false);
+  const [f29PDFDownloadMessage, setF29PDFDownloadMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCompanyData = async () => {
@@ -158,7 +161,7 @@ export default function AdminCompanyView() {
 
     try {
       setSyncingF29(true);
-      setF29SyncMessage(`Sincronizando F29 del año ${year}...`);
+      setF29SyncMessage(`Sincronizando lista de F29 del año ${year}...`);
 
       const response = await fetch(
         `${API_BASE_URL}/sii/sync/f29/${year}?session_id=${activeSession.session_id}`,
@@ -178,9 +181,9 @@ export default function AdminCompanyView() {
 
       const data = await response.json();
 
-      setF29SyncMessage(
-        `✅ ${data.message || `${data.forms_synced} formularios F29 sincronizados exitosamente`}`
-      );
+      // Mostrar mensaje con estadísticas
+      const message = `✅ ${data.forms_synced} formularios F29 sincronizados`;
+      setF29SyncMessage(message);
 
       // Clear message after 10 seconds
       setTimeout(() => setF29SyncMessage(null), 10000);
@@ -190,6 +193,76 @@ export default function AdminCompanyView() {
       );
     } finally {
       setSyncingF29(false);
+    }
+  };
+
+  const handleDownloadF29PDFs = async (year?: number) => {
+    if (!session?.access_token || !company) return;
+
+    // Get the first active session for this company
+    const activeSession = company.users.find((user) => user.is_active);
+    if (!activeSession) {
+      setF29PDFDownloadMessage('No hay sesiones activas para descargar PDFs');
+      return;
+    }
+
+    try {
+      setDownloadingF29PDFs(true);
+      setF29PDFDownloadMessage(
+        year
+          ? `Descargando PDFs de F29 del año ${year}...`
+          : 'Descargando todos los PDFs pendientes...'
+      );
+
+      const requestBody: { session_id: string; year?: number } = {
+        session_id: activeSession.session_id,
+      };
+
+      if (year) {
+        requestBody.year = year;
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}/sii/sync/f29/download-pdfs`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al descargar PDFs');
+      }
+
+      const data = await response.json();
+
+      // Mostrar mensaje detallado con estadísticas
+      let message = `✅ ${data.pdfs_downloaded} PDFs descargados correctamente`;
+
+      if (data.pdfs_failed > 0) {
+        message += `, ${data.pdfs_failed} fallaron`;
+        if (data.failed_folios && data.failed_folios.length > 0) {
+          message += ` (folios: ${data.failed_folios.slice(0, 3).join(', ')}${
+            data.failed_folios.length > 3 ? '...' : ''
+          })`;
+        }
+      }
+
+      setF29PDFDownloadMessage(message);
+
+      // Clear message after 15 seconds (más tiempo para leer el resultado)
+      setTimeout(() => setF29PDFDownloadMessage(null), 15000);
+    } catch (err) {
+      setF29PDFDownloadMessage(
+        `❌ ${err instanceof Error ? err.message : 'Error al descargar PDFs'}`
+      );
+    } finally {
+      setDownloadingF29PDFs(false);
     }
   };
 
@@ -549,8 +622,11 @@ export default function AdminCompanyView() {
               {/* F29 Sync Section */}
               <div className="mb-6 space-y-3 border-t border-gray-200 pt-6 dark:border-gray-700">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Sincronizar Formularios F29
+                  Sincronizar Lista de F29
                 </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Sincroniza la lista de formularios desde el SII (sin descargar PDFs)
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => handleSyncF29(2024)}
@@ -589,6 +665,65 @@ export default function AdminCompanyView() {
                     }`}
                   >
                     {f29SyncMessage}
+                  </div>
+                )}
+              </div>
+
+              {/* F29 PDF Download Section */}
+              <div className="mb-6 space-y-3 border-t border-gray-200 pt-6 dark:border-gray-700">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Descargar PDFs de F29
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Descarga los PDFs de los formularios ya sincronizados
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleDownloadF29PDFs()}
+                    disabled={downloadingF29PDFs}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                  >
+                    <Download className={`h-3.5 w-3.5 ${downloadingF29PDFs ? 'animate-bounce' : ''}`} />
+                    Todos los pendientes
+                  </button>
+
+                  <button
+                    onClick={() => handleDownloadF29PDFs(2024)}
+                    disabled={downloadingF29PDFs}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                  >
+                    <Download className={`h-3.5 w-3.5 ${downloadingF29PDFs ? 'animate-bounce' : ''}`} />
+                    2024
+                  </button>
+
+                  <button
+                    onClick={() => handleDownloadF29PDFs(2023)}
+                    disabled={downloadingF29PDFs}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                  >
+                    <Download className={`h-3.5 w-3.5 ${downloadingF29PDFs ? 'animate-bounce' : ''}`} />
+                    2023
+                  </button>
+
+                  <button
+                    onClick={() => handleDownloadF29PDFs(2022)}
+                    disabled={downloadingF29PDFs}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                  >
+                    <Download className={`h-3.5 w-3.5 ${downloadingF29PDFs ? 'animate-bounce' : ''}`} />
+                    2022
+                  </button>
+                </div>
+
+                {f29PDFDownloadMessage && (
+                  <div
+                    className={`rounded-md border px-3 py-2 text-sm ${
+                      f29PDFDownloadMessage.includes('Error') || f29PDFDownloadMessage.includes('❌')
+                        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400'
+                        : 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400'
+                    }`}
+                  >
+                    {f29PDFDownloadMessage}
                   </div>
                 )}
               </div>
