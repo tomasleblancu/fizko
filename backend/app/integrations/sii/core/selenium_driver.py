@@ -142,8 +142,8 @@ class SeleniumDriver:
             options.binary_location = chrome_binary
             logger.info(f"Using Chrome binary: {chrome_binary}")
         elif is_docker:
-            # Buscar en rutas comunes de Docker
-            for path in ["/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome"]:
+            # Buscar en rutas comunes de Docker (google-chrome primero para mejor compatibilidad)
+            for path in ["/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"]:
                 if os.path.exists(path):
                     options.binary_location = path
                     logger.info(f"Found Chrome in Docker: {path}")
