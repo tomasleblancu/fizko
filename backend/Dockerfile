@@ -22,7 +22,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Chrome and dependencies for Selenium
+# Install Chrome and dependencies for Selenium (force rebuild - v2)
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
@@ -32,7 +32,8 @@ RUN apt-get update && apt-get install -y \
     && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
     && apt-get install -y google-chrome-stable \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && google-chrome --version
 
 # Copy Python packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
