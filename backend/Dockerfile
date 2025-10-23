@@ -22,7 +22,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Chrome and dependencies for Selenium (force rebuild - v2)
+# Install Chrome and ChromeDriver for Selenium (v3)
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
@@ -32,8 +32,19 @@ RUN apt-get update && apt-get install -y \
     && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
     && apt-get install -y google-chrome-stable \
+    && CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d'.' -f1) \
+    && echo "Chrome version: $CHROME_VERSION" \
+    && wget -q "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_VERSION}" -O /tmp/chromedriver-version \
+    && CHROMEDRIVER_VERSION=$(cat /tmp/chromedriver-version) \
+    && echo "ChromeDriver version: $CHROMEDRIVER_VERSION" \
+    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip \
+    && unzip -q /tmp/chromedriver.zip -d /tmp \
+    && mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver \
+    && chmod +x /usr/local/bin/chromedriver \
+    && rm -rf /tmp/chromedriver* \
     && rm -rf /var/lib/apt/lists/* \
-    && google-chrome --version
+    && google-chrome --version \
+    && chromedriver --version
 
 # Copy Python packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
@@ -55,7 +66,8 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 # Chrome settings for headless mode
 ENV CHROME_BIN=/usr/bin/google-chrome
-ENV CHROMEDRIVER_PATH=/usr/bin/google-chrome
+ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
+ENV CHROME_BINARY_PATH=/usr/bin/google-chrome
 
 # Expose port (Railway assigns dynamically)
 EXPOSE 8080

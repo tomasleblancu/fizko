@@ -153,15 +153,15 @@ class SeleniumDriver:
 
     def _get_chrome_service(self) -> Service:
         """Configura el servicio ChromeDriver"""
-        driver_path = self.config.CHROME_DRIVER_PATH or os.getenv('CHROME_DRIVER_PATH')
+        driver_path = self.config.CHROME_DRIVER_PATH or os.getenv('CHROME_DRIVER_PATH') or os.getenv('CHROMEDRIVER_PATH')
 
         if driver_path and os.path.exists(driver_path):
             logger.info(f"Using ChromeDriver: {driver_path}")
             return Service(driver_path)
 
-        # Buscar en rutas Docker
+        # Buscar en rutas Docker (incluyendo /usr/local/bin donde se instala en Dockerfile)
         if self._is_docker_environment():
-            for path in ["/usr/bin/chromedriver", "/usr/lib/chromium-browser/chromedriver"]:
+            for path in ["/usr/local/bin/chromedriver", "/usr/bin/chromedriver", "/usr/lib/chromium-browser/chromedriver"]:
                 if os.path.exists(path) and os.access(path, os.X_OK):
                     logger.info(f"Found ChromeDriver in Docker: {path}")
                     return Service(path)
