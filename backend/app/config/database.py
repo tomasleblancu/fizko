@@ -53,9 +53,12 @@ elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 # Ensure statement_cache_size=0 is in the URL for pgbouncer compatibility
-if "statement_cache_size" not in DATABASE_URL:
+# Only add if not already present
+if "statement_cache_size" not in DATABASE_URL.lower():
     separator = "&" if "?" in DATABASE_URL else "?"
     DATABASE_URL = f"{DATABASE_URL}{separator}statement_cache_size=0"
+
+print(f"[Database] Using DATABASE_URL: {DATABASE_URL.split('@')[0]}@***")  # Log without exposing password
 
 # Create async engine
 engine = create_async_engine(
