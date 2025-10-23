@@ -95,7 +95,6 @@ logger.info(f"Connecting to database: {safe_url}")
 # Prepare connect_args with SSL
 connect_args = {
     "server_settings": {"jit": "off"},
-    "statement_cache_size": 0,  # Disable prepared statements for pgbouncer (must be int, not string)
 }
 
 # Add SSL if needed (not for local connections)
@@ -109,14 +108,18 @@ if ssl_mode != "disable" and "localhost" not in DATABASE_URL and "127.0.0.1" not
     logger.info(f"SSL context configured with mode: {ssl_mode}")
 
 # Create async engine with pgbouncer-compatible settings
+# CRITICAL: prepared_statement_cache_size=0 MUST be at engine level for asyncpg
+from sqlalchemy.pool import NullPool
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,  # Set to True to see SQL queries in logs
     pool_pre_ping=True,  # Verify connections before using them
     pool_recycle=1800,  # Recycle connections after 30 minutes to avoid stale connections
-    pool_size=5,  # Number of connections to maintain
-    max_overflow=10,  # Maximum number of connections to create beyond pool_size
-    connect_args=connect_args
+    poolclass=NullPool,  # Disable connection pooling (pgbouncer handles pooling)
+    connect_args={
+        **connect_args,
+        "prepared_statement_cache_size": 0,  # Disable prepared statements for pgbouncer transaction mode
+    }
 )
 
 # Create async session factory
