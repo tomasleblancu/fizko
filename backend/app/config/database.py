@@ -52,6 +52,11 @@ if DATABASE_URL.startswith("postgres://"):
 elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+# Ensure statement_cache_size=0 is in the URL for pgbouncer compatibility
+if "statement_cache_size" not in DATABASE_URL:
+    separator = "&" if "?" in DATABASE_URL else "?"
+    DATABASE_URL = f"{DATABASE_URL}{separator}statement_cache_size=0"
+
 # Create async engine
 engine = create_async_engine(
     DATABASE_URL,
@@ -61,7 +66,6 @@ engine = create_async_engine(
     max_overflow=10,  # Maximum number of connections to create beyond pool_size
     connect_args={
         "server_settings": {"jit": "off"},
-        "statement_cache_size": 0,  # Disable prepared statements for pgbouncer compatibility
     }
 )
 
