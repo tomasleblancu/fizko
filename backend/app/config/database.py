@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import AsyncGenerator
 
@@ -9,6 +10,12 @@ from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from ..db.models import Base
+
+# Set up logging for SQLAlchemy
+logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
+logging.getLogger("sqlalchemy.pool").setLevel(logging.INFO)
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables from backend/.env
 from pathlib import Path
@@ -52,23 +59,38 @@ if DATABASE_URL.startswith("postgres://"):
 elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-# Ensure statement_cache_size=0 is in the URL for pgbouncer compatibility
-# Only add if not already present
-if "statement_cache_size" not in DATABASE_URL.lower():
-    separator = "&" if "?" in DATABASE_URL else "?"
-    DATABASE_URL = f"{DATABASE_URL}{separator}statement_cache_size=0"
+# Validate that DATABASE_URL contains a database name
+# Format should be: postgresql+asyncpg://user:pass@host:port/dbname?params
+if DATABASE_URL.count('/') < 3:
+    logger.error(f"DATABASE_URL appears to be missing database name. URL structure: {DATABASE_URL.split('@')[0]}@<host>")
+    raise ValueError(
+        "DATABASE_URL must include database name. "
+        "Format: postgresql+asyncpg://user:pass@host:port/dbname?ssl=true"
+    )
 
-print(f"[Database] Using DATABASE_URL: {DATABASE_URL.split('@')[0]}@***")  # Log without exposing password
+# Ensure SSL parameter is present for Supabase/Railway
+if '?' not in DATABASE_URL:
+    logger.warning("DATABASE_URL missing query parameters, adding ?ssl=true")
+    DATABASE_URL += "?ssl=true"
+elif 'ssl=' not in DATABASE_URL.lower():
+    logger.warning("DATABASE_URL missing ssl parameter, appending &ssl=true")
+    DATABASE_URL += "&ssl=true"
 
-# Create async engine
+# Log the sanitized connection info (hide password)
+safe_url = DATABASE_URL.split('@')[0].split(':')[0] + ':***@' + DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else DATABASE_URL
+logger.info(f"Connecting to database: {safe_url}")
+
+# Create async engine with pgbouncer-compatible settings
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,  # Set to True to see SQL queries in logs
     pool_pre_ping=True,  # Verify connections before using them
+    pool_recycle=1800,  # Recycle connections after 30 minutes to avoid stale connections
     pool_size=5,  # Number of connections to maintain
     max_overflow=10,  # Maximum number of connections to create beyond pool_size
     connect_args={
         "server_settings": {"jit": "off"},
+        "statement_cache_size": 0,  # Disable prepared statements for pgbouncer (must be int, not string)
     }
 )
 
@@ -142,3 +164,20 @@ async def init_db() -> None:
 async def close_db() -> None:
     """Close database engine and connections."""
     await engine.dispose()
+
+
+async def check_db_connection() -> None:
+    """
+    Sanity check database connection at startup.
+
+    Raises an exception if the database is not accessible.
+    """
+    from sqlalchemy import text
+
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("Database connection check passed")
+    except Exception as e:
+        logger.error(f"Database connection check FAILED: {e}")
+        raise

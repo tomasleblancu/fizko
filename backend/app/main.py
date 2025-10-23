@@ -40,6 +40,21 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+@app.on_event("startup")
+async def startup_event():
+    """Run startup tasks including database connection check."""
+    from .config.database import check_db_connection
+
+    logger.info("Running startup checks...")
+    try:
+        await check_db_connection()
+        logger.info("All startup checks passed")
+    except Exception as e:
+        logger.error(f"Startup check failed: {e}")
+        # Don't raise - let the app start but log the error
+        # The actual endpoints will fail if DB is not accessible
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
