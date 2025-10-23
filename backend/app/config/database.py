@@ -65,16 +65,22 @@ if DATABASE_URL.count('/') < 3:
     logger.error(f"DATABASE_URL appears to be missing database name. URL structure: {DATABASE_URL.split('@')[0]}@<host>")
     raise ValueError(
         "DATABASE_URL must include database name. "
-        "Format: postgresql+asyncpg://user:pass@host:port/dbname?ssl=true"
+        "Format: postgresql+asyncpg://user:pass@host:port/dbname?sslmode=require"
     )
 
 # Ensure SSL parameter is present for Supabase/Railway
+# asyncpg uses 'sslmode' not 'ssl' (values: disable, allow, prefer, require, verify-ca, verify-full)
 if '?' not in DATABASE_URL:
-    logger.warning("DATABASE_URL missing query parameters, adding ?ssl=true")
-    DATABASE_URL += "?ssl=true"
-elif 'ssl=' not in DATABASE_URL.lower():
-    logger.warning("DATABASE_URL missing ssl parameter, appending &ssl=true")
-    DATABASE_URL += "&ssl=true"
+    logger.warning("DATABASE_URL missing query parameters, adding ?sslmode=require")
+    DATABASE_URL += "?sslmode=require"
+elif 'sslmode=' not in DATABASE_URL.lower() and 'ssl=' not in DATABASE_URL.lower():
+    logger.warning("DATABASE_URL missing sslmode parameter, appending &sslmode=require")
+    DATABASE_URL += "&sslmode=require"
+elif 'ssl=' in DATABASE_URL.lower() and 'sslmode=' not in DATABASE_URL.lower():
+    # Replace ssl=true/require with sslmode=require for asyncpg compatibility
+    import re
+    DATABASE_URL = re.sub(r'[?&]ssl=(true|require)', r'?sslmode=require', DATABASE_URL, flags=re.IGNORECASE)
+    logger.warning("Replaced 'ssl=' with 'sslmode=' for asyncpg compatibility")
 
 # Log the sanitized connection info (hide password)
 safe_url = DATABASE_URL.split('@')[0].split(':')[0] + ':***@' + DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else DATABASE_URL
