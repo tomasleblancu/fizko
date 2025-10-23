@@ -68,17 +68,45 @@ if DATABASE_URL.count('/') < 3:
         "Format: postgresql+asyncpg://user:pass@host:port/dbname?sslmode=require"
     )
 
-# Normalize SSL parameter for asyncpg compatibility
-# asyncpg uses 'sslmode' not 'ssl' (values: disable, allow, prefer, require, verify-ca, verify-full)
-if 'ssl=' in DATABASE_URL.lower() and 'sslmode=' not in DATABASE_URL.lower():
-    # Replace ssl=true/require with sslmode=require for asyncpg compatibility
-    import re
-    DATABASE_URL = re.sub(r'([?&])ssl=(true|require)', r'\1sslmode=require', DATABASE_URL, flags=re.IGNORECASE)
-    logger.info("Normalized 'ssl=' to 'sslmode=' for asyncpg compatibility")
+# Extract and remove SSL parameters from URL (asyncpg doesn't accept them in URL)
+# We'll pass SSL via connect_args instead
+import re
+ssl_mode = "prefer"  # Default SSL mode
+if 'ssl=' in DATABASE_URL.lower() or 'sslmode=' in DATABASE_URL.lower():
+    # Extract the ssl/sslmode value
+    ssl_match = re.search(r'[?&](ssl|sslmode)=([^&]+)', DATABASE_URL, re.IGNORECASE)
+    if ssl_match:
+        ssl_value = ssl_match.group(2).lower()
+        # Map ssl=true/require to sslmode values
+        if ssl_value in ('true', 'require', 'on', '1'):
+            ssl_mode = "require"
+        elif ssl_value in ('disable', 'allow', 'prefer', 'verify-ca', 'verify-full'):
+            ssl_mode = ssl_value
+    # Remove SSL parameters from URL
+    DATABASE_URL = re.sub(r'[?&](ssl|sslmode)=[^&]*&?', '', DATABASE_URL, flags=re.IGNORECASE)
+    # Clean up trailing ? or &
+    DATABASE_URL = re.sub(r'[?&]$', '', DATABASE_URL)
+    logger.info(f"Extracted SSL mode: {ssl_mode}, removed from URL")
 
 # Log the sanitized connection info (hide password)
 safe_url = DATABASE_URL.split('@')[0].split(':')[0] + ':***@' + DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else DATABASE_URL
 logger.info(f"Connecting to database: {safe_url}")
+
+# Prepare connect_args with SSL
+connect_args = {
+    "server_settings": {"jit": "off"},
+    "statement_cache_size": 0,  # Disable prepared statements for pgbouncer (must be int, not string)
+}
+
+# Add SSL if needed (not for local connections)
+if ssl_mode != "disable" and "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL:
+    import ssl as ssl_module
+    ssl_context = ssl_module.create_default_context()
+    if ssl_mode == "require":
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl_module.CERT_NONE
+    connect_args["ssl"] = ssl_context
+    logger.info(f"SSL context configured with mode: {ssl_mode}")
 
 # Create async engine with pgbouncer-compatible settings
 engine = create_async_engine(
@@ -88,10 +116,7 @@ engine = create_async_engine(
     pool_recycle=1800,  # Recycle connections after 30 minutes to avoid stale connections
     pool_size=5,  # Number of connections to maintain
     max_overflow=10,  # Maximum number of connections to create beyond pool_size
-    connect_args={
-        "server_settings": {"jit": "off"},
-        "statement_cache_size": 0,  # Disable prepared statements for pgbouncer (must be int, not string)
-    }
+    connect_args=connect_args
 )
 
 # Create async session factory
