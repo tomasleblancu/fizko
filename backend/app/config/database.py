@@ -71,6 +71,14 @@ if DATABASE_URL.count('/') < 3:
 # Extract and remove SSL parameters from URL (asyncpg doesn't accept them in URL)
 # We'll pass SSL via connect_args instead
 import re
+
+# Determine if this is a localhost connection
+is_local = "localhost" in DATABASE_URL or "127.0.0.1" in DATABASE_URL
+
+# Detect if using pgbouncer connection pooler (port 6543) or direct connection (port 5432)
+is_using_pooler = ":6543" in DATABASE_URL or "pooler.supabase.com" in DATABASE_URL
+logger.info(f"Connection type: {'pgbouncer pooler' if is_using_pooler else 'direct connection'}")
+
 ssl_mode = "prefer"  # Default SSL mode
 if 'ssl=' in DATABASE_URL.lower() or 'sslmode=' in DATABASE_URL.lower():
     # Extract the ssl/sslmode value
@@ -87,6 +95,11 @@ if 'ssl=' in DATABASE_URL.lower() or 'sslmode=' in DATABASE_URL.lower():
     # Clean up trailing ? or &
     DATABASE_URL = re.sub(r'[?&]$', '', DATABASE_URL)
     logger.info(f"Extracted SSL mode: {ssl_mode}, removed from URL")
+
+# Override SSL mode for localhost connections (disable SSL for local dev)
+if is_local:
+    ssl_mode = "disable"
+    logger.info("Localhost detected - SSL disabled for local development")
 
 # Log the sanitized connection info (hide password)
 safe_url = DATABASE_URL.split('@')[0].split(':')[0] + ':***@' + DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else DATABASE_URL
@@ -107,20 +120,34 @@ if ssl_mode != "disable" and "localhost" not in DATABASE_URL and "127.0.0.1" not
     connect_args["ssl"] = ssl_context
     logger.info(f"SSL context configured with mode: {ssl_mode}")
 
-# Create async engine with pgbouncer-compatible settings
-# CRITICAL: prepared_statement_cache_size=0 MUST be at engine level for asyncpg
-from sqlalchemy.pool import NullPool
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,  # Set to True to see SQL queries in logs
-    pool_pre_ping=True,  # Verify connections before using them
-    pool_recycle=1800,  # Recycle connections after 30 minutes to avoid stale connections
-    poolclass=NullPool,  # Disable connection pooling (pgbouncer handles pooling)
-    connect_args={
-        **connect_args,
-        "prepared_statement_cache_size": 0,  # Disable prepared statements for pgbouncer transaction mode
-    }
-)
+# Create async engine with appropriate settings based on connection type
+if is_using_pooler:
+    # pgbouncer pooler: disable prepared statements and use NullPool
+    from sqlalchemy.pool import NullPool
+    logger.info("Using NullPool with statement_cache_size=0 for pgbouncer compatibility")
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,
+        pool_recycle=1800,
+        poolclass=NullPool,  # Let pgbouncer handle pooling
+        connect_args={
+            **connect_args,
+            "statement_cache_size": 0,  # CRITICAL for pgbouncer transaction mode
+        }
+    )
+else:
+    # Direct connection: use normal pooling with prepared statements
+    logger.info("Using standard pool with prepared statements for direct connection")
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,
+        pool_recycle=1800,
+        pool_size=5,
+        max_overflow=10,
+        connect_args=connect_args
+    )
 
 # Create async session factory
 AsyncSessionLocal = async_sessionmaker(
