@@ -23,6 +23,8 @@ export function ChateableWrapper({
   disabled = false,
   children,
   uiComponent,
+  entityId,
+  entityType,
 }: ChateableWrapperProps) {
   const { sendUserMessage, isReady } = useChat();
 
@@ -43,11 +45,22 @@ export function ChateableWrapper({
       additionalOnClick();
     }
 
-    // Generate and send the message with ui_component metadata
+    // Generate and send the message with metadata
     const messageText = generateMessage();
-    const metadata = uiComponent ? { ui_component: uiComponent } : undefined;
-    sendUserMessage(messageText, metadata);
-  }, [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent]);
+    const metadata: Record<string, any> = {};
+
+    if (uiComponent) {
+      metadata.ui_component = uiComponent;
+    }
+    if (entityId) {
+      metadata.entity_id = entityId;
+    }
+    if (entityType) {
+      metadata.entity_type = entityType;
+    }
+
+    sendUserMessage(messageText, Object.keys(metadata).length > 0 ? metadata : undefined);
+  }, [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -64,11 +77,22 @@ export function ChateableWrapper({
         }
 
         const messageText = generateMessage();
-        const metadata = uiComponent ? { ui_component: uiComponent } : undefined;
-        sendUserMessage(messageText, metadata);
+        const metadata: Record<string, any> = {};
+
+        if (uiComponent) {
+          metadata.ui_component = uiComponent;
+        }
+        if (entityId) {
+          metadata.entity_id = entityId;
+        }
+        if (entityType) {
+          metadata.entity_type = entityType;
+        }
+
+        sendUserMessage(messageText, Object.keys(metadata).length > 0 ? metadata : undefined);
       }
     },
-    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent]
+    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType]
   );
 
   const combinedClassName = `chateable-wrapper ${className}`.trim();

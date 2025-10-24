@@ -23,6 +23,10 @@ export interface ChateableWrapperProps {
   children: React.ReactNode;
   /** UI component name to pass as metadata to backend */
   uiComponent?: string;
+  /** Entity ID (for specific documents, contacts, etc.) */
+  entityId?: string;
+  /** Entity type (e.g., 'sales_document', 'purchase_document', 'contact') */
+  entityType?: string;
 }
 
 export interface ChateableClickOptions {
@@ -34,6 +38,12 @@ export interface ChateableClickOptions {
   onClick?: () => void;
   /** Disable the chateable functionality */
   disabled?: boolean;
+  /** UI component name to pass as metadata to backend */
+  uiComponent?: string;
+  /** Entity ID (for specific documents, contacts, etc.) */
+  entityId?: string;
+  /** Entity type (e.g., 'sales_document', 'purchase_document', 'contact') */
+  entityType?: string;
 }
 
 export interface ChateableClickReturn {

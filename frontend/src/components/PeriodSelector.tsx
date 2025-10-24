@@ -51,41 +51,37 @@ export function PeriodSelector({ onPeriodChange }: PeriodSelectorProps) {
   };
 
   return (
-    <div className="space-y-2">
-      <div className="rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white to-slate-50 p-4 dark:border-slate-800/70 dark:from-slate-900/70 dark:to-slate-800/70">
-        <div className="flex gap-3">
-          {/* Month Selector */}
-          <div className="flex-1">
-            <select
-              id="month-select"
-              value={selectedMonth}
-              onChange={handleMonthChange}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:border-blue-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:border-blue-500"
-            >
-              {months.map((month) => (
-                <option key={month.value} value={month.value}>
-                  {month.label}
-                </option>
-              ))}
-            </select>
-          </div>
+    <div className="flex items-center gap-3">
+      {/* Month Selector */}
+      <div className="flex-1">
+        <select
+          id="month-select"
+          value={selectedMonth}
+          onChange={handleMonthChange}
+          className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          {months.map((month) => (
+            <option key={month.value} value={month.value}>
+              {month.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
-          {/* Year Selector */}
-          <div className="w-32">
-            <select
-              id="year-select"
-              value={selectedYear}
-              onChange={handleYearChange}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 transition-colors hover:border-blue-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:border-blue-500"
-            >
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+      {/* Year Selector */}
+      <div className="w-32">
+        <select
+          id="year-select"
+          value={selectedYear}
+          onChange={handleYearChange}
+          className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        >
+          {years.map((year) => (
+            <option key={year} value={year}>
+              {year}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );

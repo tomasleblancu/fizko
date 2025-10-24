@@ -15,6 +15,7 @@ from .base import Base
 
 if TYPE_CHECKING:
     from .company import Company
+    from .contact import Contact
 
 
 class PurchaseDocument(Base):
@@ -41,6 +42,11 @@ class PurchaseDocument(Base):
     # Sender information (supplier)
     sender_rut: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     sender_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Contact reference (optional)
+    contact_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Financial information
     net_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2))
@@ -92,6 +98,9 @@ class PurchaseDocument(Base):
 
     # Relationships
     company: Mapped["Company"] = relationship("Company", back_populates="purchase_documents")
+    contact: Mapped[Optional["Contact"]] = relationship(
+        "Contact", back_populates="purchase_documents"
+    )
 
 
 class SalesDocument(Base):
@@ -120,6 +129,11 @@ class SalesDocument(Base):
     # Recipient information (client)
     recipient_rut: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     recipient_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Contact reference (optional)
+    contact_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Financial information
     net_amount: Mapped[Decimal] = mapped_column(Numeric(15, 2))
@@ -172,3 +186,6 @@ class SalesDocument(Base):
 
     # Relationships
     company: Mapped["Company"] = relationship("Company", back_populates="sales_documents")
+    contact: Mapped[Optional["Contact"]] = relationship(
+        "Contact", back_populates="sales_documents"
+    )

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { TrendingUp, TrendingDown, Receipt, Calculator, BarChart3, X } from 'lucide-react';
+import { TrendingUp, TrendingDown, Receipt, Calculator, BarChart3, ChevronDown } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { TaxSummary } from '../types/fizko';
 import type { ColorScheme } from '../hooks/useColorScheme';
@@ -13,10 +13,47 @@ interface TaxSummaryCardProps {
   loading: boolean;
   scheme: ColorScheme;
   isCompact?: boolean;
+  onPeriodChange?: (period: string | undefined) => void;
 }
 
-export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false }: TaxSummaryCardProps) {
+export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false, onPeriodChange }: TaxSummaryCardProps) {
   const [showChart, setShowChart] = useState(false);
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth() + 1;
+
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+
+  // Notify parent when period changes
+  useEffect(() => {
+    if (onPeriodChange) {
+      const period = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}`;
+      onPeriodChange(period);
+    }
+  }, [selectedYear, selectedMonth, onPeriodChange]);
+
+  // Month names in Spanish (short version)
+  const months = [
+    { value: 1, label: 'Ene' },
+    { value: 2, label: 'Feb' },
+    { value: 3, label: 'Mar' },
+    { value: 4, label: 'Abr' },
+    { value: 5, label: 'May' },
+    { value: 6, label: 'Jun' },
+    { value: 7, label: 'Jul' },
+    { value: 8, label: 'Ago' },
+    { value: 9, label: 'Sep' },
+    { value: 10, label: 'Oct' },
+    { value: 11, label: 'Nov' },
+    { value: 12, label: 'Dic' },
+  ];
+
+  // Generate years (last 2 years + current year + next year)
+  const years = [];
+  for (let year = currentYear - 2; year <= currentYear + 1; year++) {
+    years.push(year);
+  }
 
   // Helper functions
   const formatCurrency = (amount: number) => {
@@ -36,10 +73,6 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false 
   };
 
   // Calculate metrics (safe to use even if taxSummary is null)
-  const netBalance = taxSummary ? taxSummary.total_revenue - taxSummary.total_expenses : 0;
-  const profitMargin = taxSummary && taxSummary.total_revenue > 0
-    ? (netBalance / taxSummary.total_revenue) * 100
-    : 0;
   const periodString = taxSummary
     ? `${formatDate(taxSummary.period_start)} - ${formatDate(taxSummary.period_end)}`
     : '';
@@ -55,6 +88,7 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false 
       type: 'iva',
     } : {},
     disabled: !taxSummary,
+    uiComponent: 'tax_summary_iva',
   });
 
   const revenueClickProps = useChateableClick({
@@ -67,6 +101,7 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false 
       type: 'revenue',
     } : {},
     disabled: !taxSummary,
+    uiComponent: 'tax_summary_revenue',
   });
 
   const expensesClickProps = useChateableClick({
@@ -79,19 +114,7 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false 
       type: 'expenses',
     } : {},
     disabled: !taxSummary,
-  });
-
-  const profitClickProps = useChateableClick({
-    message: taxSummary
-      ? `Explícame mi utilidad neta de ${formatCurrency(netBalance)} y el margen de ${formatPercent(profitMargin)} del período ${periodString}`
-      : '',
-    contextData: taxSummary ? {
-      amount: netBalance,
-      margin: profitMargin,
-      period: periodString,
-      type: 'profit',
-    } : {},
-    disabled: !taxSummary,
+    uiComponent: 'tax_summary_expenses',
   });
 
   // Early returns AFTER all hooks have been called
@@ -128,29 +151,6 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false 
         <div className="flex items-center gap-2 px-4 py-3">
           <Calculator className="h-5 w-5 text-emerald-500 flex-shrink-0" />
           <div className="flex flex-1 items-center gap-4 overflow-x-auto">
-            {/* Utilidad Neta */}
-            <div className="flex items-center gap-2 whitespace-nowrap">
-              <div className={clsx(
-                "rounded-full p-1",
-                netBalance >= 0 ? "bg-emerald-100 dark:bg-emerald-950/30" : "bg-rose-100 dark:bg-rose-950/30"
-              )}>
-                {netBalance >= 0 ? (
-                  <TrendingUp className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                ) : (
-                  <TrendingDown className="h-3 w-3 text-rose-600 dark:text-rose-400" />
-                )}
-              </div>
-              <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Utilidad:</span>
-              <span className={clsx(
-                "text-xs font-bold",
-                netBalance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-              )}>
-                {formatCurrency(netBalance)}
-              </span>
-            </div>
-
-            <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
-
             {/* IVA Neto */}
             <div className="flex items-center gap-2 whitespace-nowrap">
               <Receipt className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
@@ -241,23 +241,54 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false 
         </div>
       ) : (
         <>
-          {/* Header - Tax Payment Info with toggle button */}
+          {/* Header - Tax Payment Info with period selector and toggle button */}
           <div className="relative mb-6">
-            <div {...ivaClickProps} className={`${ivaClickProps.className} text-center p-3 -m-3 rounded-xl`}>
+            {/* Period Selector - Left side */}
+            {onPeriodChange && (
+              <div className="absolute left-0 top-0 z-10 flex items-center gap-1.5">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                >
+                  {months.map((month) => (
+                    <option key={month.value} value={month.value}>
+                      {month.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                >
+                  {years.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="text-center">
               <div className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">
                 Impuesto próximo mes
               </div>
-              <div className="text-4xl font-bold text-blue-900 dark:text-blue-100">
-                {formatCurrency(taxSummary.net_iva)}
+              <div {...ivaClickProps} className={`${ivaClickProps.className} inline-block p-2 rounded-lg`}>
+                <div className="text-4xl font-bold text-blue-900 dark:text-blue-100">
+                  {formatCurrency(taxSummary.net_iva)}
+                </div>
               </div>
               <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {formatDate(taxSummary.period_start)} - {formatDate(taxSummary.period_end)}
               </div>
             </div>
+
             {/* Toggle button in top-right corner */}
             <button
               onClick={() => setShowChart(true)}
-              className="absolute right-0 top-0 rounded-lg p-2 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="absolute right-0 top-0 z-10 rounded-lg p-2 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
               aria-label="Ver gráfico"
               title="Ver gráfico"
             >
@@ -266,7 +297,7 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false 
           </div>
 
       {/* Main Grid - Ingresos y Gastos */}
-      <div className="mb-6 grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         {/* Ingresos */}
         <div {...revenueClickProps} className={`${revenueClickProps.className} rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-white p-4 text-center dark:border-emerald-900/40 dark:from-emerald-950/30 dark:to-slate-900/50`}>
           <div className="mb-2 flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400">
@@ -286,51 +317,6 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false 
           </div>
           <div className="text-2xl font-bold text-rose-900 dark:text-rose-100">
             {formatCurrency(taxSummary.total_expenses)}
-          </div>
-        </div>
-      </div>
-
-      {/* Utilidad Neta */}
-      <div {...profitClickProps} className={clsx(
-        profitClickProps.className,
-        "mb-5 rounded-xl border p-4",
-        netBalance >= 0
-          ? "border-emerald-200/40 bg-gradient-to-br from-emerald-50/50 to-emerald-50/20 dark:border-emerald-800/40 dark:from-emerald-900/25 dark:to-emerald-950/10"
-          : "border-rose-300/60 bg-gradient-to-br from-rose-100/80 to-rose-50/40 dark:border-rose-800/50 dark:from-rose-900/40 dark:to-rose-950/20"
-      )}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {netBalance >= 0 ? (
-              <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            ) : (
-              <TrendingDown className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-            )}
-            <span className={clsx(
-              "text-sm font-semibold",
-              netBalance >= 0
-                ? "text-emerald-900 dark:text-emerald-100"
-                : "text-rose-900 dark:text-rose-100"
-            )}>
-              Utilidad Neta
-            </span>
-          </div>
-          <div className="text-right">
-            <div className={clsx(
-              "text-xl font-bold",
-              netBalance >= 0
-                ? "text-emerald-900 dark:text-emerald-100"
-                : "text-rose-900 dark:text-rose-100"
-            )}>
-              {formatCurrency(netBalance)}
-            </div>
-            <div className={clsx(
-              "text-xs",
-              netBalance >= 0
-                ? "text-emerald-700 dark:text-emerald-300"
-                : "text-rose-700 dark:text-rose-300"
-            )}>
-              Margen: {formatPercent(profitMargin)}
-            </div>
           </div>
         </div>
       </div>

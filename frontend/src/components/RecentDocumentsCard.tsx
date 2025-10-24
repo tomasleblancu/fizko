@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import clsx from 'clsx';
-import { FileText, Calendar, DollarSign, CheckCircle, Clock, AlertCircle, Maximize2, Minimize2 } from 'lucide-react';
+import { FileText, Calendar, DollarSign, CheckCircle, Clock, AlertCircle, Maximize2, Minimize2, Search } from 'lucide-react';
 import type { TaxDocument } from '../types/fizko';
 import type { ColorScheme } from '../hooks/useColorScheme';
 import { RecentDocumentsCardSkeleton } from './RecentDocumentsCardSkeleton';
@@ -14,15 +15,42 @@ interface RecentDocumentsCardProps {
 }
 
 export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = false, onToggleExpand }: RecentDocumentsCardProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filter, setFilter] = useState<'all' | 'venta' | 'compra'>('all');
+
   if (loading) {
     return <RecentDocumentsCardSkeleton count={isExpanded ? 10 : 5} />;
   }
 
+  // Filter documents based on search and filter
+  const filteredDocuments = documents.filter((doc) => {
+    // Apply type filter
+    if (filter === 'venta' && !doc.document_type.toLowerCase().startsWith('venta_')) {
+      return false;
+    }
+    if (filter === 'compra' && !doc.document_type.toLowerCase().startsWith('compra_')) {
+      return false;
+    }
+
+    // Apply search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const matchesNumber = doc.document_number?.toString().includes(searchLower);
+      const matchesDescription = doc.description?.toLowerCase().includes(searchLower);
+      const matchesType = doc.document_type.toLowerCase().includes(searchLower);
+      const matchesAmount = doc.amount.toString().includes(searchLower);
+
+      return matchesNumber || matchesDescription || matchesType || matchesAmount;
+    }
+
+    return true;
+  });
+
   // When collapsed: show only 3 documents
-  // When expanded: show ALL documents with scroll
+  // When expanded: show ALL filtered documents with scroll
   const COLLAPSED_LIMIT = 3;
-  const displayedDocuments = isExpanded ? documents : documents.slice(0, COLLAPSED_LIMIT);
-  const hasMore = documents.length > COLLAPSED_LIMIT;
+  const displayedDocuments = isExpanded ? filteredDocuments : filteredDocuments.slice(0, COLLAPSED_LIMIT);
+  const hasMore = filteredDocuments.length > COLLAPSED_LIMIT;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -120,34 +148,91 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
       "rounded-2xl border border-slate-200/70 bg-white/90 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70",
       isExpanded ? "flex h-full flex-col p-6" : "p-6"
     )}>
-      <div className="mb-4 flex flex-shrink-0 items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Documentos Tributarios Recientes
-          </h3>
-          {documents.length > 0 && (
-            <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-              {documents.length}
-            </span>
-          )}
+      <div className="mb-4 flex flex-shrink-0 flex-col gap-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              Documentos Tributarios Recientes
+            </h3>
+            {documents.length > 0 && (
+              <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                {filteredDocuments.length}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <FileText className="h-6 w-6 text-purple-500" />
+            {onToggleExpand && hasMore && (
+              <button
+                onClick={onToggleExpand}
+                className="rounded-lg p-1.5 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                aria-label={isExpanded ? "Contraer lista" : "Expandir lista"}
+                title={isExpanded ? "Ver menos" : `Ver todos (${filteredDocuments.length})`}
+              >
+                {isExpanded ? (
+                  <Minimize2 className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                ) : (
+                  <Maximize2 className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                )}
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <FileText className="h-6 w-6 text-purple-500" />
-          {onToggleExpand && hasMore && (
-            <button
-              onClick={onToggleExpand}
-              className="rounded-lg p-1.5 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
-              aria-label={isExpanded ? "Contraer lista" : "Expandir lista"}
-              title={isExpanded ? "Ver menos" : `Ver todos (${documents.length})`}
-            >
-              {isExpanded ? (
-                <Minimize2 className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-              ) : (
-                <Maximize2 className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-              )}
-            </button>
-          )}
-        </div>
+
+        {/* Search and Filters - Only show when expanded */}
+        {isExpanded && (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por número, descripción, tipo o monto..."
+                className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-4 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
+              />
+            </div>
+
+            {/* Quick Filters */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFilter('all')}
+                className={clsx(
+                  "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                  filter === 'all'
+                    ? "bg-purple-600 text-white shadow-sm dark:bg-purple-500"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                )}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setFilter('venta')}
+                className={clsx(
+                  "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                  filter === 'venta'
+                    ? "bg-emerald-600 text-white shadow-sm dark:bg-emerald-500"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                )}
+              >
+                Venta
+              </button>
+              <button
+                onClick={() => setFilter('compra')}
+                className={clsx(
+                  "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                  filter === 'compra'
+                    ? "bg-rose-600 text-white shadow-sm dark:bg-rose-500"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                )}
+              >
+                Compra
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {documents.length === 0 ? (
@@ -207,7 +292,9 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
                       issueDate: doc.issue_date,
                       description: doc.description,
                     }}
-                    uiComponent="DocumentListItem"
+                    uiComponent="document_detail"
+                    entityId={doc.id}
+                    entityType={isVenta ? "sales_document" : isCompra ? "purchase_document" : "document"}
                   >
                     <div className="flex items-center justify-between py-2 px-1 rounded-lg">
                       <div className="flex-1 min-w-0">
@@ -289,7 +376,9 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
                             issueDate: doc.issue_date,
                             description: doc.description,
                           }}
-                          uiComponent="DocumentExpandedItem"
+                          uiComponent="document_detail"
+                          entityId={doc.id}
+                          entityType={isVenta ? "sales_document" : isCompra ? "purchase_document" : "document"}
                         >
                           <div className="flex items-center justify-between py-2 px-1 rounded-lg">
                             <div className="flex-1 min-w-0">

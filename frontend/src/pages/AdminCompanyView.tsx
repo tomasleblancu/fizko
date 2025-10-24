@@ -4,20 +4,19 @@ import {
   Building2,
   Users,
   FileText,
-  RefreshCw,
   Mail,
   Phone,
   MapPin,
   Calendar,
   TrendingUp,
   TrendingDown,
-  Activity,
   ArrowLeft,
-  Download,
 } from 'lucide-react';
 import { CompanyDetail } from '../types/admin';
 import { API_BASE_URL } from '../lib/config';
 import { useAuth } from '../contexts/AuthContext';
+import SyncPanel from '../components/SyncPanel';
+import F29List from '../components/F29List';
 
 export default function AdminCompanyView() {
   const { companyId } = useParams<{ companyId: string }>();
@@ -26,245 +25,48 @@ export default function AdminCompanyView() {
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [syncingF29, setSyncingF29] = useState(false);
-  const [f29SyncMessage, setF29SyncMessage] = useState<string | null>(null);
-  const [downloadingF29PDFs, setDownloadingF29PDFs] = useState(false);
-  const [f29PDFDownloadMessage, setF29PDFDownloadMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'f29'>('overview');
 
-  useEffect(() => {
-    const fetchCompanyData = async () => {
-      // Wait for auth to load
-      if (authLoading) {
-        return;
+  const fetchCompanyData = async () => {
+    // Wait for auth to load
+    if (authLoading) {
+      return;
+    }
+
+    if (!companyId || !session?.access_token) {
+      setLoading(false);
+      if (!session?.access_token) {
+        setError('No authenticated session');
       }
-
-      if (!companyId || !session?.access_token) {
-        setLoading(false);
-        if (!session?.access_token) {
-          setError('No authenticated session');
-        }
-        return;
-      }
-
-      try {
-        setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/admin/company/${companyId}`, {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch company data');
-        }
-
-        const data = await response.json();
-        setCompany(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCompanyData();
-  }, [companyId, session?.access_token, authLoading]);
-
-  const handleSync = async (months: number) => {
-    if (!session?.access_token || !company) return;
-
-    // Get the first active session for this company
-    const activeSession = company.users.find((user) => user.is_active);
-    if (!activeSession) {
-      setSyncMessage('No hay sesiones activas para sincronizar');
       return;
     }
 
     try {
-      setSyncing(true);
-      setSyncMessage('Sincronizando documentos...');
-
-      const response = await fetch(`${API_BASE_URL}/sii/sync/documents`, {
-        method: 'POST',
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/admin/company/${companyId}`, {
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          session_id: activeSession.session_id,
-          months: months,
-        }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Error al sincronizar');
+        throw new Error('Failed to fetch company data');
       }
 
       const data = await response.json();
-
-      // Mostrar mensaje con estadísticas
-      const compras = data.compras || { total: 0, nuevos: 0, actualizados: 0 };
-      const ventas = data.ventas || { total: 0, nuevos: 0, actualizados: 0 };
-      const totalDocs = compras.total + ventas.total;
-
-      setSyncMessage(
-        `Sincronización completada: ${totalDocs} documentos procesados ` +
-        `(${compras.nuevos + ventas.nuevos} nuevos, ${compras.actualizados + ventas.actualizados} actualizados) ` +
-        `en ${data.duration_seconds?.toFixed(1) || 0}s`
-      );
-
-      // Refetch company data without full page reload
-      setTimeout(async () => {
-        try {
-          const refreshResponse = await fetch(`${API_BASE_URL}/admin/company/${companyId}`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-          });
-
-          if (refreshResponse.ok) {
-            const refreshedData = await refreshResponse.json();
-            setCompany(refreshedData);
-            setSyncMessage(
-              `Sincronización completada: ${totalDocs} documentos procesados ` +
-              `(${compras.nuevos + ventas.nuevos} nuevos, ${compras.actualizados + ventas.actualizados} actualizados)`
-            );
-          }
-        } catch (refreshError) {
-          console.error('Error refreshing company data:', refreshError);
-          // Keep the success message even if refresh fails
-        }
-      }, 2000);
+      setCompany(data);
     } catch (err) {
-      setSyncMessage(
-        err instanceof Error ? err.message : 'Error al sincronizar'
-      );
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
-      setSyncing(false);
+      setLoading(false);
     }
   };
 
-  const handleSyncF29 = async (year: number) => {
-    if (!session?.access_token || !company) return;
+  useEffect(() => {
+    fetchCompanyData();
+  }, [companyId, session?.access_token, authLoading]);
 
-    // Get the first active session for this company
-    const activeSession = company.users.find((user) => user.is_active);
-    if (!activeSession) {
-      setF29SyncMessage('No hay sesiones activas para sincronizar');
-      return;
-    }
-
-    try {
-      setSyncingF29(true);
-      setF29SyncMessage(`Sincronizando lista de F29 del año ${year}...`);
-
-      const response = await fetch(
-        `${API_BASE_URL}/sii/sync/f29/${year}?session_id=${activeSession.session_id}`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Error al sincronizar F29');
-      }
-
-      const data = await response.json();
-
-      // Mostrar mensaje con estadísticas
-      const message = `✅ ${data.forms_synced} formularios F29 sincronizados`;
-      setF29SyncMessage(message);
-
-      // Clear message after 10 seconds
-      setTimeout(() => setF29SyncMessage(null), 10000);
-    } catch (err) {
-      setF29SyncMessage(
-        `❌ ${err instanceof Error ? err.message : 'Error al sincronizar F29'}`
-      );
-    } finally {
-      setSyncingF29(false);
-    }
-  };
-
-  const handleDownloadF29PDFs = async (year?: number) => {
-    if (!session?.access_token || !company) return;
-
-    // Get the first active session for this company
-    const activeSession = company.users.find((user) => user.is_active);
-    if (!activeSession) {
-      setF29PDFDownloadMessage('No hay sesiones activas para descargar PDFs');
-      return;
-    }
-
-    try {
-      setDownloadingF29PDFs(true);
-      setF29PDFDownloadMessage(
-        year
-          ? `Descargando PDFs de F29 del año ${year}...`
-          : 'Descargando todos los PDFs pendientes...'
-      );
-
-      const requestBody: { session_id: string; year?: number } = {
-        session_id: activeSession.session_id,
-      };
-
-      if (year) {
-        requestBody.year = year;
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/sii/sync/f29/download-pdfs`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Error al descargar PDFs');
-      }
-
-      const data = await response.json();
-
-      // Mostrar mensaje detallado con estadísticas
-      let message = `✅ ${data.pdfs_downloaded} PDFs descargados correctamente`;
-
-      if (data.pdfs_failed > 0) {
-        message += `, ${data.pdfs_failed} fallaron`;
-        if (data.failed_folios && data.failed_folios.length > 0) {
-          message += ` (folios: ${data.failed_folios.slice(0, 3).join(', ')}${
-            data.failed_folios.length > 3 ? '...' : ''
-          })`;
-        }
-      }
-
-      setF29PDFDownloadMessage(message);
-
-      // Clear message after 15 seconds (más tiempo para leer el resultado)
-      setTimeout(() => setF29PDFDownloadMessage(null), 15000);
-    } catch (err) {
-      setF29PDFDownloadMessage(
-        `❌ ${err instanceof Error ? err.message : 'Error al descargar PDFs'}`
-      );
-    } finally {
-      setDownloadingF29PDFs(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -347,7 +149,35 @@ export default function AdminCompanyView() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-3">
+        {/* Tabs */}
+        <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
+                activeTab === 'overview'
+                  ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300'
+              }`}
+            >
+              Vista General
+            </button>
+            <button
+              onClick={() => setActiveTab('f29')}
+              className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
+                activeTab === 'f29'
+                  ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300'
+              }`}
+            >
+              Formularios 29
+            </button>
+          </nav>
+        </div>
+
+        {/* Tab Content: Overview */}
+        {activeTab === 'overview' && (
+          <div className="grid gap-6 lg:grid-cols-3">
           {/* Company Info Card */}
           <div className="lg:col-span-2">
             <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -562,207 +392,21 @@ export default function AdminCompanyView() {
 
           {/* Sync Actions */}
           <div>
-            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <RefreshCw className="h-5 w-5 text-orange-600" />
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Sincronizaciones
-                  </h2>
-                </div>
-              </div>
-
-              {/* Sync Action Buttons */}
-              <div className="mb-6 space-y-3">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Sincronizar Documentos
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleSync(1)}
-                    disabled={syncing}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                    1 mes
-                  </button>
-
-                  <button
-                    onClick={() => handleSync(3)}
-                    disabled={syncing}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                    3 meses
-                  </button>
-
-                  <button
-                    onClick={() => handleSync(6)}
-                    disabled={syncing}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                    6 meses
-                  </button>
-                </div>
-
-                {syncMessage && (
-                  <div
-                    className={`rounded-md border px-3 py-2 text-sm ${
-                      syncMessage.includes('Error') || syncMessage.includes('No hay')
-                        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400'
-                        : 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400'
-                    }`}
-                  >
-                    {syncMessage}
-                  </div>
-                )}
-              </div>
-
-              {/* F29 Sync Section */}
-              <div className="mb-6 space-y-3 border-t border-gray-200 pt-6 dark:border-gray-700">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Sincronizar Lista de F29
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Sincroniza la lista de formularios desde el SII (sin descargar PDFs)
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleSyncF29(2024)}
-                    disabled={syncingF29}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-purple-300 bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 shadow-sm transition-colors hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-purple-600 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/30"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${syncingF29 ? 'animate-spin' : ''}`} />
-                    2024
-                  </button>
-
-                  <button
-                    onClick={() => handleSyncF29(2023)}
-                    disabled={syncingF29}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-purple-300 bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 shadow-sm transition-colors hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-purple-600 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/30"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${syncingF29 ? 'animate-spin' : ''}`} />
-                    2023
-                  </button>
-
-                  <button
-                    onClick={() => handleSyncF29(2022)}
-                    disabled={syncingF29}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-purple-300 bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 shadow-sm transition-colors hover:bg-purple-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-purple-600 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/30"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${syncingF29 ? 'animate-spin' : ''}`} />
-                    2022
-                  </button>
-                </div>
-
-                {f29SyncMessage && (
-                  <div
-                    className={`rounded-md border px-3 py-2 text-sm ${
-                      f29SyncMessage.includes('Error') || f29SyncMessage.includes('❌')
-                        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400'
-                        : 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400'
-                    }`}
-                  >
-                    {f29SyncMessage}
-                  </div>
-                )}
-              </div>
-
-              {/* F29 PDF Download Section */}
-              <div className="mb-6 space-y-3 border-t border-gray-200 pt-6 dark:border-gray-700">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Descargar PDFs de F29
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Descarga los PDFs de los formularios ya sincronizados
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleDownloadF29PDFs()}
-                    disabled={downloadingF29PDFs}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
-                  >
-                    <Download className={`h-3.5 w-3.5 ${downloadingF29PDFs ? 'animate-bounce' : ''}`} />
-                    Todos los pendientes
-                  </button>
-
-                  <button
-                    onClick={() => handleDownloadF29PDFs(2024)}
-                    disabled={downloadingF29PDFs}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
-                  >
-                    <Download className={`h-3.5 w-3.5 ${downloadingF29PDFs ? 'animate-bounce' : ''}`} />
-                    2024
-                  </button>
-
-                  <button
-                    onClick={() => handleDownloadF29PDFs(2023)}
-                    disabled={downloadingF29PDFs}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
-                  >
-                    <Download className={`h-3.5 w-3.5 ${downloadingF29PDFs ? 'animate-bounce' : ''}`} />
-                    2023
-                  </button>
-
-                  <button
-                    onClick={() => handleDownloadF29PDFs(2022)}
-                    disabled={downloadingF29PDFs}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
-                  >
-                    <Download className={`h-3.5 w-3.5 ${downloadingF29PDFs ? 'animate-bounce' : ''}`} />
-                    2022
-                  </button>
-                </div>
-
-                {f29PDFDownloadMessage && (
-                  <div
-                    className={`rounded-md border px-3 py-2 text-sm ${
-                      f29PDFDownloadMessage.includes('Error') || f29PDFDownloadMessage.includes('❌')
-                        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400'
-                        : 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400'
-                    }`}
-                  >
-                    {f29PDFDownloadMessage}
-                  </div>
-                )}
-              </div>
-
-              {/* Sync History */}
-              <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
-                Historial de Sincronizaciones
-              </h3>
-
-              {company.sync_actions.length > 0 ? (
-                <div className="space-y-3">
-                  {company.sync_actions.map((sync, index) => (
-                    <div
-                      key={index}
-                      className="rounded-lg border border-gray-200 p-3 dark:border-gray-700"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <Activity className="h-4 w-4 text-orange-600" />
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {sync.user_email}
-                        </p>
-                      </div>
-                      <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                        Última sincronización: {formatDateTime(sync.last_sync)}
-                      </p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        Total: {sync.total_syncs}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  No hay sincronizaciones registradas
-                </p>
-              )}
-            </div>
+            <SyncPanel
+              syncActions={company.sync_actions}
+              sessionId={company.users.find((user) => user.is_active)?.session_id}
+              onRefreshData={fetchCompanyData}
+            />
           </div>
         </div>
+        )}
+
+        {/* Tab Content: F29 Forms */}
+        {activeTab === 'f29' && (
+          <div>
+            <F29List companyId={companyId!} />
+          </div>
+        )}
       </div>
     </div>
   );

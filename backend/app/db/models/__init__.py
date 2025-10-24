@@ -16,6 +16,7 @@ Key Design Principles:
 from .base import Base
 from .chat import ChatKitAttachment, Conversation, Message
 from .company import Company, CompanyTaxInfo
+from .contact import Contact
 from .documents import PurchaseDocument, SalesDocument
 from .form29 import Form29
 from .form29_sii_download import Form29SIIDownload
@@ -32,6 +33,8 @@ __all__ = [
     "CompanyTaxInfo",
     # Session
     "Session",
+    # Contacts
+    "Contact",
     # Documents
     "PurchaseDocument",
     "SalesDocument",

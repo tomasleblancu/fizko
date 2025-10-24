@@ -142,7 +142,12 @@ export function ChatKitPanel({
     setWidgetInstanceKey((prev) => prev + 1);
   }, []);
 
-  // Create custom fetch function with auth headers
+  // Track the current UI component and entity data for the next message
+  const currentUiComponentRef = useRef<string | null>(null);
+  const currentEntityIdRef = useRef<string | null>(null);
+  const currentEntityTypeRef = useRef<string | null>(null);
+
+  // Create custom fetch function with auth headers and ui_component query param
   const customFetch = useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
@@ -151,7 +156,38 @@ export function ChatKitPanel({
         headers.set("Authorization", `Bearer ${session.access_token}`);
       }
 
-      return fetch(input, {
+      // Add ui_component and entity parameters if available
+      let url = input.toString();
+      const urlObj = new URL(url);
+
+      if (currentUiComponentRef.current) {
+        urlObj.searchParams.set('ui_component', currentUiComponentRef.current);
+        console.log('[ChatKitPanel] Adding ui_component to request:', currentUiComponentRef.current);
+      } else {
+        // Set to null if no ui_component
+        urlObj.searchParams.set('ui_component', 'null');
+      }
+
+      // Add entity_id if available
+      if (currentEntityIdRef.current) {
+        urlObj.searchParams.set('entity_id', currentEntityIdRef.current);
+        console.log('[ChatKitPanel] Adding entity_id to request:', currentEntityIdRef.current);
+      }
+
+      // Add entity_type if available
+      if (currentEntityTypeRef.current) {
+        urlObj.searchParams.set('entity_type', currentEntityTypeRef.current);
+        console.log('[ChatKitPanel] Adding entity_type to request:', currentEntityTypeRef.current);
+      }
+
+      url = urlObj.toString();
+
+      // Reset after use
+      currentUiComponentRef.current = null;
+      currentEntityIdRef.current = null;
+      currentEntityTypeRef.current = null;
+
+      return fetch(url, {
         ...init,
         headers,
       });
@@ -168,9 +204,8 @@ export function ChatKitPanel({
       params.set('company_id', currentCompanyId);
     }
 
-    // Add ui_component parameter (null by default, will be set dynamically)
-    // This parameter indicates which UI component triggered the message
-    params.set('ui_component', 'null');
+    // Note: ui_component is NOT a URL parameter - it's sent dynamically
+    // in the metadata of each message via sendUserMessage({ text, metadata })
 
     const url = `${CHATKIT_API_URL}?${params.toString()}`;
     console.log("[ChatKitPanel] API URL with params:", url);
@@ -314,6 +349,20 @@ export function ChatKitPanel({
   useEffect(() => {
     if (onSendMessageReady && chatkit.sendUserMessage) {
       const sendMessage = async (text: string, metadata?: Record<string, any>) => {
+        // Store ui_component and entity data in refs before sending message
+        if (metadata?.ui_component) {
+          currentUiComponentRef.current = metadata.ui_component;
+          console.log('[ChatKitPanel] Setting ui_component for next request:', metadata.ui_component);
+        }
+        if (metadata?.entity_id) {
+          currentEntityIdRef.current = metadata.entity_id;
+          console.log('[ChatKitPanel] Setting entity_id for next request:', metadata.entity_id);
+        }
+        if (metadata?.entity_type) {
+          currentEntityTypeRef.current = metadata.entity_type;
+          console.log('[ChatKitPanel] Setting entity_type for next request:', metadata.entity_type);
+        }
+
         await chatkit.sendUserMessage({
           text,
           metadata,

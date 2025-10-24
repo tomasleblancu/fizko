@@ -15,7 +15,7 @@ import type { ChateableClickOptions, ChateableClickReturn } from '../types/chate
  * return <div {...chateableProps}>Click me</div>;
  */
 export function useChateableClick(options: ChateableClickOptions): ChateableClickReturn {
-  const { message, contextData, onClick: additionalOnClick, disabled = false } = options;
+  const { message, contextData, onClick: additionalOnClick, disabled = false, uiComponent } = options;
   const { sendUserMessage, isReady } = useChat();
 
   const generateMessage = useCallback((): string => {
@@ -39,11 +39,12 @@ export function useChateableClick(options: ChateableClickOptions): ChateableClic
         additionalOnClick();
       }
 
-      // Generate and send the message
+      // Generate and send the message with ui_component metadata
       const messageText = generateMessage();
-      sendUserMessage(messageText);
+      const metadata = uiComponent ? { ui_component: uiComponent } : undefined;
+      sendUserMessage(messageText, metadata);
     },
-    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage]
+    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent]
   );
 
   const handleKeyDown = useCallback(
@@ -62,10 +63,11 @@ export function useChateableClick(options: ChateableClickOptions): ChateableClic
         }
 
         const messageText = generateMessage();
-        sendUserMessage(messageText);
+        const metadata = uiComponent ? { ui_component: uiComponent } : undefined;
+        sendUserMessage(messageText, metadata);
       }
     },
-    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage]
+    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent]
   );
 
   return {

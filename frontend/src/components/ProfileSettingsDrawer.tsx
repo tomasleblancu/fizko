@@ -10,6 +10,9 @@ interface ProfileSettingsDrawerProps {
   onClose: () => void;
   scheme: ColorScheme;
   company: Company | null;
+  onThemeChange?: (scheme: ColorScheme) => void;
+  onNavigateToDashboard?: () => void;
+  onNavigateToContacts?: () => void;
 }
 
 export function ProfileSettingsDrawer({
@@ -17,6 +20,9 @@ export function ProfileSettingsDrawer({
   onClose,
   scheme,
   company,
+  onThemeChange,
+  onNavigateToDashboard,
+  onNavigateToContacts,
 }: ProfileSettingsDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const startY = useRef<number>(0);
@@ -121,7 +127,15 @@ export function ProfileSettingsDrawer({
 
         {/* Content - Profile Settings */}
         <div className="h-[calc(100%-3rem)] overflow-hidden px-4 pb-4">
-          <ProfileSettings scheme={scheme} isInDrawer={true} company={company} />
+          <ProfileSettings
+            scheme={scheme}
+            isInDrawer={true}
+            company={company}
+            onThemeChange={onThemeChange}
+            onNavigateToDashboard={onNavigateToDashboard}
+            onNavigateToContacts={onNavigateToContacts}
+            currentView="settings"
+          />
         </div>
       </div>
     </div>

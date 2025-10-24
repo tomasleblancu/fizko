@@ -103,6 +103,12 @@ class FizkoChatKitServer(ChatKitServer):
         user_message = _user_message_text(target_item) if isinstance(target_item, UserMessageItem) else ""
         logger.info(f"User: {user_message[:100]}")
 
+        # Prepend UI context if available (from UI Tools system)
+        ui_context_text = context.get("ui_context_text", "")
+        if ui_context_text:
+            logger.info(f"📍 Prepending UI context ({len(ui_context_text)} chars) to user message")
+            user_message = f"{ui_context_text}\n\n{user_message}"
+
         # Create session for conversation history
         sessions_dir = os.path.join(os.path.dirname(__file__), "..", "..", "sessions")
         os.makedirs(sessions_dir, exist_ok=True)

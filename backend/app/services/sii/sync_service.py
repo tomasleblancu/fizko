@@ -14,7 +14,7 @@ from sqlalchemy.dialects.postgresql import insert
 from uuid import UUID
 
 from app.services.sii.service import SIIService
-from app.db.models import Company, PurchaseDocument, SalesDocument, Session as SessionModel
+from app.db.models import Company, Contact, PurchaseDocument, SalesDocument, Session as SessionModel
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +216,71 @@ class SIISyncService:
                 periods.append(period)
 
         return periods
+
+    async def _get_or_create_contact(
+        self,
+        company_id: UUID,
+        rut: Optional[str],
+        name: Optional[str],
+        contact_type: str  # 'provider' or 'client'
+    ) -> Optional[UUID]:
+        """
+        Busca o crea un contacto basado en el RUT
+
+        Args:
+            company_id: ID de la compañía
+            rut: RUT del contacto
+            name: Nombre del contacto
+            contact_type: Tipo de contacto ('provider' o 'client')
+
+        Returns:
+            UUID del contacto o None si no se puede crear
+        """
+        if not rut or not name:
+            return None
+
+        # Normalizar RUT (eliminar puntos, guiones, etc)
+        rut = rut.strip().replace(".", "").replace("-", "").upper()
+
+        # Buscar contacto existente
+        stmt = select(Contact).where(
+            Contact.company_id == company_id,
+            Contact.rut == rut
+        )
+        result = await self.db.execute(stmt)
+        existing_contact = result.scalar_one_or_none()
+
+        if existing_contact:
+            # Verificar si necesitamos actualizar el tipo
+            if existing_contact.contact_type != 'both':
+                # Si es proveedor y ahora es cliente (o viceversa), cambiar a 'both'
+                if (existing_contact.contact_type == 'provider' and contact_type == 'client') or \
+                   (existing_contact.contact_type == 'client' and contact_type == 'provider'):
+                    existing_contact.contact_type = 'both'
+                    existing_contact.updated_at = datetime.utcnow()
+                    logger.info(f"📝 Updated contact {rut} type to 'both'")
+
+            return existing_contact.id
+
+        # Crear nuevo contacto
+        try:
+            new_contact = Contact(
+                company_id=company_id,
+                rut=rut,
+                business_name=name,
+                contact_type=contact_type,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            )
+            self.db.add(new_contact)
+            await self.db.flush()  # Flush para obtener el ID sin commit
+
+            logger.info(f"✨ Created new {contact_type}: {name} ({rut})")
+            return new_contact.id
+
+        except Exception as e:
+            logger.error(f"❌ Error creating contact {rut}: {e}")
+            return None
 
     async def _sync_compras_period(
         self,
@@ -467,6 +532,20 @@ class SIISyncService:
                     doc=doc,
                     tipo_doc=tipo_doc
                 )
+
+                # Crear o buscar contacto (proveedor) si hay RUT y nombre
+                sender_rut = doc_data.get('sender_rut')
+                sender_name = doc_data.get('sender_name')
+                if sender_rut and sender_name:
+                    contact_id = await self._get_or_create_contact(
+                        company_id=company_id,
+                        rut=sender_rut,
+                        name=sender_name,
+                        contact_type='provider'
+                    )
+                    if contact_id:
+                        doc_data['contact_id'] = contact_id
+
                 doc_data['created_at'] = datetime.utcnow()
                 doc_data['updated_at'] = datetime.utcnow()
                 docs_to_upsert.append(doc_data)
@@ -500,6 +579,7 @@ class SIISyncService:
                 'issue_date': stmt.excluded.issue_date,
                 'sender_rut': stmt.excluded.sender_rut,
                 'sender_name': stmt.excluded.sender_name,
+                'contact_id': stmt.excluded.contact_id,
                 'net_amount': stmt.excluded.net_amount,
                 'tax_amount': stmt.excluded.tax_amount,
                 'exempt_amount': stmt.excluded.exempt_amount,
@@ -622,6 +702,20 @@ class SIISyncService:
                     doc=doc,
                     tipo_doc=tipo_doc
                 )
+
+                # Crear o buscar contacto (cliente) si hay RUT y nombre
+                recipient_rut = doc_data.get('recipient_rut')
+                recipient_name = doc_data.get('recipient_name')
+                if recipient_rut and recipient_name:
+                    contact_id = await self._get_or_create_contact(
+                        company_id=company_id,
+                        rut=recipient_rut,
+                        name=recipient_name,
+                        contact_type='client'
+                    )
+                    if contact_id:
+                        doc_data['contact_id'] = contact_id
+
                 doc_data['created_at'] = datetime.utcnow()
                 doc_data['updated_at'] = datetime.utcnow()
                 docs_to_upsert.append(doc_data)
@@ -655,6 +749,7 @@ class SIISyncService:
                 'issue_date': stmt.excluded.issue_date,
                 'recipient_rut': stmt.excluded.recipient_rut,
                 'recipient_name': stmt.excluded.recipient_name,
+                'contact_id': stmt.excluded.contact_id,
                 'net_amount': stmt.excluded.net_amount,
                 'tax_amount': stmt.excluded.tax_amount,
                 'exempt_amount': stmt.excluded.exempt_amount,

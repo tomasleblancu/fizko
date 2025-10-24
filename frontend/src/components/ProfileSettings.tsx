@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
+import { Sun, Moon, Home, Users, Settings } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { ProfileSettingsSkeleton } from './ProfileSettingsSkeleton';
 import type { ColorScheme } from '../hooks/useColorScheme';
 import type { Company } from '../types/fizko';
 
@@ -10,18 +12,37 @@ interface ProfileSettingsProps {
   isInDrawer?: boolean;
   onNavigateBack?: () => void;
   company: Company | null;
+  onThemeChange?: (scheme: ColorScheme) => void;
+  onNavigateToContacts?: () => void;
+  onNavigateToDashboard?: () => void;
+  currentView?: 'dashboard' | 'contacts' | 'settings';
 }
 
-export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, company }: ProfileSettingsProps) {
-  const { user } = useAuth();
+export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToContacts, onNavigateToDashboard, currentView = 'settings' }: ProfileSettingsProps) {
+  const { user, loading: authLoading } = useAuth();
+  const { profile, loading: profileLoading } = useUserProfile();
   // Company is now passed as prop to avoid multiple fetches
   const [activeTab, setActiveTab] = useState<'account' | 'company' | 'preferences'>('account');
 
+  const toggleTheme = () => {
+    if (onThemeChange) {
+      onThemeChange(scheme === 'dark' ? 'light' : 'dark');
+    }
+  };
+
+  const isInSettings = currentView === 'settings';
+  const isLoading = authLoading || profileLoading;
+
   const tabs = [
-    { id: 'account' as const, label: 'Cuenta', icon: '👤' },
-    { id: 'company' as const, label: 'Empresa', icon: '🏢' },
-    { id: 'preferences' as const, label: 'Preferencias', icon: '⚙️' },
+    { id: 'account' as const, label: 'Cuenta' },
+    { id: 'company' as const, label: 'Empresa' },
+    { id: 'preferences' as const, label: 'Preferencias' },
   ];
+
+  // Show skeleton while loading
+  if (isLoading && !user) {
+    return <ProfileSettingsSkeleton />;
+  }
 
   // Content for drawer view
   if (isInDrawer) {
@@ -44,14 +65,13 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={clsx(
-                'flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+                'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
                 activeTab === tab.id
                   ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
                   : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               )}
             >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
+              {tab.label}
             </button>
           ))}
         </div>
@@ -71,42 +91,101 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
   return (
     <section className="flex h-full w-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-slate-200/70 bg-white/50 px-6 py-3 backdrop-blur dark:border-slate-800/70 dark:bg-slate-900/50">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              Configuración
-            </h2>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Administra tu perfil y preferencias
-            </p>
-          </div>
-          {onNavigateBack && (
-            <button
-              onClick={onNavigateBack}
-              className={clsx(
-                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+      {!isInDrawer && (
+        <div className="flex-shrink-0 border-b border-slate-200/70 bg-white/50 px-6 py-3 backdrop-blur dark:border-slate-800/70 dark:bg-slate-900/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-slate-500 to-slate-700 text-white shadow-md">
+                <Settings className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                  Configuración
+                </h2>
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Administra tu perfil y preferencias
+                </p>
+              </div>
+            </div>
+
+            {/* Controls - Right side */}
+            <div className="flex items-center gap-3">
+              {/* Theme Toggle */}
+              {onThemeChange && (
+                <button
+                  onClick={toggleTheme}
+                  className={clsx(
+                    'rounded-lg p-2 transition-colors',
+                    'hover:bg-slate-100 dark:hover:bg-slate-800',
+                    'text-slate-600 dark:text-slate-300'
+                  )}
+                  aria-label="Toggle theme"
+                  title="Cambiar tema"
+                >
+                  {scheme === 'dark' ? (
+                    <Sun className="h-5 w-5" />
+                  ) : (
+                    <Moon className="h-5 w-5" />
+                  )}
+                </button>
               )}
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Volver al Dashboard
-            </button>
-          )}
+
+              {/* Navigation Pills */}
+              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+                {/* Dashboard Button */}
+                {onNavigateToDashboard && (
+                  <button
+                    onClick={onNavigateToDashboard}
+                    className={clsx(
+                      'rounded-md p-2 transition-colors',
+                      currentView === 'dashboard'
+                        ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400'
+                        : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100'
+                    )}
+                    aria-label="Dashboard"
+                    title="Dashboard"
+                  >
+                    <Home className="h-5 w-5" />
+                  </button>
+                )}
+
+                {/* Contacts Button */}
+                {onNavigateToContacts && (
+                  <button
+                    onClick={onNavigateToContacts}
+                    className={clsx(
+                      'rounded-md p-2 transition-colors',
+                      currentView === 'contacts'
+                        ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400'
+                        : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100'
+                    )}
+                    aria-label="Contactos"
+                    title="Contactos"
+                  >
+                    <Users className="h-5 w-5" />
+                  </button>
+                )}
+
+                {/* Settings Button */}
+                <button
+                  onClick={() => {}} // Already on settings
+                  disabled
+                  className={clsx(
+                    'rounded-md p-2 transition-colors cursor-default',
+                    currentView === 'settings'
+                      ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400'
+                      : 'text-slate-400 dark:text-slate-600'
+                  )}
+                  aria-label="Configuración"
+                  title="Configuración"
+                >
+                  <Settings className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Tabs */}
       <div className="flex-shrink-0 border-b border-slate-200/60 px-6 dark:border-slate-800/60">
@@ -116,14 +195,13 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={clsx(
-                'flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+                'border-b-2 px-4 py-3 text-sm font-medium transition-colors',
                 activeTab === tab.id
                   ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
                   : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               )}
             >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
+              {tab.label}
             </button>
           ))}
         </div>
@@ -262,18 +340,18 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* User Info Card */}
-      <div className="rounded-2xl border border-slate-200/70 bg-gradient-to-br from-blue-50 to-purple-50 p-6 dark:border-slate-800/70 dark:from-blue-950/30 dark:to-purple-950/30">
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-teal-700 text-2xl font-bold text-white shadow-lg">
+      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-lg font-bold text-white">
             {user?.email?.charAt(0).toUpperCase() || '?'}
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">
               {user?.email || 'Usuario'}
             </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Cuenta activa
             </p>
           </div>
@@ -281,7 +359,7 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
       </div>
 
       {/* Contact Information Section */}
-      <div className="rounded-xl border border-slate-200/70 bg-white/50 p-4 dark:border-slate-800/70 dark:bg-slate-900/50">
+      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-4 flex items-center justify-between">
           <h4 className="font-medium text-slate-900 dark:text-slate-100">
             Información de Contacto
@@ -380,7 +458,7 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
 
           {/* Phone Verification Status */}
           {celular && celular !== '+' && (
-            <div className="mt-2 flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+            <div className="mt-2 flex items-center justify-between rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
               <div className="flex items-center gap-2">
                 {profile?.phone_verified ? (
                   <>
@@ -469,7 +547,7 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
       )}
 
       {/* Email */}
-      <div className="rounded-xl border border-slate-200/70 bg-white/50 p-4 dark:border-slate-800/70 dark:bg-slate-900/50">
+      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
           Email
         </label>
@@ -485,7 +563,7 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
       </div>
 
       {/* SII Credentials Section */}
-      <div className="rounded-xl border border-slate-200/70 bg-white/50 p-4 dark:border-slate-800/70 dark:bg-slate-900/50">
+      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <h4 className="mb-3 font-medium text-slate-900 dark:text-slate-100">
           Credenciales SII
         </h4>
@@ -501,7 +579,7 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
 function CompanySettings({ company, scheme }: { company: any; scheme: ColorScheme }) {
   if (!company) {
     return (
-      <div className="rounded-xl border border-slate-200/70 bg-white/50 p-8 text-center dark:border-slate-800/70 dark:bg-slate-900/50">
+      <div className="rounded-lg border border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
         <p className="text-slate-600 dark:text-slate-400">
           No hay empresa vinculada a esta cuenta
         </p>
@@ -510,18 +588,18 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Company Info Card */}
-      <div className="rounded-2xl border border-slate-200/70 bg-gradient-to-br from-emerald-50 to-teal-50 p-6 dark:border-slate-800/70 dark:from-emerald-950/30 dark:to-teal-950/30">
+      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-xl font-bold text-white shadow-lg">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-lg font-bold text-white">
             {company.razon_social?.charAt(0).toUpperCase() || 'E'}
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">
               {company.razon_social || 'Empresa'}
             </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               RUT: {company.rut || 'N/A'}
             </p>
           </div>
@@ -529,47 +607,49 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
       </div>
 
       {/* Company Details */}
-      <div className="space-y-4">
-        <div className="rounded-xl border border-slate-200/70 bg-white/50 p-4 dark:border-slate-800/70 dark:bg-slate-900/50">
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-            Razón Social
-          </label>
-          <input
-            type="text"
-            value={company.razon_social || ''}
-            disabled
-            className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-          />
-        </div>
-
-        <div className="rounded-xl border border-slate-200/70 bg-white/50 p-4 dark:border-slate-800/70 dark:bg-slate-900/50">
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-            RUT
-          </label>
-          <input
-            type="text"
-            value={company.rut || ''}
-            disabled
-            className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-          />
-        </div>
-
-        {company.giro && (
-          <div className="rounded-xl border border-slate-200/70 bg-white/50 p-4 dark:border-slate-800/70 dark:bg-slate-900/50">
+      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <div className="space-y-4">
+          <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Giro
+              Razón Social
             </label>
             <input
               type="text"
-              value={company.giro}
+              value={company.razon_social || ''}
               disabled
               className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
             />
           </div>
-        )}
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              RUT
+            </label>
+            <input
+              type="text"
+              value={company.rut || ''}
+              disabled
+              className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            />
+          </div>
+
+          {company.giro && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Giro
+              </label>
+              <input
+                type="text"
+                value={company.giro}
+                disabled
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="rounded-xl border border-amber-200/70 bg-amber-50/50 p-4 dark:border-amber-900/70 dark:bg-amber-950/30">
+      <div className="rounded-lg bg-amber-50 p-4 dark:bg-amber-950/30">
         <p className="text-sm text-amber-800 dark:text-amber-200">
           Los datos de la empresa son obtenidos del SII y no pueden ser modificados desde aquí.
         </p>
@@ -581,9 +661,9 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
 // Preferences Settings Tab
 function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Theme Preference */}
-      <div className="rounded-xl border border-slate-200/70 bg-white/50 p-4 dark:border-slate-800/70 dark:bg-slate-900/50">
+      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <h4 className="mb-3 font-medium text-slate-900 dark:text-slate-100">
           Apariencia
         </h4>
@@ -624,7 +704,7 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
       </div>
 
       {/* Language (placeholder) */}
-      <div className="rounded-xl border border-slate-200/70 bg-white/50 p-4 dark:border-slate-800/70 dark:bg-slate-900/50">
+      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <h4 className="mb-3 font-medium text-slate-900 dark:text-slate-100">
           Idioma
         </h4>
@@ -640,7 +720,7 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
       </div>
 
       {/* Notifications (placeholder) */}
-      <div className="rounded-xl border border-slate-200/70 bg-white/50 p-4 dark:border-slate-800/70 dark:bg-slate-900/50">
+      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <h4 className="mb-3 font-medium text-slate-900 dark:text-slate-100">
           Notificaciones
         </h4>

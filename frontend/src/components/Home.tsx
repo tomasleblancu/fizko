@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import clsx from "clsx";
-import { FileText } from "lucide-react";
+import { Home as HomeIcon, Users, Settings } from "lucide-react";
 
 import { Header } from "./Header";
 import { ChatKitPanel } from "./ChatKitPanel";
@@ -8,6 +8,8 @@ import { FinancialDashboard } from "./FinancialDashboard";
 import { FinancialDashboardDrawer } from "./FinancialDashboardDrawer";
 import { ProfileSettings } from "./ProfileSettings";
 import { ProfileSettingsDrawer } from "./ProfileSettingsDrawer";
+import { Contacts } from "./Contacts";
+import { ContactsDrawer } from "./ContactsDrawer";
 import { LoginOverlay } from "./LoginOverlay";
 import { OnboardingModal } from "./OnboardingModal";
 import { ColorScheme } from "../hooks/useColorScheme";
@@ -53,10 +55,11 @@ function HomeContent({
 
   // Mobile drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isContactsDrawerOpen, setIsContactsDrawerOpen] = useState(false);
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
 
-  // View state: 'dashboard' or 'settings'
-  const [currentView, setCurrentView] = useState<'dashboard' | 'settings'>('dashboard');
+  // View state: 'dashboard', 'contacts', or 'settings'
+  const [currentView, setCurrentView] = useState<'dashboard' | 'contacts' | 'settings'>('dashboard');
 
   // Compute overall loading state - wait until session is initialized
   // This prevents flash of onboarding form while checking session
@@ -100,12 +103,15 @@ function HomeContent({
     }
   }, [activeCompanyId]);
 
-  // Handle navigation to settings
+  // Handle navigation between views
+  const handleNavigateToContacts = useCallback(() => {
+    setCurrentView('contacts');
+  }, []);
+
   const handleNavigateToSettings = useCallback(() => {
     setCurrentView('settings');
   }, []);
 
-  // Handle navigation back to dashboard
   const handleNavigateToDashboard = useCallback(() => {
     setCurrentView('dashboard');
   }, []);
@@ -169,6 +175,8 @@ function HomeContent({
               company={company}
               onThemeChange={handleThemeChange}
               onNavigateToSettings={handleNavigateToSettings}
+              onNavigateToContacts={handleNavigateToContacts}
+              currentView={currentView}
             />
           </div>
         </div>
@@ -200,49 +208,42 @@ function HomeContent({
             />
           </div>
 
-          {/* Mobile: Buttons to open dashboard or settings */}
-          <div className="flex-shrink-0 p-4 flex gap-3 bg-white dark:bg-slate-900 lg:hidden lg:mt-4 lg:p-0 lg:bg-transparent lg:dark:bg-transparent">
+          {/* Mobile: Buttons to open dashboard, contacts or settings */}
+          <div className="flex-shrink-0 p-4 flex gap-2 bg-white dark:bg-slate-900 lg:hidden lg:mt-4 lg:p-0 lg:bg-transparent lg:dark:bg-transparent">
             <button
               onClick={() => setIsDrawerOpen(true)}
               className={clsx(
-                "flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2 font-medium text-white shadow-lg transition-all hover:bg-emerald-700 active:scale-98 dark:bg-emerald-500 dark:hover:bg-emerald-600",
+                "flex flex-1 items-center justify-center rounded-2xl bg-emerald-600 px-3 py-3 font-medium text-white shadow-lg transition-all hover:bg-emerald-700 active:scale-98 dark:bg-emerald-500 dark:hover:bg-emerald-600",
                 "animate-fade-in"
               )}
+              aria-label="Abrir Dashboard"
             >
-              <FileText className="h-4 w-4" />
-              <span>Dashboard</span>
+              <HomeIcon className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setIsContactsDrawerOpen(true)}
+              className={clsx(
+                "flex w-14 items-center justify-center rounded-2xl border-2 border-emerald-600 bg-transparent px-3 py-3 font-medium text-emerald-600 shadow-lg transition-all hover:bg-emerald-50 active:scale-98 dark:border-emerald-500 dark:text-emerald-500 dark:hover:bg-emerald-950/30",
+                "animate-fade-in"
+              )}
+              aria-label="Abrir Contactos"
+            >
+              <Users className="h-5 w-5" />
             </button>
             <button
               onClick={() => setIsSettingsDrawerOpen(true)}
               className={clsx(
-                "flex items-center justify-center gap-2 rounded-2xl border-2 border-emerald-600 bg-transparent px-4 py-2 font-medium text-emerald-600 shadow-lg transition-all hover:bg-emerald-50 active:scale-98 dark:border-emerald-500 dark:text-emerald-500 dark:hover:bg-emerald-950/30",
+                "flex w-14 items-center justify-center rounded-2xl border-2 border-emerald-600 bg-transparent px-3 py-3 font-medium text-emerald-600 shadow-lg transition-all hover:bg-emerald-50 active:scale-98 dark:border-emerald-500 dark:text-emerald-500 dark:hover:bg-emerald-950/30",
                 "animate-fade-in"
               )}
+              aria-label="Abrir Ajustes"
             >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
+              <Settings className="h-5 w-5" />
             </button>
           </div>
         </div>
 
-        {/* Desktop: Show dashboard or settings based on currentView */}
+        {/* Desktop: Show dashboard, contacts, or settings based on currentView */}
         <div className="relative hidden h-full flex-col lg:flex lg:flex-1">
           <div className="relative flex flex-1 items-stretch overflow-hidden rounded-3xl border border-slate-200 bg-white/80 shadow-lg ring-1 ring-slate-200/60 backdrop-blur lg:shadow-xl dark:border-slate-800 dark:bg-slate-900/70 dark:shadow-xl lg:dark:shadow-2xl dark:ring-slate-800/60">
             {currentView === 'dashboard' ? (
@@ -252,9 +253,29 @@ function HomeContent({
                 company={company}
                 onThemeChange={handleThemeChange}
                 onNavigateToSettings={handleNavigateToSettings}
+                onNavigateToContacts={handleNavigateToContacts}
+                currentView={currentView}
+              />
+            ) : currentView === 'contacts' ? (
+              <Contacts
+                scheme={scheme}
+                company={company}
+                onNavigateBack={handleNavigateToDashboard}
+                onThemeChange={handleThemeChange}
+                onNavigateToDashboard={handleNavigateToDashboard}
+                onNavigateToSettings={handleNavigateToSettings}
+                currentView={currentView}
               />
             ) : (
-              <ProfileSettings scheme={scheme} onNavigateBack={handleNavigateToDashboard} company={company} />
+              <ProfileSettings
+                scheme={scheme}
+                onNavigateBack={handleNavigateToDashboard}
+                company={company}
+                onThemeChange={handleThemeChange}
+                onNavigateToDashboard={handleNavigateToDashboard}
+                onNavigateToContacts={handleNavigateToContacts}
+                currentView={currentView}
+              />
             )}
           </div>
         </div>
@@ -267,6 +288,33 @@ function HomeContent({
         scheme={scheme}
         companyId={activeCompanyId}
         company={company}
+        onThemeChange={handleThemeChange}
+        onNavigateToContacts={() => {
+          setIsDrawerOpen(false);
+          setIsContactsDrawerOpen(true);
+        }}
+        onNavigateToSettings={() => {
+          setIsDrawerOpen(false);
+          setIsSettingsDrawerOpen(true);
+        }}
+      />
+
+      {/* Mobile: Contacts Drawer */}
+      <ContactsDrawer
+        isOpen={isContactsDrawerOpen}
+        onClose={() => setIsContactsDrawerOpen(false)}
+        scheme={scheme}
+        companyId={activeCompanyId}
+        company={company}
+        onThemeChange={handleThemeChange}
+        onNavigateToDashboard={() => {
+          setIsContactsDrawerOpen(false);
+          setIsDrawerOpen(true);
+        }}
+        onNavigateToSettings={() => {
+          setIsContactsDrawerOpen(false);
+          setIsSettingsDrawerOpen(true);
+        }}
       />
 
       {/* Mobile: Settings Drawer */}
@@ -275,6 +323,15 @@ function HomeContent({
         onClose={() => setIsSettingsDrawerOpen(false)}
         scheme={scheme}
         company={company}
+        onThemeChange={handleThemeChange}
+        onNavigateToDashboard={() => {
+          setIsSettingsDrawerOpen(false);
+          setIsDrawerOpen(true);
+        }}
+        onNavigateToContacts={() => {
+          setIsSettingsDrawerOpen(false);
+          setIsContactsDrawerOpen(true);
+        }}
       />
     </div>
   );

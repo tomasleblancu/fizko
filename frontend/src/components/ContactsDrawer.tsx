@@ -1,31 +1,31 @@
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
-import { FinancialDashboard } from './FinancialDashboard';
+import { Contacts } from './Contacts';
 import type { ColorScheme } from '../hooks/useColorScheme';
 import type { Company } from '../types/fizko';
 
-interface FinancialDashboardDrawerProps {
+interface ContactsDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   scheme: ColorScheme;
   companyId: string | null;
   company: Company | null;
   onThemeChange?: (scheme: ColorScheme) => void;
-  onNavigateToContacts?: () => void;
+  onNavigateToDashboard?: () => void;
   onNavigateToSettings?: () => void;
 }
 
-export function FinancialDashboardDrawer({
+export function ContactsDrawer({
   isOpen,
   onClose,
   scheme,
   companyId,
   company,
   onThemeChange,
-  onNavigateToContacts,
+  onNavigateToDashboard,
   onNavigateToSettings,
-}: FinancialDashboardDrawerProps) {
+}: ContactsDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const startY = useRef<number>(0);
   const currentY = useRef<number>(0);
@@ -122,22 +122,21 @@ export function FinancialDashboardDrawer({
         <button
           onClick={onClose}
           className="absolute right-4 top-4 z-10 rounded-full bg-slate-100 p-2 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
-          aria-label="Cerrar dashboard financiero"
+          aria-label="Cerrar contactos"
         >
           <X className="h-5 w-5 text-slate-600 dark:text-slate-300" />
         </button>
 
-        {/* Content - Financial Dashboard */}
+        {/* Content - Contacts */}
         <div className="h-[calc(100%-3rem)] overflow-hidden px-4 pb-4">
-          <FinancialDashboard
+          <Contacts
             scheme={scheme}
-            companyId={companyId}
             isInDrawer={true}
             company={company}
             onThemeChange={onThemeChange}
-            onNavigateToContacts={onNavigateToContacts}
+            onNavigateToDashboard={onNavigateToDashboard}
             onNavigateToSettings={onNavigateToSettings}
-            currentView="dashboard"
+            currentView="contacts"
           />
         </div>
       </div>

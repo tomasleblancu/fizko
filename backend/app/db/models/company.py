@@ -16,6 +16,7 @@ from ...utils.rut import normalize_rut
 from ...utils.encryption import encrypt_password, decrypt_password
 
 if TYPE_CHECKING:
+    from .contact import Contact
     from .documents import PurchaseDocument, SalesDocument
     from .form29 import Form29
     from .form29_sii_download import Form29SIIDownload
@@ -76,6 +77,9 @@ class Company(Base):
     )
     form29_sii_downloads: Mapped[list["Form29SIIDownload"]] = relationship(
         "Form29SIIDownload", back_populates="company", cascade="all, delete-orphan"
+    )
+    contacts: Mapped[list["Contact"]] = relationship(
+        "Contact", back_populates="company", cascade="all, delete-orphan"
     )
 
     @hybrid_property
