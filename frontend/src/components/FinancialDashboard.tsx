@@ -197,8 +197,8 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
         </div>
       )}
 
-      {/* Content - Flex layout WITHOUT scroll */}
-      <div className="flex h-full flex-col gap-6 overflow-hidden p-6">
+      {/* Content - Flex layout WITH scroll */}
+      <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
         {hasError && (
           <div className="flex-shrink-0 rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-900/20">
             <p className="text-sm text-rose-700 dark:text-rose-200">
@@ -220,23 +220,38 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
           />
         </div>
 
-        {/* Tax Calendar */}
-        {!isDocumentsExpanded && (
-          <div className="flex-shrink-0">
-            <TaxCalendar scheme={scheme} loading={isInitialLoading} />
+        {/* Tax Calendar and Documents - Side by side or Documents expanded */}
+        {isDocumentsExpanded ? (
+          /* Documents expanded - takes full width */
+          <div className="flex-1 min-h-0">
+            <RecentDocumentsCard
+              documents={documents}
+              loading={docsLoading}
+              scheme={scheme}
+              isExpanded={isDocumentsExpanded}
+              onToggleExpand={() => setIsDocumentsExpanded(!isDocumentsExpanded)}
+            />
+          </div>
+        ) : (
+          /* Tax Calendar and Documents side by side */
+          <div className="flex flex-1 min-h-0 gap-6 overflow-hidden">
+            {/* Tax Calendar - Left side (more square) */}
+            <div className="flex w-[45%] min-w-0 flex-col">
+              <TaxCalendar scheme={scheme} loading={isInitialLoading} />
+            </div>
+
+            {/* Recent Documents - Right side (wider) */}
+            <div className="flex flex-1 min-w-0 flex-col">
+              <RecentDocumentsCard
+                documents={documents}
+                loading={docsLoading}
+                scheme={scheme}
+                isExpanded={isDocumentsExpanded}
+                onToggleExpand={() => setIsDocumentsExpanded(!isDocumentsExpanded)}
+              />
+            </div>
           </div>
         )}
-
-        {/* Recent Documents - Expandable with flex-1 when expanded */}
-        <div className={isDocumentsExpanded ? "flex-1 min-h-0" : "flex-shrink-0"}>
-          <RecentDocumentsCard
-            documents={documents}
-            loading={docsLoading}
-            scheme={scheme}
-            isExpanded={isDocumentsExpanded}
-            onToggleExpand={() => setIsDocumentsExpanded(!isDocumentsExpanded)}
-          />
-        </div>
       </div>
     </section>
   );

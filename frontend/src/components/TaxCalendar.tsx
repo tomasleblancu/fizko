@@ -134,17 +134,17 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
   );
 
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70">
+    <div className="flex h-full flex-col rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70">
       {/* Header */}
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-shrink-0 items-center gap-2">
         <Calendar className="h-5 w-5 text-slate-600 dark:text-slate-400" />
         <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
           Calendario Tributario
         </h3>
       </div>
 
-      {/* Events List */}
-      <div className="space-y-3">
+      {/* Events List - Scrollable */}
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
         {sortedEvents.length === 0 ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/50">
             <p className="text-sm text-slate-600 dark:text-slate-400">

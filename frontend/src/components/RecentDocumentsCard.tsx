@@ -145,8 +145,7 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
 
   return (
     <div className={clsx(
-      "rounded-2xl border border-slate-200/70 bg-white/90 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70",
-      isExpanded ? "flex h-full flex-col p-6" : "p-6"
+      "flex h-full flex-col rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70"
     )}>
       <div className="mb-4 flex flex-shrink-0 flex-col gap-4">
         {/* Header */}
@@ -244,9 +243,9 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
         </div>
       ) : (
         <>
-          {/* Collapsed: Detailed list, NO scroll */}
+          {/* Collapsed: Detailed list with scroll */}
           {!isExpanded && (
-            <div className="space-y-1.5">
+            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-2">
               {displayedDocuments.map((doc) => {
                 // Determine if it's a purchase or sale based on document_type prefix
                 const isVenta = doc.document_type.toLowerCase().startsWith('venta_');
