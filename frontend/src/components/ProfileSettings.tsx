@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import clsx from 'clsx';
-import { Sun, Moon, Home, Users, Settings, LogOut } from 'lucide-react';
+import { Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { ProfileSettingsSkeleton } from './ProfileSettingsSkeleton';
+import { ViewContainer } from './layout/ViewContainer';
+import { FizkoLogo } from './FizkoLogo';
+import type { ViewType } from './layout/NavigationPills';
 import type { ColorScheme } from '../hooks/useColorScheme';
 import type { Company } from '../types/fizko';
 
@@ -15,7 +18,7 @@ interface ProfileSettingsProps {
   onThemeChange?: (scheme: ColorScheme) => void;
   onNavigateToContacts?: () => void;
   onNavigateToDashboard?: () => void;
-  currentView?: 'dashboard' | 'contacts' | 'settings';
+  currentView?: ViewType;
 }
 
 export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToContacts, onNavigateToDashboard, currentView = 'settings' }: ProfileSettingsProps) {
@@ -24,13 +27,12 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
   // Company is now passed as prop to avoid multiple fetches
   const [activeTab, setActiveTab] = useState<'account' | 'company' | 'preferences'>('account');
 
-  const toggleTheme = () => {
-    if (onThemeChange) {
-      onThemeChange(scheme === 'dark' ? 'light' : 'dark');
-    }
-  };
+  // Handle navigation
+  const handleNavigate = useCallback((view: ViewType) => {
+    if (view === 'dashboard' && onNavigateToDashboard) onNavigateToDashboard();
+    if (view === 'contacts' && onNavigateToContacts) onNavigateToContacts();
+  }, [onNavigateToDashboard, onNavigateToContacts]);
 
-  const isInSettings = currentView === 'settings';
   const isLoading = authLoading || profileLoading;
 
   const tabs = [
@@ -78,7 +80,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
 
         {/* Tab Content */}
         <div className="flex-1">
-          {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} />}
+          {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} />}
           {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} />}
           {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} />}
         </div>
@@ -86,107 +88,20 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
     );
   }
 
-  // Desktop view - similar structure to FinancialDashboard
-  // Styles are now in the wrapper container in Home.tsx (matching ChatKit pattern)
+  // Desktop view using ViewContainer
   return (
-    <section className="flex h-full w-full flex-col overflow-hidden">
-      {/* Header */}
-      {!isInDrawer && (
-        <div className="flex-shrink-0 border-b border-slate-200/70 bg-white/50 px-6 py-3 backdrop-blur dark:border-slate-800/70 dark:bg-slate-900/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-slate-500 to-slate-700 text-white shadow-md">
-                <Settings className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                  Configuración
-                </h2>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Administra tu perfil y preferencias
-                </p>
-              </div>
-            </div>
-
-            {/* Controls - Right side */}
-            <div className="flex items-center gap-3">
-              {/* Theme Toggle */}
-              {onThemeChange && (
-                <button
-                  onClick={toggleTheme}
-                  className={clsx(
-                    'rounded-lg p-2 transition-colors',
-                    'hover:bg-slate-100 dark:hover:bg-slate-800',
-                    'text-slate-600 dark:text-slate-300'
-                  )}
-                  aria-label="Toggle theme"
-                  title="Cambiar tema"
-                >
-                  {scheme === 'dark' ? (
-                    <Sun className="h-5 w-5" />
-                  ) : (
-                    <Moon className="h-5 w-5" />
-                  )}
-                </button>
-              )}
-
-              {/* Navigation Pills */}
-              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
-                {/* Dashboard Button */}
-                {onNavigateToDashboard && (
-                  <button
-                    onClick={onNavigateToDashboard}
-                    className={clsx(
-                      'rounded-md p-2 transition-colors',
-                      currentView === 'dashboard'
-                        ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400'
-                        : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100'
-                    )}
-                    aria-label="Dashboard"
-                    title="Dashboard"
-                  >
-                    <Home className="h-5 w-5" />
-                  </button>
-                )}
-
-                {/* Contacts Button */}
-                {onNavigateToContacts && (
-                  <button
-                    onClick={onNavigateToContacts}
-                    className={clsx(
-                      'rounded-md p-2 transition-colors',
-                      currentView === 'contacts'
-                        ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400'
-                        : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100'
-                    )}
-                    aria-label="Contactos"
-                    title="Contactos"
-                  >
-                    <Users className="h-5 w-5" />
-                  </button>
-                )}
-
-                {/* Settings Button */}
-                <button
-                  onClick={() => {}} // Already on settings
-                  disabled
-                  className={clsx(
-                    'rounded-md p-2 transition-colors cursor-default',
-                    currentView === 'settings'
-                      ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400'
-                      : 'text-slate-400 dark:text-slate-600'
-                  )}
-                  aria-label="Configuración"
-                  title="Configuración"
-                >
-                  <Settings className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+    <ViewContainer
+      icon={<FizkoLogo className="h-7 w-7" />}
+      iconGradient="from-white to-white"
+      title="Configuración"
+      subtitle="Administra tu perfil y preferencias"
+      currentView={currentView}
+      onNavigate={handleNavigate}
+      scheme={scheme}
+      onThemeChange={onThemeChange}
+      isInDrawer={isInDrawer}
+      contentClassName="flex-1 overflow-hidden flex flex-col"
+    >
       {/* Tabs */}
       <div className="flex-shrink-0 border-b border-slate-200/60 px-6 dark:border-slate-800/60">
         <div className="flex gap-1">
@@ -209,16 +124,16 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
-        {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} />}
+        {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} />}
         {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} />}
         {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} />}
       </div>
-    </section>
+    </ViewContainer>
   );
 }
 
 // Account Settings Tab
-function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
+function AccountSettings({ user, scheme, profileLoading, profile: profileProp }: { user: any; scheme: ColorScheme; profileLoading: boolean; profile: any }) {
   const { profile, updateProfile, requestPhoneVerification, confirmPhoneVerification } = useUserProfile();
   const { signOut } = useAuth();
   const [nombre, setNombre] = useState('');
@@ -341,15 +256,15 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* User Info Card */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <div className="space-y-3">
+      {/* User Info Card - Compact */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-lg font-bold text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-base font-bold text-white">
             {user?.email?.charAt(0).toUpperCase() || '?'}
           </div>
-          <div>
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
               {user?.email || 'Usuario'}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -359,16 +274,16 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
         </div>
       </div>
 
-      {/* Contact Information Section */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="mb-4 flex items-center justify-between">
-          <h4 className="font-medium text-slate-900 dark:text-slate-100">
+      {/* Contact Information Section - Compact */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             Información de Contacto
           </h4>
           {!isEditing ? (
             <button
               onClick={() => setIsEditing(true)}
-              className="text-sm font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+              className="text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
             >
               Editar
             </button>
@@ -377,14 +292,14 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
               <button
                 onClick={handleCancel}
                 disabled={isSaving}
-                className="text-sm font-medium text-slate-600 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-300"
+                className="text-xs font-medium text-slate-600 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-300"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="text-sm font-medium text-emerald-600 hover:text-emerald-700 disabled:opacity-50 dark:text-emerald-400 dark:hover:text-emerald-300"
+                className="text-xs font-medium text-emerald-600 hover:text-emerald-700 disabled:opacity-50 dark:text-emerald-400 dark:hover:text-emerald-300"
               >
                 {isSaving ? 'Guardando...' : 'Guardar'}
               </button>
@@ -392,91 +307,101 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
           )}
         </div>
 
-        <div className="space-y-4">
-          {/* Nombre */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Nombre
-            </label>
-            <input
-              type="text"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              disabled={!isEditing}
-              placeholder="Ingresa tu nombre"
-              className={clsx(
-                "mt-1 w-full rounded-lg border px-3 py-2 transition-colors",
-                isEditing
-                  ? "border-slate-300 bg-white text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  : "border-slate-300 bg-slate-50 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        <div className="space-y-3">
+          {/* Nombre y Apellido en una fila */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                Nombre
+              </label>
+              {!profile && profileLoading ? (
+                <div className="mt-1 h-8 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+              ) : (
+                <input
+                  type="text"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  disabled={!isEditing}
+                  placeholder="Ingresa tu nombre"
+                  className={clsx(
+                    "mt-1 w-full rounded-lg border px-2.5 py-1.5 text-sm transition-colors",
+                    isEditing
+                      ? "border-slate-300 bg-white text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      : "border-slate-200 bg-slate-50 text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
+                  )}
+                />
               )}
-            />
-          </div>
+            </div>
 
-          {/* Apellido */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Apellido
-            </label>
-            <input
-              type="text"
-              value={apellido}
-              onChange={(e) => setApellido(e.target.value)}
-              disabled={!isEditing}
-              placeholder="Ingresa tu apellido"
-              className={clsx(
-                "mt-1 w-full rounded-lg border px-3 py-2 transition-colors",
-                isEditing
-                  ? "border-slate-300 bg-white text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  : "border-slate-300 bg-slate-50 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                Apellido
+              </label>
+              {!profile && profileLoading ? (
+                <div className="mt-1 h-8 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+              ) : (
+                <input
+                  type="text"
+                  value={apellido}
+                  onChange={(e) => setApellido(e.target.value)}
+                  disabled={!isEditing}
+                  placeholder="Ingresa tu apellido"
+                  className={clsx(
+                    "mt-1 w-full rounded-lg border px-2.5 py-1.5 text-sm transition-colors",
+                    isEditing
+                      ? "border-slate-300 bg-white text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      : "border-slate-200 bg-slate-50 text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
+                  )}
+                />
               )}
-            />
+            </div>
           </div>
 
           {/* Celular */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
               Celular
             </label>
-            <input
-              type="tel"
-              value={celular}
-              onChange={(e) => handlePhoneChange(e.target.value)}
-              disabled={!isEditing}
-              placeholder="+56 912345678"
-              inputMode="numeric"
-              className={clsx(
-                "mt-1 w-full rounded-lg border px-3 py-2 transition-colors",
-                isEditing
-                  ? "border-slate-300 bg-white text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  : "border-slate-300 bg-slate-50 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-              )}
-            />
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Solo números. Ejemplo: +56 912345678
-            </p>
+            {!profile && profileLoading ? (
+              <div className="mt-1 h-8 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+            ) : (
+              <input
+                type="tel"
+                value={celular}
+                onChange={(e) => handlePhoneChange(e.target.value)}
+                disabled={!isEditing}
+                placeholder="+56 912345678"
+                inputMode="numeric"
+                className={clsx(
+                  "mt-1 w-full rounded-lg border px-2.5 py-1.5 text-sm transition-colors",
+                  isEditing
+                    ? "border-slate-300 bg-white text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    : "border-slate-200 bg-slate-50 text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
+                )}
+              />
+            )}
           </div>
 
-          {/* Phone Verification Status */}
+          {/* Phone Verification Status - More compact */}
           {celular && celular !== '+' && (
-            <div className="mt-2 flex items-center justify-between rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-slate-800/50">
               <div className="flex items-center gap-2">
                 {profile?.phone_verified ? (
                   <>
-                    <svg className="h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-4 w-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                      Número verificado
+                    <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                      Verificado
                     </span>
                   </>
                 ) : (
                   <>
-                    <svg className="h-5 w-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-4 w-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
-                    <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
-                      Número no verificado
+                    <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                      No verificado
                     </span>
                   </>
                 )}
@@ -484,7 +409,7 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
               {!profile?.phone_verified && !isEditing && (
                 <button
                   onClick={handleRequestVerification}
-                  className="text-sm font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                  className="text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
                 >
                   Verificar
                 </button>
@@ -547,47 +472,51 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
         </div>
       )}
 
-      {/* Email */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+      {/* Email - Compact */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
           Email
         </label>
         <input
           type="email"
           value={user?.email || ''}
           disabled
-          className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
         />
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           El email no puede ser modificado
         </p>
       </div>
 
-      {/* SII Credentials Section */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <h4 className="mb-3 font-medium text-slate-900 dark:text-slate-100">
+      {/* SII Credentials Section - Compact */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
           Credenciales SII
         </h4>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-xs text-slate-600 dark:text-slate-400">
           Las credenciales del SII están vinculadas a tu cuenta. Para modificarlas, contacta a soporte.
         </p>
       </div>
 
-      {/* Logout Section */}
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
-        <h4 className="mb-3 font-medium text-red-900 dark:text-red-100">
-          Cerrar Sesión
-        </h4>
-        <p className="mb-4 text-sm text-red-700 dark:text-red-300">
-          Cierra tu sesión actual. Deberás iniciar sesión nuevamente para acceder.
-        </p>
-        <button
-          onClick={signOut}
-          className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
-        >
-          <LogOut className="h-4 w-4" />
-          Cerrar Sesión
-        </button>
+      {/* Logout Section - Compact */}
+      <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-sm font-semibold text-red-900 dark:text-red-100">
+              Cerrar Sesión
+            </h4>
+            <p className="mt-1 text-xs text-red-700 dark:text-red-300">
+              Finaliza tu sesión actual
+            </p>
+          </div>
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            Cerrar
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -597,8 +526,8 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
 function CompanySettings({ company, scheme }: { company: any; scheme: ColorScheme }) {
   if (!company) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
-        <p className="text-slate-600 dark:text-slate-400">
+      <div className="rounded-lg border border-slate-200 bg-white p-6 text-center dark:border-slate-800 dark:bg-slate-900">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
           No hay empresa vinculada a esta cuenta
         </p>
       </div>
@@ -606,15 +535,15 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
   }
 
   return (
-    <div className="space-y-4">
-      {/* Company Info Card */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <div className="space-y-3">
+      {/* Company Info Card - Compact */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-lg font-bold text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-base font-bold text-white">
             {company.razon_social?.charAt(0).toUpperCase() || 'E'}
           </div>
-          <div>
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
               {company.razon_social || 'Empresa'}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -624,51 +553,51 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
         </div>
       </div>
 
-      {/* Company Details */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="space-y-4">
+      {/* Company Details - Compact */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
               Razón Social
             </label>
             <input
               type="text"
               value={company.razon_social || ''}
               disabled
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
               RUT
             </label>
             <input
               type="text"
               value={company.rut || ''}
               disabled
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
             />
           </div>
 
           {company.giro && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                 Giro
               </label>
               <input
                 type="text"
                 value={company.giro}
                 disabled
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
               />
             </div>
           )}
         </div>
       </div>
 
-      <div className="rounded-lg bg-amber-50 p-4 dark:bg-amber-950/30">
-        <p className="text-sm text-amber-800 dark:text-amber-200">
+      <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/30">
+        <p className="text-xs text-amber-800 dark:text-amber-200">
           Los datos de la empresa son obtenidos del SII y no pueden ser modificados desde aquí.
         </p>
       </div>
@@ -679,24 +608,21 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
 // Preferences Settings Tab
 function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
   return (
-    <div className="space-y-4">
-      {/* Theme Preference */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <h4 className="mb-3 font-medium text-slate-900 dark:text-slate-100">
-          Apariencia
-        </h4>
+    <div className="space-y-3">
+      {/* Theme Preference - Compact */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Tema actual
-            </p>
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Apariencia
+            </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {scheme === 'dark' ? 'Modo oscuro' : 'Modo claro'}
             </p>
           </div>
           <div className="flex items-center gap-2">
             {scheme === 'dark' ? (
-              <svg className="h-6 w-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -705,7 +631,7 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
                 />
               </svg>
             ) : (
-              <svg className="h-6 w-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -721,14 +647,14 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
         </p>
       </div>
 
-      {/* Language (placeholder) */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <h4 className="mb-3 font-medium text-slate-900 dark:text-slate-100">
+      {/* Language (placeholder) - Compact */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
           Idioma
         </h4>
         <select
           disabled
-          className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
         >
           <option>Español (Chile)</option>
         </select>
@@ -737,30 +663,30 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
         </p>
       </div>
 
-      {/* Notifications (placeholder) */}
-      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <h4 className="mb-3 font-medium text-slate-900 dark:text-slate-100">
+      {/* Notifications (placeholder) - Compact */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
           Notificaciones
         </h4>
-        <div className="space-y-3">
+        <div className="space-y-2">
           <label className="flex items-center justify-between">
-            <span className="text-sm text-slate-700 dark:text-slate-300">
+            <span className="text-xs text-slate-700 dark:text-slate-300">
               Notificaciones de email
             </span>
             <input
               type="checkbox"
               disabled
-              className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700"
+              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700"
             />
           </label>
           <label className="flex items-center justify-between">
-            <span className="text-sm text-slate-700 dark:text-slate-300">
+            <span className="text-xs text-slate-700 dark:text-slate-300">
               Actualizaciones de documentos
             </span>
             <input
               type="checkbox"
               disabled
-              className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700"
+              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700"
             />
           </label>
         </div>

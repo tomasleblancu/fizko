@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import clsx from 'clsx';
-import { Building2, Phone, Mail, MapPin, User, Users, Sun, Moon, Home, Settings } from 'lucide-react';
+import { Building2, Phone, Mail, MapPin, User, Users } from 'lucide-react';
 import { ChateableWrapper } from './ChateableWrapper';
 import { useContacts, type Contact } from '../hooks/useContacts';
+import { ViewContainer } from './layout/ViewContainer';
+import { FizkoLogo } from './FizkoLogo';
+import type { ViewType } from './layout/NavigationPills';
 import type { ColorScheme } from '../hooks/useColorScheme';
 import type { Company } from '../types/fizko';
 
@@ -14,7 +17,7 @@ interface ContactsProps {
   onThemeChange?: (scheme: ColorScheme) => void;
   onNavigateToDashboard?: () => void;
   onNavigateToSettings?: () => void;
-  currentView?: 'dashboard' | 'contacts' | 'settings';
+  currentView?: ViewType;
 }
 
 export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToDashboard, onNavigateToSettings, currentView = 'contacts' }: ContactsProps) {
@@ -22,11 +25,11 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
   const [filter, setFilter] = useState<'all' | 'provider' | 'client' | 'both'>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const toggleTheme = () => {
-    if (onThemeChange) {
-      onThemeChange(scheme === 'dark' ? 'light' : 'dark');
-    }
-  };
+  // Handle navigation
+  const handleNavigate = useCallback((view: ViewType) => {
+    if (view === 'dashboard' && onNavigateToDashboard) onNavigateToDashboard();
+    if (view === 'settings' && onNavigateToSettings) onNavigateToSettings();
+  }, [onNavigateToDashboard, onNavigateToSettings]);
 
   const filteredContacts = contacts.filter(contact => {
     const matchesFilter = filter === 'all' || contact.contact_type === filter || contact.contact_type === 'both';
@@ -61,104 +64,18 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
   };
 
   return (
-    <section className="flex h-full w-full flex-col overflow-hidden">
-      {/* Header */}
-      {!isInDrawer && (
-        <div className="flex-shrink-0 border-b border-slate-200/70 bg-white/50 px-6 py-3 backdrop-blur dark:border-slate-800/70 dark:bg-slate-900/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md">
-                <Users className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                  Contactos
-                </h2>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Gestiona tus proveedores y clientes
-                </p>
-              </div>
-            </div>
-
-            {/* Controls - Right side */}
-            <div className="flex items-center gap-3">
-              {/* Theme Toggle */}
-              {onThemeChange && (
-                <button
-                  onClick={toggleTheme}
-                  className={clsx(
-                    'rounded-lg p-2 transition-colors',
-                    'hover:bg-slate-100 dark:hover:bg-slate-800',
-                    'text-slate-600 dark:text-slate-300'
-                  )}
-                  aria-label="Toggle theme"
-                  title="Cambiar tema"
-                >
-                  {scheme === 'dark' ? (
-                    <Sun className="h-5 w-5" />
-                  ) : (
-                    <Moon className="h-5 w-5" />
-                  )}
-                </button>
-              )}
-
-              {/* Navigation Pills */}
-              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
-                {/* Dashboard Button */}
-                {onNavigateToDashboard && (
-                  <button
-                    onClick={onNavigateToDashboard}
-                    className={clsx(
-                      'rounded-md p-2 transition-colors',
-                      currentView === 'dashboard'
-                        ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400'
-                        : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100'
-                    )}
-                    aria-label="Dashboard"
-                    title="Dashboard"
-                  >
-                    <Home className="h-5 w-5" />
-                  </button>
-                )}
-
-                {/* Contacts Button */}
-                <button
-                  onClick={() => {}} // Already on contacts
-                  disabled
-                  className={clsx(
-                    'rounded-md p-2 transition-colors cursor-default',
-                    currentView === 'contacts'
-                      ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400'
-                      : 'text-slate-400 dark:text-slate-600'
-                  )}
-                  aria-label="Contactos"
-                  title="Contactos"
-                >
-                  <Users className="h-5 w-5" />
-                </button>
-
-                {/* Settings Button */}
-                {onNavigateToSettings && (
-                  <button
-                    onClick={onNavigateToSettings}
-                    className={clsx(
-                      'rounded-md p-2 transition-colors',
-                      currentView === 'settings'
-                        ? 'bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400'
-                        : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100'
-                    )}
-                    aria-label="Configuración"
-                    title="Configuración"
-                  >
-                    <Settings className="h-5 w-5" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+    <ViewContainer
+      icon={<FizkoLogo className="h-7 w-7" />}
+      iconGradient="from-white to-white"
+      title="Contactos"
+      subtitle="Gestiona tus proveedores y clientes"
+      currentView={currentView}
+      onNavigate={handleNavigate}
+      scheme={scheme}
+      onThemeChange={onThemeChange}
+      isInDrawer={isInDrawer}
+      contentClassName="flex-1 overflow-hidden flex flex-col"
+    >
       {/* Filters and Search */}
       <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/30 px-6 py-4 dark:border-slate-800/60 dark:bg-slate-900/30">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -341,6 +258,6 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
           </p>
         </div>
       )}
-    </section>
+    </ViewContainer>
   );
 }

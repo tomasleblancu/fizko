@@ -15,46 +15,69 @@ export function ProfileSettingsSkeleton() {
 
       {/* Content Skeleton */}
       <div className="flex-1 overflow-y-auto p-6">
-        <div className="space-y-4">
-          {/* User Info Card Skeleton */}
-          <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <div className="space-y-3">
+          {/* User Info Card Skeleton - Compact */}
+          <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                <div className="h-3 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-10 w-10 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3.5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="h-3 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
               </div>
             </div>
           </div>
 
-          {/* Contact Information Card Skeleton */}
-          <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="h-5 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-              <div className="h-8 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+          {/* Contact Information Card Skeleton - Compact */}
+          <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="h-4 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="h-6 w-12 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
             </div>
 
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i}>
-                  <div className="mb-1 h-4 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="h-10 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
-                </div>
-              ))}
+            <div className="space-y-3">
+              {/* Nombre y Apellido en fila */}
+              <div className="grid grid-cols-2 gap-3">
+                {[1, 2].map((i) => (
+                  <div key={i}>
+                    <div className="mb-1 h-3 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                    <div className="h-8 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Celular */}
+              <div>
+                <div className="mb-1 h-3 w-12 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="h-8 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+              </div>
+
+              {/* Verification status */}
+              <div className="h-9 w-full animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/50" />
             </div>
           </div>
 
-          {/* Email Card Skeleton */}
-          <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-1 h-4 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-            <div className="h-10 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
-            <div className="mt-1 h-3 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+          {/* Email Card Skeleton - Compact */}
+          <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-1 h-3 w-12 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-8 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+            <div className="mt-1 h-3 w-36 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
           </div>
 
-          {/* SII Credentials Card Skeleton */}
-          <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-3 h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-            <div className="h-4 w-full animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+          {/* SII Credentials Card Skeleton - Compact */}
+          <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-2 h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-3 w-full animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+          </div>
+
+          {/* Logout Card Skeleton - Compact */}
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 space-y-1.5">
+                <div className="h-4 w-24 animate-pulse rounded bg-red-200 dark:bg-red-800" />
+                <div className="h-3 w-32 animate-pulse rounded bg-red-200 dark:bg-red-800" />
+              </div>
+              <div className="h-7 w-16 animate-pulse rounded-lg bg-red-200 dark:bg-red-800" />
+            </div>
           </div>
         </div>
       </div>

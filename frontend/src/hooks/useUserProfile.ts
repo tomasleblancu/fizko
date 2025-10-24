@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useDashboardCache } from '../contexts/DashboardCacheContext';
 import { API_BASE_URL } from '../lib/config';
 import { apiFetch } from '../lib/api-client';
 
@@ -28,16 +29,29 @@ export interface ProfileUpdateData {
   avatar_url?: string;
 }
 
+const PROFILE_CACHE_KEY = 'user_profile';
+
 export function useUserProfile() {
   const { session } = useAuth();
+  const cache = useDashboardCache();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchProfile = useCallback(async () => {
+  const fetchProfile = useCallback(async (forceRefresh = false) => {
     if (!session?.access_token) {
       setLoading(false);
       return;
+    }
+
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cached = cache.get<UserProfile>(PROFILE_CACHE_KEY);
+      if (cached && !cached.isStale) {
+        setProfile(cached.data);
+        setLoading(false);
+        return;
+      }
     }
 
     try {
@@ -61,14 +75,18 @@ export function useUserProfile() {
       }
 
       const data = await response.json();
-      setProfile(data.data);
+      const profileData = data.data;
+
+      // Update cache
+      cache.set(PROFILE_CACHE_KEY, profileData);
+      setProfile(profileData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch profile');
       setProfile(null);
     } finally {
       setLoading(false);
     }
-  }, [session?.access_token]);
+  }, [session?.access_token, cache]);
 
   const updateProfile = useCallback(async (updateData: ProfileUpdateData): Promise<boolean> => {
     if (!session?.access_token) {
@@ -93,13 +111,17 @@ export function useUserProfile() {
       }
 
       const data = await response.json();
-      setProfile(data.data);
+      const profileData = data.data;
+
+      // Update cache
+      cache.set(PROFILE_CACHE_KEY, profileData);
+      setProfile(profileData);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update profile');
       return false;
     }
-  }, [session?.access_token]);
+  }, [session?.access_token, cache]);
 
   const requestPhoneVerification = useCallback(async (): Promise<boolean> => {
     if (!session?.access_token) {
@@ -152,14 +174,15 @@ export function useUserProfile() {
         throw new Error(data.detail || 'Failed to verify code');
       }
 
-      // Refresh profile to get updated verification status
-      await fetchProfile();
+      // Invalidate cache and refresh profile to get updated verification status
+      cache.invalidate(PROFILE_CACHE_KEY);
+      await fetchProfile(true);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to verify code');
       return false;
     }
-  }, [session?.access_token, fetchProfile]);
+  }, [session?.access_token, cache, fetchProfile]);
 
   useEffect(() => {
     fetchProfile();

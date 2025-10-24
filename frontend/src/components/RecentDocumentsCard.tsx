@@ -46,9 +46,9 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
     return true;
   });
 
-  // When collapsed: show only 3 documents
+  // When collapsed: show only 10 documents
   // When expanded: show ALL filtered documents with scroll
-  const COLLAPSED_LIMIT = 3;
+  const COLLAPSED_LIMIT = 10;
   const displayedDocuments = isExpanded ? filteredDocuments : filteredDocuments.slice(0, COLLAPSED_LIMIT);
   const hasMore = filteredDocuments.length > COLLAPSED_LIMIT;
 
@@ -145,15 +145,15 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
 
   return (
     <div className={clsx(
-      "flex h-full flex-col rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70"
-    )}>
+      "flex h-full w-full flex-col rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70"
+    )} style={{ boxSizing: 'border-box' }}>
       <div className="mb-4 flex flex-shrink-0 flex-col gap-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-purple-500" />
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              Documentos
+              Documentos Recientes
             </h3>
             {documents.length > 0 && (
               <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
@@ -162,17 +162,17 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
             )}
           </div>
           <div className="flex items-center gap-2">
-            {onToggleExpand && hasMore && (
+            {onToggleExpand && documents.length > 0 && (
               <button
                 onClick={onToggleExpand}
-                className="rounded-lg p-1.5 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="rounded-lg p-1.5 transition-all duration-200 hover:bg-slate-100 hover:scale-110 active:scale-95 dark:hover:bg-slate-800"
                 aria-label={isExpanded ? "Contraer lista" : "Expandir lista"}
-                title={isExpanded ? "Ver menos" : `Ver todos (${filteredDocuments.length})`}
+                title={isExpanded ? "Ver menos" : hasMore ? `Ver todos (${filteredDocuments.length})` : "Expandir vista"}
               >
                 {isExpanded ? (
-                  <Minimize2 className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                  <Minimize2 className="h-5 w-5 text-slate-600 dark:text-slate-400 transition-transform duration-200" />
                 ) : (
-                  <Maximize2 className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                  <Maximize2 className="h-5 w-5 text-slate-600 dark:text-slate-400 transition-transform duration-200" />
                 )}
               </button>
             )}
@@ -245,7 +245,7 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
         <>
           {/* Collapsed: Detailed list with scroll */}
           {!isExpanded && (
-            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-2">
+            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden" style={{ scrollbarGutter: 'stable' }}>
               {displayedDocuments.map((doc) => {
                 // Determine if it's a purchase or sale based on document_type prefix
                 const isVenta = doc.document_type.toLowerCase().startsWith('venta_');
@@ -295,17 +295,20 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
                     entityId={doc.id}
                     entityType={isVenta ? "sales_document" : isCompra ? "purchase_document" : "document"}
                   >
-                    <div className="flex items-center justify-between py-2 px-1 rounded-lg">
-                      <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 py-2 px-1 rounded-lg">
+                      <div className="flex-1 min-w-0 max-w-[60%]">
                         <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
                           {cleanDescription || 'Sin descripción'}
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                           {formatDocumentTypeName(cleanDocType)} #{doc.document_number}
                         </p>
                       </div>
-                      <div className="ml-4 flex-shrink-0">
-                        <span className={clsx("text-sm font-semibold", amountColor)}>
+                      <div className="flex-shrink-0 text-right">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
+                          {formatDate(doc.issue_date)}
+                        </p>
+                        <span className={clsx("text-base font-semibold whitespace-nowrap", amountColor)}>
                           {amountSign}{formatCurrency(doc.amount)}
                         </span>
                       </div>
@@ -318,7 +321,7 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
 
           {/* Expanded: Detailed view WITH scroll for all documents */}
           {isExpanded && (
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden" style={{ scrollbarGutter: 'stable' }}>
               {groupDocumentsByDate(displayedDocuments).map(({ date, docs }) => (
                 <div key={date}>
                   {/* Date header */}
@@ -379,17 +382,17 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
                           entityId={doc.id}
                           entityType={isVenta ? "sales_document" : isCompra ? "purchase_document" : "document"}
                         >
-                          <div className="flex items-center justify-between py-2 px-1 rounded-lg">
-                            <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 py-2 px-1 rounded-lg">
+                            <div className="flex-1 min-w-0 max-w-[60%]">
                               <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
                                 {cleanDescription || 'Sin descripción'}
                               </p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                                 {formatDocumentTypeName(cleanDocType)} #{doc.document_number}
                               </p>
                             </div>
-                            <div className="ml-4 flex-shrink-0">
-                              <span className={clsx("text-sm font-semibold", amountColor)}>
+                            <div className="flex-shrink-0">
+                              <span className={clsx("text-sm font-semibold whitespace-nowrap", amountColor)}>
                                 {amountSign}{formatCurrency(doc.amount)}
                               </span>
                             </div>

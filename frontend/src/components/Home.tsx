@@ -12,6 +12,7 @@ import { Contacts } from "./Contacts";
 import { ContactsDrawer } from "./ContactsDrawer";
 import { LoginOverlay } from "./LoginOverlay";
 import { OnboardingModal } from "./OnboardingModal";
+import type { ViewType } from "./layout/NavigationPills";
 import { ColorScheme } from "../hooks/useColorScheme";
 import { useAuth } from "../contexts/AuthContext";
 import { useSession } from "../hooks/useSession";
@@ -59,7 +60,7 @@ function HomeContent({
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
 
   // View state: 'dashboard', 'contacts', or 'settings'
-  const [currentView, setCurrentView] = useState<'dashboard' | 'contacts' | 'settings'>('dashboard');
+  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
 
   // Compute overall loading state - wait until session is initialized
   // This prevents flash of onboarding form while checking session
@@ -152,10 +153,10 @@ function HomeContent({
   if (needsOnboarding) {
     return (
       <div className={containerClass}>
-        <div className="mx-auto flex h-[100dvh] w-full max-w-7xl flex-col-reverse gap-6 p-6 lg:flex-row">
+        <div className="flex h-[100dvh] w-full flex-col-reverse gap-0 p-0 lg:flex-row">
           {/* Chat Panel Container - Blurred background */}
-          <div className="relative flex h-full w-full flex-col lg:w-[30%] lg:flex-none">
-            <div className="relative flex flex-1 items-stretch overflow-hidden rounded-3xl bg-white/80 shadow-lg ring-1 ring-slate-200/60 backdrop-blur lg:shadow-xl dark:bg-slate-900/70 dark:shadow-xl lg:dark:shadow-2xl dark:ring-slate-800/60 blur-md pointer-events-none">
+          <div className="relative flex h-full w-full flex-col lg:w-[35%] lg:flex-none lg:border-r lg:border-slate-200 dark:lg:border-slate-800">
+            <div className="relative flex flex-1 items-stretch overflow-hidden bg-white/80 backdrop-blur dark:bg-slate-900/70 blur-md pointer-events-none">
               <ChatKitPanel
                 theme={scheme}
                 onResponseEnd={handleResponseEnd}
@@ -193,11 +194,11 @@ function HomeContent({
   // Authenticated - show real content
   return (
     <div className={containerClass}>
-      <div className="mx-auto flex h-[100dvh] w-full max-w-7xl flex-col-reverse gap-0 p-0 lg:gap-6 lg:p-6 lg:flex-row">
+      <div className="flex h-[100dvh] w-full flex-col-reverse gap-0 p-0 lg:flex-row">
         {/* Chat Panel Container */}
-        <div className="relative flex min-h-0 flex-1 w-full flex-col lg:w-[35%] lg:flex-none lg:h-full">
+        <div className="relative flex min-h-0 flex-1 w-full flex-col lg:w-[35%] lg:flex-none lg:h-full lg:border-r lg:border-slate-200 dark:lg:border-slate-800">
           {/* ChatKit Panel */}
-          <div className="relative flex flex-1 items-stretch overflow-hidden lg:rounded-3xl lg:border lg:border-slate-200 bg-white lg:shadow-lg lg:ring-1 lg:ring-slate-200/60 lg:bg-white/80 lg:backdrop-blur lg:shadow-xl dark:bg-slate-900 lg:dark:border-slate-800 lg:dark:shadow-xl lg:dark:bg-slate-900/70 lg:dark:shadow-2xl lg:dark:ring-slate-800/60">
+          <div className="relative flex flex-1 items-stretch overflow-hidden bg-white dark:bg-slate-900">
             <ChatKitPanel
               theme={scheme}
               onResponseEnd={handleResponseEnd}
@@ -245,7 +246,7 @@ function HomeContent({
 
         {/* Desktop: Show dashboard, contacts, or settings based on currentView */}
         <div className="relative hidden h-full flex-col lg:flex lg:flex-1">
-          <div className="relative flex flex-1 items-stretch overflow-hidden rounded-3xl border border-slate-200 bg-white/80 shadow-lg ring-1 ring-slate-200/60 backdrop-blur lg:shadow-xl dark:border-slate-800 dark:bg-slate-900/70 dark:shadow-xl lg:dark:shadow-2xl dark:ring-slate-800/60">
+          <div className="relative flex flex-1 items-stretch overflow-hidden bg-white dark:bg-slate-900">
             {currentView === 'dashboard' ? (
               <FinancialDashboard
                 scheme={scheme}

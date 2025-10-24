@@ -134,7 +134,7 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
   );
 
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70">
+    <div className="flex h-full w-full flex-col rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70" style={{ boxSizing: 'border-box' }}>
       {/* Header */}
       <div className="mb-4 flex flex-shrink-0 items-center gap-2">
         <Calendar className="h-5 w-5 text-slate-600 dark:text-slate-400" />
@@ -144,7 +144,7 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
       </div>
 
       {/* Events List - Scrollable */}
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden" style={{ scrollbarGutter: 'stable' }}>
         {sortedEvents.length === 0 ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/50">
             <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -178,31 +178,30 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
                     "dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-emerald-500"
                   )}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      {/* Event Icon */}
-                      <div className="flex-shrink-0 text-xl">
-                        {getEventIcon(event.type)}
-                      </div>
-
-                      {/* Event Details */}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-slate-900 dark:text-slate-100 truncate">
-                          {event.title}
-                        </h4>
-                        <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
-                          Vence: {formatDate(event.dueDate)}
-                        </p>
-                      </div>
+                  <div className="flex items-start gap-3">
+                    {/* Event Icon */}
+                    <div className="flex-shrink-0 text-xl">
+                      {getEventIcon(event.type)}
                     </div>
 
-                    {/* Status Badge */}
-                    <div className={clsx(
-                      "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium flex-shrink-0",
-                      badge.className
-                    )}>
-                      <StatusIcon className="h-3.5 w-3.5" />
-                      <span>{badge.text}</span>
+                    {/* Event Details */}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-slate-900 dark:text-slate-100 truncate">
+                        {event.title}
+                      </h4>
+                      <div className="mt-0.5 flex items-center justify-between gap-3">
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          Vence: {formatDate(event.dueDate)}
+                        </p>
+                        {/* Status Badge */}
+                        <div className={clsx(
+                          "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium flex-shrink-0",
+                          badge.className
+                        )}>
+                          <StatusIcon className="h-3.5 w-3.5" />
+                          <span>{badge.text}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
