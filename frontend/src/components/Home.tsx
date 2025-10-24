@@ -117,7 +117,7 @@ function HomeContent({
   }, []);
 
   const containerClass = clsx(
-    "h-screen overflow-hidden bg-gradient-to-br transition-colors duration-300",
+    "h-[100dvh] overflow-hidden bg-gradient-to-br transition-colors duration-300",
     scheme === "dark"
       ? "from-slate-900 via-slate-950 to-slate-850 text-slate-100"
       : "from-slate-100 via-white to-slate-200 text-slate-900"
@@ -127,7 +127,7 @@ function HomeContent({
   if (isLoading) {
     return (
       <div className={containerClass}>
-        <div className="flex h-screen items-center justify-center">
+        <div className="flex h-[100dvh] items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-300 border-t-emerald-600 dark:border-slate-700 dark:border-t-emerald-400" />
             <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -152,7 +152,7 @@ function HomeContent({
   if (needsOnboarding) {
     return (
       <div className={containerClass}>
-        <div className="mx-auto flex h-screen w-full max-w-7xl flex-col-reverse gap-6 p-6 lg:flex-row">
+        <div className="mx-auto flex h-[100dvh] w-full max-w-7xl flex-col-reverse gap-6 p-6 lg:flex-row">
           {/* Chat Panel Container - Blurred background */}
           <div className="relative flex h-full w-full flex-col lg:w-[30%] lg:flex-none">
             <div className="relative flex flex-1 items-stretch overflow-hidden rounded-3xl bg-white/80 shadow-lg ring-1 ring-slate-200/60 backdrop-blur lg:shadow-xl dark:bg-slate-900/70 dark:shadow-xl lg:dark:shadow-2xl dark:ring-slate-800/60 blur-md pointer-events-none">
@@ -193,7 +193,7 @@ function HomeContent({
   // Authenticated - show real content
   return (
     <div className={containerClass}>
-      <div className="mx-auto flex h-screen w-full max-w-7xl flex-col-reverse gap-0 p-0 lg:gap-6 lg:p-6 lg:flex-row">
+      <div className="mx-auto flex h-[100dvh] w-full max-w-7xl flex-col-reverse gap-0 p-0 lg:gap-6 lg:p-6 lg:flex-row">
         {/* Chat Panel Container */}
         <div className="relative flex min-h-0 flex-1 w-full flex-col lg:w-[35%] lg:flex-none lg:h-full">
           {/* ChatKit Panel */}

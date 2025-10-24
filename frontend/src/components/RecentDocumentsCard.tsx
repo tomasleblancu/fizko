@@ -150,9 +150,10 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
       <div className="mb-4 flex flex-shrink-0 flex-col gap-4">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-purple-500" />
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              Documentos Tributarios Recientes
+              Documentos
             </h3>
             {documents.length > 0 && (
               <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
@@ -161,7 +162,6 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
             )}
           </div>
           <div className="flex items-center gap-2">
-            <FileText className="h-6 w-6 text-purple-500" />
             {onToggleExpand && hasMore && (
               <button
                 onClick={onToggleExpand}
@@ -403,18 +403,6 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
             </div>
           )}
 
-          {/* Show "view more" button when collapsed */}
-          {!isExpanded && hasMore && (
-            <div className="mt-3 flex items-center justify-center">
-              <button
-                onClick={onToggleExpand}
-                className="group flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-              >
-                <span>Ver todos ({documents.length})</span>
-                <Maximize2 className="h-3.5 w-3.5 transition-transform group-hover:scale-110" />
-              </button>
-            </div>
-          )}
         </>
       )}
     </div>
