@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../lib/config';
 import { useDashboardCache } from '../contexts/DashboardCacheContext';
+import { apiFetch } from '../lib/api-client';
 
 export interface Contact {
   id: string;
@@ -53,7 +54,7 @@ export function useContacts(companyId: string | null | undefined) {
       }
       setError(null);
 
-      const response = await fetch(`${API_BASE_URL}/contacts?company_id=${companyId}`, {
+      const response = await apiFetch(`${API_BASE_URL}/contacts?company_id=${companyId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',

@@ -12,6 +12,7 @@ import {
 import { CompanySummary } from '../types/admin';
 import { API_BASE_URL } from '../lib/config';
 import { useAuth } from '../contexts/AuthContext';
+import { apiFetch } from '../lib/api-client';
 
 export default function AdminCompaniesView() {
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ export default function AdminCompaniesView() {
 
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE_URL}/admin/companies`, {
+        const response = await apiFetch(`${API_BASE_URL}/admin/companies`, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',

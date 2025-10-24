@@ -66,6 +66,7 @@ app.add_middleware(
         "http://localhost:5171",  # Local development
         "http://127.0.0.1:5171",  # Local development
         "https://fizko-ai-mr.vercel.app",  # Production frontend
+        "https://demo.fizko.ai",  # Demo frontend
     ],
     allow_credentials=True,
     allow_methods=["*"],

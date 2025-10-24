@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { DashboardCacheProvider } from "./contexts/DashboardCacheContext";
-import App from "./App";
+import Root from "./pages/Root";
 import AdminCompaniesView from "./pages/AdminCompaniesView";
 import AdminCompanyView from "./pages/AdminCompanyView";
 import "./index.css";
@@ -21,7 +21,7 @@ createRoot(container).render(
     <DashboardCacheProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<App />} />
+          <Route path="/" element={<Root />} />
           <Route path="/admin" element={<AdminCompaniesView />} />
           <Route path="/admin/company/:companyId" element={<AdminCompanyView />} />
         </Routes>

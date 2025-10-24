@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { TaxSummary } from '../types/fizko';
 import { API_BASE_URL } from '../lib/config';
 import { useDashboardCache } from '../contexts/DashboardCacheContext';
+import { apiFetch } from '../lib/api-client';
 
 export function useTaxSummary(companyId: string | null, period?: string) {
   const { session } = useAuth();
@@ -48,7 +49,7 @@ export function useTaxSummary(companyId: string | null, period?: string) {
 
       const url = `${API_BASE_URL}/tax-summary/${companyId}${params.toString() ? `?${params.toString()}` : ''}`;
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',

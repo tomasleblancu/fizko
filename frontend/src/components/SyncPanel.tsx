@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { RefreshCw, Download, Activity, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../lib/config';
+import { apiFetch } from '../lib/api-client';
 
 interface SyncAction {
   user_email: string;
@@ -58,7 +59,7 @@ export default function SyncPanel({ syncActions, sessionId, onRefreshData }: Syn
         message: `Sincronizando documentos de los últimos ${months} mes${months > 1 ? 'es' : ''}...`,
       });
 
-      const response = await fetch(`${API_BASE_URL}/sii/sync/documents`, {
+      const response = await apiFetch(`${API_BASE_URL}/sii/sync/documents`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -125,7 +126,7 @@ export default function SyncPanel({ syncActions, sessionId, onRefreshData }: Syn
         message: `Sincronizando lista de F29 del año ${year}...`,
       });
 
-      const response = await fetch(`${API_BASE_URL}/sii/sync/f29/${year}?session_id=${sessionId}`, {
+      const response = await apiFetch(`${API_BASE_URL}/sii/sync/f29/${year}?session_id=${sessionId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -184,7 +185,7 @@ export default function SyncPanel({ syncActions, sessionId, onRefreshData }: Syn
         requestBody.year = year;
       }
 
-      const response = await fetch(`${API_BASE_URL}/sii/sync/f29/download-pdfs`, {
+      const response = await apiFetch(`${API_BASE_URL}/sii/sync/f29/download-pdfs`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,

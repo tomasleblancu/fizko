@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { Company } from '../types/fizko';
 import { API_BASE_URL } from '../lib/config';
 import { useDashboardCache } from '../contexts/DashboardCacheContext';
+import { apiFetch } from '../lib/api-client';
 
 export function useCompany() {
   const { session } = useAuth();
@@ -41,7 +42,7 @@ export function useCompany() {
       }
       setError(null);
 
-      const response = await fetch(`${API_BASE_URL}/companies`, {
+      const response = await apiFetch(`${API_BASE_URL}/companies`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',

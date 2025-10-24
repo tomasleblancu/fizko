@@ -17,6 +17,7 @@ import { API_BASE_URL } from '../lib/config';
 import { useAuth } from '../contexts/AuthContext';
 import SyncPanel from '../components/SyncPanel';
 import F29List from '../components/F29List';
+import { apiFetch } from '../lib/api-client';
 
 export default function AdminCompanyView() {
   const { companyId } = useParams<{ companyId: string }>();
@@ -43,7 +44,7 @@ export default function AdminCompanyView() {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/admin/company/${companyId}`, {
+      const response = await apiFetch(`${API_BASE_URL}/admin/company/${companyId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',

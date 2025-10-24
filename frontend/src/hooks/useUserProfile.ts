@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../lib/config';
+import { apiFetch } from '../lib/api-client';
 
 export interface UserProfile {
   id: string;
@@ -43,7 +44,7 @@ export function useUserProfile() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`${API_BASE_URL}/profile`, {
+      const response = await apiFetch(`${API_BASE_URL}/profile`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -78,7 +79,7 @@ export function useUserProfile() {
     try {
       setError(null);
 
-      const response = await fetch(`${API_BASE_URL}/profile`, {
+      const response = await apiFetch(`${API_BASE_URL}/profile`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -109,7 +110,7 @@ export function useUserProfile() {
     try {
       setError(null);
 
-      const response = await fetch(`${API_BASE_URL}/profile/verify-phone/request`, {
+      const response = await apiFetch(`${API_BASE_URL}/profile/verify-phone/request`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -138,7 +139,7 @@ export function useUserProfile() {
     try {
       setError(null);
 
-      const response = await fetch(`${API_BASE_URL}/profile/verify-phone/confirm?code=${encodeURIComponent(code)}`, {
+      const response = await apiFetch(`${API_BASE_URL}/profile/verify-phone/confirm?code=${encodeURIComponent(code)}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

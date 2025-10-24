@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../lib/config';
+import { apiFetch } from '../lib/api-client';
 
 export interface SIISession {
   id: string;
@@ -64,7 +65,7 @@ export function useSession() {
 
       console.log('[useSession] Fetching sessions for', fetchKey);
 
-      const response = await fetch(`${API_BASE_URL}/sessions`, {
+      const response = await apiFetch(`${API_BASE_URL}/sessions`, {
         headers: {
           'Authorization': `Bearer ${authSession.access_token}`,
           'Content-Type': 'application/json',
@@ -114,7 +115,7 @@ export function useSession() {
     }
 
     // Call the new SII auth login endpoint
-    const response = await fetch(`${API_BASE_URL}/sii/auth/login`, {
+    const response = await apiFetch(`${API_BASE_URL}/sii/auth/login`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authSession.access_token}`,

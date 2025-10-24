@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { TaxDocument } from '../types/fizko';
 import { API_BASE_URL } from '../lib/config';
 import { useDashboardCache } from '../contexts/DashboardCacheContext';
+import { apiFetch } from '../lib/api-client';
 
 export function useTaxDocuments(companyId: string | null, limit: number = 10, period?: string) {
   const { session } = useAuth();
@@ -49,7 +50,7 @@ export function useTaxDocuments(companyId: string | null, limit: number = 10, pe
 
       const url = `${API_BASE_URL}/tax-documents/${companyId}?${params.toString()}`;
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',

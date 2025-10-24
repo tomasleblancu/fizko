@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { Sun, Moon, Home, Users, Settings } from 'lucide-react';
+import { Sun, Moon, Home, Users, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { ProfileSettingsSkeleton } from './ProfileSettingsSkeleton';
@@ -220,6 +220,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
 // Account Settings Tab
 function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
   const { profile, updateProfile, requestPhoneVerification, confirmPhoneVerification } = useUserProfile();
+  const { signOut } = useAuth();
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [celular, setCelular] = useState('');
@@ -570,6 +571,23 @@ function AccountSettings({ user, scheme }: { user: any; scheme: ColorScheme }) {
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Las credenciales del SII están vinculadas a tu cuenta. Para modificarlas, contacta a soporte.
         </p>
+      </div>
+
+      {/* Logout Section */}
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+        <h4 className="mb-3 font-medium text-red-900 dark:text-red-100">
+          Cerrar Sesión
+        </h4>
+        <p className="mb-4 text-sm text-red-700 dark:text-red-300">
+          Cierra tu sesión actual. Deberás iniciar sesión nuevamente para acceder.
+        </p>
+        <button
+          onClick={signOut}
+          className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
+        >
+          <LogOut className="h-4 w-4" />
+          Cerrar Sesión
+        </button>
       </div>
     </div>
   );

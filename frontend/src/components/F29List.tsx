@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../lib/config';
+import { apiFetch } from '../lib/api-client';
 
 interface F29Download {
   id: string;
@@ -76,7 +77,7 @@ export default function F29List({ companyId }: F29ListProps) {
 
       const url = `${API_BASE_URL}/admin/company/${companyId}/f29${params.toString() ? `?${params.toString()}` : ''}`;
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',

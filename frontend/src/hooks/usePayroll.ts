@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import type { PayrollSummary } from '../types/fizko';
 import { API_BASE_URL } from '../lib/config';
+import { apiFetch } from '../lib/api-client';
 
 export function usePayroll(companyId: string | null, period?: string) {
   const { session } = useAuth();
@@ -26,7 +27,7 @@ export function usePayroll(companyId: string | null, period?: string) {
 
       const url = `${API_BASE_URL}/payroll-summary/${companyId}${params.toString() ? `?${params.toString()}` : ''}`;
 
-      const response = await fetch(url, {
+      const response = await apiFetch(url, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',

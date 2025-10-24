@@ -10,6 +10,7 @@ import {
 import { ErrorOverlay } from "./ErrorOverlay";
 import { useAuth } from "../contexts/AuthContext";
 import type { ColorScheme } from "../hooks/useColorScheme";
+import { apiFetch } from "../lib/api-client";
 
 type ChatKitPanelProps = {
   theme: ColorScheme;
@@ -187,9 +188,9 @@ export function ChatKitPanel({
       currentEntityIdRef.current = null;
       currentEntityTypeRef.current = null;
 
-      return fetch(url, {
+      return apiFetch(url, {
         ...init,
-        headers,
+        headers: Object.fromEntries(headers.entries()),
       });
     },
     [session?.access_token]
