@@ -36,6 +36,7 @@ from .tools.remuneraciones_tools import (
     calculate_salary,
     calculate_employer_contributions,
 )
+from .tools.tax_widget_tools import show_tax_calculation_widget, show_document_detail_widget
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +49,13 @@ def create_unified_agent(
     Create the unified Fizko agent with access to all tools.
 
     This single agent handles all Chilean tax and accounting queries
-    with 17 specialized tools covering:
+    with 19 specialized tools covering:
     - Company information
     - Tax documents (invoices, receipts, DTE)
     - F29 monthly tax declarations
     - Annual income tax (Operación Renta)
     - Payroll and salary calculations
+    - Visual widgets (tax calculations, document details)
     """
 
     agent = Agent(
@@ -87,6 +89,10 @@ def create_unified_agent(
             # Payroll / Remuneraciones (2)
             calculate_salary,
             calculate_employer_contributions,
+
+            # Widgets (2)
+            show_tax_calculation_widget,
+            show_document_detail_widget,
         ],
     )
 

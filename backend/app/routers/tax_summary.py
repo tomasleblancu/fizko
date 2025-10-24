@@ -12,7 +12,7 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config.database import get_db
-from ..db.models import Company, PurchaseDocument, SalesDocument
+from ..db.models import Company, PurchaseDocument, SalesDocument, Form29SIIDownload
 from ..dependencies import get_current_user_id, require_auth
 
 router = APIRouter(
@@ -34,6 +34,8 @@ class TaxSummary(BaseModel):
     iva_paid: float
     net_iva: float
     income_tax: float
+    previous_month_credit: Optional[float] = None
+    monthly_tax: float
     created_at: str
     updated_at: str
 
@@ -174,6 +176,50 @@ async def get_tax_summary(
     # TODO: Implement proper income tax calculation based on tax regime
     income_tax = 0.0
 
+    # Get previous month credit from F29 (código 077 - Remanente crédito fiscal mes anterior)
+    previous_month_credit = None
+    try:
+        # Calculate previous month period
+        if period_start.month == 1:
+            prev_year = period_start.year - 1
+            prev_month = 12
+        else:
+            prev_year = period_start.year
+            prev_month = period_start.month - 1
+
+        # Query for the "Vigente" (valid) F29 of previous month
+        f29_prev_stmt = select(Form29SIIDownload).where(
+            and_(
+                Form29SIIDownload.company_id == company_id,
+                Form29SIIDownload.period_year == prev_year,
+                Form29SIIDownload.period_month == prev_month,
+                Form29SIIDownload.status == 'Vigente'
+            )
+        ).order_by(Form29SIIDownload.created_at.desc()).limit(1)
+
+        f29_prev_result = await db.execute(f29_prev_stmt)
+        f29_prev = f29_prev_result.scalar_one_or_none()
+
+        if f29_prev and f29_prev.extra_data:
+            # Extract remanente from extra_data["f29_data"]["codes"]["077"]["value"]
+            f29_data = f29_prev.extra_data.get("f29_data", {})
+            codes = f29_data.get("codes", {})
+            code_077 = codes.get("077", {})
+            remanente_value = code_077.get("value")
+
+            if remanente_value is not None:
+                # Convert to float if it's a string or int
+                previous_month_credit = float(remanente_value)
+    except Exception as e:
+        # Log error but don't fail the request
+        # previous_month_credit remains None if there's any error
+        pass
+
+    # Calculate monthly tax: IVA cobrado - IVA pagado - crédito mes anterior
+    # If previous_month_credit is None, treat it as 0
+    # If the result is negative (credit in favor), show 0 as tax to pay
+    monthly_tax = max(0.0, iva_collected - iva_paid - (previous_month_credit or 0.0))
+
     # Generate summary ID from company_id and period
     summary_id = f"{company_id}-{period_start.year}-{period_start.month:02d}"
 
@@ -188,6 +234,8 @@ async def get_tax_summary(
         iva_paid=iva_paid,
         net_iva=net_iva,
         income_tax=income_tax,
+        previous_month_credit=previous_month_credit,
+        monthly_tax=monthly_tax,
         created_at=datetime.now().isoformat(),
         updated_at=datetime.now().isoformat()
     )

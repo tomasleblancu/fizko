@@ -103,47 +103,62 @@ class SupabaseStore(Store[dict[str, Any]]):
         if not user_text or len(user_text.strip()) < 5:
             return "Nueva conversación"
 
-        # 3. Llamar a LLM para generar un resumen corto (con timeout)
+        # 3. Llamar a LLM para generar un resumen corto (con timeout reducido)
         from openai import AsyncOpenAI
         import asyncio
 
-        # Fallback inmediato: primeras palabras del mensaje
-        words = user_text.split()[:5]
+        # Fallback mejorado: toma palabras clave del inicio del mensaje
+        words = user_text.split()[:6]  # Incrementado a 6 palabras para más contexto
         fallback_summary = " ".join(words)
-        if len(fallback_summary) > 40:
-            fallback_summary = fallback_summary[:37] + "..."
+        if len(fallback_summary) > 45:
+            fallback_summary = fallback_summary[:42] + "..."
 
         try:
             client = AsyncOpenAI()
 
-            # Usar asyncio.wait_for con timeout de 3 segundos
+            # Usar asyncio.wait_for con timeout de 1.5 segundos (reducido de 3s)
             response = await asyncio.wait_for(
                 client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
                         {
                             "role": "system",
-                            "content": "Resume el siguiente mensaje en máximo 4-5 palabras. Sé conciso y descriptivo. Solo responde con el resumen, sin comillas ni puntuación final."
+                            "content": (
+                                "Genera un título breve y descriptivo para esta conversación "
+                                "basándote en el mensaje del usuario. Máximo 5-6 palabras. "
+                                "El título debe capturar la intención o tema principal. "
+                                "Ejemplos: 'Consulta sobre IVA trimestre', 'Cálculo PPM marzo 2024', "
+                                "'Emisión de facturas'. No uses comillas ni puntuación final."
+                            )
                         },
                         {
                             "role": "user",
-                            "content": user_text[:500]  # Limitar a 500 chars
+                            "content": user_text[:600]  # Aumentado a 600 chars para mejor contexto
                         }
                     ],
-                    max_tokens=20,
-                    temperature=0.3
+                    max_tokens=25,  # Incrementado de 20 a 25 para títulos más descriptivos
+                    temperature=0.2  # Reducido de 0.3 a 0.2 para respuestas más consistentes
                 ),
-                timeout=3.0  # 3 segundos máximo
+                timeout=1.5  # 1.5 segundos máximo (reducido de 3s)
             )
 
             summary = response.choices[0].message.content.strip()
             # Limpiar el resumen (quitar comillas, puntos finales, etc)
-            summary = summary.strip('"\'.,!?')
+            summary = summary.strip('"\'.,!?;:')
+
+            # Validar que el título no esté vacío después de limpiar
+            if not summary or len(summary) < 3:
+                logger.warning(f"Título generado muy corto o vacío, usando fallback")
+                return fallback_summary
+
+            # Limitar longitud máxima del título
+            if len(summary) > 60:
+                summary = summary[:57] + "..."
 
             return summary
 
         except asyncio.TimeoutError:
-            logger.warning(f"Timeout generating title with LLM, using fallback")
+            logger.warning(f"Timeout generating title with LLM (1.5s), using fallback")
             return fallback_summary
         except Exception as e:
             logger.warning(f"Error generating title with LLM: {e}")

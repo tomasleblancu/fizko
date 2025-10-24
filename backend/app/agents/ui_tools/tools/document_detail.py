@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....db.models import Company, Contact, SalesDocument, PurchaseDocument
+from ...widgets import create_document_detail_widget, document_detail_widget_copy_text
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 
@@ -117,6 +118,74 @@ class DocumentDetailTool(BaseUITool):
             # Format context text
             context_text = self._format_document_context(full_data)
 
+            # Create widget to stream immediately
+            widget = None
+            widget_copy_text = None
+
+            # Get document type name and contact info for widget
+            doc = document_data
+            is_sales = entity_type == "sales_document"
+            doc_type_names = {
+                # Sales documents
+                "factura_venta": "Factura de Venta",
+                "factura_exenta": "Factura Exenta de Venta",
+                "boleta": "Boleta",
+                "boleta_exenta": "Boleta Exenta",
+                "nota_credito_venta": "Nota de Crédito (Venta)",
+                "nota_debito_venta": "Nota de Débito (Venta)",
+                "comprobante_pago": "Comprobante de Pago",
+                "liquidacion_factura": "Liquidación Factura",
+                # Purchase documents
+                "factura_compra": "Factura de Compra",
+                "factura_exenta_compra": "Factura Exenta de Compra",
+                "nota_credito_compra": "Nota de Crédito (Compra)",
+                "nota_debito_compra": "Nota de Débito (Compra)",
+            }
+            doc_type_name = doc_type_names.get(doc["document_type"], doc["document_type"].replace("_", " ").title())
+            contact_label = "Cliente" if is_sales else "Proveedor"
+
+            # Get contact info
+            contact_name = None
+            contact_rut = None
+            if doc.get("contact"):
+                contact_name = doc["contact"].get("business_name")
+                contact_rut = doc["contact"].get("rut")
+            elif is_sales:
+                contact_name = doc.get("recipient_name")
+                contact_rut = doc.get("recipient_rut")
+            else:
+                contact_name = doc.get("sender_name")
+                contact_rut = doc.get("sender_rut")
+
+            widget = create_document_detail_widget(
+                document_type_name=doc_type_name,
+                folio=doc["folio"],
+                issue_date=doc["issue_date"],
+                status=doc.get("status", "N/A"),
+                net_amount=doc["net_amount"],
+                tax_amount=doc["tax_amount"],
+                total_amount=doc["total_amount"],
+                contact_name=contact_name,
+                contact_rut=contact_rut,
+                contact_label=contact_label,
+                sii_track_id=doc.get("sii_track_id"),
+                is_sales=is_sales,
+            )
+
+            widget_copy_text = document_detail_widget_copy_text(
+                document_type_name=doc_type_name,
+                folio=doc["folio"],
+                issue_date=doc["issue_date"],
+                status=doc.get("status", "N/A"),
+                net_amount=doc["net_amount"],
+                tax_amount=doc["tax_amount"],
+                total_amount=doc["total_amount"],
+                contact_name=contact_name,
+                contact_rut=contact_rut,
+                contact_label=contact_label,
+                sii_track_id=doc.get("sii_track_id"),
+            )
+
             return UIToolResult(
                 success=True,
                 context_text=context_text,
@@ -126,6 +195,8 @@ class DocumentDetailTool(BaseUITool):
                     "document_type": entity_type,
                     "total_amount": document_data["total_amount"],
                 },
+                widget=widget,
+                widget_copy_text=widget_copy_text,
             )
 
         except Exception as e:
@@ -337,14 +408,29 @@ class DocumentDetailTool(BaseUITool):
                 "",
             ])
 
+        # Contact info for widget
+        contact_name = None
+        contact_rut = None
+        if doc.get("contact"):
+            contact_name = doc["contact"].get("business_name")
+            contact_rut = doc["contact"].get("rut")
+        elif is_sales:
+            contact_name = doc.get("recipient_name")
+            contact_rut = doc.get("recipient_rut")
+        else:
+            contact_name = doc.get("sender_name")
+            contact_rut = doc.get("sender_rut")
+
         lines.extend([
             "",
             "---",
             "",
             "💡 **INSTRUCCIONES PARA EL AGENTE:**",
-            "- Responde de forma **breve y directa** con la información clave del documento",
-            "- **NO llames a herramientas adicionales** - toda la información necesaria ya está arriba",
-            "- Termina tu respuesta preguntando al usuario qué le gustaría saber sobre este documento",
+            "- Ya se mostró el widget con los detalles del documento arriba",
+            "- Responde en máximo 2 líneas con un resumen breve del documento",
+            "- NO repitas la información que ya está en el widget",
+            "- Termina preguntando si necesita más información sobre el documento",
+            "- **NO llames a herramientas adicionales**",
             "",
         ])
 

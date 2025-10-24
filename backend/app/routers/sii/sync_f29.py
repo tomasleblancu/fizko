@@ -14,11 +14,111 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ...config.database import get_db
-from ...db.models import Session as SessionModel, Form29SIIDownload
+from ...db.models import Session as SessionModel, Form29SIIDownload, Profile
 from ...dependencies import get_current_user_id, require_auth
 from ...services.sii import SIIService
 
 logger = logging.getLogger(__name__)
+
+
+async def validate_session_access(
+    session_id: UUID,
+    current_user_id: UUID,
+    db: AsyncSession
+) -> SessionModel:
+    """
+    Valida que el usuario tenga acceso a usar la sesión.
+
+    Permite acceso si:
+    - Usuario es admin-kaiken (puede usar cualquier sesión)
+    - Usuario tiene una sesión activa para la misma compañía
+    - Usuario es el dueño de la sesión
+
+    Args:
+        session_id: ID de la sesión a validar
+        current_user_id: ID del usuario que intenta usar la sesión
+        db: Sesión de base de datos
+
+    Returns:
+        SessionModel si el acceso es permitido
+
+    Raises:
+        HTTPException 404 si la sesión no existe
+        HTTPException 403 si el usuario no tiene permisos
+        HTTPException 400 si la sesión no está activa
+    """
+    # 1. Obtener la sesión
+    stmt = select(SessionModel).where(SessionModel.id == session_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+
+    if not session:
+        logger.warning(f"⚠️ Session {session_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sesión {session_id} no encontrada"
+        )
+
+    # 2. Verificar si la sesión está activa
+    if not session.is_active:
+        logger.warning(f"⚠️ Session {session_id} is not active")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La sesión no está activa. Por favor, vuelve a autenticarte con el SII."
+        )
+
+    # 3. Convertir current_user_id a UUID si es string
+    if isinstance(current_user_id, str):
+        from uuid import UUID as UUIDType
+        current_user_id = UUIDType(current_user_id)
+
+    # 4. Si el usuario es el dueño de la sesión, permitir
+    if session.user_id == current_user_id:
+        logger.info(f"✅ User {current_user_id} is owner of session {session_id}")
+        return session
+
+    # 5. Obtener el perfil del usuario para verificar si es admin
+    user_stmt = select(Profile).where(Profile.id == current_user_id)
+    user_result = await db.execute(user_stmt)
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        logger.warning(f"⚠️ User profile {current_user_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfil de usuario no encontrado"
+        )
+
+    # 6. Si es admin, permitir usar cualquier sesión
+    is_admin = user.rol == "admin-kaiken"
+    if is_admin:
+        logger.info(f"✅ Admin user {current_user_id} accessing session {session_id}")
+        return session
+
+    # 7. Verificar si el usuario tiene acceso a la compañía (tiene alguna sesión para esa compañía)
+    company_access_stmt = select(SessionModel).where(
+        SessionModel.user_id == current_user_id,
+        SessionModel.company_id == session.company_id
+    )
+    company_access_result = await db.execute(company_access_stmt)
+    has_company_access = company_access_result.scalar_one_or_none() is not None
+
+    if has_company_access:
+        logger.info(
+            f"✅ User {current_user_id} has access to company {session.company_id}, "
+            f"allowing use of session {session_id}"
+        )
+        return session
+
+    # 8. Si no cumple ninguna condición, rechazar
+    logger.warning(
+        f"⚠️ User {current_user_id} attempted to use session {session_id} "
+        f"belonging to user {session.user_id} without proper permissions"
+    )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="No tienes permisos para usar esta sesión"
+    )
 
 router = APIRouter(
     prefix="/f29",
@@ -76,19 +176,8 @@ async def download_single_f29_pdf(
         f"session={request.session_id}, download_id={request.download_id}"
     )
 
-    # 1. Verificar que la sesión existe y pertenece al usuario
-    stmt = select(SessionModel).where(
-        SessionModel.id == request.session_id,
-        SessionModel.user_id == current_user_id
-    )
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
-
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found or not authorized"
-        )
+    # Validar que el usuario tenga acceso a usar la sesión
+    session = await validate_session_access(request.session_id, current_user_id, db)
 
     # 2. Verificar que el download existe y pertenece a la company de la sesión
     stmt_download = select(Form29SIIDownload).where(
@@ -175,39 +264,8 @@ async def download_f29_pdfs(
         f"session={request.session_id}, year={request.year}, download_ids={request.download_ids}"
     )
 
-    # Validar que la sesión pertenece al usuario actual y está activa
-    stmt = select(SessionModel).where(SessionModel.id == request.session_id)
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
-
-    if not session:
-        logger.warning(f"⚠️ Session {request.session_id} not found")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Sesión {request.session_id} no encontrada"
-        )
-
-    # Convertir current_user_id a UUID si es string
-    if isinstance(current_user_id, str):
-        from uuid import UUID as UUIDType
-        current_user_id = UUIDType(current_user_id)
-
-    if session.user_id != current_user_id:
-        logger.warning(
-            f"⚠️ User {current_user_id} attempted to download PDFs for session {request.session_id} "
-            f"belonging to user {session.user_id}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos para descargar PDFs de esta sesión"
-        )
-
-    if not session.is_active:
-        logger.warning(f"⚠️ Session {request.session_id} is not active")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La sesión no está activa. Por favor, vuelve a autenticarte con el SII."
-        )
+    # Validar que el usuario tenga acceso a usar la sesión
+    session = await validate_session_access(request.session_id, current_user_id, db)
 
     try:
         service = SIIService(db)
@@ -336,39 +394,8 @@ async def sync_f29_for_year(
         f"session={session_id}, year={year}"
     )
 
-    # Validar que la sesión pertenece al usuario actual y está activa
-    stmt = select(SessionModel).where(SessionModel.id == session_id)
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
-
-    if not session:
-        logger.warning(f"⚠️ Session {session_id} not found")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Sesión {session_id} no encontrada"
-        )
-
-    # Convertir current_user_id a UUID si es string
-    if isinstance(current_user_id, str):
-        from uuid import UUID as UUIDType
-        current_user_id = UUIDType(current_user_id)
-
-    if session.user_id != current_user_id:
-        logger.warning(
-            f"⚠️ User {current_user_id} attempted to sync session {session_id} "
-            f"belonging to user {session.user_id}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos para sincronizar esta sesión"
-        )
-
-    if not session.is_active:
-        logger.warning(f"⚠️ Session {session_id} is not active")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La sesión no está activa. Por favor, vuelve a autenticarte con el SII."
-        )
+    # Validar que el usuario tenga acceso a usar la sesión
+    session = await validate_session_access(session_id, current_user_id, db)
 
     try:
         service = SIIService(db)
@@ -478,38 +505,8 @@ async def extract_f29_data(
         f"download_id={download_id}, session_id={session_id}"
     )
 
-    # Validar sesión (mismo código que en sync_f29_for_year)
-    stmt = select(SessionModel).where(SessionModel.id == session_id)
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
-
-    if not session:
-        logger.warning(f"⚠️ Session {session_id} not found")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Sesión {session_id} no encontrada"
-        )
-
-    if isinstance(current_user_id, str):
-        from uuid import UUID as UUIDType
-        current_user_id = UUIDType(current_user_id)
-
-    if session.user_id != current_user_id:
-        logger.warning(
-            f"⚠️ User {current_user_id} attempted to extract F29 data for session {session_id} "
-            f"belonging to user {session.user_id}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos para esta sesión"
-        )
-
-    if not session.is_active:
-        logger.warning(f"⚠️ Session {session_id} is not active")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La sesión no está activa"
-        )
+    # Validar que el usuario tenga acceso a usar la sesión
+    session = await validate_session_access(session_id, current_user_id, db)
 
     try:
         service = SIIService(db)

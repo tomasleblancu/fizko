@@ -140,7 +140,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
             {[...Array(6)].map((_, i) => (
               <div
                 key={i}
-                className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+                className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
               >
                 {/* Title skeleton */}
                 <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
@@ -194,7 +194,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
               >
                 <div
                   className={clsx(
-                    "rounded-lg border p-4 transition-all text-left w-full cursor-pointer",
+                    "rounded-lg border p-4 transition-all text-left w-full cursor-pointer shadow-sm",
                     "border-slate-200 bg-white hover:border-emerald-500 hover:shadow-md",
                     "dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-500"
                   )}

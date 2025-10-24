@@ -56,6 +56,15 @@ class UIToolResult(BaseModel):
     error: str | None = None
     """Error message if processing failed"""
 
+    widget: Any | None = None
+    """ChatKit widget to stream immediately (before agent processing)"""
+
+    widget_copy_text: str | None = None
+    """Fallback text for the widget"""
+
+    class Config:
+        arbitrary_types_allowed = True
+
 
 class BaseUITool(ABC):
     """

@@ -26,6 +26,8 @@ const mockTaxSummary: TaxSummary = {
   iva_paid: 413046,
   net_iva: 198657,
   income_tax: 156320,
+  previous_month_credit: 50000,
+  monthly_tax: 148657, // iva_collected - iva_paid - previous_month_credit = 611703 - 413046 - 50000
   created_at: new Date().toISOString(),
 };
 

@@ -80,12 +80,15 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false,
   // Chateable click handlers for internal elements (must be called unconditionally)
   const ivaClickProps = useChateableClick({
     message: taxSummary
-      ? `Explícame cómo se calculó el IVA de ${formatCurrency(taxSummary.net_iva)} del período ${periodString}`
+      ? `Explícame cómo se calculó el impuesto del mes de ${formatCurrency(taxSummary.monthly_tax)} del período ${periodString}`
       : '',
     contextData: taxSummary ? {
-      amount: taxSummary.net_iva,
+      amount: taxSummary.monthly_tax,
       period: periodString,
-      type: 'iva',
+      type: 'monthly_tax',
+      iva_collected: taxSummary.iva_collected,
+      iva_paid: taxSummary.iva_paid,
+      previous_month_credit: taxSummary.previous_month_credit,
     } : {},
     disabled: !taxSummary,
     uiComponent: 'tax_summary_iva',
@@ -277,7 +280,7 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false,
               </div>
               <div {...ivaClickProps} className={`${ivaClickProps.className} inline-block p-2 rounded-lg`}>
                 <div className="text-4xl font-bold text-blue-900 dark:text-blue-100">
-                  {formatCurrency(taxSummary.net_iva)}
+                  {formatCurrency(taxSummary.monthly_tax)}
                 </div>
               </div>
               <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -299,7 +302,7 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false,
       {/* Main Grid - Ingresos y Gastos */}
       <div className="grid grid-cols-2 gap-4">
         {/* Ingresos */}
-        <div {...revenueClickProps} className={`${revenueClickProps.className} rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-white p-4 text-center dark:border-emerald-900/40 dark:from-emerald-950/30 dark:to-slate-900/50`}>
+        <div {...revenueClickProps} className={`${revenueClickProps.className} rounded-xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-white p-4 text-center shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/30 dark:to-slate-900/50`}>
           <div className="mb-2 flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400">
             <TrendingUp className="h-4 w-4" />
             <span className="text-xs font-semibold uppercase tracking-wide">Ingresos</span>
@@ -310,7 +313,7 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false,
         </div>
 
         {/* Gastos */}
-        <div {...expensesClickProps} className={`${expensesClickProps.className} rounded-xl border border-rose-200/60 bg-gradient-to-br from-rose-50 to-white p-4 text-center dark:border-rose-900/40 dark:from-rose-950/30 dark:to-slate-900/50`}>
+        <div {...expensesClickProps} className={`${expensesClickProps.className} rounded-xl border border-rose-200/60 bg-gradient-to-br from-rose-50 to-white p-4 text-center shadow-sm dark:border-rose-900/40 dark:from-rose-950/30 dark:to-slate-900/50`}>
           <div className="mb-2 flex items-center justify-center gap-2 text-rose-600 dark:text-rose-400">
             <TrendingDown className="h-4 w-4" />
             <span className="text-xs font-semibold uppercase tracking-wide">Gastos</span>

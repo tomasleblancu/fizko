@@ -6,10 +6,11 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ....db.models import Company, PurchaseDocument, SalesDocument
+from ....db.models import Company, Form29SIIDownload, PurchaseDocument, SalesDocument
+from ...widgets import create_tax_calculation_widget, tax_calculation_widget_copy_text
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 
@@ -93,6 +94,34 @@ class TaxSummaryIVATool(BaseUITool):
             # Format context text
             context_text = self._format_iva_context(full_data)
 
+            # Create widget to stream immediately
+            widget = None
+            widget_copy_text = None
+            if iva_data["total_documents"] > 0:
+                # Get month name for widget
+                month_names = [
+                    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+                    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+                ]
+                month_name = month_names[period["month"] - 1]
+                period_str = f"{month_name.title()} {period['year']}"
+
+                widget = create_tax_calculation_widget(
+                    iva_collected=iva_data["iva_debito_fiscal"],
+                    iva_paid=iva_data["iva_credito_fiscal"],
+                    previous_month_credit=iva_data.get("previous_month_credit"),
+                    monthly_tax=iva_data["monthly_tax"],
+                    period=period_str,
+                )
+
+                widget_copy_text = tax_calculation_widget_copy_text(
+                    iva_collected=iva_data["iva_debito_fiscal"],
+                    iva_paid=iva_data["iva_credito_fiscal"],
+                    previous_month_credit=iva_data.get("previous_month_credit"),
+                    monthly_tax=iva_data["monthly_tax"],
+                    period=period_str,
+                )
+
             return UIToolResult(
                 success=True,
                 context_text=context_text,
@@ -102,6 +131,8 @@ class TaxSummaryIVATool(BaseUITool):
                     "iva_to_pay": iva_data["iva_a_pagar"],
                     "has_documents": iva_data["total_documents"] > 0,
                 },
+                widget=widget,
+                widget_copy_text=widget_copy_text,
             )
 
         except Exception as e:
@@ -187,7 +218,47 @@ class TaxSummaryIVATool(BaseUITool):
         # Calculate IVA
         iva_debito = float(sales.iva) if sales else 0.0
         iva_credito = float(purchases.iva) if purchases else 0.0
-        iva_a_pagar = max(0, iva_debito - iva_credito)
+
+        # Get previous month credit from F29
+        previous_month_credit = None
+        try:
+            # Calculate previous month
+            if month == 1:
+                prev_year = year - 1
+                prev_month = 12
+            else:
+                prev_year = year
+                prev_month = month - 1
+
+            # Query for the "Vigente" (valid) F29 of previous month
+            f29_prev_stmt = select(Form29SIIDownload).where(
+                and_(
+                    Form29SIIDownload.company_id == company_uuid,
+                    Form29SIIDownload.period_year == prev_year,
+                    Form29SIIDownload.period_month == prev_month,
+                    Form29SIIDownload.status == 'Vigente'
+                )
+            ).order_by(Form29SIIDownload.created_at.desc()).limit(1)
+
+            f29_prev_result = await db.execute(f29_prev_stmt)
+            f29_prev = f29_prev_result.scalar_one_or_none()
+
+            if f29_prev and f29_prev.extra_data:
+                # Extract remanente from extra_data["f29_data"]["codes"]["077"]["value"]
+                f29_data = f29_prev.extra_data.get("f29_data", {})
+                codes = f29_data.get("codes", {})
+                code_077 = codes.get("077", {})
+                remanente_value = code_077.get("value")
+
+                if remanente_value is not None:
+                    previous_month_credit = float(remanente_value)
+        except Exception as e:
+            logger.warning(f"Error fetching previous month credit: {e}")
+            # Continue without previous_month_credit
+
+        # Calculate monthly tax (IVA to pay after applying previous month credit)
+        iva_neto = iva_debito - iva_credito
+        monthly_tax = max(0, iva_neto - (previous_month_credit or 0.0))
 
         return {
             "sales": {
@@ -204,7 +275,10 @@ class TaxSummaryIVATool(BaseUITool):
             },
             "iva_debito_fiscal": iva_debito,
             "iva_credito_fiscal": iva_credito,
-            "iva_a_pagar": iva_a_pagar,
+            "iva_neto": iva_neto,
+            "previous_month_credit": previous_month_credit,
+            "monthly_tax": monthly_tax,
+            "iva_a_pagar": monthly_tax,  # Keep for backward compatibility
             "total_documents": (sales.count if sales else 0) + (purchases.count if purchases else 0),
         }
 
@@ -215,6 +289,9 @@ class TaxSummaryIVATool(BaseUITool):
             "purchases": {"count": 0, "neto": 0.0, "iva": 0.0, "total": 0.0},
             "iva_debito_fiscal": 0.0,
             "iva_credito_fiscal": 0.0,
+            "iva_neto": 0.0,
+            "previous_month_credit": None,
+            "monthly_tax": 0.0,
             "iva_a_pagar": 0.0,
             "total_documents": 0,
         }
@@ -251,8 +328,13 @@ class TaxSummaryIVATool(BaseUITool):
         sales = iva_data["sales"]
         purchases = iva_data["purchases"]
 
+        # Get previous month credit info
+        previous_credit = iva_data.get('previous_month_credit')
+        iva_neto = iva_data.get('iva_neto', iva_data['iva_debito_fiscal'] - iva_data['iva_credito_fiscal'])
+        monthly_tax = iva_data.get('monthly_tax', 0.0)
+
         lines = [
-            "## 💰 CONTEXTO: Cálculo de IVA",
+            "## 💰 CONTEXTO: Cálculo de Impuesto Mensual",
             "",
             f"**{data['business_name']}** (RUT: {data['rut']})",
             f"**Período:** {month_name.title()} {period['year']}",
@@ -260,38 +342,62 @@ class TaxSummaryIVATool(BaseUITool):
             "### 📤 Débito Fiscal (Ventas)",
             f"- **{sales['count']} documentos** emitidos",
             f"- Monto Neto: ${sales['neto']:,.0f}",
-            f"- **IVA Débito Fiscal: ${sales['iva']:,.0f}**",
+            f"- **IVA Débito Fiscal (IVA Cobrado): ${sales['iva']:,.0f}**",
             f"- Monto Total: ${sales['total']:,.0f}",
             "",
             "### 📥 Crédito Fiscal (Compras)",
             f"- **{purchases['count']} documentos** recibidos",
             f"- Monto Neto: ${purchases['neto']:,.0f}",
-            f"- **IVA Crédito Fiscal: ${purchases['iva']:,.0f}**",
+            f"- **IVA Crédito Fiscal (IVA Pagado): ${purchases['iva']:,.0f}**",
             f"- Monto Total: ${purchases['total']:,.0f}",
             "",
-            "### 🧮 Cálculo del IVA a Pagar",
+            "### 🧮 Cálculo del Impuesto Mensual",
             "```",
-            f"IVA a Pagar = Débito Fiscal - Crédito Fiscal",
-            f"IVA a Pagar = ${iva_data['iva_debito_fiscal']:,.0f} - ${iva_data['iva_credito_fiscal']:,.0f}",
-            f"IVA a Pagar = ${iva_data['iva_a_pagar']:,.0f}",
-            "```",
+            f"IVA Neto = IVA Cobrado - IVA Pagado",
+            f"IVA Neto = ${iva_data['iva_debito_fiscal']:,.0f} - ${iva_data['iva_credito_fiscal']:,.0f}",
+            f"IVA Neto = ${iva_neto:,.0f}",
             "",
         ]
+
+        if previous_credit is not None:
+            lines.extend([
+                f"Crédito Mes Anterior (código 077 del F29): ${previous_credit:,.0f}",
+                "",
+                f"Impuesto Mensual = MAX(0, IVA Neto - Crédito Mes Anterior)",
+                f"Impuesto Mensual = MAX(0, ${iva_neto:,.0f} - ${previous_credit:,.0f})",
+                f"Impuesto Mensual = ${monthly_tax:,.0f}",
+            ])
+        else:
+            lines.extend([
+                f"Crédito Mes Anterior: No disponible (no se encontró F29 del mes anterior)",
+                "",
+                f"Impuesto Mensual = MAX(0, IVA Neto - Crédito Mes Anterior)",
+                f"Impuesto Mensual = MAX(0, ${iva_neto:,.0f} - $0)",
+                f"Impuesto Mensual = ${monthly_tax:,.0f}",
+            ])
+
+        lines.extend([
+            "```",
+            "",
+            "**NOTA:** El crédito del mes anterior se obtiene del código 077 (remanente) del F29 del mes anterior.",
+            "Si el resultado es negativo, significa que hay un remanente a favor que se arrastra al próximo mes.",
+            "",
+        ])
 
         lines.append("")
         lines.append("---")
         lines.append("")
 
+        lines.append("💡 **INSTRUCCIONES PARA EL AGENTE:**")
         if iva_data["total_documents"] == 0:
-            lines.append("💡 **INSTRUCCIONES PARA EL AGENTE:**")
             lines.append("- Informa de forma breve que no hay documentos para este período")
-            lines.append("- **NO llames a herramientas adicionales**")
-            lines.append("- Pregunta al usuario qué le gustaría saber sobre el IVA")
+            lines.append("- Pregunta al usuario qué le gustaría saber sobre el impuesto mensual")
         else:
-            lines.append("💡 **INSTRUCCIONES PARA EL AGENTE:**")
-            lines.append("- Responde de forma **breve y directa** con el resumen de IVA del período")
-            lines.append("- **NO llames a herramientas adicionales** - toda la información necesaria ya está arriba")
-            lines.append("- Termina tu respuesta preguntando al usuario qué le gustaría saber sobre este cálculo de IVA")
+            lines.append("- Ya se mostró el widget con el desglose del cálculo arriba")
+            lines.append("- Responde en máximo 2 líneas explicando brevemente el resultado")
+            lines.append("- NO repitas los números que ya están en el widget")
+            lines.append("- Termina preguntando si quiere más detalles")
+        lines.append("- **NO llames a herramientas adicionales**")
 
         lines.append("")
         return "\n".join(lines)

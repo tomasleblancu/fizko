@@ -103,6 +103,19 @@ class FizkoChatKitServer(ChatKitServer):
         user_message = _user_message_text(target_item) if isinstance(target_item, UserMessageItem) else ""
         logger.info(f"User: {user_message[:100]}")
 
+        # Stream widget immediately if available (before agent processing)
+        ui_tool_result = context.get("ui_tool_result")
+        if ui_tool_result and ui_tool_result.widget:
+            logger.info("📊 Streaming widget immediately before agent processing")
+            try:
+                await agent_context.stream_widget(
+                    ui_tool_result.widget,
+                    copy_text=ui_tool_result.widget_copy_text
+                )
+                logger.info("✅ Widget streamed successfully")
+            except Exception as e:
+                logger.error(f"❌ Error streaming widget: {e}", exc_info=True)
+
         # Prepend UI context if available (from UI Tools system)
         ui_context_text = context.get("ui_context_text", "")
         if ui_context_text:

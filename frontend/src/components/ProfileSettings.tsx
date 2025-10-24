@@ -258,9 +258,9 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp }:
   return (
     <div className="space-y-3">
       {/* User Info Card - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-base font-bold text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-base font-bold text-white shadow-sm">
             {user?.email?.charAt(0).toUpperCase() || '?'}
           </div>
           <div className="min-w-0 flex-1">
@@ -275,7 +275,7 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp }:
       </div>
 
       {/* Contact Information Section - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-3 flex items-center justify-between">
           <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             Información de Contacto
@@ -473,7 +473,7 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp }:
       )}
 
       {/* Email - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
           Email
         </label>
@@ -489,7 +489,7 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp }:
       </div>
 
       {/* SII Credentials Section - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
           Credenciales SII
         </h4>
@@ -499,7 +499,7 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp }:
       </div>
 
       {/* Logout Section - Compact */}
-      <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+      <div className="rounded-lg border border-red-200 bg-red-50 p-3 shadow-sm dark:border-red-800 dark:bg-red-900/20">
         <div className="flex items-center justify-between">
           <div>
             <h4 className="text-sm font-semibold text-red-900 dark:text-red-100">
@@ -537,9 +537,9 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
   return (
     <div className="space-y-3">
       {/* Company Info Card - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-base font-bold text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-base font-bold text-white shadow-sm">
             {company.razon_social?.charAt(0).toUpperCase() || 'E'}
           </div>
           <div className="min-w-0 flex-1">
@@ -554,7 +554,7 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
       </div>
 
       {/* Company Details - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
@@ -596,7 +596,7 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
         </div>
       </div>
 
-      <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/30">
+      <div className="rounded-lg bg-amber-50 p-3 shadow-sm dark:bg-amber-950/30">
         <p className="text-xs text-amber-800 dark:text-amber-200">
           Los datos de la empresa son obtenidos del SII y no pueden ser modificados desde aquí.
         </p>
@@ -610,7 +610,7 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
   return (
     <div className="space-y-3">
       {/* Theme Preference - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -648,7 +648,7 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
       </div>
 
       {/* Language (placeholder) - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
           Idioma
         </h4>
@@ -664,7 +664,7 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
       </div>
 
       {/* Notifications (placeholder) - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
           Notificaciones
         </h4>

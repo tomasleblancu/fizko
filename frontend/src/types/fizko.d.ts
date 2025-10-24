@@ -23,6 +23,8 @@ export interface TaxSummary {
   iva_paid: number;
   net_iva: number;
   income_tax: number;
+  previous_month_credit?: number;
+  monthly_tax: number;
   created_at: string;
 }
 

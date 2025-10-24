@@ -11,8 +11,7 @@ import {
   DollarSign,
   AlertCircle,
   Info,
-  ChevronDown,
-  ChevronUp,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL } from '../lib/config';
@@ -54,8 +53,8 @@ export default function F29List({ companyId }: F29ListProps) {
   const [selectedYear, setSelectedYear] = useState<number | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<string | 'all'>('all');
 
-  // Expanded extra_data
-  const [expandedForms, setExpandedForms] = useState<Set<string>>(new Set());
+  // Modal state
+  const [selectedFormForModal, setSelectedFormForModal] = useState<F29Download | null>(null);
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -163,20 +162,68 @@ export default function F29List({ companyId }: F29ListProps) {
     return months[month - 1] || month.toString();
   };
 
-  const toggleExtraData = (formId: string) => {
-    setExpandedForms((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(formId)) {
-        newSet.delete(formId);
-      } else {
-        newSet.add(formId);
-      }
-      return newSet;
-    });
+  const openModal = (form: F29Download) => {
+    setSelectedFormForModal(form);
+  };
+
+  const closeModal = () => {
+    setSelectedFormForModal(null);
   };
 
   const hasExtraData = (form: F29Download) => {
     return form.extra_data && Object.keys(form.extra_data).length > 0;
+  };
+
+  const extractF29Data = (extra_data: Record<string, any> | null): Record<string, any> => {
+    if (!extra_data) {
+      console.log('⚠️ No extra_data provided');
+      return {};
+    }
+
+    // El backend envuelve los datos en un objeto f29_data
+    const f29Data = extra_data.f29_data || extra_data;
+
+    // Debug: log la estructura de datos que recibimos
+    console.log('📦 F29 data structure:', f29Data);
+
+    // El backend retorna los datos en un formato anidado con códigos y field_names
+    // Necesitamos extraer los valores usando los field_names
+    const extracted: Record<string, any> = {};
+
+    // Extraer datos de codes (estructura: { "503": { field_name: "cant_facturas_emitidas", value: 2 } })
+    if (f29Data.codes) {
+      console.log('📊 Processing codes:', Object.keys(f29Data.codes).length, 'entries');
+      Object.entries(f29Data.codes).forEach(([code, codeData]: [string, any]) => {
+        if (codeData && typeof codeData === 'object' && codeData.field_name && codeData.value !== undefined) {
+          extracted[codeData.field_name] = codeData.value;
+        }
+      });
+    }
+
+    // Extraer datos del header si existen
+    if (f29Data.header) {
+      console.log('📋 Processing header:', Object.keys(f29Data.header));
+      Object.entries(f29Data.header).forEach(([key, value]) => {
+        if (!extracted[key]) {
+          extracted[key] = value;
+        }
+      });
+    }
+
+    // Extraer datos del summary si existen
+    if (f29Data.summary) {
+      console.log('📈 Processing summary:', Object.keys(f29Data.summary));
+      Object.entries(f29Data.summary).forEach(([key, value]) => {
+        if (!extracted[key]) {
+          extracted[key] = value;
+        }
+      });
+    }
+
+    console.log('✅ F29 extracted data:', extracted);
+    console.log('📊 Total fields extracted:', Object.keys(extracted).length);
+
+    return extracted;
   };
 
   const formatExtraDataValue = (value: any): string => {
@@ -195,84 +242,137 @@ export default function F29List({ companyId }: F29ListProps) {
 
   const getExtraDataLabel = (key: string): string => {
     const labels: Record<string, string> = {
-      // Débitos (Lado izquierdo del F29)
-      cantidad_facturas_emitidas: 'Cantidad Facturas Emitidas',
-      cant_recibo_pago_medios_electronicos: 'Recibo de Pago Medios Electrónicos',
-      cantidad_facturas: 'Cantidad Facturas',
-      cred_iva_por_dctos_electronicos: 'Créd. IVA por Dctos. Electrónicos',
-      cant_int_ex_no_grav_sin_der_cred_fiscal: 'Cant. Int. Ex. No Grav. sin Der. Créd. Fiscal',
-      cant_de_dctos_fact_recib_del_mes: 'Cant. de Dctos. Fact. Recib. del Mes',
-      cant_notas_de_credito_recibidas: 'Cant. Notas de Crédito Recibidas',
-      cant_notas_de_debito_recibidas: 'Cant. Notas de Débito Recibidas',
-      remanente_de_credito_fisc: 'Remanente de Crédito Fisc.',
-      retencion_tasa_ley_21133_sobre_rentas: 'Retención Tasa Ley 21.133 sobre Rentas',
-      base_imponible: 'Base Imponible',
-      tasa_ppm_1ra_categoria: 'Tasa PPM 1ra Categoría',
+      // Encabezado
+      folio: 'Folio',
+      rut: 'RUT',
+      periodo: 'Período',
+      razon_social: 'Razón Social',
+      direccion_calle: 'Calle',
+      direccion_numero: 'Número',
+      comuna: 'Comuna',
+      telefono: 'Teléfono',
+      correo: 'Correo Electrónico',
+      rut_representante: 'RUT Representante',
 
-      // Créditos (Lado derecho del F29)
-      debitos_facturas_emitidas: 'Débitos Facturas Emitidas',
-      deb_recibo_pago_medios_electronicos: 'Déb. Recibo de Pago Medios Electrónicos',
-      liquidacion_de_facturas: 'Liquidación de Facturas',
+      // Cantidades de documentos emitidos
+      cant_facturas_emitidas: 'Cant. Facturas Emitidas',
+      cant_boletas: 'Cant. Boletas',
+      cant_recibos_electronicos: 'Cant. Recibos Electrónicos',
+      cant_notas_credito_emitidas: 'Cant. Notas de Crédito Emitidas',
+      cant_notas_cred_vales_maq: 'Cant. Notas Créd. Vales Máquinas',
+      cant_int_ex_no_grav: 'Cant. Intereses Exentos No Gravados',
+
+      // Cantidades de documentos recibidos
+      cant_facturas_recibidas: 'Cant. Facturas Recibidas',
+      cant_fact_recibidas_giro: 'Cant. Facturas Recibidas del Giro',
+      cant_notas_credito_recibidas: 'Cant. Notas de Crédito Recibidas',
+      cant_notas_debito_recibidas: 'Cant. Notas de Débito Recibidas',
+      cant_form_pago_imp_giro: 'Cant. Formularios Pago Impuesto del Giro',
+
+      // DÉBITOS (montos)
+      debitos_facturas: 'Débitos Facturas Emitidas',
+      debitos_boletas: 'Débitos Boletas',
+      debitos_recibos_electronicos: 'Déb. Recibos Electrónicos',
+      debitos_notas_credito: 'Déb. Notas de Crédito Emitidas',
+      debitos_notas_cred_vales: 'Déb. Notas Créd. Vales Máquinas IVA',
+      liquidacion_facturas: 'Liquidación de Facturas',
       total_debitos: 'Total Débitos',
-      monto_sin_der_a_cred_fiscal: 'Monto sin Der. a Créd. Fiscal',
-      credito_rec_fact_de_compras_del_giro: 'Crédito Rec. Fact. de Compras del Giro',
-      credito_recup_y_reint_notas_de_cred: 'Crédito Recup. y Reint. Notas de Créd.',
-      notas_de_debito_rebajar_de_iva_y_reint: 'Notas de Débito Rebajar de IVA y Reint.',
-      remanente_credito_mes_anterior: 'Remanente Crédito Mes Anterior',
-      recup_imp_esp_art_42_n_diesel_tasa_0: 'Recup. Imp. Esp. Art. 42 N° Diesel, Tasa 0%',
-      monto_de_iva_postergado_6_o_12_cuotas: 'Monto de IVA Postergado 6 o 12 Cuotas',
+      monto_sin_der_cred_fiscal: 'Monto Sin Derecho a Crédito Fiscal',
+
+      // CRÉDITOS (montos)
+      credito_iva_documentos_electronicos: 'Crédito IVA por Documentos Electrónicos',
+      credito_facturas_giro: 'Crédito Recup. y Reint. Facturas del Giro',
+      credito_notas_credito: 'Crédito Recup. y Reint. Notas de Crédito',
+      credito_notas_debito: 'Crédito Notas de Débito',
+      credito_pago_imp_giro: 'Crédito Recup. y Reint. Pago Impuesto del Giro',
+      remanente_mes_anterior: 'Remanente Crédito Mes Anterior',
+      remanente_credito_fisc: 'Remanente de Crédito Fiscal',
+      recup_imp_diesel: 'Recuperación Impuesto Especial Diesel',
+      iva_postergado: 'Monto de IVA Postergado 6 o 12 Cuotas',
       total_creditos: 'Total Créditos',
-      imp_determ_iva: 'Imp. Determ. IVA',
-      ppm_neto_determinado: 'PPM Neto Determinado',
-      sub_total_imp_determinado_anverso: 'Sub Total Imp. Determinado Anverso',
+
+      // Impuestos determinados
+      iva_determinado: 'IVA Determinado',
+      ppm_neto: 'PPM Neto Determinado',
+      retencion_imp_unico: 'Retención Impuesto Único Trabajadores Art. 74 N°1 LIR',
+      base_imponible: 'Base Imponible',
+      tasa_ppm: 'Tasa PPM 1ra Categoría',
+      subtotal_imp_determinado: 'Sub Total Impuestos Determinado Anverso',
       total_determinado: 'Total Determinado',
 
-      // Totales finales
-      total_a_pagar_dentro_del_plazo_legal: 'Total a Pagar Dentro del Plazo Legal',
+      // Totales a pagar
+      total_pagar_plazo_legal: 'Total a Pagar Dentro del Plazo Legal',
       mas_ipc: 'Más IPC',
-      mas_interes_y_multas: 'Más Interés y Multas',
+      mas_interes_multas: 'Más Intereses y Multas',
       condonacion: 'Condonación',
-      total_a_pagar_con_recargo: 'Total a Pagar con Recargo',
+      total_pagar_recargo: 'Total a Pagar con Recargo',
 
-      // Información adicional
-      payment_method: 'Medio de Pago',
-      payment_date: 'Fecha de Pago',
+      // Información adicional del PDF
+      num_condonacion: 'N° de Condonación',
+      fecha_condonacion: 'Fecha de Condonación',
+      porc_condonacion: '% Condonación',
+      num_resolucion: 'Número de la Resolución',
+      corrige_a_folio: 'Corrige a Folio(s)',
       banco: 'Banco',
-      tipo_declaracion: 'Tipo de Declaración',
+      medio_pago: 'Medio de Pago',
       fecha_presentacion: 'Fecha de Presentación',
+      tipo_declaracion: 'Tipo de Declaración',
     };
     return labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
   const categorizeExtraData = (extraData: Record<string, any>) => {
     const categories = {
-      debitos: {
-        title: 'Débitos y Facturas',
-        icon: '📊',
+      cantidades_emitidas: {
+        title: 'Cantidades Documentos Emitidos',
+        icon: '📤',
         color: 'blue',
         keys: [
-          'cantidad_facturas_emitidas',
-          'cant_recibo_pago_medios_electronicos',
-          'cantidad_facturas',
-          'cred_iva_por_dctos_electronicos',
-          'cant_int_ex_no_grav_sin_der_cred_fiscal',
-          'cant_de_dctos_fact_recib_del_mes',
-          'cant_notas_de_credito_recibidas',
-          'cant_notas_de_debito_recibidas',
+          'cant_facturas_emitidas',
+          'cant_boletas',
+          'cant_recibos_electronicos',
+          'cant_notas_credito_emitidas',
+          'cant_notas_cred_vales_maq',
+          'cant_int_ex_no_grav',
         ],
       },
-      creditos_impuestos: {
-        title: 'Créditos e Impuestos',
+      cantidades_recibidas: {
+        title: 'Cantidades Documentos Recibidos',
+        icon: '📥',
+        color: 'cyan',
+        keys: [
+          'cant_facturas_recibidas',
+          'cant_fact_recibidas_giro',
+          'cant_notas_credito_recibidas',
+          'cant_notas_debito_recibidas',
+          'cant_form_pago_imp_giro',
+        ],
+      },
+      debitos: {
+        title: 'Débitos (IVA a Pagar)',
+        icon: '📊',
+        color: 'orange',
+        keys: [
+          'debitos_facturas',
+          'debitos_boletas',
+          'debitos_recibos_electronicos',
+          'debitos_notas_credito',
+          'debitos_notas_cred_vales',
+          'liquidacion_facturas',
+          'total_debitos',
+          'monto_sin_der_cred_fiscal',
+        ],
+      },
+      creditos: {
+        title: 'Créditos (IVA a Favor)',
         icon: '💰',
         color: 'green',
         keys: [
-          'debitos_facturas_emitidas',
-          'deb_recibo_pago_medios_electronicos',
-          'liquidacion_de_facturas',
-          'total_debitos',
-          'credito_rec_fact_de_compras_del_giro',
-          'credito_recup_y_reint_notas_de_cred',
-          'notas_de_debito_rebajar_de_iva_y_reint',
+          'credito_iva_documentos_electronicos',
+          'credito_facturas_giro',
+          'credito_notas_credito',
+          'credito_notas_debito',
+          'credito_pago_imp_giro',
           'total_creditos',
         ],
       },
@@ -281,34 +381,22 @@ export default function F29List({ companyId }: F29ListProps) {
         icon: '🔄',
         color: 'purple',
         keys: [
-          'remanente_de_credito_fisc',
-          'remanente_credito_mes_anterior',
-          'recup_imp_esp_art_42_n_diesel_tasa_0',
-          'monto_de_iva_postergado_6_o_12_cuotas',
+          'remanente_mes_anterior',
+          'remanente_credito_fisc',
+          'recup_imp_diesel',
+          'iva_postergado',
         ],
       },
       determinacion: {
         title: 'Determinación de Impuestos',
         icon: '📝',
-        color: 'orange',
+        color: 'red',
         keys: [
-          'monto_sin_der_a_cred_fiscal',
-          'imp_determ_iva',
-          'ppm_neto_determinado',
-          'sub_total_imp_determinado_anverso',
+          'iva_determinado',
+          'ppm_neto',
+          'retencion_imp_unico',
+          'subtotal_imp_determinado',
           'total_determinado',
-        ],
-      },
-      pago: {
-        title: 'Información de Pago',
-        icon: '💳',
-        color: 'indigo',
-        keys: [
-          'total_a_pagar_dentro_del_plazo_legal',
-          'mas_ipc',
-          'mas_interes_y_multas',
-          'condonacion',
-          'total_a_pagar_con_recargo',
         ],
       },
       ppm_base: {
@@ -316,9 +404,20 @@ export default function F29List({ companyId }: F29ListProps) {
         icon: '📈',
         color: 'teal',
         keys: [
-          'retencion_tasa_ley_21133_sobre_rentas',
           'base_imponible',
-          'tasa_ppm_1ra_categoria',
+          'tasa_ppm',
+        ],
+      },
+      totales_pago: {
+        title: 'Totales a Pagar',
+        icon: '💳',
+        color: 'indigo',
+        keys: [
+          'total_pagar_plazo_legal',
+          'mas_ipc',
+          'mas_interes_multas',
+          'condonacion',
+          'total_pagar_recargo',
         ],
       },
       adicional: {
@@ -326,11 +425,15 @@ export default function F29List({ companyId }: F29ListProps) {
         icon: 'ℹ️',
         color: 'gray',
         keys: [
-          'payment_method',
-          'payment_date',
+          'num_condonacion',
+          'fecha_condonacion',
+          'porc_condonacion',
+          'num_resolucion',
+          'corrige_a_folio',
           'banco',
-          'tipo_declaracion',
+          'medio_pago',
           'fecha_presentacion',
+          'tipo_declaracion',
         ],
       },
     };
@@ -504,82 +607,16 @@ export default function F29List({ companyId }: F29ListProps) {
                     </div>
                   )}
 
-                  {/* Extra Data Section */}
+                  {/* Extra Data Button */}
                   {hasExtraData(form) && (
                     <div className="mt-3">
                       <button
-                        onClick={() => toggleExtraData(form.id)}
-                        className="flex w-full items-center justify-between rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                        onClick={() => openModal(form)}
+                        className="flex w-full items-center justify-center space-x-2 rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
                       >
-                        <div className="flex items-center space-x-2">
-                          <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          <span>Datos Adicionales</span>
-                          <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                            {Object.keys(form.extra_data!).length}
-                          </span>
-                        </div>
-                        {expandedForms.has(form.id) ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
+                        <Info className="h-4 w-4" />
+                        <span>Ver Datos del Formulario</span>
                       </button>
-
-{expandedForms.has(form.id) && (() => {
-                        const { categorized, categories } = categorizeExtraData(form.extra_data!);
-                        const colorClasses = {
-                          blue: 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20',
-                          green: 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20',
-                          purple: 'border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-900/20',
-                          orange: 'border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20',
-                          indigo: 'border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-900/20',
-                          teal: 'border-teal-200 bg-teal-50 dark:border-teal-800 dark:bg-teal-900/20',
-                          gray: 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50',
-                        };
-
-                        return (
-                          <div className="mt-2 space-y-3 rounded-md border border-gray-200 bg-white p-3 dark:border-gray-600 dark:bg-gray-800">
-                            {Object.entries(categorized).map(([categoryKey, items]) => {
-                              const categoryInfo = (categories as any)[categoryKey] || {
-                                title: 'Otros',
-                                icon: '📋',
-                                color: 'gray',
-                              };
-
-                              return (
-                                <div
-                                  key={categoryKey}
-                                  className={`rounded-lg border p-3 ${
-                                    colorClasses[categoryInfo.color as keyof typeof colorClasses]
-                                  }`}
-                                >
-                                  <div className="mb-2 flex items-center space-x-2">
-                                    <span className="text-lg">{categoryInfo.icon}</span>
-                                    <h4 className="font-semibold text-gray-900 dark:text-white">
-                                      {categoryInfo.title}
-                                    </h4>
-                                  </div>
-                                  <div className="grid gap-2 sm:grid-cols-2">
-                                    {items.map(({ key, value }) => (
-                                      <div
-                                        key={key}
-                                        className="rounded-md bg-white/60 p-2 dark:bg-gray-800/60"
-                                      >
-                                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                                          {getExtraDataLabel(key)}
-                                        </p>
-                                        <p className="mt-0.5 text-sm font-semibold text-gray-900 dark:text-white">
-                                          {formatExtraDataValue(value)}
-                                        </p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
                     </div>
                   )}
                 </div>
@@ -616,6 +653,140 @@ export default function F29List({ companyId }: F29ListProps) {
           ))}
         </div>
       )}
+
+      {/* Modal for F29 Details */}
+      {selectedFormForModal && (() => {
+        const form = selectedFormForModal;
+        const extractedData = extractF29Data(form.extra_data);
+        const { categorized, categories } = categorizeExtraData(extractedData);
+        const colorClasses = {
+          blue: 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20',
+          cyan: 'border-cyan-200 bg-cyan-50 dark:border-cyan-800 dark:bg-cyan-900/20',
+          green: 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20',
+          purple: 'border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-900/20',
+          orange: 'border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20',
+          red: 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20',
+          indigo: 'border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-900/20',
+          teal: 'border-teal-200 bg-teal-50 dark:border-teal-800 dark:bg-teal-900/20',
+          gray: 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50',
+        };
+        const hasCategories = Object.keys(categorized).length > 0;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeModal}>
+            <div
+              className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-2xl dark:bg-gray-800"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-800">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Formulario 29 - {getMonthName(form.period_month)} {form.period_year}
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Folio: {form.sii_folio} • {formatCurrency(form.amount_cents)}
+                  </p>
+                </div>
+                <button
+                  onClick={closeModal}
+                  className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6">
+                {!hasCategories && (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 dark:text-gray-400">
+                      No se encontraron datos estructurados.
+                      <br />
+                      Total de campos extraídos: {Object.keys(extractedData).length}
+                    </p>
+                    {Object.keys(extractedData).length > 0 && (
+                      <details className="mt-4">
+                        <summary className="cursor-pointer text-sm text-blue-600 hover:text-blue-700">
+                          Ver datos raw
+                        </summary>
+                        <pre className="mt-2 text-left text-xs bg-gray-100 dark:bg-gray-900 p-4 rounded overflow-auto max-h-96">
+                          {JSON.stringify(extractedData, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {Object.entries(categorized).map(([categoryKey, items]) => {
+                    const categoryInfo = (categories as any)[categoryKey] || {
+                      title: 'Otros',
+                      icon: '📋',
+                      color: 'gray',
+                    };
+
+                    return (
+                      <div
+                        key={categoryKey}
+                        className={`rounded-lg border p-4 ${
+                          colorClasses[categoryInfo.color as keyof typeof colorClasses]
+                        }`}
+                      >
+                        <div className="mb-3 flex items-center space-x-2">
+                          <span className="text-2xl">{categoryInfo.icon}</span>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            {categoryInfo.title}
+                          </h3>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {items.map(({ key, value }) => (
+                            <div
+                              key={key}
+                              className="rounded-md bg-white/80 p-3 dark:bg-gray-800/80"
+                            >
+                              <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                {getExtraDataLabel(key)}
+                              </p>
+                              <p className="mt-1 text-base font-semibold text-gray-900 dark:text-white">
+                                {formatExtraDataValue(value)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="sticky bottom-0 border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
+                <div className="flex justify-end space-x-3">
+                  {form.has_pdf && form.pdf_storage_url && (
+                    <a
+                      href={form.pdf_storage_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center space-x-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Ver PDF Original</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                  <button
+                    onClick={closeModal}
+                    className="inline-flex items-center space-x-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Summary */}
       {forms.length > 0 && (
