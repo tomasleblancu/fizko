@@ -102,15 +102,15 @@ export function DashboardPreview({ scheme = 'light' }: DashboardPreviewProps) {
           <div className="max-h-[600px] overflow-hidden p-6">
             <MockDashboardCacheProvider>
               <div className="pointer-events-none space-y-4 opacity-95">
-                {/* Company Info */}
-                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-md">
-                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {/* Company Info - matching CompanyInfoCard */}
+                <div className="rounded-2xl border border-slate-200/70 bg-gradient-to-br from-blue-50 to-purple-50 p-3 dark:border-slate-800/70 dark:from-blue-950/30 dark:to-purple-950/30">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-md">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
                         {mockCompany.business_name}
                       </h3>
@@ -121,59 +121,109 @@ export function DashboardPreview({ scheme = 'light' }: DashboardPreviewProps) {
                   </div>
                 </div>
 
-                {/* Tax Summary */}
-                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-slate-100">
-                    Resumen Tributario
-                  </h3>
+                {/* Tax Summary - matching TaxSummaryCard */}
+                <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-6 dark:border-slate-800/70 dark:bg-slate-900/70">
+                  {/* Header */}
+                  <div className="mb-6 text-center">
+                    <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                      Resumen Tributario
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Período actual
+                    </p>
+                  </div>
 
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div className="rounded-lg bg-green-50 p-4 dark:bg-green-900/20">
-                      <p className="text-sm text-slate-600 dark:text-slate-400">Ingresos</p>
-                      <p className="text-2xl font-bold text-green-700 dark:text-green-400">
+                  {/* Main Grid - Ingresos, Gastos, IVA */}
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {/* Ingresos */}
+                    <div className="rounded-xl border border-emerald-200/70 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                          Ingresos
+                        </span>
+                        <svg className="h-4 w-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                      </div>
+                      <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
                         {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(mockTaxSummary.total_revenue)}
                       </p>
                     </div>
-                    <div className="rounded-lg bg-red-50 p-4 dark:bg-red-900/20">
-                      <p className="text-sm text-slate-600 dark:text-slate-400">Gastos</p>
-                      <p className="text-2xl font-bold text-red-700 dark:text-red-400">
+
+                    {/* Gastos */}
+                    <div className="rounded-xl border border-rose-200/70 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-950/30">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-medium uppercase tracking-wide text-rose-700 dark:text-rose-400">
+                          Gastos
+                        </span>
+                        <svg className="h-4 w-4 text-rose-600 dark:text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                        </svg>
+                      </div>
+                      <p className="text-2xl font-bold text-rose-700 dark:text-rose-400">
                         {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(mockTaxSummary.total_expenses)}
                       </p>
                     </div>
-                  </div>
 
-                  <div className="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
-                    <p className="text-sm text-slate-600 dark:text-slate-400">IVA a pagar</p>
-                    <p className="text-3xl font-bold text-blue-700 dark:text-blue-400">
-                      {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(mockTaxSummary.net_iva)}
-                    </p>
+                    {/* IVA Net */}
+                    <div className="rounded-xl border border-blue-200/70 bg-blue-50 p-4 dark:border-blue-900/40 dark:bg-blue-950/30">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-medium uppercase tracking-wide text-blue-700 dark:text-blue-400">
+                          IVA Neto
+                        </span>
+                        <svg className="h-4 w-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                      <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                        {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(mockTaxSummary.net_iva)}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Recent Documents */}
-                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <h3 className="mb-3 text-lg font-bold text-slate-900 dark:text-slate-100">
-                    Documentos Recientes
-                  </h3>
-                  <div className="space-y-2">
-                    {mockDocuments.map((doc) => (
-                      <div
-                        key={doc.id}
-                        className="flex items-center justify-between rounded-lg border border-slate-200 p-3 dark:border-slate-700"
-                      >
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                            {doc.document_type} #{doc.document_number}
-                          </p>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">
-                            {new Date(doc.issue_date).toLocaleDateString('es-CL')}
-                          </p>
+                {/* Recent Documents - matching RecentDocumentsCard (collapsed view) */}
+                <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-6 dark:border-slate-800/70 dark:bg-slate-900/70">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                        Documentos Tributarios Recientes
+                      </h3>
+                      <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                        {mockDocuments.length}
+                      </span>
+                    </div>
+                    <svg className="h-6 w-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div className="space-y-1.5">
+                    {mockDocuments.map((doc) => {
+                      const formatDocType = (type: string) => {
+                        return type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                      };
+
+                      return (
+                        <div
+                          key={doc.id}
+                          className="flex items-center justify-between py-2 px-1 rounded-lg"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                              {doc.description || 'Sin descripción'}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              {formatDocType(doc.document_type)} #{doc.document_number}
+                            </p>
+                          </div>
+                          <div className="ml-4 flex-shrink-0">
+                            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                              {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(doc.amount)}
+                            </span>
+                          </div>
                         </div>
-                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                          {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', minimumFractionDigits: 0 }).format(doc.amount)}
-                        </p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>

@@ -11,44 +11,41 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Hero Section */}
-      <div className="relative overflow-hidden">
+      <section className="relative overflow-hidden" aria-label="Hero">
         {/* Decorative waves */}
-        <div className="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-blue-100/50 to-transparent dark:from-blue-900/20" />
+        <div className="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-blue-100/50 to-transparent dark:from-blue-900/20" aria-hidden="true" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
-          <div className="text-center">
+          <header className="text-center">
             {/* Logo/Brand */}
             <div className="mb-8 flex justify-center">
               <img
                 src="/encabezado.png"
-                alt="Fizko"
+                alt="Fizko - Plataforma de Gestión Tributaria Inteligente"
                 className="h-16 w-auto"
               />
             </div>
 
             {/* Main Headline */}
-            <h2 className="mx-auto max-w-4xl text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-6xl">
+            <h1 className="mx-auto max-w-4xl text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-6xl">
               Tu negocio ya vive en el{' '}
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 futuro
               </span>
               .
-            </h2>
-            <h3 className="mx-auto mt-4 max-w-2xl text-4xl font-bold text-gray-900 dark:text-white sm:text-5xl">
+            </h1>
+            <h2 className="mx-auto mt-4 max-w-2xl text-4xl font-bold text-gray-900 dark:text-white sm:text-5xl">
               Ahora tus impuestos también.
-            </h3>
+            </h2>
 
             {/* Subtitle */}
             <p className="mx-auto mt-8 max-w-2xl text-xl leading-relaxed text-gray-600 dark:text-gray-300">
-              Fizko se conecta con el SII,{' '}
-              <span className="font-semibold text-gray-900 dark:text-white">organiza</span> ingresos
-              y gastos en tiempo real,{' '}
-              <span className="font-semibold text-gray-900 dark:text-white">responde</span> tus dudas
-              24/7 y{' '}
-              <span className="font-semibold text-gray-900 dark:text-white">proyecta</span> tus
-              impuestos para pagarlos desde la app.
+              Fizko se conecta con el <strong>SII</strong>,{' '}
+              <strong>organiza</strong> ingresos y gastos en tiempo real,{' '}
+              <strong>responde</strong> tus dudas 24/7 y{' '}
+              <strong>proyecta</strong> tus impuestos para pagarlos desde la app.
             </p>
 
             {/* CTA Button */}
@@ -56,8 +53,9 @@ export default function Landing() {
               <button
                 onClick={handleGetStarted}
                 className="group inline-flex items-center space-x-3 rounded-full bg-white border-2 border-gray-200 px-8 py-4 text-lg font-semibold text-gray-700 shadow-xl transition-all hover:shadow-2xl hover:scale-105 hover:border-gray-300"
+                aria-label="Iniciar sesión con Google para comenzar a usar Fizko"
               >
-                <svg className="h-6 w-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <svg className="h-6 w-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                   <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
@@ -70,31 +68,31 @@ export default function Landing() {
             <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
               Inicia sesión con tu cuenta de Google
             </p>
-          </div>
+          </header>
 
           {/* App Preview */}
-          <div className="mt-16 flex justify-center">
+          <figure className="mt-16 flex justify-center">
             <div className="relative">
-              <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 blur-2xl" />
+              <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 blur-2xl" aria-hidden="true" />
               <div className="relative">
                 <DashboardPreview scheme="light" />
               </div>
             </div>
-          </div>
+          </figure>
         </div>
-      </div>
+      </section>
 
       {/* Features Section */}
-      <div className="relative bg-white py-24 dark:bg-gray-800">
+      <section className="relative bg-white py-24 dark:bg-gray-800" aria-labelledby="features-heading">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white sm:text-4xl">
+          <header className="text-center">
+            <h2 id="features-heading" className="text-3xl font-bold text-gray-900 dark:text-white sm:text-4xl">
               Tres pasos simples
             </h2>
             <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">
               Para tener el control total de tus impuestos
             </p>
-          </div>
+          </header>
 
           <div className="mt-16 grid gap-8 md:grid-cols-3">
             {/* Step 1 */}
@@ -159,21 +157,21 @@ export default function Landing() {
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Benefits Section */}
-      <div className="bg-gradient-to-br from-gray-50 to-blue-50 py-24 dark:from-gray-900 dark:to-gray-800">
+      <section className="bg-gradient-to-br from-gray-50 to-blue-50 py-24 dark:from-gray-900 dark:to-gray-800" aria-labelledby="benefits-heading">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white sm:text-4xl">
+            <article>
+              <h2 id="benefits-heading" className="text-3xl font-bold text-gray-900 dark:text-white sm:text-4xl">
                 Control total de tu negocio en tiempo real
               </h2>
               <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">
                 Con Fizko tienes visibilidad completa de tu situación fiscal, proyecciones precisas
                 y respuestas instantáneas a tus dudas.
               </p>
-              <div className="mt-8 space-y-4">
+              <ul className="mt-8 space-y-4" role="list">
                 {[
                   'Sincronización automática con el SII',
                   'Dashboard en tiempo real con tus números',
@@ -182,27 +180,27 @@ export default function Landing() {
                   'Gestión de F29 y documentos tributarios',
                   'Notificaciones de vencimientos importantes',
                 ].map((benefit, index) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <CheckCircle className="h-6 w-6 flex-shrink-0 text-green-600 dark:text-green-400" />
+                  <li key={index} className="flex items-center space-x-3">
+                    <CheckCircle className="h-6 w-6 flex-shrink-0 text-green-600 dark:text-green-400" aria-hidden="true" />
                     <span className="text-gray-700 dark:text-gray-300">{benefit}</span>
-                  </div>
+                  </li>
                 ))}
-              </div>
-            </div>
-            <div className="relative">
-              <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 blur-2xl" />
+              </ul>
+            </article>
+            <figure className="relative">
+              <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 blur-2xl" aria-hidden="true" />
               <div className="relative">
                 <DocumentsPreview scheme="light" />
               </div>
-            </div>
+            </figure>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* CTA Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-16">
+      <section className="bg-gradient-to-r from-blue-600 to-purple-600 py-16" aria-labelledby="cta-heading">
         <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-white sm:text-4xl">
+          <h2 id="cta-heading" className="text-3xl font-bold text-white sm:text-4xl">
             ¿Listo para comenzar?
           </h2>
           <p className="mt-4 text-xl text-blue-100">
@@ -211,8 +209,9 @@ export default function Landing() {
           <button
             onClick={handleGetStarted}
             className="mt-8 inline-flex items-center space-x-3 rounded-full bg-white px-8 py-4 text-lg font-semibold text-gray-700 shadow-xl transition-all hover:scale-105 hover:shadow-2xl"
+            aria-label="Iniciar sesión con Google"
           >
-            <svg className="h-6 w-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <svg className="h-6 w-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
               <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
@@ -221,7 +220,7 @@ export default function Landing() {
             <span>Comienza a usar Fizko</span>
           </button>
         </div>
-      </div>
+      </section>
 
       {/* Footer */}
       <footer className="bg-white py-12 dark:bg-gray-900">
@@ -230,27 +229,27 @@ export default function Landing() {
             <div className="flex items-center">
               <img
                 src="/encabezado.png"
-                alt="Fizko"
+                alt="Fizko - Plataforma de Gestión Tributaria"
                 className="h-8 w-auto"
               />
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               © 2025 Fizko. Todos los derechos reservados.
             </p>
-            <div className="flex space-x-6 text-sm text-gray-600 dark:text-gray-400">
-              <a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">
-                Términos
+            <nav className="flex space-x-6 text-sm text-gray-600 dark:text-gray-400" aria-label="Footer">
+              <a href="/terminos" className="hover:text-blue-600 dark:hover:text-blue-400">
+                Términos de Servicio
               </a>
-              <a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">
-                Privacidad
+              <a href="/privacidad" className="hover:text-blue-600 dark:hover:text-blue-400">
+                Política de Privacidad
               </a>
-              <a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">
+              <a href="/contacto" className="hover:text-blue-600 dark:hover:text-blue-400">
                 Contacto
               </a>
-            </div>
+            </nav>
           </div>
         </div>
       </footer>
-    </div>
+    </main>
   );
 }
