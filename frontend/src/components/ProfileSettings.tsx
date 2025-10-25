@@ -19,13 +19,19 @@ interface ProfileSettingsProps {
   onNavigateToContacts?: () => void;
   onNavigateToDashboard?: () => void;
   currentView?: ViewType;
+  initialTab?: 'account' | 'company' | 'preferences' | 'subscription';
 }
 
-export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToContacts, onNavigateToDashboard, currentView = 'settings' }: ProfileSettingsProps) {
+export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToContacts, onNavigateToDashboard, currentView = 'settings', initialTab = 'account' }: ProfileSettingsProps) {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useUserProfile();
   // Company is now passed as prop to avoid multiple fetches
-  const [activeTab, setActiveTab] = useState<'account' | 'company' | 'preferences' | 'subscription'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'company' | 'preferences' | 'subscription'>(initialTab);
+
+  // Sync activeTab with initialTab when it changes
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   // Handle navigation
   const handleNavigate = useCallback((view: ViewType) => {

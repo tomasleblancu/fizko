@@ -59,6 +59,9 @@ function HomeContent({
   const [isContactsDrawerOpen, setIsContactsDrawerOpen] = useState(false);
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
 
+  // Settings drawer initial tab
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'account' | 'company' | 'preferences' | 'subscription'>('account');
+
   // View state: 'dashboard', 'contacts', or 'settings'
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
 
@@ -237,8 +240,33 @@ function HomeContent({
 
   return (
     <div className={containerClass}>
+      {/* Free Trial Banner */}
+      <div className="relative z-50 flex items-center justify-between gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-white lg:px-4">
+        <div className="flex flex-1 items-center gap-2">
+          <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-xs font-medium lg:text-sm">
+            <span className="hidden sm:inline">Estás en prueba gratuita. </span>
+            <span className="font-bold">¡50% OFF</span> en los primeros 3 meses del plan básico
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setSettingsInitialTab('subscription');
+            setCurrentView('settings');
+            setIsSettingsDrawerOpen(true);
+            setIsDrawerOpen(false);
+            setIsContactsDrawerOpen(false);
+          }}
+          className="flex-shrink-0 rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-50 lg:px-3 lg:py-1.5"
+        >
+          Suscribirse
+        </button>
+      </div>
+
       <div className={clsx(
-        "flex h-[100dvh] w-full flex-col-reverse gap-0 p-0 lg:flex-row",
+        "flex h-[calc(100dvh-2.5rem)] w-full flex-col-reverse gap-0 p-0 lg:h-[calc(100dvh-2.75rem)] lg:flex-row",
         isAnyDrawerOpen && "overflow-hidden lg:overflow-visible"
       )}>
         {/* Chat Panel Container */}
@@ -354,6 +382,7 @@ function HomeContent({
                 onNavigateToDashboard={handleNavigateToDashboard}
                 onNavigateToContacts={handleNavigateToContacts}
                 currentView={currentView}
+                initialTab={settingsInitialTab}
               />
             )}
           </div>
@@ -411,6 +440,7 @@ function HomeContent({
           setIsSettingsDrawerOpen(false);
           setIsContactsDrawerOpen(true);
         }}
+        initialTab={settingsInitialTab}
       />
     </div>
   );

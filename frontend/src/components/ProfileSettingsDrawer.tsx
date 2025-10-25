@@ -13,6 +13,7 @@ interface ProfileSettingsDrawerProps {
   onThemeChange?: (scheme: ColorScheme) => void;
   onNavigateToDashboard?: () => void;
   onNavigateToContacts?: () => void;
+  initialTab?: 'account' | 'company' | 'preferences' | 'subscription';
 }
 
 export function ProfileSettingsDrawer({
@@ -23,6 +24,7 @@ export function ProfileSettingsDrawer({
   onThemeChange,
   onNavigateToDashboard,
   onNavigateToContacts,
+  initialTab,
 }: ProfileSettingsDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const startY = useRef<number>(0);
@@ -132,6 +134,7 @@ export function ProfileSettingsDrawer({
             onNavigateToDashboard={onNavigateToDashboard}
             onNavigateToContacts={onNavigateToContacts}
             currentView="settings"
+            initialTab={initialTab}
           />
         </div>
       </div>
