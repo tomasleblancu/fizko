@@ -35,9 +35,16 @@ export function ChateableWrapper({
     return message;
   }, [message, contextData]);
 
+  const { onChateableClick } = useChat();
+
   const handleClick = useCallback(() => {
     if (disabled || !isReady || !sendUserMessage) {
       return;
+    }
+
+    // Call chateable click callback (e.g., to close drawers)
+    if (onChateableClick) {
+      onChateableClick();
     }
 
     // Call additional onClick handler if provided
@@ -60,7 +67,7 @@ export function ChateableWrapper({
     }
 
     sendUserMessage(messageText, Object.keys(metadata).length > 0 ? metadata : undefined);
-  }, [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType]);
+  }, [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType, onChateableClick]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -70,6 +77,11 @@ export function ChateableWrapper({
 
         if (disabled || !isReady || !sendUserMessage) {
           return;
+        }
+
+        // Call chateable click callback (e.g., to close drawers)
+        if (onChateableClick) {
+          onChateableClick();
         }
 
         if (additionalOnClick) {
@@ -92,7 +104,7 @@ export function ChateableWrapper({
         sendUserMessage(messageText, Object.keys(metadata).length > 0 ? metadata : undefined);
       }
     },
-    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType]
+    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType, onChateableClick]
   );
 
   const combinedClassName = `chateable-wrapper ${className}`.trim();

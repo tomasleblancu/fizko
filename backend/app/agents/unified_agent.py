@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from agents import Agent
+from agents.model_settings import ModelSettings, Reasoning
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,6 +63,7 @@ def create_unified_agent(
         name="fizko_agent",
         model=MODEL,
         instructions=UNIFIED_AGENT_INSTRUCTIONS,
+        model_settings=ModelSettings(reasoning=Reasoning(effort="minimal")),
         tools=[
             # Company info (1)
             get_company_info,

@@ -47,7 +47,7 @@ function HomeContent({
   const { company, loading: companyLoading, error: companyError } = useCompany();
 
   // Chat context for chateable components
-  const { setSendUserMessage } = useChat();
+  const { setSendUserMessage, setOnChateableClick } = useChat();
 
   const [sendMessage, setSendMessage] = useState<((text: string, metadata?: Record<string, any>) => Promise<void>) | null>(null);
 
@@ -81,6 +81,16 @@ function HomeContent({
     // Also register in ChatContext for chateable components
     setSendUserMessage(sendFn);
   }, [setSendUserMessage]);
+
+  // Register callback to close drawers when chateable is clicked
+  useEffect(() => {
+    const closeAllDrawers = () => {
+      setIsDrawerOpen(false);
+      setIsContactsDrawerOpen(false);
+      setIsSettingsDrawerOpen(false);
+    };
+    setOnChateableClick(closeAllDrawers);
+  }, [setOnChateableClick]);
 
   // Refresh dashboard data after each agent response
   const handleResponseEnd = useCallback(() => {
@@ -209,38 +219,70 @@ function HomeContent({
             />
           </div>
 
-          {/* Mobile: Buttons to open dashboard, contacts or settings */}
-          <div className="flex-shrink-0 p-4 flex gap-2 bg-white dark:bg-slate-900 lg:hidden lg:mt-4 lg:p-0 lg:bg-transparent lg:dark:bg-transparent">
-            <button
-              onClick={() => setIsDrawerOpen(true)}
-              className={clsx(
-                "flex flex-1 items-center justify-center rounded-2xl bg-emerald-600 px-3 py-3 font-medium text-white shadow-lg transition-all hover:bg-emerald-700 active:scale-98 dark:bg-emerald-500 dark:hover:bg-emerald-600",
-                "animate-fade-in"
-              )}
-              aria-label="Abrir Dashboard"
-            >
-              <HomeIcon className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setIsContactsDrawerOpen(true)}
-              className={clsx(
-                "flex w-14 items-center justify-center rounded-2xl border-2 border-emerald-600 bg-transparent px-3 py-3 font-medium text-emerald-600 shadow-lg transition-all hover:bg-emerald-50 active:scale-98 dark:border-emerald-500 dark:text-emerald-500 dark:hover:bg-emerald-950/30",
-                "animate-fade-in"
-              )}
-              aria-label="Abrir Contactos"
-            >
-              <Users className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setIsSettingsDrawerOpen(true)}
-              className={clsx(
-                "flex w-14 items-center justify-center rounded-2xl border-2 border-emerald-600 bg-transparent px-3 py-3 font-medium text-emerald-600 shadow-lg transition-all hover:bg-emerald-50 active:scale-98 dark:border-emerald-500 dark:text-emerald-500 dark:hover:bg-emerald-950/30",
-                "animate-fade-in"
-              )}
-              aria-label="Abrir Ajustes"
-            >
-              <Settings className="h-5 w-5" />
-            </button>
+          {/* Mobile: Navigation Pills to open dashboard, contacts or settings */}
+          <div className="relative z-[60] flex-shrink-0 p-4 flex items-center justify-center bg-white dark:bg-slate-900 lg:hidden">
+            <div className="flex items-center gap-1.5 rounded-xl bg-slate-100 p-1.5 dark:bg-slate-800 transition-colors shadow-sm">
+              <button
+                onClick={() => {
+                  setIsDrawerOpen(!isDrawerOpen);
+                  setIsContactsDrawerOpen(false);
+                  setIsSettingsDrawerOpen(false);
+                }}
+                className={clsx(
+                  "flex items-center justify-center rounded-lg px-4 py-3 transition-all duration-200 ease-in-out",
+                  "transform active:scale-95",
+                  isDrawerOpen
+                    ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
+                    : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
+                )}
+                aria-label="Abrir Dashboard"
+              >
+                <HomeIcon className={clsx(
+                  "h-5 w-5 transition-transform duration-200",
+                  isDrawerOpen && "scale-110"
+                )} />
+              </button>
+              <button
+                onClick={() => {
+                  setIsContactsDrawerOpen(!isContactsDrawerOpen);
+                  setIsDrawerOpen(false);
+                  setIsSettingsDrawerOpen(false);
+                }}
+                className={clsx(
+                  "flex items-center justify-center rounded-lg px-4 py-3 transition-all duration-200 ease-in-out",
+                  "transform active:scale-95",
+                  isContactsDrawerOpen
+                    ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
+                    : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
+                )}
+                aria-label="Abrir Contactos"
+              >
+                <Users className={clsx(
+                  "h-5 w-5 transition-transform duration-200",
+                  isContactsDrawerOpen && "scale-110"
+                )} />
+              </button>
+              <button
+                onClick={() => {
+                  setIsSettingsDrawerOpen(!isSettingsDrawerOpen);
+                  setIsDrawerOpen(false);
+                  setIsContactsDrawerOpen(false);
+                }}
+                className={clsx(
+                  "flex items-center justify-center rounded-lg px-4 py-3 transition-all duration-200 ease-in-out",
+                  "transform active:scale-95",
+                  isSettingsDrawerOpen
+                    ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
+                    : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
+                )}
+                aria-label="Abrir Ajustes"
+              >
+                <Settings className={clsx(
+                  "h-5 w-5 transition-transform duration-200",
+                  isSettingsDrawerOpen && "scale-110"
+                )} />
+              </button>
+            </div>
           </div>
         </div>
 

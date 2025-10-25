@@ -25,6 +25,8 @@ export function useChateableClick(options: ChateableClickOptions): ChateableClic
     return message;
   }, [message, contextData]);
 
+  const { onChateableClick } = useChat();
+
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       // Prevent event propagation to avoid triggering parent chateables
@@ -32,6 +34,11 @@ export function useChateableClick(options: ChateableClickOptions): ChateableClic
 
       if (disabled || !isReady || !sendUserMessage) {
         return;
+      }
+
+      // Call chateable click callback (e.g., to close drawers)
+      if (onChateableClick) {
+        onChateableClick();
       }
 
       // Call additional onClick handler if provided
@@ -44,7 +51,7 @@ export function useChateableClick(options: ChateableClickOptions): ChateableClic
       const metadata = uiComponent ? { ui_component: uiComponent } : undefined;
       sendUserMessage(messageText, metadata);
     },
-    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent]
+    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, onChateableClick]
   );
 
   const handleKeyDown = useCallback(
@@ -58,6 +65,11 @@ export function useChateableClick(options: ChateableClickOptions): ChateableClic
           return;
         }
 
+        // Call chateable click callback (e.g., to close drawers)
+        if (onChateableClick) {
+          onChateableClick();
+        }
+
         if (additionalOnClick) {
           additionalOnClick();
         }
@@ -67,7 +79,7 @@ export function useChateableClick(options: ChateableClickOptions): ChateableClic
         sendUserMessage(messageText, metadata);
       }
     },
-    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent]
+    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, onChateableClick]
   );
 
   return {
