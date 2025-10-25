@@ -144,71 +144,73 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
       </div>
 
       {/* Events List - Scrollable */}
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden" style={{ scrollbarGutter: 'stable' }}>
-        {sortedEvents.length === 0 ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/50">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              No hay eventos próximos
-            </p>
-          </div>
-        ) : (
-          sortedEvents.map((event) => {
-            const badge = getStatusBadge(event);
-            const StatusIcon = badge.icon;
-            const daysUntil = getDaysUntil(event.dueDate);
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarGutter: 'stable' }}>
+        <div className="flex flex-col gap-3">
+          {sortedEvents.length === 0 ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/50">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                No hay eventos próximos
+              </p>
+            </div>
+          ) : (
+            sortedEvents.map((event) => {
+              const badge = getStatusBadge(event);
+              const StatusIcon = badge.icon;
+              const daysUntil = getDaysUntil(event.dueDate);
 
-            return (
-              <ChateableWrapper
-                key={event.id}
-                message={`Dame información sobre mi obligación tributaria: ${event.title} que vence el ${formatDate(event.dueDate)}`}
-                contextData={{
-                  eventId: event.id,
-                  eventTitle: event.title,
-                  dueDate: event.dueDate,
-                  status: event.status,
-                  type: event.type,
-                  daysUntil: daysUntil,
-                }}
-                uiComponent="tax_calendar_event"
-              >
-                <div
-                  className={clsx(
-                    "rounded-lg border p-3 transition-all cursor-pointer",
-                    "border-slate-200 bg-white hover:border-emerald-500 hover:shadow-sm",
-                    "dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-emerald-500"
-                  )}
+              return (
+                <ChateableWrapper
+                  key={event.id}
+                  message={`Dame información sobre mi obligación tributaria: ${event.title} que vence el ${formatDate(event.dueDate)}`}
+                  contextData={{
+                    eventId: event.id,
+                    eventTitle: event.title,
+                    dueDate: event.dueDate,
+                    status: event.status,
+                    type: event.type,
+                    daysUntil: daysUntil,
+                  }}
+                  uiComponent="tax_calendar_event"
                 >
-                  <div className="flex items-start gap-3">
-                    {/* Event Icon */}
-                    <div className="flex-shrink-0 text-xl">
-                      {getEventIcon(event.type)}
-                    </div>
+                  <div
+                    className={clsx(
+                      "rounded-lg border p-3 transition-all cursor-pointer",
+                      "border-slate-200 bg-white hover:border-emerald-500 hover:shadow-sm",
+                      "dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-emerald-500"
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Event Icon */}
+                      <div className="flex-shrink-0 text-xl">
+                        {getEventIcon(event.type)}
+                      </div>
 
-                    {/* Event Details */}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-slate-900 dark:text-slate-100 truncate">
-                        {event.title}
-                      </h4>
-                      <div className="mt-0.5 flex items-center justify-between gap-3">
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
-                          Vence: {formatDate(event.dueDate)}
-                        </p>
-                        {/* Status Badge */}
-                        <div className={clsx(
-                          "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium flex-shrink-0",
-                          badge.className
-                        )}>
-                          <StatusIcon className="h-3.5 w-3.5" />
-                          <span>{badge.text}</span>
+                      {/* Event Details */}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-slate-900 dark:text-slate-100 truncate">
+                          {event.title}
+                        </h4>
+                        <div className="mt-0.5 flex items-center justify-between gap-3">
+                          <p className="text-xs text-slate-600 dark:text-slate-400">
+                            Vence: {formatDate(event.dueDate)}
+                          </p>
+                          {/* Status Badge */}
+                          <div className={clsx(
+                            "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium flex-shrink-0",
+                            badge.className
+                          )}>
+                            <StatusIcon className="h-3.5 w-3.5" />
+                            <span>{badge.text}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </ChateableWrapper>
-            );
-          })
-        )}
+                </ChateableWrapper>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
   );

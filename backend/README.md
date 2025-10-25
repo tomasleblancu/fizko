@@ -225,11 +225,13 @@ To ensure your local environment matches production:
 
 ## Agent Tools
 
+### Company Information
+**Note:** Company information (RUT, business name, tax regime, etc.) is automatically loaded at the start of each conversation and available in the agent context. No tool call is needed.
+
 ### SII General Agent Tools
 - `get_tax_regime_info(regime)` - Get tax regime information
 - `get_tax_deadlines(month)` - Get filing deadlines
 - `calculate_iva(net_amount, include_iva)` - Calculate IVA (19%)
-- `get_company_info()` - Get user's companies
 
 ### Remuneraciones Agent Tools
 - `calculate_salary(base_salary, bonuses, overtime)` - Calculate net salary

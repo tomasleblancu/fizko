@@ -96,21 +96,30 @@ function HomeContent({
   useEffect(() => {
     const isAnyDrawerOpen = isDrawerOpen || isContactsDrawerOpen || isSettingsDrawerOpen;
     if (isAnyDrawerOpen) {
-      // Prevent scroll on body
+      // Prevent scroll on body (only on mobile)
+      const html = document.documentElement;
+      const scrollY = window.scrollY;
+
       document.body.style.overflow = 'hidden';
-      // Prevent scroll on the chat panel specifically
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
+      html.style.overflow = 'hidden';
+
+      // Store scroll position
+      document.body.dataset.scrollY = String(scrollY);
     } else {
       document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
+      document.documentElement.style.overflow = '';
+
+      // Restore scroll position if stored
+      const scrollY = document.body.dataset.scrollY;
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY));
+        delete document.body.dataset.scrollY;
+      }
     }
 
     return () => {
       document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
+      document.documentElement.style.overflow = '';
     };
   }, [isDrawerOpen, isContactsDrawerOpen, isSettingsDrawerOpen]);
 
@@ -224,9 +233,14 @@ function HomeContent({
   }
 
   // Authenticated - show real content
+  const isAnyDrawerOpen = isDrawerOpen || isContactsDrawerOpen || isSettingsDrawerOpen;
+
   return (
     <div className={containerClass}>
-      <div className="flex h-[100dvh] w-full flex-col-reverse gap-0 p-0 lg:flex-row">
+      <div className={clsx(
+        "flex h-[100dvh] w-full flex-col-reverse gap-0 p-0 lg:flex-row",
+        isAnyDrawerOpen && "overflow-hidden lg:overflow-visible"
+      )}>
         {/* Chat Panel Container */}
         <div className="relative flex min-h-0 flex-1 w-full flex-col lg:w-[35%] lg:flex-none lg:h-full lg:border-r lg:border-slate-200 dark:lg:border-slate-800">
           {/* ChatKit Panel */}
@@ -242,28 +256,8 @@ function HomeContent({
           </div>
 
           {/* Mobile: Navigation Pills to open dashboard, contacts or settings */}
-          <div className="relative z-[60] flex-shrink-0 p-4 flex items-center justify-center bg-white dark:bg-slate-900 lg:hidden">
-            <div className="flex items-center gap-1.5 rounded-xl bg-slate-100 p-1.5 dark:bg-slate-800 transition-colors shadow-sm">
-              <button
-                onClick={() => {
-                  setIsDrawerOpen(!isDrawerOpen);
-                  setIsContactsDrawerOpen(false);
-                  setIsSettingsDrawerOpen(false);
-                }}
-                className={clsx(
-                  "flex items-center justify-center rounded-lg px-4 py-3 transition-all duration-200 ease-in-out",
-                  "transform active:scale-95",
-                  isDrawerOpen
-                    ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
-                    : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
-                )}
-                aria-label="Abrir Dashboard"
-              >
-                <HomeIcon className={clsx(
-                  "h-5 w-5 transition-transform duration-200",
-                  isDrawerOpen && "scale-110"
-                )} />
-              </button>
+          <div className="relative z-[60] flex-shrink-0 px-4 py-2 flex items-center justify-center bg-white dark:bg-slate-900 lg:hidden">
+            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 transition-colors shadow-sm">
               <button
                 onClick={() => {
                   setIsContactsDrawerOpen(!isContactsDrawerOpen);
@@ -271,7 +265,7 @@ function HomeContent({
                   setIsSettingsDrawerOpen(false);
                 }}
                 className={clsx(
-                  "flex items-center justify-center rounded-lg px-4 py-3 transition-all duration-200 ease-in-out",
+                  "flex items-center justify-center rounded-lg px-3 py-2 transition-all duration-200 ease-in-out",
                   "transform active:scale-95",
                   isContactsDrawerOpen
                     ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
@@ -286,12 +280,32 @@ function HomeContent({
               </button>
               <button
                 onClick={() => {
+                  setIsDrawerOpen(!isDrawerOpen);
+                  setIsContactsDrawerOpen(false);
+                  setIsSettingsDrawerOpen(false);
+                }}
+                className={clsx(
+                  "flex items-center justify-center rounded-lg px-16 py-2 transition-all duration-200 ease-in-out",
+                  "transform active:scale-95",
+                  isDrawerOpen
+                    ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
+                    : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
+                )}
+                aria-label="Abrir Dashboard"
+              >
+                <HomeIcon className={clsx(
+                  "h-5 w-5 transition-transform duration-200",
+                  isDrawerOpen && "scale-110"
+                )} />
+              </button>
+              <button
+                onClick={() => {
                   setIsSettingsDrawerOpen(!isSettingsDrawerOpen);
                   setIsDrawerOpen(false);
                   setIsContactsDrawerOpen(false);
                 }}
                 className={clsx(
-                  "flex items-center justify-center rounded-lg px-4 py-3 transition-all duration-200 ease-in-out",
+                  "flex items-center justify-center rounded-lg px-3 py-2 transition-all duration-200 ease-in-out",
                   "transform active:scale-95",
                   isSettingsDrawerOpen
                     ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"

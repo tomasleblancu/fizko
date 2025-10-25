@@ -70,7 +70,7 @@ export function ViewContainer({
   // Render para drawer (sin header, solo contenido)
   if (isInDrawer) {
     return (
-      <div className="flex h-full flex-col overflow-y-auto">
+      <div className="flex h-full flex-col overflow-hidden">
         {children}
       </div>
     );

@@ -246,13 +246,13 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false,
         <>
           {/* Header - Tax Payment Info with period selector and toggle button */}
           <div className="relative mb-6">
-            {/* Period Selector - Left side */}
+            {/* Period Selector - Responsive */}
             {onPeriodChange && (
-              <div className="absolute left-0 top-0 z-10 flex items-center gap-1.5">
+              <div className="mb-4 flex items-center justify-center gap-2 sm:absolute sm:left-0 sm:top-0 sm:z-10 sm:mb-0 sm:justify-start">
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:px-2 sm:py-1 sm:text-xs"
                 >
                   {months.map((month) => (
                     <option key={month.value} value={month.value}>
@@ -263,7 +263,7 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false,
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:px-2 sm:py-1 sm:text-xs"
                 >
                   {years.map((year) => (
                     <option key={year} value={year}>

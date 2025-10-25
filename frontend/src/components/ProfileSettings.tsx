@@ -25,7 +25,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useUserProfile();
   // Company is now passed as prop to avoid multiple fetches
-  const [activeTab, setActiveTab] = useState<'account' | 'company' | 'preferences'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'company' | 'preferences' | 'subscription'>('account');
 
   // Handle navigation
   const handleNavigate = useCallback((view: ViewType) => {
@@ -38,6 +38,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
   const tabs = [
     { id: 'account' as const, label: 'Cuenta' },
     { id: 'company' as const, label: 'Empresa' },
+    { id: 'subscription' as const, label: 'Suscripción' },
     { id: 'preferences' as const, label: 'Preferencias' },
   ];
 
@@ -49,40 +50,45 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
   // Content for drawer view
   if (isInDrawer) {
     return (
-      <div className="flex h-full flex-col space-y-4 overflow-y-auto">
-        {/* Header */}
-        <div className="flex-shrink-0">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-            Configuración
-          </h2>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            Administra tu perfil y preferencias
-          </p>
-        </div>
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6">
+          <div className="flex flex-col space-y-4 pb-4">
+            {/* Header */}
+            <div className="flex-shrink-0 pt-2">
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                Configuración
+              </h2>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                Administra tu perfil y preferencias
+              </p>
+            </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={clsx(
-                'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-                activeTab === tab.id
-                  ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
-                  : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+            {/* Tabs */}
+            <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={clsx(
+                    'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+                    activeTab === tab.id
+                      ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
+                      : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-        {/* Tab Content */}
-        <div className="flex-1">
-          {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} />}
-          {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} />}
-          {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} />}
+            {/* Tab Content */}
+            <div className="flex-1">
+              {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} />}
+              {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} />}
+              {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} />}
+              {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} />}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -126,6 +132,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} />}
         {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} />}
+        {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} />}
         {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} />}
       </div>
     </ViewContainer>
@@ -692,6 +699,111 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
         </div>
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
           Próximamente disponible
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Subscription Settings Tab
+function SubscriptionSettings({ scheme }: { scheme: ColorScheme }) {
+  return (
+    <div className="space-y-3">
+      {/* Current Plan Card */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Plan Actual
+            </h4>
+            <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+              Gratuito
+            </p>
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+              Acceso básico a funcionalidades
+            </p>
+          </div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-950/30">
+            <svg className="h-6 w-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      {/* Features Included */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
+          Características Incluidas
+        </h4>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="text-xs text-slate-700 dark:text-slate-300">
+              Sincronización básica con SII
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="text-xs text-slate-700 dark:text-slate-300">
+              Gestión de documentos
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="text-xs text-slate-700 dark:text-slate-300">
+              Asistente IA básico
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="text-xs text-slate-700 dark:text-slate-300">
+              Calendario tributario
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Upgrade Card */}
+      <div className="rounded-lg border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 shadow-sm dark:border-emerald-800 dark:from-emerald-950/30 dark:to-teal-950/30">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-600 dark:bg-emerald-700">
+            <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+              Próximamente: Plan Premium
+            </h4>
+            <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+              Acceso a características avanzadas, reportes personalizados, y soporte prioritario
+            </p>
+            <button
+              disabled
+              className="mt-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white opacity-50 dark:bg-emerald-700"
+            >
+              Próximamente
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Billing History */}
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+          Historial de Facturación
+        </h4>
+        <p className="text-xs text-slate-600 dark:text-slate-400">
+          No hay facturas disponibles para tu plan actual.
         </p>
       </div>
     </div>

@@ -63,21 +63,11 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
     }
   };
 
-  return (
-    <ViewContainer
-      icon={<FizkoLogo className="h-7 w-7" />}
-      iconGradient="from-white to-white"
-      title="Contactos"
-      subtitle="Gestiona tus proveedores y clientes"
-      currentView={currentView}
-      onNavigate={handleNavigate}
-      scheme={scheme}
-      onThemeChange={onThemeChange}
-      isInDrawer={isInDrawer}
-      contentClassName="flex-1 overflow-hidden flex flex-col"
-    >
+  // Content component (shared between drawer and normal mode)
+  const renderContent = () => (
+    <>
       {/* Filters and Search */}
-      <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/30 px-4 py-4 dark:border-slate-800/60 dark:bg-slate-900/30 sm:px-6">
+      <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/30 py-4 dark:border-slate-800/60 dark:bg-slate-900/30">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Search */}
           <div className="relative flex-1 max-w-md">
@@ -134,28 +124,30 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 py-4 sm:py-6">
         {loading ? (
-          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+          <div className="grid w-full gap-3 sm:gap-4 md:grid-cols-2 auto-rows-fr">
             {[...Array(6)].map((_, i) => (
               <div
                 key={i}
-                className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-4"
               >
-                {/* Title skeleton */}
-                <div className="h-5 w-3/4 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-
-                {/* Subtitle skeleton */}
-                <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                {/* Header with title and badge - stacked on mobile */}
+                <div className="mb-2">
+                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="h-4 w-3/4 animate-pulse rounded bg-slate-200 dark:bg-slate-700 sm:h-5" />
+                      <div className="mt-1 h-3 w-1/2 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                    <div className="h-5 w-24 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
+                  </div>
+                </div>
 
                 {/* Info rows skeleton */}
-                <div className="mt-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                    <div className="h-5 w-20 animate-pulse rounded-full bg-slate-200 dark:bg-slate-700" />
-                  </div>
-                  <div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="h-4 w-36 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="space-y-1.5">
+                  <div className="h-3 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-700 sm:h-4" />
+                  <div className="h-3 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-700 sm:h-4" />
+                  <div className="h-3 w-36 animate-pulse rounded bg-slate-200 dark:bg-slate-700 sm:h-4" />
                 </div>
               </div>
             ))}
@@ -179,7 +171,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
             </div>
           </div>
         ) : (
-          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
+          <div className="grid w-full gap-3 sm:gap-4 md:grid-cols-2 auto-rows-fr">
             {filteredContacts.map((contact) => (
               <ChateableWrapper
                 key={contact.id}
@@ -194,51 +186,54 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
               >
                 <div
                   className={clsx(
-                    "rounded-lg border p-3 transition-all text-left w-full cursor-pointer shadow-sm",
+                    "rounded-lg border p-3 transition-all text-left w-full max-w-full cursor-pointer shadow-sm overflow-hidden min-w-0",
                     "border-slate-200 bg-white hover:border-emerald-500 hover:shadow-md",
                     "dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-500",
                     "sm:p-4"
                   )}
                 >
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-slate-900 dark:text-slate-100 truncate">
-                      {contact.business_name}
-                    </h3>
-                    {contact.trade_name && (
-                      <p className="text-xs text-slate-500 dark:text-slate-500 truncate">
-                        {contact.trade_name}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="mt-3 space-y-2 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                        <Building2 className="h-4 w-4 flex-shrink-0" />
-                        <span className="truncate">{contact.rut}</span>
+                  {/* Header - stacked on mobile, side by side on sm+ */}
+                  <div className="mb-2">
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-slate-900 dark:text-slate-100 truncate text-sm sm:text-base">
+                          {contact.business_name}
+                        </h3>
+                        {contact.trade_name && (
+                          <p className="text-xs text-slate-500 dark:text-slate-500 truncate mt-0.5">
+                            {contact.trade_name}
+                          </p>
+                        )}
                       </div>
-                      <span className={getContactTypeBadge(contact.contact_type)}>
+                      <span className={clsx(getContactTypeBadge(contact.contact_type), "flex-shrink-0 self-start")}>
                         {getContactTypeLabel(contact.contact_type)}
                       </span>
                     </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-xs sm:text-sm">
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 min-w-0">
+                      <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                      <span className="truncate">{contact.rut}</span>
+                    </div>
 
                     {contact.email && (
-                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                        <Mail className="h-4 w-4 flex-shrink-0" />
+                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 min-w-0">
+                        <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
                         <span className="truncate">{contact.email}</span>
                       </div>
                     )}
 
                     {contact.phone && (
-                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                        <Phone className="h-4 w-4 flex-shrink-0" />
+                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 min-w-0">
+                        <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
                         <span className="truncate">{contact.phone}</span>
                       </div>
                     )}
 
                     {contact.address && (
-                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                        <MapPin className="h-4 w-4 flex-shrink-0" />
+                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 min-w-0">
+                        <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
                         <span className="truncate">{contact.address}</span>
                       </div>
                     )}
@@ -252,13 +247,42 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
 
       {/* Footer with count */}
       {!loading && !error && filteredContacts.length > 0 && (
-        <div className="flex-shrink-0 border-t border-slate-200/60 bg-white/30 px-4 py-3 dark:border-slate-800/60 dark:bg-slate-900/30 sm:px-6">
+        <div className="flex-shrink-0 border-t border-slate-200/60 bg-white/30 py-3 dark:border-slate-800/60 dark:bg-slate-900/30">
           <p className="text-sm text-slate-600 dark:text-slate-400">
             Mostrando {filteredContacts.length} {filteredContacts.length === 1 ? 'contacto' : 'contactos'}
             {filter !== 'all' && ` (${getContactTypeLabel(filter).toLowerCase()})`}
           </p>
         </div>
       )}
+    </>
+  );
+
+  // Drawer mode - simple container with padding
+  if (isInDrawer) {
+    return (
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6">
+          {renderContent()}
+        </div>
+      </div>
+    );
+  }
+
+  // Normal mode - with ViewContainer
+  return (
+    <ViewContainer
+      icon={<FizkoLogo className="h-7 w-7" />}
+      iconGradient="from-white to-white"
+      title="Contactos"
+      subtitle="Gestiona tus proveedores y clientes"
+      currentView={currentView}
+      onNavigate={handleNavigate}
+      scheme={scheme}
+      onThemeChange={onThemeChange}
+      isInDrawer={false}
+      contentClassName="flex-1 overflow-y-auto flex flex-col px-4 sm:px-6"
+    >
+      {renderContent()}
     </ViewContainer>
   );
 }

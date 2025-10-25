@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config.constants import MODEL, UNIFIED_AGENT_INSTRUCTIONS
 
 # Import all tools
-from .tools.sii_general_tools import get_company_info
+# NOTE: get_company_info removed - company info is now loaded automatically in context
 from .tools.documentos_tributarios_tools import (
     search_documents_by_rut,
     search_document_by_folio,
@@ -21,21 +21,6 @@ from .tools.documentos_tributarios_tools import (
     get_sales_documents,
     get_document_details,
     get_documents_summary,
-)
-from .tools.f29_tools import (
-    calculate_f29_iva,
-    calculate_ppm,
-    explain_f29_completion,
-    calculate_f29_summary,
-)
-from .tools.operacion_renta_tools import (
-    calculate_annual_income_tax,
-    explain_operacion_renta,
-    calculate_global_complementario,
-)
-from .tools.remuneraciones_tools import (
-    calculate_salary,
-    calculate_employer_contributions,
 )
 from .tools.tax_widget_tools import show_tax_calculation_widget, show_document_detail_widget
 
@@ -50,13 +35,12 @@ def create_unified_agent(
     Create the unified Fizko agent with access to all tools.
 
     This single agent handles all Chilean tax and accounting queries
-    with 19 specialized tools covering:
-    - Company information
+    with 9 specialized tools covering:
     - Tax documents (invoices, receipts, DTE)
-    - F29 monthly tax declarations
-    - Annual income tax (Operación Renta)
-    - Payroll and salary calculations
     - Visual widgets (tax calculations, document details)
+
+    Note: Company information is now automatically loaded in the agent context,
+    so no tool is needed for that.
     """
 
     agent = Agent(
@@ -65,9 +49,6 @@ def create_unified_agent(
         instructions=UNIFIED_AGENT_INSTRUCTIONS,
         model_settings=ModelSettings(reasoning=Reasoning(effort="minimal")),
         tools=[
-            # Company info (1)
-            get_company_info,
-
             # Tax documents (7)
             search_documents_by_rut,
             search_document_by_folio,
@@ -76,21 +57,6 @@ def create_unified_agent(
             get_sales_documents,
             get_document_details,
             get_documents_summary,
-
-            # F29 monthly tax (4)
-            calculate_f29_iva,
-            calculate_ppm,
-            explain_f29_completion,
-            calculate_f29_summary,
-
-            # Annual tax / Operación Renta (3)
-            calculate_annual_income_tax,
-            explain_operacion_renta,
-            calculate_global_complementario,
-
-            # Payroll / Remuneraciones (2)
-            calculate_salary,
-            calculate_employer_contributions,
 
             # Widgets (2)
             show_tax_calculation_widget,

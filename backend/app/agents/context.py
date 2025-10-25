@@ -19,7 +19,9 @@ class FizkoContext(AgentContext[dict[str, Any]]):
         request_context: Request-specific data - user_id, user, etc. (inherited)
         current_agent_type: The currently active agent
         thread_item_converter: Converter for attachments
+        company_info: Preloaded company information (RUT, name, tax info, etc.)
     """
 
     current_agent_type: str = "sii_general"
     thread_item_converter: Any | None = None
+    company_info: dict[str, Any] | None = None
