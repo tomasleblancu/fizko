@@ -92,6 +92,28 @@ function HomeContent({
     setOnChateableClick(closeAllDrawers);
   }, [setOnChateableClick]);
 
+  // Prevent body scroll when any drawer is open on mobile
+  useEffect(() => {
+    const isAnyDrawerOpen = isDrawerOpen || isContactsDrawerOpen || isSettingsDrawerOpen;
+    if (isAnyDrawerOpen) {
+      // Prevent scroll on body
+      document.body.style.overflow = 'hidden';
+      // Prevent scroll on the chat panel specifically
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    }
+
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    };
+  }, [isDrawerOpen, isContactsDrawerOpen, isSettingsDrawerOpen]);
+
   // Refresh dashboard data after each agent response
   const handleResponseEnd = useCallback(() => {
     // Dashboard components will refresh automatically via their hooks

@@ -77,7 +77,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
       contentClassName="flex-1 overflow-hidden flex flex-col"
     >
       {/* Filters and Search */}
-      <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/30 px-6 py-4 dark:border-slate-800/60 dark:bg-slate-900/30">
+      <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/30 px-4 py-4 dark:border-slate-800/60 dark:bg-slate-900/30 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Search */}
           <div className="relative flex-1 max-w-md">
@@ -134,9 +134,9 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
             {[...Array(6)].map((_, i) => (
               <div
                 key={i}
@@ -179,7 +179,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
             </div>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
             {filteredContacts.map((contact) => (
               <ChateableWrapper
                 key={contact.id}
@@ -194,9 +194,10 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
               >
                 <div
                   className={clsx(
-                    "rounded-lg border p-4 transition-all text-left w-full cursor-pointer shadow-sm",
+                    "rounded-lg border p-3 transition-all text-left w-full cursor-pointer shadow-sm",
                     "border-slate-200 bg-white hover:border-emerald-500 hover:shadow-md",
-                    "dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-500"
+                    "dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-500",
+                    "sm:p-4"
                   )}
                 >
                   <div className="flex-1 min-w-0">
@@ -251,7 +252,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
 
       {/* Footer with count */}
       {!loading && !error && filteredContacts.length > 0 && (
-        <div className="flex-shrink-0 border-t border-slate-200/60 bg-white/30 px-6 py-3 dark:border-slate-800/60 dark:bg-slate-900/30">
+        <div className="flex-shrink-0 border-t border-slate-200/60 bg-white/30 px-4 py-3 dark:border-slate-800/60 dark:bg-slate-900/30 sm:px-6">
           <p className="text-sm text-slate-600 dark:text-slate-400">
             Mostrando {filteredContacts.length} {filteredContacts.length === 1 ? 'contacto' : 'contactos'}
             {filter !== 'all' && ` (${getContactTypeLabel(filter).toLowerCase()})`}

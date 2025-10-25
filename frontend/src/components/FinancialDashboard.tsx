@@ -62,7 +62,7 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
   // When in drawer, render without outer container
   if (isInDrawer) {
     return (
-      <div className="flex h-full flex-col space-y-4 overflow-y-auto">
+      <div className="flex h-full flex-col space-y-3 overflow-y-auto px-4 sm:space-y-4 sm:px-6">
         {hasError && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-900/20">
             <p className="text-sm text-rose-700 dark:text-rose-200">

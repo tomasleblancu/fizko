@@ -123,7 +123,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} />}
         {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} />}
         {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} />}

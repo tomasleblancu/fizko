@@ -38,13 +38,10 @@ export function ProfileSettingsDrawer({
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      // Prevent body scroll when drawer is open
-      document.body.style.overflow = 'hidden';
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
     };
   }, [isOpen, onClose]);
 
@@ -126,7 +123,7 @@ export function ProfileSettingsDrawer({
         </button>
 
         {/* Content - Profile Settings */}
-        <div className="h-[calc(100%-3rem)] overflow-hidden px-4 pb-4">
+        <div className="h-[calc(100%-3rem)] overflow-hidden pb-4">
           <ProfileSettings
             scheme={scheme}
             isInDrawer={true}

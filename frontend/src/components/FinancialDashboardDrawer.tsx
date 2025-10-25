@@ -40,13 +40,10 @@ export function FinancialDashboardDrawer({
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      // Prevent body scroll when drawer is open
-      document.body.style.overflow = 'hidden';
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
     };
   }, [isOpen, onClose]);
 
@@ -128,7 +125,7 @@ export function FinancialDashboardDrawer({
         </button>
 
         {/* Content - Financial Dashboard */}
-        <div className="h-[calc(100%-3rem)] overflow-hidden px-4 pb-4">
+        <div className="h-[calc(100%-3rem)] overflow-hidden pb-4">
           <FinancialDashboard
             scheme={scheme}
             companyId={companyId}
