@@ -44,13 +44,19 @@ class UIToolDispatcher:
         Returns:
             UIToolResult if a tool was found and executed, None otherwise
         """
+        import time
+        dispatch_start = time.time()
+
         # No component specified or "null" string
         if not ui_component or ui_component == "null":
             logger.debug("No ui_component specified, skipping dispatch")
             return None
 
         # Check if we have a tool for this component
+        registry_lookup_start = time.time()
         tool = ui_tool_registry.get_tool(ui_component)
+        logger.debug(f"  🔍 Registry lookup: {(time.time() - registry_lookup_start):.3f}s")
+
         if not tool:
             logger.warning(
                 f"⚠️ No UI tool registered for component '{ui_component}'. "
@@ -67,6 +73,7 @@ class UIToolDispatcher:
             )
 
         # Create context for the tool
+        context_create_start = time.time()
         context = UIToolContext(
             ui_component=ui_component,
             user_message=user_message,
@@ -75,15 +82,22 @@ class UIToolDispatcher:
             db=db,
             additional_data=additional_data or {},
         )
+        logger.debug(f"  📦 Context creation: {(time.time() - context_create_start):.3f}s")
 
         # Execute the tool
         try:
+            tool_exec_start = time.time()
             result = await tool.process(context)
+            tool_exec_time = time.time() - tool_exec_start
+            logger.debug(f"  🔧 Tool execution ({tool.__class__.__name__}): {tool_exec_time:.3f}s")
 
             if not result.success:
                 logger.warning(
                     f"⚠️ UI tool failed: {ui_component} - {result.error}"
                 )
+
+            total_time = time.time() - dispatch_start
+            logger.debug(f"  ✅ Total dispatch: {total_time:.3f}s")
 
             return result
 

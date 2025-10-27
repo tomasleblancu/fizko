@@ -5,6 +5,7 @@ Ensures consistent company and user information formatting.
 import logging
 from typing import Optional, Dict, Any
 from uuid import UUID
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,10 +14,15 @@ from ..db.models import Company, CompanyTaxInfo
 
 logger = logging.getLogger(__name__)
 
+# In-memory cache for company info (5 minute TTL)
+_company_info_cache: Dict[str, tuple[datetime, Dict[str, Any]]] = {}
+_CACHE_TTL_SECONDS = 300  # 5 minutes
+
 
 async def load_company_info(
     db: AsyncSession,
     company_id: UUID | str,
+    use_cache: bool = True,
 ) -> Dict[str, Any]:
     """
     Load complete company information including tax info.
@@ -27,30 +33,54 @@ async def load_company_info(
     Args:
         db: Database session
         company_id: Company UUID
+        use_cache: Whether to use in-memory cache (default: True)
 
     Returns:
         Dict with company data or error
     """
+    import time
+    load_start = time.time()
+
     try:
         company_uuid = UUID(company_id) if isinstance(company_id, str) else company_id
+        cache_key = str(company_uuid)
+
+        # Check cache first
+        if use_cache and cache_key in _company_info_cache:
+            cached_time, cached_data = _company_info_cache[cache_key]
+            cache_age = (datetime.now() - cached_time).total_seconds()
+
+            if cache_age < _CACHE_TTL_SECONDS:
+                logger.debug(f"  💾 Cache HIT: {cache_age:.1f}s old ({(time.time() - load_start):.3f}s)")
+                return cached_data
+            else:
+                logger.debug(f"  💾 Cache EXPIRED: {cache_age:.1f}s old")
+                del _company_info_cache[cache_key]
+
+        logger.debug(f"  💾 Cache MISS - fetching from DB")
 
         # Get company basic info
+        company_query_start = time.time()
         stmt = select(Company).where(Company.id == company_uuid)
         result = await db.execute(stmt)
         company = result.scalar_one_or_none()
+        logger.debug(f"  🔍 Company query: {(time.time() - company_query_start):.3f}s")
 
         if not company:
             logger.warning(f"⚠️ Company not found: {company_id}")
             return {"error": "Empresa no encontrada"}
 
         # Get tax info
+        tax_query_start = time.time()
         tax_stmt = select(CompanyTaxInfo).where(
             CompanyTaxInfo.company_id == company_uuid
         )
         tax_result = await db.execute(tax_stmt)
         tax_info = tax_result.scalar_one_or_none()
+        logger.debug(f"  🔍 Tax info query: {(time.time() - tax_query_start):.3f}s")
 
         # Build complete company info
+        build_start = time.time()
         company_data = {
             "id": str(company.id),
             "rut": company.rut,
@@ -75,7 +105,18 @@ async def load_company_info(
                 "accounting_start_month": tax_info.accounting_start_month,
             }
 
-        return {"company": company_data}
+        logger.debug(f"  📦 Data building: {(time.time() - build_start):.3f}s")
+
+        result_data = {"company": company_data}
+
+        # Store in cache
+        if use_cache:
+            _company_info_cache[cache_key] = (datetime.now(), result_data)
+            logger.debug(f"  💾 Cached for {_CACHE_TTL_SECONDS}s")
+
+        logger.debug(f"  ✅ Total load_company_info: {(time.time() - load_start):.3f}s")
+
+        return result_data
 
     except Exception as e:
         logger.error(f"Error loading company info: {e}", exc_info=True)

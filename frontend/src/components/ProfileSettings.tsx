@@ -61,18 +61,8 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto px-4 sm:px-6">
           <div className="flex flex-col pb-4">
-            {/* Header */}
-            <div className="flex-shrink-0 pt-2 pb-4">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                Configuración
-              </h2>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Administra tu perfil y preferencias
-              </p>
-            </div>
-
             {/* Tabs */}
-            <div className="flex gap-2 border-b border-slate-200/50 dark:border-slate-700/50 pb-0 mb-4">
+            <div className="flex gap-2 border-b border-slate-200/50 dark:border-slate-700/50 pb-0 mb-4 pt-2">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}

@@ -173,6 +173,7 @@ class TaxSummaryIVATool(BaseUITool):
         month: int,
     ) -> dict[str, Any]:
         """Get IVA summary for a specific period."""
+        import time
 
         company_uuid = self._safe_get_uuid(company_id)
         if not company_uuid:
@@ -186,6 +187,7 @@ class TaxSummaryIVATool(BaseUITool):
             end_date = datetime(year, month + 1, 1).date()
 
         # Get sales summary (IVA débito)
+        sales_query_start = time.time()
         sales_stmt = select(
             func.count(SalesDocument.id).label("count"),
             func.coalesce(func.sum(SalesDocument.net_amount), 0).label("neto"),
@@ -199,8 +201,10 @@ class TaxSummaryIVATool(BaseUITool):
 
         sales_result = await db.execute(sales_stmt)
         sales = sales_result.first()
+        logger.debug(f"    💰 Sales query: {(time.time() - sales_query_start):.3f}s")
 
         # Get purchases summary (IVA crédito)
+        purchases_query_start = time.time()
         purchases_stmt = select(
             func.count(PurchaseDocument.id).label("count"),
             func.coalesce(func.sum(PurchaseDocument.net_amount), 0).label("neto"),
@@ -214,6 +218,7 @@ class TaxSummaryIVATool(BaseUITool):
 
         purchases_result = await db.execute(purchases_stmt)
         purchases = purchases_result.first()
+        logger.debug(f"    💳 Purchases query: {(time.time() - purchases_query_start):.3f}s")
 
         # Calculate IVA
         iva_debito = float(sales.iva) if sales else 0.0
@@ -231,6 +236,7 @@ class TaxSummaryIVATool(BaseUITool):
                 prev_month = month - 1
 
             # Query for the "Vigente" (valid) F29 of previous month
+            f29_query_start = time.time()
             f29_prev_stmt = select(Form29SIIDownload).where(
                 and_(
                     Form29SIIDownload.company_id == company_uuid,
@@ -242,6 +248,7 @@ class TaxSummaryIVATool(BaseUITool):
 
             f29_prev_result = await db.execute(f29_prev_stmt)
             f29_prev = f29_prev_result.scalar_one_or_none()
+            logger.debug(f"    📋 F29 previous month query: {(time.time() - f29_query_start):.3f}s")
 
             if f29_prev and f29_prev.extra_data:
                 # Extract remanente from extra_data["f29_data"]["codes"]["077"]["value"]

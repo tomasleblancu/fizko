@@ -51,7 +51,7 @@ export function Personnel({
     <ViewContainer
       icon={<FizkoLogo className="h-7 w-7" />}
       iconGradient="from-white to-white"
-      title="Personal"
+      title="Colaboradores"
       subtitle="Gestiona empleados y liquidaciones"
       currentView={currentView}
       onNavigate={handleNavigate}

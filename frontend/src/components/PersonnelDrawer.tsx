@@ -119,7 +119,7 @@ export function PersonnelDrawer({
         <button
           onClick={onClose}
           className="absolute right-4 top-4 z-10 rounded-full bg-slate-100 p-2 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
-          aria-label="Cerrar personal"
+          aria-label="Cerrar colaboradores"
         >
           <X className="h-5 w-5 text-slate-600 dark:text-slate-300" />
         </button>

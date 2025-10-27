@@ -138,19 +138,24 @@ async def chatkit_endpoint(
     logger.info(f"🚀 [REQUEST START] {request.method} {request.url.path}")
 
     # Get optional user from JWT token
+    auth_start = time.time()
     user = await get_optional_user(request)
     user_id = user.get("sub") if user else "anonymous"
+    logger.info(f"⏱️  [+{(time.time() - request_start_time):.3f}s] Auth validated ({(time.time() - auth_start):.3f}s)")
 
     # Priority: Query param > JWT token
     if not company_id:
         company_id = user.get("company_id") if user else None
 
+    payload_start = time.time()
     payload = await request.body()
+    logger.info(f"⏱️  [+{(time.time() - request_start_time):.3f}s] Payload received ({len(payload)} bytes) ({(time.time() - payload_start):.3f}s)")
 
     # Log request
     import json
 
     # Extract message from payload to use for UI context extraction
+    parse_start = time.time()
     user_message = ""
     try:
         payload_dict = json.loads(payload)
@@ -159,12 +164,15 @@ async def chatkit_endpoint(
             user_message = payload_dict["text"]
     except:
         pass
+    logger.info(f"⏱️  [+{(time.time() - request_start_time):.3f}s] Payload parsed ({(time.time() - parse_start):.3f}s)")
 
     # NEW: Dispatch to UI Tools system if ui_component is present
     ui_tool_result = None
     ui_context_text = ""
 
     if ui_component and ui_component != "null":
+        ui_tool_start = time.time()
+        logger.info(f"⏱️  [+{(time.time() - request_start_time):.3f}s] UI Tool dispatch started")
         # Get database session for UI tool processing
         async with AsyncSessionLocal() as db:
             # Build additional_data dict from query params
@@ -182,6 +190,9 @@ async def chatkit_endpoint(
                 db=db,
                 additional_data=additional_data if additional_data else None,
             )
+
+        ui_tool_end = time.time()
+        logger.info(f"⏱️  [+{(ui_tool_end - request_start_time):.3f}s] UI Tool completed ({(ui_tool_end - ui_tool_start):.3f}s)")
 
         if ui_tool_result and ui_tool_result.success:
             ui_context_text = ui_tool_result.context_text
@@ -204,6 +215,7 @@ async def chatkit_endpoint(
         )
         ui_context_text = format_ui_context_for_agent(ui_context)
 
+    context_prep_start = time.time()
     context = {
         "request": request,
         "user_id": user_id,
@@ -215,12 +227,17 @@ async def chatkit_endpoint(
         "agent_type": agent_type,
         "request_start_time": request_start_time,  # Pass timing to agent
     }
+    logger.info(f"⏱️  [+{(time.time() - request_start_time):.3f}s] Context prepared ({(time.time() - context_prep_start):.3f}s)")
 
+    # Process request through ChatKit server
+    process_start = time.time()
+    logger.info(f"⏱️  [+{(process_start - request_start_time):.3f}s] server.process() started")
     result = await server.process(payload, context)
+    logger.info(f"⏱️  [+{(time.time() - request_start_time):.3f}s] server.process() completed ({(time.time() - process_start):.3f}s)")
 
-    # Log final response time
-    total_elapsed = time.time() - request_start_time
-    logger.info(f"✅ [REQUEST END] Total: {total_elapsed:.3f}s")
+    # Return streaming response (respond() is called during streaming)
+    stream_response_start = time.time()
+    logger.info(f"⏱️  [+{(stream_response_start - request_start_time):.3f}s] Creating StreamingResponse (respond() will be called during iteration)")
     logger.info("=" * 80)
 
     if isinstance(result, StreamingResult):

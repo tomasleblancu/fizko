@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import clsx from "clsx";
-import { Home as HomeIcon, Users, Settings, Briefcase } from "lucide-react";
+import { Home as HomeIcon, Users, Settings, Building2 } from "lucide-react";
 
 import { Header } from "./Header";
 import { ChatKitPanel } from "./ChatKitPanel";
@@ -331,7 +331,7 @@ function HomeContent({
                 )}
                 aria-label="Abrir Contactos"
               >
-                <Users className={clsx(
+                <Building2 className={clsx(
                   "h-5 w-5 transition-transform duration-200",
                   isContactsDrawerOpen && "scale-110"
                 )} />
@@ -350,9 +350,9 @@ function HomeContent({
                     ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
                     : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
                 )}
-                aria-label="Abrir Personal"
+                aria-label="Abrir Colaboradores"
               >
-                <Briefcase className={clsx(
+                <Users className={clsx(
                   "h-5 w-5 transition-transform duration-200",
                   isPersonnelDrawerOpen && "scale-110"
                 )} />

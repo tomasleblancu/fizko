@@ -1,8 +1,8 @@
 """Global constants and configuration."""
 
 # OpenAI model to use for all agents
-# Using gpt-5-nano for cost-effectiveness and good performance
-MODEL = "gpt-4.1-nano"
+# Using gpt-4o-mini for faster response times (TTFT ~3s vs 11s with gpt-4.1-nano)
+MODEL = "gpt-4o-mini"
 
 # Unified agent instructions for Fizko platform
 UNIFIED_AGENT_INSTRUCTIONS = """Eres Fizko, asistente experto en tributación y contabilidad chilena para PYMEs.
