@@ -12,9 +12,10 @@ interface RecentDocumentsCardProps {
   scheme: ColorScheme;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
+  isInDrawer?: boolean;
 }
 
-export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = false, onToggleExpand }: RecentDocumentsCardProps) {
+export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = false, onToggleExpand, isInDrawer = false }: RecentDocumentsCardProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'venta' | 'compra'>('all');
 
@@ -145,7 +146,8 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
 
   return (
     <div className={clsx(
-      "flex h-full w-full flex-col rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70"
+      "flex h-full w-full flex-col transition-all duration-300",
+      isInDrawer ? "" : "rounded-2xl border border-slate-200/70 bg-white/90 p-6 dark:border-slate-800/70 dark:bg-slate-900/70"
     )} style={{ boxSizing: 'border-box' }}>
       <div className="mb-4 flex flex-shrink-0 flex-col gap-4">
         {/* Header */}

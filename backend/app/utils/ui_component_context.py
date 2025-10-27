@@ -90,6 +90,12 @@ def extract_ui_component_context(
             "suggested_agents": ["remuneraciones_agent"],
             "context_hint": "Usuario está gestionando remuneraciones",
         },
+        "tax_calendar_event": {
+            "domain": "tax_calendar",
+            "relevant_data": ["calendar_event", "event_template", "event_tasks", "compliance_status"],
+            "suggested_agents": ["f29_agent", "operacion_renta_agent"],
+            "context_hint": "Usuario está consultando sobre una obligación tributaria específica del calendario",
+        },
     }
 
     # Get component-specific context

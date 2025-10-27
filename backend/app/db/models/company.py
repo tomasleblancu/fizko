@@ -16,10 +16,12 @@ from ...utils.rut import normalize_rut
 from ...utils.encryption import encrypt_password, decrypt_password
 
 if TYPE_CHECKING:
+    from .calendar import CalendarEvent, CompanyEvent
     from .contact import Contact
     from .documents import PurchaseDocument, SalesDocument
     from .form29 import Form29
     from .form29_sii_download import Form29SIIDownload
+    from .personnel import Payroll, Person
     from .session import Session
 
 
@@ -80,6 +82,20 @@ class Company(Base):
     )
     contacts: Mapped[list["Contact"]] = relationship(
         "Contact", back_populates="company", cascade="all, delete-orphan"
+    )
+    company_events: Mapped[list["CompanyEvent"]] = relationship(
+        "CompanyEvent", back_populates="company", cascade="all, delete-orphan"
+    )
+    calendar_events: Mapped[list["CalendarEvent"]] = relationship(
+        "CalendarEvent", back_populates="company"
+    )
+
+    # Personnel relationships
+    people: Mapped[list["Person"]] = relationship(
+        "Person", back_populates="company", cascade="all, delete-orphan"
+    )
+    payroll_records: Mapped[list["Payroll"]] = relationship(
+        "Payroll", back_populates="company", cascade="all, delete-orphan"
     )
 
     @hybrid_property

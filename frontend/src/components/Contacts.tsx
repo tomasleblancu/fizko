@@ -17,10 +17,11 @@ interface ContactsProps {
   onThemeChange?: (scheme: ColorScheme) => void;
   onNavigateToDashboard?: () => void;
   onNavigateToSettings?: () => void;
+  onNavigateToPersonnel?: () => void;
   currentView?: ViewType;
 }
 
-export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToDashboard, onNavigateToSettings, currentView = 'contacts' }: ContactsProps) {
+export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToDashboard, onNavigateToSettings, onNavigateToPersonnel, currentView = 'contacts' }: ContactsProps) {
   const { contacts, loading, error } = useContacts(company?.id);
   const [filter, setFilter] = useState<'all' | 'provider' | 'client' | 'both'>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,8 +29,9 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
   // Handle navigation
   const handleNavigate = useCallback((view: ViewType) => {
     if (view === 'dashboard' && onNavigateToDashboard) onNavigateToDashboard();
+    if (view === 'personnel' && onNavigateToPersonnel) onNavigateToPersonnel();
     if (view === 'settings' && onNavigateToSettings) onNavigateToSettings();
-  }, [onNavigateToDashboard, onNavigateToSettings]);
+  }, [onNavigateToDashboard, onNavigateToPersonnel, onNavigateToSettings]);
 
   const filteredContacts = contacts.filter(contact => {
     const matchesFilter = filter === 'all' || contact.contact_type === filter || contact.contact_type === 'both';
@@ -67,7 +69,12 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
   const renderContent = () => (
     <>
       {/* Filters and Search */}
-      <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/30 py-4 dark:border-slate-800/60 dark:bg-slate-900/30">
+      <div className={clsx(
+        "flex-shrink-0 py-4",
+        isInDrawer
+          ? "border-b border-slate-200/50 dark:border-slate-700/50"
+          : "border-b border-slate-200/60 bg-white/30 dark:border-slate-800/60 dark:bg-slate-900/30"
+      )}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Search */}
           <div className="relative flex-1 max-w-md">
@@ -171,7 +178,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
             </div>
           </div>
         ) : (
-          <div className="grid w-full gap-3 sm:gap-4 md:grid-cols-2 auto-rows-fr">
+          <div className={isInDrawer ? "flex flex-col divide-y divide-slate-200/50 dark:divide-slate-700/50" : "grid w-full gap-3 sm:gap-4 md:grid-cols-2 auto-rows-fr"}>
             {filteredContacts.map((contact) => (
               <ChateableWrapper
                 key={contact.id}
@@ -186,10 +193,10 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
               >
                 <div
                   className={clsx(
-                    "rounded-lg border p-3 transition-all text-left w-full max-w-full cursor-pointer shadow-sm overflow-hidden min-w-0",
-                    "border-slate-200 bg-white hover:border-emerald-500 hover:shadow-md",
-                    "dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-500",
-                    "sm:p-4"
+                    "transition-all text-left w-full max-w-full cursor-pointer overflow-hidden min-w-0",
+                    isInDrawer
+                      ? "py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      : "rounded-lg border p-3 shadow-sm border-slate-200 bg-white hover:border-emerald-500 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-500 sm:p-4"
                   )}
                 >
                   {/* Header - stacked on mobile, side by side on sm+ */}
@@ -247,7 +254,12 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
 
       {/* Footer with count */}
       {!loading && !error && filteredContacts.length > 0 && (
-        <div className="flex-shrink-0 border-t border-slate-200/60 bg-white/30 py-3 dark:border-slate-800/60 dark:bg-slate-900/30">
+        <div className={clsx(
+          "flex-shrink-0 py-3",
+          isInDrawer
+            ? "border-t border-slate-200/50 dark:border-slate-700/50"
+            : "border-t border-slate-200/60 bg-white/30 dark:border-slate-800/60 dark:bg-slate-900/30"
+        )}>
           <p className="text-sm text-slate-600 dark:text-slate-400">
             Mostrando {filteredContacts.length} {filteredContacts.length === 1 ? 'contacto' : 'contactos'}
             {filter !== 'all' && ` (${getContactTypeLabel(filter).toLowerCase()})`}

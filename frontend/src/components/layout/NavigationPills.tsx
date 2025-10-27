@@ -1,8 +1,8 @@
 import clsx from 'clsx';
-import { Home, Users, Settings } from 'lucide-react';
+import { Home, Users, Settings, Briefcase } from 'lucide-react';
 import type { ColorScheme } from '../../hooks/useColorScheme';
 
-export type ViewType = 'dashboard' | 'contacts' | 'settings';
+export type ViewType = 'dashboard' | 'contacts' | 'personnel' | 'settings';
 
 interface NavigationPillsProps {
   currentView: ViewType;
@@ -14,6 +14,7 @@ export function NavigationPills({ currentView, onNavigate, scheme }: NavigationP
   const pills = [
     { id: 'dashboard' as const, icon: Home, label: 'Dashboard', ariaLabel: 'Dashboard' },
     { id: 'contacts' as const, icon: Users, label: 'Contactos', ariaLabel: 'Contactos' },
+    { id: 'personnel' as const, icon: Briefcase, label: 'Personal', ariaLabel: 'Personal' },
     { id: 'settings' as const, icon: Settings, label: 'Configuración', ariaLabel: 'Configuración' },
   ];
 

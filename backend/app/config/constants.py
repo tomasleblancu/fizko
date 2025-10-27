@@ -2,7 +2,7 @@
 
 # OpenAI model to use for all agents
 # Using gpt-5-nano for cost-effectiveness and good performance
-MODEL = "gpt-5-nano"
+MODEL = "gpt-4.1-nano"
 
 # Unified agent instructions for Fizko platform
 UNIFIED_AGENT_INSTRUCTIONS = """Eres Fizko, asistente experto en tributación y contabilidad chilena para PYMEs.

@@ -18,11 +18,12 @@ interface ProfileSettingsProps {
   onThemeChange?: (scheme: ColorScheme) => void;
   onNavigateToContacts?: () => void;
   onNavigateToDashboard?: () => void;
+  onNavigateToPersonnel?: () => void;
   currentView?: ViewType;
   initialTab?: 'account' | 'company' | 'preferences' | 'subscription';
 }
 
-export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToContacts, onNavigateToDashboard, currentView = 'settings', initialTab = 'account' }: ProfileSettingsProps) {
+export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToContacts, onNavigateToDashboard, onNavigateToPersonnel, currentView = 'settings', initialTab = 'account' }: ProfileSettingsProps) {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useUserProfile();
   // Company is now passed as prop to avoid multiple fetches
@@ -37,7 +38,8 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
   const handleNavigate = useCallback((view: ViewType) => {
     if (view === 'dashboard' && onNavigateToDashboard) onNavigateToDashboard();
     if (view === 'contacts' && onNavigateToContacts) onNavigateToContacts();
-  }, [onNavigateToDashboard, onNavigateToContacts]);
+    if (view === 'personnel' && onNavigateToPersonnel) onNavigateToPersonnel();
+  }, [onNavigateToDashboard, onNavigateToContacts, onNavigateToPersonnel]);
 
   const isLoading = authLoading || profileLoading;
 
@@ -58,9 +60,9 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto px-4 sm:px-6">
-          <div className="flex flex-col space-y-4 pb-4">
+          <div className="flex flex-col pb-4">
             {/* Header */}
-            <div className="flex-shrink-0 pt-2">
+            <div className="flex-shrink-0 pt-2 pb-4">
               <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                 Configuración
               </h2>
@@ -70,13 +72,13 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex gap-2 border-b border-slate-200/50 dark:border-slate-700/50 pb-0 mb-4">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={clsx(
-                    'border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+                    'border-b-2 px-3 py-2 text-sm font-medium transition-colors',
                     activeTab === tab.id
                       ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
                       : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
@@ -89,10 +91,10 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
 
             {/* Tab Content */}
             <div className="flex-1">
-              {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} />}
-              {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} />}
-              {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} />}
-              {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} />}
+              {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} isInDrawer={isInDrawer} />}
+              {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} isInDrawer={isInDrawer} />}
+              {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} isInDrawer={isInDrawer} />}
+              {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} isInDrawer={isInDrawer} />}
             </div>
           </div>
         </div>
@@ -146,7 +148,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
 }
 
 // Account Settings Tab
-function AccountSettings({ user, scheme, profileLoading, profile: profileProp }: { user: any; scheme: ColorScheme; profileLoading: boolean; profile: any }) {
+function AccountSettings({ user, scheme, profileLoading, profile: profileProp, isInDrawer = false }: { user: any; scheme: ColorScheme; profileLoading: boolean; profile: any; isInDrawer?: boolean }) {
   const { profile, updateProfile, requestPhoneVerification, confirmPhoneVerification } = useUserProfile();
   const { signOut } = useAuth();
   const [nombre, setNombre] = useState('');
@@ -269,9 +271,9 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp }:
   };
 
   return (
-    <div className="space-y-3">
+    <div className={isInDrawer ? "space-y-0 divide-y divide-slate-200/50 dark:divide-slate-700/50" : "space-y-3"}>
       {/* User Info Card - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-base font-bold text-white shadow-sm">
             {user?.email?.charAt(0).toUpperCase() || '?'}
@@ -288,7 +290,7 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp }:
       </div>
 
       {/* Contact Information Section - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <div className="mb-3 flex items-center justify-between">
           <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             Información de Contacto
@@ -486,7 +488,7 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp }:
       )}
 
       {/* Email - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
           Email
         </label>
@@ -502,7 +504,7 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp }:
       </div>
 
       {/* SII Credentials Section - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
           Credenciales SII
         </h4>
@@ -512,7 +514,7 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp }:
       </div>
 
       {/* Logout Section - Compact */}
-      <div className="rounded-lg border border-red-200 bg-red-50 p-3 shadow-sm dark:border-red-800 dark:bg-red-900/20">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-red-200 bg-red-50 p-3 shadow-sm dark:border-red-800 dark:bg-red-900/20"}>
         <div className="flex items-center justify-between">
           <div>
             <h4 className="text-sm font-semibold text-red-900 dark:text-red-100">
@@ -536,7 +538,7 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp }:
 }
 
 // Company Settings Tab
-function CompanySettings({ company, scheme }: { company: any; scheme: ColorScheme }) {
+function CompanySettings({ company, scheme, isInDrawer = false }: { company: any; scheme: ColorScheme; isInDrawer?: boolean }) {
   if (!company) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-6 text-center dark:border-slate-800 dark:bg-slate-900">
@@ -548,9 +550,9 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
   }
 
   return (
-    <div className="space-y-3">
+    <div className={isInDrawer ? "space-y-0 divide-y divide-slate-200/50 dark:divide-slate-700/50" : "space-y-3"}>
       {/* Company Info Card - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-base font-bold text-white shadow-sm">
             {company.razon_social?.charAt(0).toUpperCase() || 'E'}
@@ -567,7 +569,7 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
       </div>
 
       {/* Company Details - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
@@ -609,7 +611,7 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
         </div>
       </div>
 
-      <div className="rounded-lg bg-amber-50 p-3 shadow-sm dark:bg-amber-950/30">
+      <div className={isInDrawer ? "py-4" : "rounded-lg bg-amber-50 p-3 shadow-sm dark:bg-amber-950/30"}>
         <p className="text-xs text-amber-800 dark:text-amber-200">
           Los datos de la empresa son obtenidos del SII y no pueden ser modificados desde aquí.
         </p>
@@ -619,11 +621,11 @@ function CompanySettings({ company, scheme }: { company: any; scheme: ColorSchem
 }
 
 // Preferences Settings Tab
-function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
+function PreferencesSettings({ scheme, isInDrawer = false }: { scheme: ColorScheme; isInDrawer?: boolean }) {
   return (
-    <div className="space-y-3">
+    <div className={isInDrawer ? "space-y-0 divide-y divide-slate-200/50 dark:divide-slate-700/50" : "space-y-3"}>
       {/* Theme Preference - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -661,7 +663,7 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
       </div>
 
       {/* Language (placeholder) - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
           Idioma
         </h4>
@@ -677,7 +679,7 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
       </div>
 
       {/* Notifications (placeholder) - Compact */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
           Notificaciones
         </h4>
@@ -712,11 +714,11 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
 }
 
 // Subscription Settings Tab
-function SubscriptionSettings({ scheme }: { scheme: ColorScheme }) {
+function SubscriptionSettings({ scheme, isInDrawer = false }: { scheme: ColorScheme; isInDrawer?: boolean }) {
   return (
-    <div className="space-y-4">
+    <div className={isInDrawer ? "space-y-0 divide-y divide-slate-200/50 dark:divide-slate-700/50" : "space-y-4"}>
       {/* Current Plan Badge */}
-      <div className="rounded-lg border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-3 dark:border-emerald-800 dark:from-emerald-950/30 dark:to-teal-950/30">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-3 dark:border-emerald-800 dark:from-emerald-950/30 dark:to-teal-950/30"}>
         <div className="flex items-center gap-2">
           <svg className="h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -730,12 +732,12 @@ function SubscriptionSettings({ scheme }: { scheme: ColorScheme }) {
       </div>
 
       {/* Plans Comparison */}
-      <div>
+      <div className={isInDrawer ? "py-4" : ""}>
         <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
           Planes Disponibles
         </h4>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={isInDrawer ? "space-y-3" : "grid gap-3 sm:grid-cols-2 lg:grid-cols-3"}>
           {/* Basic Plan */}
           <div className="rounded-lg border-2 border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-start justify-between">
@@ -911,7 +913,7 @@ function SubscriptionSettings({ scheme }: { scheme: ColorScheme }) {
       </div>
 
       {/* Billing History */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
           Historial de Facturación
         </h4>

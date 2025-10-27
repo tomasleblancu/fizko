@@ -6,6 +6,7 @@ import { DashboardCacheProvider } from "./contexts/DashboardCacheContext";
 import Root from "./pages/Root";
 import AdminCompaniesView from "./pages/AdminCompaniesView";
 import AdminCompanyView from "./pages/AdminCompanyView";
+import AdminEventTypes from "./pages/AdminEventTypes";
 import "./index.css";
 
 const container = document.getElementById("root");
@@ -24,6 +25,7 @@ createRoot(container).render(
           <Route path="/" element={<Root />} />
           <Route path="/admin" element={<AdminCompaniesView />} />
           <Route path="/admin/company/:companyId" element={<AdminCompanyView />} />
+          <Route path="/admin/event-templates" element={<AdminEventTypes />} />
         </Routes>
       </BrowserRouter>
     </DashboardCacheProvider>

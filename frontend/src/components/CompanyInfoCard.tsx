@@ -9,9 +9,10 @@ interface CompanyInfoCardProps {
   company: Company | null;
   loading: boolean;
   scheme: ColorScheme;
+  isInDrawer?: boolean;
 }
 
-export function CompanyInfoCard({ company, loading, scheme }: CompanyInfoCardProps) {
+export function CompanyInfoCard({ company, loading, scheme, isInDrawer = false }: CompanyInfoCardProps) {
   if (loading) {
     return <CompanyInfoCardSkeleton />;
   }
@@ -37,7 +38,7 @@ export function CompanyInfoCard({ company, loading, scheme }: CompanyInfoCardPro
       }}
       uiComponent="CompanyInfoCard"
     >
-      <div className="rounded-2xl border border-slate-200/70 bg-gradient-to-br from-blue-50 to-purple-50 p-3 dark:border-slate-800/70 dark:from-blue-950/30 dark:to-purple-950/30">
+      <div className={isInDrawer ? "p-0" : "rounded-2xl border border-slate-200/70 bg-gradient-to-br from-blue-50 to-purple-50 p-3 dark:border-slate-800/70 dark:from-blue-950/30 dark:to-purple-950/30"}>
         {/* Company Info */}
         <div className="flex items-center gap-2.5">
           {/* Desktop: Show icon */}

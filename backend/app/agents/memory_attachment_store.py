@@ -56,7 +56,7 @@ class MemoryAttachmentStore(AttachmentStore):
         from ..stores.supabase_store import SupabaseStore
         self.store = SupabaseStore()
 
-        logger.info("Initialized MemoryAttachmentStore (in-memory + DB persistence)")
+        # Memory attachment store initialized
 
     async def create_attachment(
         self,

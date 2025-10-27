@@ -14,9 +14,10 @@ interface TaxSummaryCardProps {
   scheme: ColorScheme;
   isCompact?: boolean;
   onPeriodChange?: (period: string | undefined) => void;
+  isInDrawer?: boolean;
 }
 
-export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false, onPeriodChange }: TaxSummaryCardProps) {
+export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false, onPeriodChange, isInDrawer = false }: TaxSummaryCardProps) {
   const [showChart, setShowChart] = useState(false);
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
@@ -150,7 +151,7 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false,
   // Compact horizontal layout
   if (isCompact) {
     return (
-      <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white/90 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70">
+      <div className={isInDrawer ? "overflow-hidden transition-all duration-300" : "overflow-hidden rounded-2xl border border-slate-200/70 bg-white/90 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70"}>
         <div className="flex items-center gap-2 px-4 py-3">
           <Calculator className="h-5 w-5 text-emerald-500 flex-shrink-0" />
           <div className="flex flex-1 items-center gap-4 overflow-x-auto">
@@ -170,7 +171,7 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false,
 
   // Full vertical layout - Simple and clean
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70">
+    <div className={isInDrawer ? "transition-all duration-300" : "rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70"}>
       {/* Chart View */}
       {showChart ? (
         <div className="space-y-4">

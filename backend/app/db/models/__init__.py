@@ -14,12 +14,14 @@ Key Design Principles:
 """
 
 from .base import Base
+from .calendar import CalendarEvent, CompanyEvent, EventDependency, EventHistory, EventTask, EventTemplate
 from .chat import ChatKitAttachment, Conversation, Message
 from .company import Company, CompanyTaxInfo
 from .contact import Contact
 from .documents import PurchaseDocument, SalesDocument
 from .form29 import Form29
 from .form29_sii_download import Form29SIIDownload
+from .personnel import Payroll, Person
 from .session import Session
 from .user import Profile
 
@@ -45,4 +47,14 @@ __all__ = [
     "Conversation",
     "Message",
     "ChatKitAttachment",
+    # Calendar
+    "EventTemplate",
+    "CompanyEvent",
+    "CalendarEvent",
+    "EventTask",
+    "EventDependency",
+    "EventHistory",
+    # Personnel
+    "Person",
+    "Payroll",
 ]

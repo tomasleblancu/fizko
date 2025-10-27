@@ -127,6 +127,13 @@ export default function AdminCompaniesView() {
                 {companies.length} {companies.length === 1 ? 'empresa' : 'empresas'} disponibles
               </p>
             </div>
+            <button
+              onClick={() => navigate('/admin/event-templates')}
+              className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              <Calendar className="h-4 w-4" />
+              Templates de Eventos
+            </button>
           </div>
 
           {/* Search bar */}

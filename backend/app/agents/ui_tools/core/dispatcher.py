@@ -77,20 +77,10 @@ class UIToolDispatcher:
         )
 
         # Execute the tool
-        logger.info(
-            f"🔧 Dispatching to {tool.__class__.__name__} "
-            f"for ui_component='{ui_component}'"
-        )
-
         try:
             result = await tool.process(context)
 
-            if result.success:
-                logger.info(
-                    f"✅ UI tool processed successfully: {ui_component} "
-                    f"(context length: {len(result.context_text)} chars)"
-                )
-            else:
+            if not result.success:
                 logger.warning(
                     f"⚠️ UI tool failed: {ui_component} - {result.error}"
                 )

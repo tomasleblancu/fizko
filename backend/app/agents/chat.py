@@ -46,10 +46,9 @@ class FizkoChatKitServer(ChatKitServer):
 
     def __init__(self):
         if SUPABASE_AVAILABLE:
-            logger.info("Using SupabaseStore for thread persistence")
             self.store = SupabaseStore()
         else:
-            logger.info("Supabase not available, using MemoryStore")
+            logger.warning("Supabase not available, using MemoryStore")
             self.store = MemoryStore()
 
         # Initialize attachment store
@@ -60,8 +59,6 @@ class FizkoChatKitServer(ChatKitServer):
         # Initialize ChatKitServer with both stores
         super().__init__(self.store, attachment_store=self.attachment_store)
 
-        logger.info("Unified agent system ENABLED")
-
     async def respond(
         self,
         thread: ThreadMetadata,
@@ -70,9 +67,9 @@ class FizkoChatKitServer(ChatKitServer):
     ) -> AsyncIterator[ThreadStreamEvent]:
         import time
 
-        request_start = time.time()
-        user_id = context.get("user_id", "unknown")
-        logger.info(f"Request - Thread: {thread.id} | User: {user_id}")
+        # Get request start time from context (set in main.py)
+        request_start = context.get("request_start_time", time.time())
+        respond_start = time.time()
 
         # Create OpenAI client (required by create_unified_agent)
         from openai import AsyncOpenAI
@@ -97,13 +94,12 @@ class FizkoChatKitServer(ChatKitServer):
             if company_id:
                 from .context_loader import load_company_info
                 company_info = await load_company_info(db, company_id)
+
                 agent_context.company_info = company_info
                 if company_info and "company" in company_info:
-                    logger.info(f"📋 Loaded company info for: {company_info['company'].get('business_name', 'Unknown')}")
+                    logger.info(f"📋 Company: {company_info['company'].get('business_name', 'Unknown')}")
                 elif company_info and "error" in company_info:
                     logger.warning(f"⚠️ Failed to load company info: {company_info['error']}")
-            else:
-                logger.warning("⚠️ No company_id in context, skipping company info load")
 
         target_item: ThreadItem | None = item
         if target_item is None:
@@ -114,18 +110,17 @@ class FizkoChatKitServer(ChatKitServer):
 
         # Extract text from user message
         user_message = _user_message_text(target_item) if isinstance(target_item, UserMessageItem) else ""
-        logger.info(f"User: {user_message[:100]}")
+        logger.info(f"💬 User: {user_message[:100]}{'...' if len(user_message) > 100 else ''}")
 
         # Stream widget immediately if available (before agent processing)
         ui_tool_result = context.get("ui_tool_result")
         if ui_tool_result and ui_tool_result.widget:
-            logger.info("📊 Streaming widget immediately before agent processing")
             try:
                 await agent_context.stream_widget(
                     ui_tool_result.widget,
                     copy_text=ui_tool_result.widget_copy_text
                 )
-                logger.info("✅ Widget streamed successfully")
+                logger.info(f"📊 Widget streamed")
             except Exception as e:
                 logger.error(f"❌ Error streaming widget: {e}", exc_info=True)
 
@@ -134,12 +129,10 @@ class FizkoChatKitServer(ChatKitServer):
             from .context_loader import format_company_context
             company_context = format_company_context(agent_context.company_info)
             user_message = f"{company_context}{user_message}"
-            logger.info(f"📋 Prepended company info to user message")
 
         # Prepend UI context if available (from UI Tools system)
         ui_context_text = context.get("ui_context_text", "")
         if ui_context_text:
-            logger.info(f"📍 Prepending UI context ({len(ui_context_text)} chars) to user message")
             user_message = f"{ui_context_text}\n\n{user_message}"
 
         # Create session for conversation history
@@ -149,7 +142,6 @@ class FizkoChatKitServer(ChatKitServer):
         session_file = os.path.join(sessions_dir, "agent_sessions.db")
         session = SQLiteSession(thread.id, session_file)
 
-        # Run the agent with streaming
         result = Runner.run_streamed(
             agent,
             user_message,
@@ -160,8 +152,18 @@ class FizkoChatKitServer(ChatKitServer):
 
         # Stream response
         response_text_parts = []
+        first_token_time = None
 
         async for event in stream_agent_response(agent_context, result):
+            # Log first token time (Time To First Token - TTFT)
+            if first_token_time is None and hasattr(event, "item") and hasattr(event.item, "content"):
+                for content in event.item.content:
+                    if hasattr(content, "text") and content.text:
+                        first_token_time = time.time()
+                        ttft = first_token_time - request_start
+                        logger.info(f"⏱️  🎯 TTFT: {ttft:.3f}s")
+                        break
+
             # Capture text content
             if hasattr(event, "item") and hasattr(event.item, "content"):
                 for content in event.item.content:
@@ -173,8 +175,10 @@ class FizkoChatKitServer(ChatKitServer):
         # Log final response
         if response_text_parts:
             full_response = "".join(response_text_parts)
-            preview = full_response[:150] + ("..." if len(full_response) > 150 else "")
-            logger.info(f"Agent '{agent.name}' completed: {preview}")
+            preview = full_response[:100] + ("..." if len(full_response) > 100 else "")
+            logger.info(f"✅ Agent: {preview}")
+        else:
+            logger.warning("⚠️ No response text generated")
 
         return
 

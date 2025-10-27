@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import clsx from "clsx";
-import { Home as HomeIcon, Users, Settings } from "lucide-react";
+import { Home as HomeIcon, Users, Settings, Briefcase } from "lucide-react";
 
 import { Header } from "./Header";
 import { ChatKitPanel } from "./ChatKitPanel";
@@ -10,6 +10,8 @@ import { ProfileSettings } from "./ProfileSettings";
 import { ProfileSettingsDrawer } from "./ProfileSettingsDrawer";
 import { Contacts } from "./Contacts";
 import { ContactsDrawer } from "./ContactsDrawer";
+import { Personnel } from "./Personnel";
+import { PersonnelDrawer } from "./PersonnelDrawer";
 import { LoginOverlay } from "./LoginOverlay";
 import { OnboardingModal } from "./OnboardingModal";
 import type { ViewType } from "./layout/NavigationPills";
@@ -57,6 +59,7 @@ function HomeContent({
   // Mobile drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isContactsDrawerOpen, setIsContactsDrawerOpen] = useState(false);
+  const [isPersonnelDrawerOpen, setIsPersonnelDrawerOpen] = useState(false);
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
 
   // Settings drawer initial tab
@@ -90,6 +93,7 @@ function HomeContent({
     const closeAllDrawers = () => {
       setIsDrawerOpen(false);
       setIsContactsDrawerOpen(false);
+      setIsPersonnelDrawerOpen(false);
       setIsSettingsDrawerOpen(false);
     };
     setOnChateableClick(closeAllDrawers);
@@ -97,7 +101,7 @@ function HomeContent({
 
   // Prevent body scroll when any drawer is open on mobile
   useEffect(() => {
-    const isAnyDrawerOpen = isDrawerOpen || isContactsDrawerOpen || isSettingsDrawerOpen;
+    const isAnyDrawerOpen = isDrawerOpen || isContactsDrawerOpen || isPersonnelDrawerOpen || isSettingsDrawerOpen;
     if (isAnyDrawerOpen) {
       // Prevent scroll on body (only on mobile)
       const html = document.documentElement;
@@ -124,7 +128,7 @@ function HomeContent({
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
     };
-  }, [isDrawerOpen, isContactsDrawerOpen, isSettingsDrawerOpen]);
+  }, [isDrawerOpen, isContactsDrawerOpen, isPersonnelDrawerOpen, isSettingsDrawerOpen]);
 
   // Refresh dashboard data after each agent response
   const handleResponseEnd = useCallback(() => {
@@ -151,6 +155,10 @@ function HomeContent({
   // Handle navigation between views
   const handleNavigateToContacts = useCallback(() => {
     setCurrentView('contacts');
+  }, []);
+
+  const handleNavigateToPersonnel = useCallback(() => {
+    setCurrentView('personnel');
   }, []);
 
   const handleNavigateToSettings = useCallback(() => {
@@ -236,7 +244,7 @@ function HomeContent({
   }
 
   // Authenticated - show real content
-  const isAnyDrawerOpen = isDrawerOpen || isContactsDrawerOpen || isSettingsDrawerOpen;
+  const isAnyDrawerOpen = isDrawerOpen || isContactsDrawerOpen || isPersonnelDrawerOpen || isSettingsDrawerOpen;
 
   return (
     <div className={containerClass}>
@@ -283,13 +291,35 @@ function HomeContent({
             />
           </div>
 
-          {/* Mobile: Navigation Pills to open dashboard, contacts or settings */}
+          {/* Mobile: Navigation Pills to open dashboard, contacts, personnel or settings */}
           <div className="relative z-[60] flex-shrink-0 px-4 py-2 flex items-center justify-center bg-white dark:bg-slate-900 lg:hidden">
             <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 transition-colors shadow-sm">
               <button
                 onClick={() => {
+                  setIsDrawerOpen(!isDrawerOpen);
+                  setIsContactsDrawerOpen(false);
+                  setIsPersonnelDrawerOpen(false);
+                  setIsSettingsDrawerOpen(false);
+                }}
+                className={clsx(
+                  "flex items-center justify-center rounded-lg px-10 py-2 transition-all duration-200 ease-in-out",
+                  "transform active:scale-95",
+                  isDrawerOpen
+                    ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
+                    : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
+                )}
+                aria-label="Abrir Dashboard"
+              >
+                <HomeIcon className={clsx(
+                  "h-5 w-5 transition-transform duration-200",
+                  isDrawerOpen && "scale-110"
+                )} />
+              </button>
+              <button
+                onClick={() => {
                   setIsContactsDrawerOpen(!isContactsDrawerOpen);
                   setIsDrawerOpen(false);
+                  setIsPersonnelDrawerOpen(false);
                   setIsSettingsDrawerOpen(false);
                 }}
                 className={clsx(
@@ -308,22 +338,23 @@ function HomeContent({
               </button>
               <button
                 onClick={() => {
-                  setIsDrawerOpen(!isDrawerOpen);
+                  setIsPersonnelDrawerOpen(!isPersonnelDrawerOpen);
+                  setIsDrawerOpen(false);
                   setIsContactsDrawerOpen(false);
                   setIsSettingsDrawerOpen(false);
                 }}
                 className={clsx(
-                  "flex items-center justify-center rounded-lg px-16 py-2 transition-all duration-200 ease-in-out",
+                  "flex items-center justify-center rounded-lg px-3 py-2 transition-all duration-200 ease-in-out",
                   "transform active:scale-95",
-                  isDrawerOpen
+                  isPersonnelDrawerOpen
                     ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
                     : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
                 )}
-                aria-label="Abrir Dashboard"
+                aria-label="Abrir Personal"
               >
-                <HomeIcon className={clsx(
+                <Briefcase className={clsx(
                   "h-5 w-5 transition-transform duration-200",
-                  isDrawerOpen && "scale-110"
+                  isPersonnelDrawerOpen && "scale-110"
                 )} />
               </button>
               <button
@@ -331,6 +362,7 @@ function HomeContent({
                   setIsSettingsDrawerOpen(!isSettingsDrawerOpen);
                   setIsDrawerOpen(false);
                   setIsContactsDrawerOpen(false);
+                  setIsPersonnelDrawerOpen(false);
                 }}
                 className={clsx(
                   "flex items-center justify-center rounded-lg px-3 py-2 transition-all duration-200 ease-in-out",
@@ -361,6 +393,7 @@ function HomeContent({
                 onThemeChange={handleThemeChange}
                 onNavigateToSettings={handleNavigateToSettings}
                 onNavigateToContacts={handleNavigateToContacts}
+                onNavigateToPersonnel={handleNavigateToPersonnel}
                 currentView={currentView}
               />
             ) : currentView === 'contacts' ? (
@@ -370,6 +403,18 @@ function HomeContent({
                 onNavigateBack={handleNavigateToDashboard}
                 onThemeChange={handleThemeChange}
                 onNavigateToDashboard={handleNavigateToDashboard}
+                onNavigateToSettings={handleNavigateToSettings}
+                onNavigateToPersonnel={handleNavigateToPersonnel}
+                currentView={currentView}
+              />
+            ) : currentView === 'personnel' ? (
+              <Personnel
+                scheme={scheme}
+                company={company}
+                onNavigateBack={handleNavigateToDashboard}
+                onThemeChange={handleThemeChange}
+                onNavigateToDashboard={handleNavigateToDashboard}
+                onNavigateToContacts={handleNavigateToContacts}
                 onNavigateToSettings={handleNavigateToSettings}
                 currentView={currentView}
               />
@@ -381,6 +426,7 @@ function HomeContent({
                 onThemeChange={handleThemeChange}
                 onNavigateToDashboard={handleNavigateToDashboard}
                 onNavigateToContacts={handleNavigateToContacts}
+                onNavigateToPersonnel={handleNavigateToPersonnel}
                 currentView={currentView}
                 initialTab={settingsInitialTab}
               />
@@ -423,6 +469,28 @@ function HomeContent({
           setIsContactsDrawerOpen(false);
           setIsSettingsDrawerOpen(true);
         }}
+      />
+
+      {/* Mobile: Personnel Drawer */}
+      <PersonnelDrawer
+        isOpen={isPersonnelDrawerOpen}
+        onClose={() => setIsPersonnelDrawerOpen(false)}
+        scheme={scheme}
+        company={company}
+        onThemeChange={handleThemeChange}
+        onNavigateToDashboard={() => {
+          setIsPersonnelDrawerOpen(false);
+          setIsDrawerOpen(true);
+        }}
+        onNavigateToContacts={() => {
+          setIsPersonnelDrawerOpen(false);
+          setIsContactsDrawerOpen(true);
+        }}
+        onNavigateToSettings={() => {
+          setIsPersonnelDrawerOpen(false);
+          setIsSettingsDrawerOpen(true);
+        }}
+        currentView={currentView}
       />
 
       {/* Mobile: Settings Drawer */}

@@ -163,7 +163,6 @@ export function ChatKitPanel({
 
       if (currentUiComponentRef.current) {
         urlObj.searchParams.set('ui_component', currentUiComponentRef.current);
-        console.log('[ChatKitPanel] Adding ui_component to request:', currentUiComponentRef.current);
       } else {
         // Set to null if no ui_component
         urlObj.searchParams.set('ui_component', 'null');
@@ -172,13 +171,11 @@ export function ChatKitPanel({
       // Add entity_id if available
       if (currentEntityIdRef.current) {
         urlObj.searchParams.set('entity_id', currentEntityIdRef.current);
-        console.log('[ChatKitPanel] Adding entity_id to request:', currentEntityIdRef.current);
       }
 
       // Add entity_type if available
       if (currentEntityTypeRef.current) {
         urlObj.searchParams.set('entity_type', currentEntityTypeRef.current);
-        console.log('[ChatKitPanel] Adding entity_type to request:', currentEntityTypeRef.current);
       }
 
       url = urlObj.toString();
@@ -209,7 +206,6 @@ export function ChatKitPanel({
     // in the metadata of each message via sendUserMessage({ text, metadata })
 
     const url = `${CHATKIT_API_URL}?${params.toString()}`;
-    console.log("[ChatKitPanel] API URL with params:", url);
     return url;
   }, [currentCompanyId]);
 
@@ -234,7 +230,6 @@ export function ChatKitPanel({
   );
 
   const handleResponseEnd = useCallback(() => {
-    console.log("[ChatKitPanel] handleResponseEnd called");
     setErrorState({ integration: null, retryable: false });
     finishLoading();
     onResponseEnd();
@@ -245,7 +240,7 @@ export function ChatKitPanel({
   }, [setErrorState]);
 
   const handleThreadChange = useCallback((event: any) => {
-    console.log("[ChatKitPanel] Thread changed:", event);
+    // Thread metadata changed
   }, []);
 
   const handleError = useCallback(
@@ -353,15 +348,12 @@ export function ChatKitPanel({
         // Store ui_component and entity data in refs before sending message
         if (metadata?.ui_component) {
           currentUiComponentRef.current = metadata.ui_component;
-          console.log('[ChatKitPanel] Setting ui_component for next request:', metadata.ui_component);
         }
         if (metadata?.entity_id) {
           currentEntityIdRef.current = metadata.entity_id;
-          console.log('[ChatKitPanel] Setting entity_id for next request:', metadata.entity_id);
         }
         if (metadata?.entity_type) {
           currentEntityTypeRef.current = metadata.entity_type;
-          console.log('[ChatKitPanel] Setting entity_type for next request:', metadata.entity_type);
         }
 
         await chatkit.sendUserMessage({

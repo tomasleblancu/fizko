@@ -16,8 +16,9 @@ from .agents import FizkoServer, create_chatkit_server
 from .config.database import AsyncSessionLocal
 from .core import get_optional_user
 from .routers import (
-    admin,
-    companies,
+    admin_router,
+    calendar,
+    companies_router,
     contacts,
     conversations,
     form29,
@@ -29,6 +30,7 @@ from .routers import (
     tax_summary,
     whatsapp,
 )
+from .routers.personnel import router as personnel_router
 from .routers.sii import router as sii_router
 from .utils.ui_component_context import extract_ui_component_context, format_ui_context_for_agent
 from .agents.ui_tools import UIToolDispatcher
@@ -78,8 +80,9 @@ app.add_middleware(
 _chatkit_server: FizkoServer | None = None
 
 # Include API routers
-app.include_router(admin.router)
-app.include_router(companies.router)
+app.include_router(admin_router.router)
+app.include_router(calendar.router)
+app.include_router(companies_router.router)
 app.include_router(contacts.router)
 app.include_router(profile.router)
 app.include_router(sessions.router)
@@ -92,6 +95,7 @@ app.include_router(tax_documents.router)
 app.include_router(sii_router)
 app.include_router(whatsapp.router)
 app.include_router(whatsapp.webhook_router)  # Webhook sin autenticación JWT
+app.include_router(personnel_router)  # Personnel management (people & payroll)
 
 
 def get_chatkit_server() -> FizkoServer:
@@ -126,6 +130,13 @@ async def chatkit_endpoint(
     server: FizkoServer = Depends(get_chatkit_server),
 ) -> Response:
     """ChatKit conversational endpoint."""
+    import time
+
+    # 🕐 START: Log request start time
+    request_start_time = time.time()
+    logger.info("=" * 80)
+    logger.info(f"🚀 [REQUEST START] {request.method} {request.url.path}")
+
     # Get optional user from JWT token
     user = await get_optional_user(request)
     user_id = user.get("sub") if user else "anonymous"
@@ -143,19 +154,11 @@ async def chatkit_endpoint(
     user_message = ""
     try:
         payload_dict = json.loads(payload)
-        logger.info(f"ChatKit request op: {payload_dict.get('op')}")
-
         # Try to extract message from payload
         if payload_dict.get("op") == "create_message" and "text" in payload_dict:
             user_message = payload_dict["text"]
     except:
         pass
-
-    # Log query params to verify they arrive correctly
-    logger.info(
-        f"📥 ChatKit query params - company_id: {company_id}, ui_component: {ui_component}, "
-        f"entity_id: {entity_id}, entity_type: {entity_type}"
-    )
 
     # NEW: Dispatch to UI Tools system if ui_component is present
     ui_tool_result = None
@@ -182,10 +185,7 @@ async def chatkit_endpoint(
 
         if ui_tool_result and ui_tool_result.success:
             ui_context_text = ui_tool_result.context_text
-            logger.info(
-                f"✅ UI Tool processed: {ui_component} "
-                f"(context: {len(ui_context_text)} chars)"
-            )
+            logger.info(f"✅ UI Tool: {ui_component} ({len(ui_context_text)} chars)")
         elif ui_tool_result and not ui_tool_result.success:
             logger.warning(f"⚠️ UI Tool failed: {ui_tool_result.error}")
             # Fallback to legacy system if UI tool fails
@@ -213,8 +213,16 @@ async def chatkit_endpoint(
         "ui_tool_result": ui_tool_result,
         "ui_context_text": ui_context_text,
         "agent_type": agent_type,
+        "request_start_time": request_start_time,  # Pass timing to agent
     }
+
     result = await server.process(payload, context)
+
+    # Log final response time
+    total_elapsed = time.time() - request_start_time
+    logger.info(f"✅ [REQUEST END] Total: {total_elapsed:.3f}s")
+    logger.info("=" * 80)
+
     if isinstance(result, StreamingResult):
         return StreamingResponse(result, media_type="text/event-stream")
     if hasattr(result, "json"):

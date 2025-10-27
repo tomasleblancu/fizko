@@ -2,45 +2,17 @@ import { Calendar, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import clsx from 'clsx';
 import { ChateableWrapper } from './ChateableWrapper';
 import type { ColorScheme } from '../hooks/useColorScheme';
+import type { CalendarEvent, EventCategory } from '../types/fizko';
 
 interface TaxCalendarProps {
   scheme: ColorScheme;
   loading?: boolean;
+  events?: CalendarEvent[];
+  error?: string | null;
+  isInDrawer?: boolean;
 }
 
-interface TaxEvent {
-  id: string;
-  title: string;
-  dueDate: string;
-  status: 'pending' | 'completed' | 'overdue';
-  type: 'payment' | 'declaration' | 'other';
-}
-
-export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
-  // Mock data - Replace with real API data later
-  const mockEvents: TaxEvent[] = [
-    {
-      id: '1',
-      title: 'Pagar Impuesto Mensual',
-      dueDate: '2025-11-12',
-      status: 'pending',
-      type: 'payment',
-    },
-    {
-      id: '2',
-      title: 'Declarar Importación',
-      dueDate: '2025-11-15',
-      status: 'pending',
-      type: 'declaration',
-    },
-    {
-      id: '3',
-      title: 'Pagar Previred',
-      dueDate: '2025-11-10',
-      status: 'pending',
-      type: 'payment',
-    },
-  ];
+export function TaxCalendar({ scheme, loading = false, events = [], error, isInDrawer = false }: TaxCalendarProps) {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -61,8 +33,8 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
     return diffDays;
   };
 
-  const getStatusBadge = (event: TaxEvent) => {
-    const daysUntil = getDaysUntil(event.dueDate);
+  const getStatusBadge = (event: CalendarEvent) => {
+    const daysUntil = getDaysUntil(event.due_date);
 
     if (event.status === 'completed') {
       return {
@@ -72,7 +44,7 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
       };
     }
 
-    if (daysUntil < 0) {
+    if (event.status === 'overdue' || daysUntil < 0) {
       return {
         icon: AlertCircle,
         text: 'Vencido',
@@ -95,13 +67,18 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
     };
   };
 
-  const getEventIcon = (type: TaxEvent['type']) => {
-    const iconClasses = 'h-4 w-4';
-    switch (type) {
-      case 'payment':
+  const getEventIcon = (category: EventCategory) => {
+    switch (category) {
+      case 'impuesto_mensual':
         return '💰';
-      case 'declaration':
+      case 'impuesto_anual':
+        return '📊';
+      case 'prevision':
+        return '👥';
+      case 'declaracion_jurada':
         return '📋';
+      case 'libros':
+        return '📚';
       default:
         return '📌';
     }
@@ -109,7 +86,7 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-200/70 bg-white/90 p-6 dark:border-slate-800/70 dark:bg-slate-900/70">
+      <div className={isInDrawer ? "p-0" : "rounded-2xl border border-slate-200/70 bg-white/90 p-6 dark:border-slate-800/70 dark:bg-slate-900/70"}>
         <div className="mb-4 flex items-center gap-2">
           <Calendar className="h-5 w-5 text-slate-600 dark:text-slate-400" />
           <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
@@ -129,12 +106,12 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
   }
 
   // Sort events by due date
-  const sortedEvents = [...mockEvents].sort((a, b) =>
-    new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+  const sortedEvents = [...events].sort((a, b) =>
+    new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
   );
 
   return (
-    <div className="flex h-full w-full flex-col rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70" style={{ boxSizing: 'border-box' }}>
+    <div className={isInDrawer ? "flex h-full w-full flex-col transition-all duration-300" : "flex h-full w-full flex-col rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70"} style={{ boxSizing: 'border-box' }}>
       {/* Header */}
       <div className="mb-4 flex flex-shrink-0 items-center gap-2">
         <Calendar className="h-5 w-5 text-slate-600 dark:text-slate-400" />
@@ -142,6 +119,15 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
           Calendario Tributario
         </h3>
       </div>
+
+      {/* Error State */}
+      {error && (
+        <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 p-3 dark:border-rose-900/40 dark:bg-rose-900/20">
+          <p className="text-xs text-rose-700 dark:text-rose-200">
+            Error al cargar eventos: {error}
+          </p>
+        </div>
+      )}
 
       {/* Events List - Scrollable */}
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarGutter: 'stable' }}>
@@ -156,21 +142,25 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
             sortedEvents.map((event) => {
               const badge = getStatusBadge(event);
               const StatusIcon = badge.icon;
-              const daysUntil = getDaysUntil(event.dueDate);
+              const daysUntil = getDaysUntil(event.due_date);
 
               return (
                 <ChateableWrapper
                   key={event.id}
-                  message={`Dame información sobre mi obligación tributaria: ${event.title} que vence el ${formatDate(event.dueDate)}`}
+                  message={`Dame información sobre mi obligación tributaria: ${event.title} que vence el ${formatDate(event.due_date)}`}
                   contextData={{
                     eventId: event.id,
                     eventTitle: event.title,
-                    dueDate: event.dueDate,
+                    dueDate: event.due_date,
                     status: event.status,
-                    type: event.type,
+                    category: event.event_template?.category,
                     daysUntil: daysUntil,
+                    periodStart: event.period_start,
+                    periodEnd: event.period_end,
                   }}
                   uiComponent="tax_calendar_event"
+                  entityType="calendar_event"
+                  entityId={event.id}
                 >
                   <div
                     className={clsx(
@@ -182,7 +172,7 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
                     <div className="flex items-start gap-3">
                       {/* Event Icon */}
                       <div className="flex-shrink-0 text-xl">
-                        {getEventIcon(event.type)}
+                        {getEventIcon(event.event_template?.category || 'otros')}
                       </div>
 
                       {/* Event Details */}
@@ -192,7 +182,7 @@ export function TaxCalendar({ scheme, loading = false }: TaxCalendarProps) {
                         </h4>
                         <div className="mt-0.5 flex items-center justify-between gap-3">
                           <p className="text-xs text-slate-600 dark:text-slate-400">
-                            Vence: {formatDate(event.dueDate)}
+                            Vence: {formatDate(event.due_date)}
                           </p>
                           {/* Status Badge */}
                           <div className={clsx(

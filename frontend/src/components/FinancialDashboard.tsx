@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import type { ColorScheme } from '../hooks/useColorScheme';
 import { useTaxSummary } from '../hooks/useTaxSummary';
 import { useTaxDocuments } from '../hooks/useTaxDocuments';
+import { useCalendar } from '../hooks/useCalendar';
 import { CompanyInfoCard } from './CompanyInfoCard';
 import { TaxSummaryCard } from './TaxSummaryCard';
 import { TaxCalendar } from './TaxCalendar';
@@ -20,10 +21,11 @@ interface FinancialDashboardProps {
   onThemeChange?: (scheme: ColorScheme) => void;
   onNavigateToSettings?: () => void;
   onNavigateToContacts?: () => void;
+  onNavigateToPersonnel?: () => void;
   currentView?: ViewType;
 }
 
-export function FinancialDashboard({ scheme, companyId, isInDrawer = false, company, onThemeChange, onNavigateToSettings, onNavigateToContacts, currentView = 'dashboard' }: FinancialDashboardProps) {
+export function FinancialDashboard({ scheme, companyId, isInDrawer = false, company, onThemeChange, onNavigateToSettings, onNavigateToContacts, onNavigateToPersonnel, currentView = 'dashboard' }: FinancialDashboardProps) {
   // Company is now passed as prop to avoid multiple fetches
   const cache = useDashboardCache();
   const [isDocumentsExpanded, setIsDocumentsExpanded] = useState(false);
@@ -40,6 +42,9 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
   // Fetch more when expanded to show all available documents
   const { documents, loading: docsLoading, error: docsError, refresh: refreshDocs } = useTaxDocuments(activeCompanyId, isDocumentsExpanded ? 50 : 10);
 
+  // Calendar events for tax obligations
+  const { events, loading: calendarLoading, error: calendarError } = useCalendar(activeCompanyId, 30, false);
+
   // Handle period change from TaxSummaryCard
   const handlePeriodChange = useCallback((period: string | undefined) => {
     console.log('[FinancialDashboard] Period changed:', period);
@@ -52,45 +57,60 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
   // Handle navigation
   const handleNavigate = useCallback((view: ViewType) => {
     if (view === 'contacts' && onNavigateToContacts) onNavigateToContacts();
+    if (view === 'personnel' && onNavigateToPersonnel) onNavigateToPersonnel();
     if (view === 'settings' && onNavigateToSettings) onNavigateToSettings();
-  }, [onNavigateToContacts, onNavigateToSettings]);
+  }, [onNavigateToContacts, onNavigateToPersonnel, onNavigateToSettings]);
 
-  const hasError = taxError || docsError;
-  // Synchronize loading states: show skeletons for tax data
-  const isInitialLoading = taxLoading;
+  const hasError = taxError || docsError || calendarError;
+  // Synchronize loading states: wait for ALL data to be ready before showing content
+  // This ensures all components load their content at the same time
+  const isInitialLoading = taxLoading || docsLoading || calendarLoading;
 
   // When in drawer, render without outer container
   if (isInDrawer) {
     return (
-      <div className="flex h-full flex-col space-y-3 overflow-y-auto px-4 sm:space-y-4 sm:px-6">
+      <div className="flex h-full flex-col divide-y divide-slate-200/50 overflow-y-auto px-4 sm:px-6 dark:divide-slate-700/50">
         {hasError && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-900/20">
-            <p className="text-sm text-rose-700 dark:text-rose-200">
-              Error al cargar los datos. Por favor, intenta nuevamente.
-            </p>
-            {taxError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Impuestos: {taxError}</p>}
-            {docsError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Documentos: {docsError}</p>}
+          <div className="pb-4 pt-2">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-900/20">
+              <p className="text-sm text-rose-700 dark:text-rose-200">
+                Error al cargar los datos. Por favor, intenta nuevamente.
+              </p>
+              {taxError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Impuestos: {taxError}</p>}
+              {docsError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Documentos: {docsError}</p>}
+              {calendarError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Calendario: {calendarError}</p>}
+            </div>
           </div>
         )}
 
-        <CompanyInfoCard company={company} loading={isInitialLoading} scheme={scheme} />
-        <TaxSummaryCard
-          taxSummary={taxSummary}
-          loading={isInitialLoading}
-          scheme={scheme}
-          isCompact={isDocumentsExpanded}
-          onPeriodChange={handlePeriodChange}
-        />
+        <div className="py-4">
+          <CompanyInfoCard company={company} loading={isInitialLoading} scheme={scheme} isInDrawer={true} />
+        </div>
+        <div className="py-4">
+          <TaxSummaryCard
+            taxSummary={taxSummary}
+            loading={isInitialLoading}
+            scheme={scheme}
+            isCompact={isDocumentsExpanded}
+            onPeriodChange={handlePeriodChange}
+            isInDrawer={true}
+          />
+        </div>
         {!isDocumentsExpanded && (
-          <TaxCalendar scheme={scheme} loading={isInitialLoading} />
+          <div className="py-4">
+            <TaxCalendar scheme={scheme} loading={isInitialLoading} events={events} error={calendarError} isInDrawer={true} />
+          </div>
         )}
-        <RecentDocumentsCard
-          documents={documents}
-          loading={docsLoading}
-          scheme={scheme}
-          isExpanded={isDocumentsExpanded}
-          onToggleExpand={() => setIsDocumentsExpanded(!isDocumentsExpanded)}
-        />
+        <div className="py-4">
+          <RecentDocumentsCard
+            documents={documents}
+            loading={docsLoading}
+            scheme={scheme}
+            isExpanded={isDocumentsExpanded}
+            onToggleExpand={() => setIsDocumentsExpanded(!isDocumentsExpanded)}
+            isInDrawer={true}
+          />
+        </div>
       </div>
     );
   }
@@ -116,6 +136,7 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
             </p>
             {taxError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Impuestos: {taxError}</p>}
             {docsError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Documentos: {docsError}</p>}
+            {calendarError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Calendario: {calendarError}</p>}
           </div>
         )}
 
@@ -147,7 +168,7 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
           <div className="flex flex-1 min-h-0 flex-col gap-6 overflow-hidden xl:flex-row">
             {/* Tax Calendar - Left side (narrower) */}
             <div className="flex min-w-0 flex-col overflow-hidden xl:w-[38%]">
-              <TaxCalendar scheme={scheme} loading={isInitialLoading} />
+              <TaxCalendar scheme={scheme} loading={isInitialLoading} events={events} error={calendarError} />
             </div>
 
             {/* Recent Documents - Right side (wider) */}

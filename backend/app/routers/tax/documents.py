@@ -10,9 +10,9 @@ from pydantic import BaseModel
 from sqlalchemy import select, or_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config.database import get_db
-from ..db.models import Company, PurchaseDocument, SalesDocument
-from ..dependencies import get_current_user_id, require_auth
+from ...config.database import get_db
+from ...db.models import Company, PurchaseDocument, SalesDocument
+from ...dependencies import get_current_user_id, require_auth
 
 router = APIRouter(
     prefix="/api/tax-documents",

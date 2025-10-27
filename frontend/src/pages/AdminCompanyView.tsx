@@ -17,6 +17,8 @@ import { API_BASE_URL } from '../lib/config';
 import { useAuth } from '../contexts/AuthContext';
 import SyncPanel from '../components/SyncPanel';
 import F29List from '../components/F29List';
+import CalendarConfig from '../components/CalendarConfig';
+import CalendarEventsSection from '../components/CalendarEventsSection';
 import { apiFetch } from '../lib/api-client';
 
 export default function AdminCompanyView() {
@@ -26,7 +28,7 @@ export default function AdminCompanyView() {
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'f29'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'f29' | 'calendar'>('overview');
 
   const fetchCompanyData = async () => {
     // Wait for auth to load
@@ -172,6 +174,16 @@ export default function AdminCompanyView() {
               }`}
             >
               Formularios 29
+            </button>
+            <button
+              onClick={() => setActiveTab('calendar')}
+              className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
+                activeTab === 'calendar'
+                  ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300'
+              }`}
+            >
+              Eventos Tributarios
             </button>
           </nav>
         </div>
@@ -406,6 +418,26 @@ export default function AdminCompanyView() {
         {activeTab === 'f29' && (
           <div>
             <F29List companyId={companyId!} />
+          </div>
+        )}
+
+        {/* Tab Content: Calendar Events & Configuration */}
+        {activeTab === 'calendar' && (
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Calendar Events Section - 2/3 width */}
+            <div className="lg:col-span-2">
+              <CalendarEventsSection companyId={companyId!} />
+            </div>
+
+            {/* Calendar Configuration Section - 1/3 width */}
+            <div className="lg:col-span-1">
+              <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
+                <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
+                  Configuración
+                </h3>
+                <CalendarConfig companyId={companyId!} />
+              </div>
+            </div>
           </div>
         )}
       </div>

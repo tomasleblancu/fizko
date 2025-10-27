@@ -47,7 +47,7 @@ def create_unified_agent(
         name="fizko_agent",
         model=MODEL,
         instructions=UNIFIED_AGENT_INSTRUCTIONS,
-        model_settings=ModelSettings(reasoning=Reasoning(effort="minimal")),
+        # model_settings=ModelSettings(reasoning=Reasoning(effort="minimal")),
         tools=[
             # Tax documents (7)
             search_documents_by_rut,
@@ -64,5 +64,4 @@ def create_unified_agent(
         ],
     )
 
-    logger.info(f"Created unified agent '{agent.name}' with {len(agent.tools)} tools")
     return agent

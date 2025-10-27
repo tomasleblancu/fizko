@@ -8,9 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ..config.database import get_db
-from ..db.models import Conversation, Message
-from ..dependencies import get_current_user_id, require_auth
+from ...config.database import get_db
+from ...db.models import Conversation, Message
+from ...dependencies import get_current_user_id, require_auth
 
 router = APIRouter(
     prefix="/api/conversations",
