@@ -13,7 +13,7 @@ from chatkit.server import ChatKitServer
 from chatkit.types import ThreadItem, ThreadMetadata, ThreadStreamEvent, UserMessageItem
 
 from ..config.database import AsyncSessionLocal
-from ..stores import MemoryStore
+from ..stores import MemoryStore, HybridStore
 from .context import FizkoContext
 from .unified_agent import create_unified_agent
 
@@ -45,8 +45,12 @@ class FizkoChatKitServer(ChatKitServer):
     """ChatKit server with unified Fizko agent."""
 
     def __init__(self):
+        # Use HybridStore: Fast in-memory reads + background Supabase sync
+        # This eliminates network latency (3s per query) while keeping persistence
         if SUPABASE_AVAILABLE:
-            self.store = SupabaseStore()
+            supabase_store = SupabaseStore()
+            self.store = HybridStore(supabase_store=supabase_store)
+            logger.info("Using HybridStore (memory cache + background Supabase sync)")
         else:
             logger.warning("Supabase not available, using MemoryStore")
             self.store = MemoryStore()

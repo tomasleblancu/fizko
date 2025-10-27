@@ -2,5 +2,6 @@
 
 from .memory_store import MemoryStore
 from .supabase_store import SupabaseStore
+from .hybrid_store import HybridStore
 
-__all__ = ["MemoryStore", "SupabaseStore"]
+__all__ = ["MemoryStore", "SupabaseStore", "HybridStore"]

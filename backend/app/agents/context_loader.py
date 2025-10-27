@@ -14,9 +14,9 @@ from ..db.models import Company, CompanyTaxInfo
 
 logger = logging.getLogger(__name__)
 
-# In-memory cache for company info (5 minute TTL)
+# In-memory cache for company info (30 minute TTL)
 _company_info_cache: Dict[str, tuple[datetime, Dict[str, Any]]] = {}
-_CACHE_TTL_SECONDS = 300  # 5 minutes
+_CACHE_TTL_SECONDS = 1800  # 30 minutes (company info rarely changes)
 
 
 async def load_company_info(

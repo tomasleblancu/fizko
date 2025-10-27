@@ -31,6 +31,7 @@ class WhatsAppConversationManager:
     ) -> Conversation:
         """
         Busca o crea una conversación de WhatsApp.
+        OPTIMIZADO: Una sola query para buscar por Kapso ID o conversación reciente.
 
         Args:
             db: Sesión de base de datos
@@ -40,24 +41,7 @@ class WhatsAppConversationManager:
         Returns:
             Conversation: Conversación existente o nueva
         """
-        # Buscar conversación existente por Kapso conversation_id
-        if conversation_id:
-            result = await db.execute(
-                select(Conversation).where(
-                    and_(
-                        Conversation.user_id == user_id,
-                        Conversation.meta_data.op("->>")(
-                            "whatsapp_conversation_id"
-                        ) == conversation_id,
-                    )
-                )
-            )
-            existing = result.scalar_one_or_none()
-
-            if existing:
-                return existing
-
-        # Buscar conversación activa reciente del usuario (últimas 24h)
+        # Una sola query: buscar por Kapso ID o conversación reciente de WhatsApp
         result = await db.execute(
             select(Conversation)
             .where(
@@ -69,22 +53,27 @@ class WhatsAppConversationManager:
                 )
             )
             .order_by(desc(Conversation.updated_at))
-            .limit(1)
+            .limit(5)  # Obtener últimas 5 para buscar por Kapso ID
         )
-        recent = result.scalar_one_or_none()
+        conversations = result.scalars().all()
 
-        if recent:
-            # Reusar conversación reciente y actualizar Kapso ID si aplica
+        # Primero buscar por Kapso conversation_id si existe
+        if conversation_id:
+            for conv in conversations:
+                if conv.meta_data and conv.meta_data.get("whatsapp_conversation_id") == conversation_id:
+                    # No necesitamos commit aquí, solo retornar
+                    return conv
+
+        # Si no hay match por Kapso ID, usar la más reciente
+        if conversations:
+            recent = conversations[0]
+            # Actualizar Kapso ID si aplica (sin commit inmediato, se hará con el mensaje)
             if conversation_id and recent.meta_data:
-                recent.meta_data["whatsapp_conversation_id"] = conversation_id
-
+                recent.meta_data = {**recent.meta_data, "whatsapp_conversation_id": conversation_id}
             recent.updated_at = datetime.now(timezone.utc)
-            await db.commit()
-            await db.refresh(recent)
-
             return recent
 
-        # Crear nueva conversación
+        # Crear nueva conversación solo si no existe ninguna
         metadata = {
             "channel": "whatsapp",
             "created_via": "whatsapp_webhook",
@@ -99,8 +88,8 @@ class WhatsAppConversationManager:
         )
 
         db.add(new_conversation)
-        await db.commit()
-        await db.refresh(new_conversation)
+        # No hacer commit aquí - se hará junto con el mensaje
+        await db.flush()  # Solo flush para obtener el ID
 
         return new_conversation
 
@@ -113,9 +102,11 @@ class WhatsAppConversationManager:
         role: str,  # "user" o "assistant"
         message_id: Optional[str] = None,  # Kapso message_id
         metadata: Optional[Dict[str, Any]] = None,
+        conversation: Optional[Conversation] = None,  # Pasar conversación si ya la tenemos
     ) -> Message:
         """
         Guarda un mensaje en la conversación.
+        OPTIMIZADO: Acepta conversación como parámetro para evitar query adicional.
 
         Args:
             db: Sesión de base de datos
@@ -125,6 +116,7 @@ class WhatsAppConversationManager:
             role: "user" o "assistant"
             message_id: ID del mensaje de Kapso (opcional)
             metadata: Metadata adicional (opcional)
+            conversation: Objeto Conversation si ya está cargado (opcional)
 
         Returns:
             Message: Mensaje guardado
@@ -146,14 +138,19 @@ class WhatsAppConversationManager:
         db.add(new_message)
 
         # Actualizar timestamp de conversación
-        result = await db.execute(
-            select(Conversation).where(Conversation.id == conversation_id)
-        )
-        conversation = result.scalar_one()
-        conversation.updated_at = datetime.now(timezone.utc)
+        # Si ya tenemos el objeto conversation, usarlo directamente
+        if conversation:
+            conversation.updated_at = datetime.now(timezone.utc)
+        else:
+            # Solo hacer query si no tenemos la conversación
+            result = await db.execute(
+                select(Conversation).where(Conversation.id == conversation_id)
+            )
+            conv = result.scalar_one()
+            conv.updated_at = datetime.now(timezone.utc)
 
         await db.commit()
-        await db.refresh(new_message)
+        # No necesitamos refresh - el mensaje ya tiene su ID después del commit
 
         return new_message
 

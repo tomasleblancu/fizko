@@ -681,26 +681,33 @@ async def handle_webhook(
                     # PROCESAMIENTO DEL MENSAJE
                     try:
                         if message_content.strip():  # Solo procesar si hay contenido
+                            import time
+                            processing_start = time.time()
+
                             response_message = None
                             display_name = (user_info.get('full_name') or user_info.get('name')) if user_info else contact_name
 
                             # USUARIO AUTENTICADO: Invocar agente de IA
                             if authenticated_user_id and company_id:
                                 logger.info(f"🤖 Invocando agente de IA para usuario autenticado")
+                                agent_start = time.time()
 
                                 try:
                                     from app.services.whatsapp.agent_runner import WhatsAppAgentRunner
 
                                     agent_runner = WhatsAppAgentRunner()
-                                    response_message = await agent_runner.process_message(
+                                    # No guardar assistant message aún - se hará después de enviar
+                                    response_message, db_conversation_id = await agent_runner.process_message(
                                         user_id=authenticated_user_id,
                                         company_id=company_id,
                                         message_content=message_content,
                                         conversation_id=conversation_id,
                                         message_id=message_id,
+                                        save_assistant_message=False,  # Guardamos después de enviar
                                     )
 
-                                    logger.info(f"✅ Agente generó respuesta ({len(response_message)} chars)")
+                                    agent_time = time.time() - agent_start
+                                    logger.info(f"✅ Agente generó respuesta ({len(response_message)} chars) en {agent_time:.3f}s")
 
                                 except Exception as e:
                                     logger.error(f"❌ Error ejecutando agente: {e}")
@@ -734,11 +741,37 @@ async def handle_webhook(
 
                             # Enviar respuesta
                             if response_message and conversation_id:
+                                send_start = time.time()
                                 await whatsapp_service.send_text(
                                     conversation_id=conversation_id,
                                     message=response_message
                                 )
-                                logger.info(f"✅ Respuesta enviada a {contact_name}")
+                                send_time = time.time() - send_start
+                                total_time = time.time() - processing_start
+                                logger.info(f"✅ Respuesta enviada a {contact_name} (envío: {send_time:.3f}s)")
+                                logger.info(f"⏱️  TIEMPO TOTAL (procesamiento + envío): {total_time:.3f}s")
+
+                                # Guardar mensaje del asistente en background (no bloquear)
+                                if authenticated_user_id and 'db_conversation_id' in locals():
+                                    import asyncio
+
+                                    async def save_assistant_message_bg():
+                                        try:
+                                            from app.services.whatsapp.conversation_manager import WhatsAppConversationManager
+                                            async with AsyncSessionLocal() as db:
+                                                await WhatsAppConversationManager.add_message(
+                                                    db=db,
+                                                    conversation_id=db_conversation_id,
+                                                    user_id=authenticated_user_id,
+                                                    content=response_message,
+                                                    role="assistant",
+                                                )
+                                                logger.info(f"💾 Assistant message saved in background")
+                                        except Exception as e:
+                                            logger.error(f"❌ Error guardando assistant message en background: {e}")
+
+                                    # Ejecutar en background sin esperar
+                                    asyncio.create_task(save_assistant_message_bg())
 
                     except Exception as e:
                         logger.error(f"❌ Error procesando mensaje: {e}")

@@ -57,120 +57,17 @@ class SupabaseStore(Store[dict[str, Any]]):
         data.pop("items", None)
         return ThreadMetadata(**data).model_copy(deep=True)
 
-    async def _generate_thread_title(
-        self,
-        thread: ThreadMetadata,
-        session: AsyncSession,
-        user_id: str
-    ) -> str:
-        """Generate a descriptive title for the thread based on first message."""
-
-        # 1. Obtener el primer mensaje del usuario en este thread
-        conversation_stmt = select(Conversation).where(
-            Conversation.chatkit_session_id == thread.id,
-            Conversation.user_id == UUID(user_id)
-        )
-        conv_result = await session.execute(conversation_stmt)
-        conversation = conv_result.scalar_one_or_none()
-
-        if not conversation:
-            return "Nueva conversación"
-
-        # Buscar el primer mensaje del usuario
-        first_message_stmt = (
-            select(Message)
-            .where(
-                Message.conversation_id == conversation.id,
-                Message.role == "user"
-            )
-            .order_by(Message.created_at.asc())
-            .limit(1)
-        )
-        first_msg_result = await session.execute(first_message_stmt)
-        first_message = first_msg_result.scalar_one_or_none()
-
-        if not first_message:
-            return "Nueva conversación"
-
-        # 2. Extraer el contenido del mensaje (puede estar en JSON)
-        try:
-            content_data = json.loads(first_message.content) if isinstance(first_message.content, str) else first_message.content
-            # El contenido puede estar en diferentes formatos según ChatKit
-            user_text = content_data.get("text", "") if isinstance(content_data, dict) else str(content_data)
-        except:
-            user_text = str(first_message.content)
-
-        if not user_text or len(user_text.strip()) < 5:
-            return "Nueva conversación"
-
-        # 3. Llamar a LLM para generar un resumen corto (con timeout reducido)
-        from openai import AsyncOpenAI
-        import asyncio
-
-        # Fallback mejorado: toma palabras clave del inicio del mensaje
-        words = user_text.split()[:6]  # Incrementado a 6 palabras para más contexto
-        fallback_summary = " ".join(words)
-        if len(fallback_summary) > 45:
-            fallback_summary = fallback_summary[:42] + "..."
-
-        try:
-            client = AsyncOpenAI()
-
-            # Usar asyncio.wait_for con timeout de 1.5 segundos (reducido de 3s)
-            response = await asyncio.wait_for(
-                client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "Genera un título breve y descriptivo para esta conversación "
-                                "basándote en el mensaje del usuario. Máximo 5-6 palabras. "
-                                "El título debe capturar la intención o tema principal. "
-                                "Ejemplos: 'Consulta sobre IVA trimestre', 'Cálculo PPM marzo 2024', "
-                                "'Emisión de facturas'. No uses comillas ni puntuación final."
-                            )
-                        },
-                        {
-                            "role": "user",
-                            "content": user_text[:600]  # Aumentado a 600 chars para mejor contexto
-                        }
-                    ],
-                    max_tokens=25,  # Incrementado de 20 a 25 para títulos más descriptivos
-                    temperature=0.2  # Reducido de 0.3 a 0.2 para respuestas más consistentes
-                ),
-                timeout=1.5  # 1.5 segundos máximo (reducido de 3s)
-            )
-
-            summary = response.choices[0].message.content.strip()
-            # Limpiar el resumen (quitar comillas, puntos finales, etc)
-            summary = summary.strip('"\'.,!?;:')
-
-            # Validar que el título no esté vacío después de limpiar
-            if not summary or len(summary) < 3:
-                logger.warning(f"Título generado muy corto o vacío, usando fallback")
-                return fallback_summary
-
-            # Limitar longitud máxima del título
-            if len(summary) > 60:
-                summary = summary[:57] + "..."
-
-            return summary
-
-        except asyncio.TimeoutError:
-            logger.warning(f"Timeout generating title with LLM (1.5s), using fallback")
-            return fallback_summary
-        except Exception as e:
-            logger.warning(f"Error generating title with LLM: {e}")
-            return fallback_summary
-
     # -- Thread metadata -------------------------------------------------
     async def load_thread(self, thread_id: str, context: dict[str, Any]) -> ThreadMetadata:
         """Load a conversation thread from Supabase."""
+        import time
+        load_start = time.time()
+
         user_id = context.get("user_id")
         if not user_id:
             raise ValueError("user_id is required in context")
 
+        query_start = time.time()
         async with await self._get_session() as session:
             stmt = select(Conversation).where(
                 Conversation.chatkit_session_id == thread_id,
@@ -179,7 +76,10 @@ class SupabaseStore(Store[dict[str, Any]]):
             result = await session.execute(stmt)
             conversation = result.scalar_one_or_none()
 
+        logger.info(f"  🔍 load_thread() query: {(time.time() - query_start):.3f}s")
+
         if not conversation:
+            logger.warning(f"  ⚠️ load_thread() - Thread {thread_id} not found")
             raise NotFoundError(f"Thread {thread_id} not found")
 
         # Merge conversation metadata (includes active_agent) with system fields
@@ -191,14 +91,20 @@ class SupabaseStore(Store[dict[str, Any]]):
             "status": conversation.status,
         })
 
-        return ThreadMetadata(
+        result = ThreadMetadata(
             id=thread_id,
             created_at=conversation.created_at,
             metadata=meta_dict,
         )
 
+        logger.info(f"  ✅ load_thread() completed: {(time.time() - load_start):.3f}s")
+        return result
+
     async def save_thread(self, thread: ThreadMetadata, context: dict[str, Any]) -> None:
         """Save or update a conversation thread in Supabase."""
+        import time
+        save_start = time.time()
+
         user_id = context.get("user_id")
         if not user_id:
             raise ValueError("user_id is required in context")
@@ -210,30 +116,20 @@ class SupabaseStore(Store[dict[str, Any]]):
             stmt = select(Conversation).where(
                 Conversation.chatkit_session_id == thread.id,
                 Conversation.user_id == UUID(user_id),
-            )
+            ).with_for_update()  # Lock row to prevent race conditions
             result = await session.execute(stmt)
             existing = result.scalar_one_or_none()
 
-            # Generate title automatically based on first message
-            # Only generate if: (1) it's a new conversation OR (2) existing has generic title
-            should_generate_title = False
-
-            if not existing:
-                # New conversation - always generate
-                should_generate_title = True
-            elif existing.title == "Nueva conversación":
-                # Existing conversation with generic title - upgrade title
-                should_generate_title = True
-
+            # Simplified title logic (no LLM generation)
             if thread.metadata and "title" in thread.metadata and thread.metadata["title"] != "Nueva conversación":
-                # Explicit title provided in metadata - use it
+                # Use explicit title from metadata if provided
                 title = thread.metadata["title"]
-            elif should_generate_title:
-                # Generate descriptive title (only when needed)
-                title = await self._generate_thread_title(thread, session, user_id)
+            elif existing:
+                # Keep existing title
+                title = existing.title
             else:
-                # Keep existing title or use default
-                title = existing.title if existing else "Nueva conversación"
+                # Default for new conversations
+                title = "Nueva conversación"
 
             status = (thread.metadata.get("status") if thread.metadata else None) or "active"
 
@@ -258,17 +154,28 @@ class SupabaseStore(Store[dict[str, Any]]):
                 existing.meta_data = persistent_metadata
                 existing.updated_at = datetime.now()
             else:
-                # Create new conversation
-                new_conversation = Conversation(
-                    user_id=UUID(user_id),
-                    chatkit_session_id=thread.id,
-                    title=title,
-                    status=status,
-                    meta_data=persistent_metadata,
-                )
-                session.add(new_conversation)
+                # Create new conversation with conflict handling
+                try:
+                    new_conversation = Conversation(
+                        user_id=UUID(user_id),
+                        chatkit_session_id=thread.id,
+                        title=title,
+                        status=status,
+                        meta_data=persistent_metadata,
+                    )
+                    session.add(new_conversation)
+                    await session.flush()  # Flush to catch unique violations before commit
+                except Exception as e:
+                    # If unique violation, another task created it - that's OK
+                    if "UniqueViolationError" in str(type(e).__name__) or "unique constraint" in str(e).lower():
+                        logger.debug(f"  ℹ️  Conversation {thread.id[:12]} already exists (created by another task)")
+                        await session.rollback()
+                        return
+                    raise
 
             await session.commit()
+
+        logger.info(f"  ✅ save_thread() completed: {(time.time() - save_start):.3f}s")
 
     async def load_threads(
         self,
@@ -408,9 +315,18 @@ class SupabaseStore(Store[dict[str, Any]]):
             stmt = select(Conversation).where(
                 Conversation.chatkit_session_id == thread_id,
                 Conversation.user_id == UUID(user_id),
-            )
+            ).order_by(Conversation.created_at.desc())
             result = await session.execute(stmt)
-            conversation = result.scalar_one_or_none()
+            rows = result.scalars().all()
+
+            # Handle duplicates gracefully
+            if len(rows) > 1:
+                logger.warning(
+                    f"⚠️  Found {len(rows)} duplicate conversations for thread {thread_id[:12]}. "
+                    f"Using most recent conversation."
+                )
+
+            conversation = rows[0] if rows else None
 
             if not conversation:
                 # Create a new conversation if it doesn't exist
@@ -436,12 +352,18 @@ class SupabaseStore(Store[dict[str, Any]]):
         context: dict[str, Any],
     ) -> Page[ThreadItem]:
         """Load messages for a conversation thread from Supabase."""
+        import time
+        load_items_start = time.time()
+
         user_id = context.get("user_id")
         if not user_id:
             raise ValueError("user_id is required in context")
 
+        conv_id_start = time.time()
         conversation_id = await self._get_conversation_id(thread_id, user_id)
+        logger.info(f"  🔍 load_thread_items() - get_conversation_id: {(time.time() - conv_id_start):.3f}s")
 
+        query_start = time.time()
         async with await self._get_session() as session:
             stmt = select(Message).where(Message.conversation_id == conversation_id)
 
@@ -468,6 +390,8 @@ class SupabaseStore(Store[dict[str, Any]]):
             result = await session.execute(stmt)
             messages = list(result.scalars().all())
 
+        logger.info(f"  🔍 load_thread_items() - messages query: {(time.time() - query_start):.3f}s ({len(messages)} messages)")
+
         # For now, return empty list since ThreadItem deserialization is complex
         # You'll need to implement proper deserialization based on your ThreadItem structure
         items: list[ThreadItem] = []
@@ -475,6 +399,8 @@ class SupabaseStore(Store[dict[str, Any]]):
         has_more = len(messages) > limit
         messages = messages[:limit]
         next_after = str(messages[-1].id) if has_more and messages else None
+
+        logger.info(f"  ✅ load_thread_items() completed: {(time.time() - load_items_start):.3f}s")
 
         return Page(data=items, has_more=has_more, after=next_after)
 
