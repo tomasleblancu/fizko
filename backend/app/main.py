@@ -27,6 +27,7 @@ from .routers import (
     sessions,
     tax_documents,
     tax_summary,
+    whatsapp,
 )
 from .routers.sii import router as sii_router
 from .utils.ui_component_context import extract_ui_component_context, format_ui_context_for_agent
@@ -89,6 +90,8 @@ app.include_router(conversations.router)
 app.include_router(tax_summary.router)
 app.include_router(tax_documents.router)
 app.include_router(sii_router)
+app.include_router(whatsapp.router)
+app.include_router(whatsapp.webhook_router)  # Webhook sin autenticación JWT
 
 
 def get_chatkit_server() -> FizkoServer:

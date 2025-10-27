@@ -74,35 +74,36 @@ class FizkoChatKitServer(ChatKitServer):
         user_id = context.get("user_id", "unknown")
         logger.info(f"Request - Thread: {thread.id} | User: {user_id}")
 
-        # Get database session for this request
+        # Create OpenAI client (required by create_unified_agent)
+        from openai import AsyncOpenAI
+        import os
+
+        openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+        # Get database session for this request (mantener abierto durante todo el request)
         async with AsyncSessionLocal() as db:
-            # Create OpenAI client (required by create_unified_agent)
-            from openai import AsyncOpenAI
-            import os
-
-            openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
             # Create the unified agent for this request
             agent = create_unified_agent(db=db, openai_client=openai_client)
 
-        agent_context = FizkoContext(
-            thread=thread,
-            store=self.store,
-            request_context=context,
-            current_agent_type="fizko_agent",
-        )
+            agent_context = FizkoContext(
+                thread=thread,
+                store=self.store,
+                request_context=context,
+                current_agent_type="fizko_agent",
+            )
 
-        # Load company info automatically at thread start
-        company_id = context.get("company_id")
-        if company_id:
-            company_info = await self._load_company_info(company_id)
-            agent_context.company_info = company_info
-            if company_info and "company" in company_info:
-                logger.info(f"📋 Loaded company info for: {company_info['company'].get('business_name', 'Unknown')}")
-            elif company_info and "error" in company_info:
-                logger.warning(f"⚠️ Failed to load company info: {company_info['error']}")
-        else:
-            logger.warning("⚠️ No company_id in context, skipping company info load")
+            # Load company info automatically at thread start (usando la misma sesión db)
+            company_id = context.get("company_id")
+            if company_id:
+                from .context_loader import load_company_info
+                company_info = await load_company_info(db, company_id)
+                agent_context.company_info = company_info
+                if company_info and "company" in company_info:
+                    logger.info(f"📋 Loaded company info for: {company_info['company'].get('business_name', 'Unknown')}")
+                elif company_info and "error" in company_info:
+                    logger.warning(f"⚠️ Failed to load company info: {company_info['error']}")
+            else:
+                logger.warning("⚠️ No company_id in context, skipping company info load")
 
         target_item: ThreadItem | None = item
         if target_item is None:
@@ -129,21 +130,9 @@ class FizkoChatKitServer(ChatKitServer):
                 logger.error(f"❌ Error streaming widget: {e}", exc_info=True)
 
         # Prepend company info to user message if available
-        if agent_context.company_info and "company" in agent_context.company_info:
-            company_data = agent_context.company_info["company"]
-            company_context = f"""<company_info>
-RUT: {company_data.get('rut', 'N/A')}
-Razón Social: {company_data.get('business_name', 'N/A')}
-Nombre Fantasía: {company_data.get('trade_name', 'N/A')}"""
-
-            if "tax_info" in company_data:
-                tax_info = company_data["tax_info"]
-                company_context += f"""
-Régimen Tributario: {tax_info.get('tax_regime', 'N/A')}
-Código Actividad: {tax_info.get('sii_activity_code', 'N/A')} - {tax_info.get('sii_activity_name', 'N/A')}
-Representante Legal: {tax_info.get('legal_representative_name', 'N/A')} (RUT: {tax_info.get('legal_representative_rut', 'N/A')})"""
-
-            company_context += "\n</company_info>\n\n"
+        if agent_context.company_info:
+            from .context_loader import format_company_context
+            company_context = format_company_context(agent_context.company_info)
             user_message = f"{company_context}{user_message}"
             logger.info(f"📋 Prepended company info to user message")
 
@@ -201,58 +190,3 @@ Representante Legal: {tax_info.get('legal_representative_name', 'N/A')} (RUT: {t
 
         return None
 
-    async def _load_company_info(self, company_id: str) -> dict[str, Any]:
-        """
-        Load company information from database.
-
-        This is the same logic as get_company_info tool, but called automatically
-        at thread initialization instead of being a tool.
-        """
-        from uuid import UUID
-        from sqlalchemy import select
-        from ..db.models import Company, CompanyTaxInfo
-
-        try:
-            async with AsyncSessionLocal() as db:
-                # Get company basic info
-                stmt = select(Company).where(Company.id == UUID(company_id))
-                result = await db.execute(stmt)
-                company = result.scalar_one_or_none()
-
-                if not company:
-                    return {"error": "Empresa no encontrada"}
-
-                # Get tax info
-                tax_stmt = select(CompanyTaxInfo).where(CompanyTaxInfo.company_id == UUID(company_id))
-                tax_result = await db.execute(tax_stmt)
-                tax_info = tax_result.scalar_one_or_none()
-
-                # Build complete company info
-                company_data = {
-                    "id": str(company.id),
-                    "rut": company.rut,
-                    "business_name": company.business_name,
-                    "trade_name": company.trade_name,
-                    "address": company.address,
-                    "phone": company.phone,
-                    "email": company.email,
-                    "created_at": company.created_at.isoformat() if company.created_at else None,
-                    "updated_at": company.updated_at.isoformat() if company.updated_at else None,
-                }
-
-                # Add tax info if available
-                if tax_info:
-                    company_data["tax_info"] = {
-                        "tax_regime": tax_info.tax_regime,
-                        "sii_activity_code": tax_info.sii_activity_code,
-                        "sii_activity_name": tax_info.sii_activity_name,
-                        "legal_representative_rut": tax_info.legal_representative_rut,
-                        "legal_representative_name": tax_info.legal_representative_name,
-                        "start_of_activities_date": tax_info.start_of_activities_date.isoformat() if tax_info.start_of_activities_date else None,
-                        "accounting_start_month": tax_info.accounting_start_month,
-                    }
-
-                return {"company": company_data}
-        except Exception as e:
-            logger.error(f"Error loading company info: {e}")
-            return {"error": str(e)}

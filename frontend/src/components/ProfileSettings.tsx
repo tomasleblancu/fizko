@@ -714,88 +714,195 @@ function PreferencesSettings({ scheme }: { scheme: ColorScheme }) {
 // Subscription Settings Tab
 function SubscriptionSettings({ scheme }: { scheme: ColorScheme }) {
   return (
-    <div className="space-y-3">
-      {/* Current Plan Card */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Plan Actual
-            </h4>
-            <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              Gratuito
+    <div className="space-y-4">
+      {/* Current Plan Badge */}
+      <div className="rounded-lg border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-3 dark:border-emerald-800 dark:from-emerald-950/30 dark:to-teal-950/30">
+        <div className="flex items-center gap-2">
+          <svg className="h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <div>
+            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              Plan Actual: <span className="font-bold">Básico</span>
             </p>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-              Acceso básico a funcionalidades
-            </p>
-          </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-950/30">
-            <svg className="h-6 w-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
           </div>
         </div>
       </div>
 
-      {/* Features Included */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      {/* Plans Comparison */}
+      <div>
         <h4 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
-          Características Incluidas
+          Planes Disponibles
         </h4>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="text-xs text-slate-700 dark:text-slate-300">
-              Sincronización básica con SII
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="text-xs text-slate-700 dark:text-slate-300">
-              Gestión de documentos
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="text-xs text-slate-700 dark:text-slate-300">
-              Asistente IA básico
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="text-xs text-slate-700 dark:text-slate-300">
-              Calendario tributario
-            </span>
-          </div>
-        </div>
-      </div>
 
-      {/* Upgrade Card */}
-      <div className="rounded-lg border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 shadow-sm dark:border-emerald-800 dark:from-emerald-950/30 dark:to-teal-950/30">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-600 dark:bg-emerald-700">
-            <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Basic Plan */}
+          <div className="rounded-lg border-2 border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h5 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Básico
+                </h5>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  Perfecto para comenzar
+                </p>
+              </div>
+              <div className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+                Actual
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-1">
+              <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">$9.990</span>
+              <span className="text-xs text-slate-600 dark:text-slate-400">/mes</span>
+            </div>
+            <ul className="mt-3 space-y-2">
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Sincronización básica con SII
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Hasta 100 documentos/mes
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Asistente IA básico
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Calendario tributario
+              </li>
+            </ul>
           </div>
-          <div className="flex-1">
-            <h4 className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
-              Próximamente: Plan Premium
-            </h4>
-            <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
-              Acceso a características avanzadas, reportes personalizados, y soporte prioritario
+
+          {/* Professional Plan - 50% OFF */}
+          <div className="rounded-lg border-2 border-emerald-500 bg-white p-3 shadow-md dark:border-emerald-600 dark:bg-slate-900">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h5 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Profesional
+                </h5>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  Para pequeñas empresas
+                </p>
+              </div>
+              <div className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
+                50% OFF
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-xs text-slate-500 line-through dark:text-slate-400">$39.990</span>
+              <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">$19.990</span>
+              <span className="text-xs text-slate-600 dark:text-slate-400">/mes</span>
+            </div>
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              Primeros 3 meses con descuento
             </p>
+            <ul className="mt-3 space-y-2">
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Resolución de F29
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Todo lo del plan Básico
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Documentos ilimitados
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Asistente IA avanzado
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Reportes personalizados
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Soporte por email
+              </li>
+            </ul>
             <button
               disabled
-              className="mt-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white opacity-50 dark:bg-emerald-700"
+              className="mt-3 w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white opacity-50 transition-colors dark:bg-emerald-700"
+            >
+              Próximamente
+            </button>
+          </div>
+
+          {/* Premium Plan */}
+          <div className="rounded-lg border-2 border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h5 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Premium
+                </h5>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  Para empresas en crecimiento
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline gap-1">
+              <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">$79.990</span>
+              <span className="text-xs text-slate-600 dark:text-slate-400">/mes</span>
+            </div>
+            <ul className="mt-3 space-y-2">
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Todo lo del plan Básico
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Múltiples empresas
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                API de integración
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Soporte prioritario
+              </li>
+              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Asesoría contable mensual
+              </li>
+            </ul>
+            <button
+              disabled
+              className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 opacity-50 transition-colors dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
             >
               Próximamente
             </button>

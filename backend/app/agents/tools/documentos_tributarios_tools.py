@@ -578,7 +578,6 @@ async def get_document_details(
 @function_tool(strict_mode=False)
 async def get_documents_summary(
     ctx: RunContextWrapper[FizkoContext],
-    company_id: str | None = None,
     month: int | None = None,
     year: int | None = None,
 ) -> dict[str, Any]:
@@ -586,24 +585,28 @@ async def get_documents_summary(
     Get a summary of purchase and sales documents for a period.
 
     Args:
-        company_id: Company UUID (optional, uses context if not provided)
-        month: Month (1-12), optional
-        year: Year, optional
+        month: Month (1-12), optional. If not provided, uses current month.
+        year: Year, optional. If not provided, uses current year.
 
     Returns:
-        Summary with totals and counts by document type
+        Summary with totals and counts by document type including IVA calculations
     """
     from ...db.models import PurchaseDocument, SalesDocument
 
+    logger.info(f"🔍 get_documents_summary called: month={month}, year={year}")
+
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
+        logger.error("❌ Usuario no autenticado")
         return {"error": "Usuario no autenticado"}
 
-    # Get company_id from context if not provided
+    # Always get company_id from context (never from agent parameter)
+    company_id = ctx.context.request_context.get("company_id")
     if not company_id:
-        company_id = ctx.context.request_context.get("company_id")
-        if not company_id:
-            return {"error": "company_id no disponible en el contexto"}
+        logger.error("❌ company_id no disponible en el contexto")
+        return {"error": "company_id no disponible en el contexto"}
+
+    logger.info(f"✅ Contexto: user_id={user_id}, company_id={company_id}")
 
     try:
         async with AsyncSessionLocal() as session:
@@ -648,7 +651,9 @@ async def get_documents_summary(
             sales_total = sum(float(doc.total_amount) for doc in sales)
             sales_iva = sum(float(doc.tax_amount) for doc in sales)
 
-            return {
+            logger.info(f"📊 Resumen calculado: {len(purchases)} compras (${purchase_total:,.0f}), {len(sales)} ventas (${sales_total:,.0f})")
+
+            result = {
                 "period": f"{year}-{month:02d}",
                 "purchases": {
                     "count": len(purchases),
@@ -667,6 +672,9 @@ async def get_documents_summary(
                 }
             }
 
+            logger.info(f"✅ get_documents_summary completado exitosamente")
+            return result
+
     except Exception as e:
-        logger.error(f"Error getting documents summary: {e}")
+        logger.error(f"❌ Error getting documents summary: {e}", exc_info=True)
         return {"error": str(e)}

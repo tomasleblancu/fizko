@@ -1,0 +1,493 @@
+"""
+Servicio de WhatsApp para Fizko
+Capa de abstracción sobre el cliente de Kapso
+"""
+import logging
+from typing import Dict, List, Optional, Any
+from datetime import datetime
+
+from app.integrations.kapso import KapsoClient
+from app.integrations.kapso.models import (
+    MessageType,
+    ConversationStatus,
+    SendTextRequest,
+    SendMediaRequest,
+    SendTemplateRequest,
+    SendInteractiveRequest,
+)
+from app.integrations.kapso.exceptions import (
+    KapsoAPIError,
+    KapsoAuthenticationError,
+    KapsoValidationError,
+    KapsoTimeoutError,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class WhatsAppService:
+    """
+    Servicio de alto nivel para gestión de WhatsApp en Fizko.
+    Envuelve el cliente de Kapso y añade lógica de negocio específica.
+    """
+
+    def __init__(self, api_token: str, base_url: Optional[str] = None):
+        """
+        Inicializa el servicio de WhatsApp
+
+        Args:
+            api_token: Token de API de Kapso
+            base_url: URL base de la API (opcional)
+        """
+        self.client = KapsoClient(api_token=api_token, base_url=base_url)
+
+    # ========== Mensajería ==========
+
+    async def send_text(
+        self,
+        conversation_id: Optional[str] = None,
+        phone_number: Optional[str] = None,
+        message: str = "",
+        whatsapp_config_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Envía un mensaje de texto.
+        Si no existe conversation_id, intenta encontrar/crear conversación por teléfono.
+
+        Args:
+            conversation_id: ID de conversación existente
+            phone_number: Número de teléfono (si no hay conversation_id)
+            message: Contenido del mensaje
+            whatsapp_config_id: ID de configuración de WhatsApp
+
+        Returns:
+            Resultado del envío
+        """
+        try:
+            # Si no hay conversation_id, buscar por teléfono
+            if not conversation_id and phone_number and whatsapp_config_id:
+                conv = await self._get_or_create_conversation(
+                    phone_number=phone_number,
+                    whatsapp_config_id=whatsapp_config_id,
+                )
+                conversation_id = conv.get("id")
+
+            if not conversation_id:
+                raise KapsoValidationError(
+                    "Se requiere conversation_id o (phone_number + whatsapp_config_id)"
+                )
+
+            result = await self.client.send_text_message(
+                conversation_id=conversation_id,
+                message=message,
+            )
+
+            logger.info(f"📱 Mensaje de texto enviado a conversación {conversation_id}")
+            return result
+
+        except KapsoAPIError as e:
+            logger.error(f"❌ Error enviando mensaje de texto: {e}")
+            raise
+
+    async def send_media(
+        self,
+        conversation_id: str,
+        media_url: str,
+        media_type: MessageType,
+        caption: Optional[str] = None,
+        filename: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Envía un mensaje con media
+
+        Args:
+            conversation_id: ID de la conversación
+            media_url: URL pública del archivo
+            media_type: Tipo de media
+            caption: Texto adicional
+            filename: Nombre del archivo
+
+        Returns:
+            Resultado del envío
+        """
+        try:
+            result = await self.client.send_media_message(
+                conversation_id=conversation_id,
+                media_url=media_url,
+                media_type=media_type,
+                caption=caption,
+                filename=filename,
+            )
+
+            logger.info(f"📷 Media {media_type} enviado a conversación {conversation_id}")
+            return result
+
+        except KapsoAPIError as e:
+            logger.error(f"❌ Error enviando media: {e}")
+            raise
+
+    async def send_template(
+        self,
+        phone_number: str,
+        template_name: str,
+        whatsapp_config_id: str,
+        template_params: Optional[Any] = None,
+        template_language: str = "es",
+        header_params: Optional[str] = None,
+        button_url_params: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Envía una plantilla de WhatsApp Business.
+        Útil para iniciar conversaciones o enviar notificaciones estructuradas.
+
+        Args:
+            phone_number: Número de destino
+            template_name: Nombre de la plantilla
+            whatsapp_config_id: ID de configuración
+            template_params: Parámetros de la plantilla
+            template_language: Idioma
+            header_params: Parámetros del header
+            button_url_params: Parámetros de botones
+
+        Returns:
+            Resultado del envío
+        """
+        try:
+            result = await self.client.send_template_message(
+                phone_number=phone_number,
+                template_name=template_name,
+                whatsapp_config_id=whatsapp_config_id,
+                template_params=template_params,
+                template_language=template_language,
+                header_params=header_params,
+                button_url_params=button_url_params,
+            )
+
+            logger.info(f"📋 Template '{template_name}' enviado a {phone_number}")
+            return result
+
+        except KapsoAPIError as e:
+            logger.error(f"❌ Error enviando template: {e}")
+            raise
+
+    async def send_interactive(
+        self,
+        conversation_id: str,
+        interactive_type: str,
+        body_text: str,
+        header_text: Optional[str] = None,
+        footer_text: Optional[str] = None,
+        buttons: Optional[List[Dict]] = None,
+        sections: Optional[List[Dict]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Envía un mensaje interactivo (botones o lista)
+
+        Args:
+            conversation_id: ID de conversación
+            interactive_type: "button" o "list"
+            body_text: Texto principal
+            header_text: Encabezado
+            footer_text: Pie de página
+            buttons: Botones (para type=button)
+            sections: Secciones (para type=list)
+
+        Returns:
+            Resultado del envío
+        """
+        try:
+            result = await self.client.send_interactive_message(
+                conversation_id=conversation_id,
+                interactive_type=interactive_type,
+                body_text=body_text,
+                header_text=header_text,
+                footer_text=footer_text,
+                buttons=buttons,
+                sections=sections,
+            )
+
+            logger.info(f"🔘 Mensaje interactivo enviado a {conversation_id}")
+            return result
+
+        except KapsoAPIError as e:
+            logger.error(f"❌ Error enviando mensaje interactivo: {e}")
+            raise
+
+    # ========== Conversaciones ==========
+
+    async def _get_or_create_conversation(
+        self,
+        phone_number: str,
+        whatsapp_config_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Busca una conversación activa o crea una nueva
+
+        Args:
+            phone_number: Número de teléfono
+            whatsapp_config_id: ID de configuración
+
+        Returns:
+            Conversación existente o nueva
+        """
+        try:
+            # Buscar conversación activa
+            conversations = await self.client.list_conversations(
+                whatsapp_config_id=whatsapp_config_id,
+                limit=1,
+            )
+
+            # Si existe, retornar la primera activa
+            if conversations.get("nodes") or conversations.get("conversations"):
+                nodes = conversations.get("nodes") or conversations.get("conversations", [])
+                for conv in nodes:
+                    if conv.get("phone_number") == phone_number:
+                        return conv
+
+            # Si no existe, crear nueva
+            return await self.client.create_conversation(
+                phone_number=phone_number,
+                whatsapp_config_id=whatsapp_config_id,
+            )
+
+        except Exception as e:
+            logger.error(f"Error obteniendo/creando conversación: {e}")
+            raise
+
+    async def get_conversation(self, conversation_id: str) -> Dict[str, Any]:
+        """
+        Obtiene detalles de una conversación
+
+        Args:
+            conversation_id: ID de la conversación
+
+        Returns:
+            Datos de la conversación
+        """
+        return await self.client.get_conversation(conversation_id=conversation_id)
+
+    async def list_conversations(
+        self,
+        whatsapp_config_id: Optional[str] = None,
+        limit: int = 50,
+        page: int = 1,
+    ) -> Dict[str, Any]:
+        """
+        Lista conversaciones
+
+        Args:
+            whatsapp_config_id: Filtrar por configuración
+            limit: Límite de resultados
+            page: Página
+
+        Returns:
+            Lista de conversaciones
+        """
+        return await self.client.list_conversations(
+            whatsapp_config_id=whatsapp_config_id,
+            limit=limit,
+            page=page,
+        )
+
+    async def end_conversation(
+        self,
+        conversation_id: str,
+        reason: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Finaliza una conversación
+
+        Args:
+            conversation_id: ID de la conversación
+            reason: Razón de finalización
+
+        Returns:
+            Conversación actualizada
+        """
+        return await self.client.update_conversation_status(
+            conversation_id=conversation_id,
+            status=ConversationStatus.ENDED,
+            reason=reason,
+        )
+
+    # ========== Contactos ==========
+
+    async def search_contacts(
+        self,
+        query: str,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        """
+        Busca contactos por nombre o teléfono
+
+        Args:
+            query: Texto a buscar
+            limit: Límite de resultados
+
+        Returns:
+            Lista de contactos
+        """
+        return await self.client.search_contacts(query=query, limit=limit)
+
+    async def get_contact_history(
+        self,
+        identifier: str,
+        message_limit: int = 20,
+    ) -> Dict[str, Any]:
+        """
+        Obtiene el historial de un contacto
+
+        Args:
+            identifier: ID o teléfono del contacto
+            message_limit: Límite de mensajes
+
+        Returns:
+            Historial del contacto
+        """
+        return await self.client.get_contact_context(
+            identifier=identifier,
+            include_recent_messages=True,
+            recent_message_limit=message_limit,
+        )
+
+    async def add_note_to_contact(
+        self,
+        contact_identifier: str,
+        note: str,
+        label: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Añade una nota a un contacto
+
+        Args:
+            contact_identifier: ID o teléfono
+            note: Contenido de la nota
+            label: Etiqueta
+
+        Returns:
+            Nota creada
+        """
+        return await self.client.add_contact_note(
+            contact_identifier=contact_identifier,
+            content=note,
+            name=label,
+        )
+
+    # ========== Mensajes ==========
+
+    async def mark_as_read(
+        self,
+        conversation_id: Optional[str] = None,
+        message_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Marca mensajes como leídos
+
+        Args:
+            conversation_id: ID de conversación
+            message_id: ID de mensaje específico
+
+        Returns:
+            Resultado
+        """
+        return await self.client.mark_messages_as_read(
+            conversation_id=conversation_id,
+            message_id=message_id,
+        )
+
+    async def search_messages(
+        self,
+        query: str,
+        conversation_id: Optional[str] = None,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        """
+        Busca mensajes por contenido
+
+        Args:
+            query: Texto a buscar
+            conversation_id: Filtrar por conversación
+            limit: Límite de resultados
+
+        Returns:
+            Mensajes encontrados
+        """
+        return await self.client.search_messages(
+            query=query,
+            conversation_id=conversation_id,
+            limit=limit,
+        )
+
+    # ========== Templates ==========
+
+    async def list_templates(
+        self,
+        whatsapp_config_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Lista plantillas disponibles
+
+        Args:
+            whatsapp_config_id: Filtrar por configuración
+
+        Returns:
+            Lista de plantillas
+        """
+        return await self.client.list_templates(
+            whatsapp_config_id=whatsapp_config_id,
+        )
+
+    # ========== Inbox ==========
+
+    async def get_inbox(
+        self,
+        whatsapp_config_id: str,
+        limit: int = 20,
+        status: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Obtiene la bandeja de entrada
+
+        Args:
+            whatsapp_config_id: ID de configuración
+            limit: Límite de conversaciones
+            status: Filtrar por estado
+
+        Returns:
+            Conversaciones del inbox
+        """
+        return await self.client.get_inbox(
+            whatsapp_config_id=whatsapp_config_id,
+            limit=limit,
+            status=status,
+        )
+
+    # ========== Utilidades ==========
+
+    @staticmethod
+    def validate_webhook(payload: str, signature: str, secret: str) -> bool:
+        """
+        Valida la firma de un webhook de Kapso
+
+        Args:
+            payload: Payload como string
+            signature: Firma recibida
+            secret: Secreto del webhook
+
+        Returns:
+            True si válido
+        """
+        return KapsoClient.validate_webhook_signature(
+            payload=payload,
+            signature=signature,
+            secret=secret,
+        )
+
+    async def health_check(self) -> Dict[str, Any]:
+        """
+        Verifica el estado del servicio
+
+        Returns:
+            Estado del servicio
+        """
+        return await self.client.health_check()
