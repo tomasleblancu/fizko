@@ -12,7 +12,7 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy dependency files
-COPY pyproject.toml uv.lock ./
+COPY backend/pyproject.toml backend/uv.lock ./
 
 # Install dependencies using uv sync
 RUN uv sync --frozen --no-dev
@@ -41,7 +41,7 @@ COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy application code
-COPY ./app ./app
+COPY backend/app ./app
 
 # Copy migrations if they exist (optional for runtime)
 # Migrations should be applied separately via Supabase SQL Editor
