@@ -190,10 +190,11 @@ The app will be available at `http://localhost:5171`
 ## Environment Variables
 
 ```bash
+# Backend URL
+VITE_BACKEND_URL=http://localhost:8089               # For local dev
+
 # ChatKit Configuration
 VITE_CHATKIT_API_DOMAIN_KEY=domain_pk_localhost_dev  # For local dev
-VITE_CHATKIT_API_URL=/chatkit                        # Optional override
-VITE_API_BASE_URL=/api                               # Optional override
 
 # Supabase Configuration
 VITE_SUPABASE_URL=https://your-project.supabase.co
