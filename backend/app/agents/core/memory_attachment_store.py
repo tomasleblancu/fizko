@@ -54,7 +54,7 @@ class MemoryAttachmentStore(AttachmentStore):
 
         # Import Store to persist attachment metadata
         # This allows ChatKit to find attachments when building messages
-        from ..stores.supabase_store import SupabaseStore
+        from app.stores import SupabaseStore
         self.store = SupabaseStore()
 
         logger.info("Initialized MemoryAttachmentStore (in-memory + DB persistence)")

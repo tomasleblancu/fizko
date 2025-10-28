@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....db.models import Company, Contact, SalesDocument, PurchaseDocument
-from ...widgets import create_document_detail_widget, document_detail_widget_copy_text
+from ...tools.widgets.widgets import create_document_detail_widget, document_detail_widget_copy_text
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 

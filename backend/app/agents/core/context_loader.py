@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..db.models import Company, CompanyTaxInfo
+from ...db.models import Company, CompanyTaxInfo
 
 logger = logging.getLogger(__name__)
 

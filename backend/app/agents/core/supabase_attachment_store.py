@@ -50,7 +50,7 @@ class SupabaseAttachmentStore(AttachmentStore):
         self.backend_url = os.getenv("BACKEND_URL", "http://localhost:8089")
 
         # Import Store here to avoid circular import
-        from ..stores.supabase_store import SupabaseStore
+        from app.stores import SupabaseStore
         self.store = SupabaseStore()
 
         logger.info("Initialized SupabaseAttachmentStore")

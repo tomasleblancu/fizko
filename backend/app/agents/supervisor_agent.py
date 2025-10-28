@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from agents import Agent
+from agents.model_settings import ModelSettings, Reasoning
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +34,7 @@ def create_supervisor_agent(
         name="supervisor_agent",
         model=SUPERVISOR_MODEL,  # gpt-4o-mini (fast routing)
         instructions=SUPERVISOR_INSTRUCTIONS,
+        # model_settings=ModelSettings(reasoning=Reasoning(effort="low")),
         tools=[],  # Handoffs will be configured by orchestrator
     )
 

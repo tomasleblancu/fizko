@@ -10,7 +10,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....db.models import Company, Form29SIIDownload, PurchaseDocument, SalesDocument
-from ...widgets import create_tax_calculation_widget, tax_calculation_widget_copy_text
+from ...tools.widgets.widgets import create_tax_calculation_widget, tax_calculation_widget_copy_text
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 

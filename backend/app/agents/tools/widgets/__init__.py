@@ -1,17 +1,20 @@
 """ChatKit widgets (legacy)."""
 
+# Re-export widget creation functions
 from .widgets import (
-    TaxSummaryWidget,
-    DocumentDetailWidget,
-    CalendarEventWidget,
-    ContactCardWidget,
+    create_tax_calculation_widget,
+    create_document_detail_widget,
 )
-from .tax_widget_tools import get_tax_widget_tools
+
+# Re-export widget tools
+from .tax_widget_tools import (
+    show_tax_calculation_widget,
+    show_document_detail_widget,
+)
 
 __all__ = [
-    "TaxSummaryWidget",
-    "DocumentDetailWidget",
-    "CalendarEventWidget",
-    "ContactCardWidget",
-    "get_tax_widget_tools",
+    "create_tax_calculation_widget",
+    "create_document_detail_widget",
+    "show_tax_calculation_widget",
+    "show_document_detail_widget",
 ]

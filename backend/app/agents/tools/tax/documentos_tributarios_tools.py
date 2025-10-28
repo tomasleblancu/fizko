@@ -11,7 +11,7 @@ from uuid import UUID
 from agents import RunContextWrapper, function_tool
 from sqlalchemy import select, and_, desc
 
-from ...config.database import AsyncSessionLocal
+from ....config.database import AsyncSessionLocal
 from ...core import FizkoContext
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ async def search_documents_by_rut(
     Returns:
         Documents from/to the specified RUT
     """
-    from ...db.models import PurchaseDocument, SalesDocument
+    from ....db.models import PurchaseDocument, SalesDocument
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
@@ -132,7 +132,7 @@ async def search_document_by_folio(
     Returns:
         Document(s) with the specified folio
     """
-    from ...db.models import PurchaseDocument, SalesDocument
+    from ....db.models import PurchaseDocument, SalesDocument
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
@@ -242,7 +242,7 @@ async def get_documents_by_date_range(
     Returns:
         Documents within the date range
     """
-    from ...db.models import PurchaseDocument, SalesDocument
+    from ....db.models import PurchaseDocument, SalesDocument
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
@@ -365,7 +365,7 @@ async def get_purchase_documents(
     Returns:
         List of purchase documents with details
     """
-    from ...db.models import PurchaseDocument
+    from ....db.models import PurchaseDocument
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
@@ -439,7 +439,7 @@ async def get_sales_documents(
     Returns:
         List of sales documents with details
     """
-    from ...db.models import SalesDocument
+    from ....db.models import SalesDocument
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
@@ -509,7 +509,7 @@ async def get_document_details(
     Returns:
         Detailed document information
     """
-    from ...db.models import PurchaseDocument, SalesDocument
+    from ....db.models import PurchaseDocument, SalesDocument
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
@@ -592,7 +592,7 @@ async def get_documents_summary(
         Summary with totals and counts by document type including IVA calculations
     """
     import time
-    from ...db.models import PurchaseDocument, SalesDocument
+    from ....db.models import PurchaseDocument, SalesDocument
 
     tool_start = time.time()
     logger.info("=" * 60)

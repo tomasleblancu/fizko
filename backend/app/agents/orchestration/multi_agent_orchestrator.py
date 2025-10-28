@@ -43,11 +43,13 @@ class MultiAgentOrchestrator:
         openai_client: AsyncOpenAI,
         user_id: str | None = None,
         thread_id: str | None = None,
+        vector_store_ids: list[str] | None = None,
     ):
         self.db = db
         self.openai_client = openai_client
         self.user_id = user_id
         self.thread_id = thread_id
+        self.vector_store_ids = vector_store_ids
         self.agents: dict[str, Agent] = {}
         self._initialize_agents()
 
@@ -61,10 +63,12 @@ class MultiAgentOrchestrator:
             db=self.db, openai_client=self.openai_client
         )
         self.agents["general_knowledge_agent"] = create_general_knowledge_agent(
-            db=self.db, openai_client=self.openai_client
+            db=self.db, openai_client=self.openai_client,
+            vector_store_ids=self.vector_store_ids
         )
         self.agents["tax_documents_agent"] = create_tax_documents_agent(
-            db=self.db, openai_client=self.openai_client
+            db=self.db, openai_client=self.openai_client,
+            vector_store_ids=self.vector_store_ids
         )
 
         # Configure handoffs
@@ -89,7 +93,9 @@ class MultiAgentOrchestrator:
             ctx: RunContextWrapper, input_data: HandoffMetadata | None = None
         ):
             reason = input_data.reason if input_data else "No reason"
+            tax_agent = self.agents["tax_documents_agent"]
             logger.info(f"📄 → Tax Documents | {reason}")
+            logger.info(f"  🔧 Tax agent has {len(tax_agent.tools)} tools available")
 
         # Add handoffs to specialized agents with callbacks and metadata
         supervisor.handoffs = [
@@ -164,6 +170,7 @@ def create_multi_agent_orchestrator(
     openai_client: AsyncOpenAI,
     user_id: str | None = None,
     thread_id: str | None = None,
+    vector_store_ids: list[str] | None = None,
 ) -> MultiAgentOrchestrator:
     """
     Factory function to create a MultiAgentOrchestrator.
@@ -173,6 +180,7 @@ def create_multi_agent_orchestrator(
         openai_client: OpenAI client
         user_id: Optional user ID
         thread_id: Optional ChatKit thread ID
+        vector_store_ids: Optional list of vector store IDs for FileSearchTool
 
     Returns:
         Configured MultiAgentOrchestrator instance
@@ -182,4 +190,5 @@ def create_multi_agent_orchestrator(
         openai_client=openai_client,
         user_id=user_id,
         thread_id=thread_id,
+        vector_store_ids=vector_store_ids,
     )

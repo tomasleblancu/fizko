@@ -153,7 +153,7 @@ async def chatkit_upload_attachment(
     The file is uploaded to Supabase Storage for persistence.
     """
     from fastapi import UploadFile, File, Form
-    from .agents.memory_attachment_store import store_attachment_content
+    from .agents.core import store_attachment_content
     from .services.storage.attachment_storage import get_attachment_storage
 
     # Get metadata from MemoryAttachmentStore (created in Phase 1)

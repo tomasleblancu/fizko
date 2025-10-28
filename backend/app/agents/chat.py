@@ -13,12 +13,12 @@ from chatkit.server import ChatKitServer
 from chatkit.types import ThreadItem, ThreadMetadata, ThreadStreamEvent, UserMessageItem
 
 from ..config.database import AsyncSessionLocal
-from ..stores import MemoryStore, HybridStore
+from app.stores import MemoryStore, HybridStore
 from .core import FizkoContext
 from .orchestration import create_unified_agent, handoffs_manager
 
 try:
-    from ..stores import SupabaseStore
+    from app.stores import SupabaseStore
 
     SUPABASE_AVAILABLE = True
 except (ImportError, ValueError):
@@ -49,7 +49,7 @@ async def _convert_attachments_to_content(item: UserMessageItem, attachment_stor
     - {"type": "input_text", "text": "..."}
     - {"type": "input_image", "image_url": "data:image/png;base64,..."}
     """
-    from .memory_attachment_store import get_attachment_content
+    from .core import get_attachment_content
     from ..services.storage.attachment_storage import get_attachment_storage
     import mimetypes
 
@@ -192,7 +192,7 @@ class FizkoChatKitServer(ChatKitServer):
             self.store = MemoryStore()
 
         # Initialize attachment store
-        from .memory_attachment_store import MemoryAttachmentStore
+        from .core import MemoryAttachmentStore
 
         self.attachment_store = MemoryAttachmentStore()
 
@@ -292,15 +292,28 @@ class FizkoChatKitServer(ChatKitServer):
             )
             logger.info(f"⏱️  [+{(time.time() - request_start):.3f}s] Agent context created ({(time.time() - context_start):.3f}s)")
 
-            # Load company info automatically at thread start (usando la misma sesión db)
+            # Load company info (from thread metadata if available, otherwise from DB)
             company_id = context.get("company_id")
+            company_info = None
+
             if company_id:
-                from .core import load_company_info
-                company_load_start = time.time()
-                logger.info(f"⏱️  [+{(company_load_start - request_start):.3f}s] Company info fetch started")
-                company_info = await load_company_info(db, company_id)
-                company_load_end = time.time()
-                logger.info(f"⏱️  [+{(company_load_end - request_start):.3f}s] Company info loaded ({(company_load_end - company_load_start):.3f}s)")
+                # Check if company_info is already in thread metadata (from previous messages)
+                if thread.metadata and "company_info" in thread.metadata:
+                    company_info = thread.metadata["company_info"]
+                    logger.info(f"⏱️  [+{(time.time() - request_start):.3f}s] Company info loaded from thread cache (0.000s)")
+                else:
+                    # First message in thread - load from DB and cache in thread metadata
+                    from .core import load_company_info
+                    company_load_start = time.time()
+                    logger.info(f"⏱️  [+{(company_load_start - request_start):.3f}s] Company info fetch started (first message)")
+                    company_info = await load_company_info(db, company_id)
+                    company_load_end = time.time()
+                    logger.info(f"⏱️  [+{(company_load_end - request_start):.3f}s] Company info loaded from DB ({(company_load_end - company_load_start):.3f}s)")
+
+                    # Store in thread metadata for future messages
+                    if not thread.metadata:
+                        thread.metadata = {}
+                    thread.metadata["company_info"] = company_info
 
                 agent_context.company_info = company_info
                 if company_info and "company" in company_info:
@@ -400,7 +413,21 @@ class FizkoChatKitServer(ChatKitServer):
         from agents import RunConfig
 
         def session_input_callback(history, new_input):
-            """Merge conversation history with new input."""
+            """
+            Merge conversation history with new input.
+
+            On first message, inject company_context as system-level context
+            that persists across handoffs.
+            """
+            # Inject company context on first message (empty history)
+            if len(history) == 0 and company_context:
+                # Add company info as a persistent system message
+                history = [{
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": company_context}]
+                }]
+                logger.debug(f"📋 Injected company_context into session history ({len(company_context)} chars)")
+
             if isinstance(new_input, list) and len(new_input) > 0:
                 if isinstance(new_input[0], dict) and 'role' in new_input[0]:
                     return history + new_input

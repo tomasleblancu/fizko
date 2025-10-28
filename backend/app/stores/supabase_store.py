@@ -11,6 +11,7 @@ from uuid import UUID
 from chatkit.store import NotFoundError, Store
 from chatkit.types import Attachment, Page, Thread, ThreadItem, ThreadMetadata
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config.database import AsyncSessionLocal
@@ -310,38 +311,47 @@ class SupabaseStore(Store[dict[str, Any]]):
 
     # -- Thread items ----------------------------------------------------
     async def _get_conversation_id(self, thread_id: str, user_id: str) -> UUID:
-        """Get the conversation ID for a given thread ID."""
-        async with await self._get_session() as session:
-            stmt = select(Conversation).where(
-                Conversation.chatkit_session_id == thread_id,
-                Conversation.user_id == UUID(user_id),
-            ).order_by(Conversation.created_at.desc())
-            result = await session.execute(stmt)
-            rows = result.scalars().all()
+        """
+        Get the conversation ID for a given thread ID.
 
-            # Handle duplicates gracefully
-            if len(rows) > 1:
-                logger.warning(
-                    f"⚠️  Found {len(rows)} duplicate conversations for thread {thread_id[:12]}. "
-                    f"Using most recent conversation."
-                )
+        Waits for save_thread() to create the conversation if it doesn't exist yet.
+        Does NOT create the conversation itself to avoid race conditions.
+        """
+        import asyncio
 
-            conversation = rows[0] if rows else None
+        # Retry logic: save_thread() runs in background and creates the conversation
+        # We may need to wait a bit for it to complete
+        max_retries = 10
+        retry_delay = 0.05  # 50ms between retries
 
-            if not conversation:
-                # Create a new conversation if it doesn't exist
-                new_conversation = Conversation(
-                    user_id=UUID(user_id),
-                    chatkit_session_id=thread_id,
-                    title="Nueva conversación",
-                    status="active",
-                )
-                session.add(new_conversation)
-                await session.commit()
-                await session.refresh(new_conversation)
-                return new_conversation.id
+        for attempt in range(max_retries):
+            async with await self._get_session() as session:
+                stmt = select(Conversation).where(
+                    Conversation.chatkit_session_id == thread_id,
+                    Conversation.user_id == UUID(user_id),
+                ).order_by(Conversation.created_at.desc())
+                result = await session.execute(stmt)
+                rows = result.scalars().all()
 
-            return conversation.id
+                # Handle duplicates gracefully
+                if len(rows) > 1:
+                    logger.warning(
+                        f"⚠️  Found {len(rows)} duplicate conversations for thread {thread_id[:12]}. "
+                        f"Using most recent conversation."
+                    )
+
+                if rows:
+                    return rows[0].id
+
+            # Conversation not found yet, wait for save_thread() to create it
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay)
+
+        # If we get here, save_thread() never created the conversation
+        raise NotFoundError(
+            f"Conversation for thread {thread_id[:12]} not found after {max_retries} attempts. "
+            f"save_thread() may have failed."
+        )
 
     async def load_thread_items(
         self,

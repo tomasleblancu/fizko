@@ -183,14 +183,16 @@ class WhatsAppAgentRunner:
 
             if self.mode == "multi_agent":
                 agent = await handoffs_manager.get_supervisor_agent(
-                    thread_id=str(conversation.id), db=db, user_id=str(user_id)
+                    thread_id=str(conversation.id), db=db, user_id=str(user_id),
+                    vector_store_ids=vector_store_ids
                 )
                 all_agents = await handoffs_manager.get_all_agents(
-                    thread_id=str(conversation.id), db=db, user_id=str(user_id)
+                    thread_id=str(conversation.id), db=db, user_id=str(user_id),
+                    vector_store_ids=vector_store_ids
                 )
 
                 if vector_store_ids:
-                    logger.warning(f"⚠️  PDFs not supported in multi-agent mode yet")
+                    logger.info(f"📄 Multi-agent with {len(vector_store_ids)} PDF(s)")
             else:
                 agent = create_unified_agent(
                     db=db, openai_client=openai_client,

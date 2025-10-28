@@ -50,6 +50,7 @@ class HandoffsManager:
         thread_id: str,
         db: AsyncSession,
         user_id: str | None = None,
+        vector_store_ids: list[str] | None = None,
     ) -> Any:
         """
         Get or create a multi-agent orchestrator for a thread.
@@ -61,6 +62,7 @@ class HandoffsManager:
             thread_id: ChatKit thread ID
             db: Database session (scoped to this request)
             user_id: Optional user ID for context
+            vector_store_ids: Optional list of vector store IDs for FileSearchTool
 
         Returns:
             MultiAgentOrchestrator instance
@@ -80,6 +82,7 @@ class HandoffsManager:
                 openai_client=openai_client,
                 user_id=user_id,
                 thread_id=thread_id,
+                vector_store_ids=vector_store_ids,
             )
 
             # Cache for future requests
@@ -99,6 +102,7 @@ class HandoffsManager:
         thread_id: str,
         db: AsyncSession,
         user_id: str | None = None,
+        vector_store_ids: list[str] | None = None,
     ) -> Agent:
         """
         Get the Supervisor Agent for a thread (entry point for multi-agent system).
@@ -107,6 +111,7 @@ class HandoffsManager:
             thread_id: ChatKit thread ID
             db: Database session
             user_id: Optional user ID
+            vector_store_ids: Optional list of vector store IDs for FileSearchTool
 
         Returns:
             Supervisor Agent instance
@@ -115,6 +120,7 @@ class HandoffsManager:
             thread_id=thread_id,
             db=db,
             user_id=user_id,
+            vector_store_ids=vector_store_ids,
         )
 
         return orchestrator.get_supervisor_agent()
@@ -124,6 +130,7 @@ class HandoffsManager:
         thread_id: str,
         db: AsyncSession,
         user_id: str | None = None,
+        vector_store_ids: list[str] | None = None,
     ) -> list[Agent]:
         """
         Get all agents for handoff support.
@@ -134,6 +141,7 @@ class HandoffsManager:
             thread_id: ChatKit thread ID
             db: Database session
             user_id: Optional user ID
+            vector_store_ids: Optional list of vector store IDs for FileSearchTool
 
         Returns:
             List of all agent instances
@@ -142,6 +150,7 @@ class HandoffsManager:
             thread_id=thread_id,
             db=db,
             user_id=user_id,
+            vector_store_ids=vector_store_ids,
         )
 
         return list(orchestrator.agents.values())
