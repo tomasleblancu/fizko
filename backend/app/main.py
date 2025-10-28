@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
+from pydantic import HttpUrl
 from starlette.responses import JSONResponse
 
 from .agents import FizkoServer, create_chatkit_server
@@ -30,6 +31,7 @@ from .routers import (
     tax_summary,
     whatsapp,
 )
+from .routers.admin import notifications as admin_notifications
 from .routers.personnel import router as personnel_router
 from .routers.sii import router as sii_router
 from .utils.ui_component_context import extract_ui_component_context, format_ui_context_for_agent
@@ -82,6 +84,7 @@ _chatkit_server: FizkoServer | None = None
 # Include API routers
 app.include_router(admin_router.router)
 app.include_router(calendar.router)
+app.include_router(admin_notifications.router)  # Admin notification templates
 app.include_router(companies_router.router)
 app.include_router(contacts.router)
 app.include_router(profile.router)
@@ -115,6 +118,208 @@ def get_chatkit_server() -> FizkoServer:
                 ),
             )
     return _chatkit_server
+
+
+@app.post("/chatkit/upload/{attachment_id}")
+async def chatkit_upload_attachment(
+    attachment_id: str,
+    request: Request,
+    server: FizkoServer = Depends(get_chatkit_server),
+) -> Response:
+    """
+    ChatKit attachment upload endpoint (Phase 2 of two-phase upload).
+
+    This endpoint receives the actual file content after ChatKit
+    creates the attachment metadata in Phase 1.
+
+    The file is uploaded to Supabase Storage for persistence.
+    """
+    from fastapi import UploadFile, File, Form
+    from .agents.memory_attachment_store import store_attachment_content
+    from .services.storage.attachment_storage import get_attachment_storage
+
+    # Get metadata from MemoryAttachmentStore (created in Phase 1)
+    # This contains the correct mime_type and filename
+    metadata = server.attachment_store.get_attachment_metadata(attachment_id)
+
+    if metadata is None:
+        logger.error(f"❌ Attachment metadata not found for {attachment_id}")
+        return JSONResponse(
+            {
+                "success": False,
+                "error": "Attachment metadata not found. Please try again.",
+                "attachment_id": attachment_id
+            },
+            status_code=404
+        )
+
+    mime_type = metadata.get("mime_type", "application/octet-stream")
+    filename = metadata.get("name")
+
+    logger.info(f"📤 Upload request for: {attachment_id} (expected: {mime_type}, {filename})")
+    logger.info(f"📋 Headers: Content-Type={request.headers.get('content-type')}")
+
+    # Check if it's multipart/form-data
+    content_type = request.headers.get("content-type", "")
+
+    if "multipart/form-data" in content_type:
+        # Parse multipart form data
+        try:
+            from starlette.datastructures import UploadFile as StarletteUploadFile
+
+            form = await request.form()
+            logger.info(f"📦 Form fields: {list(form.keys())}")
+
+            # Try to find the file in the form
+            file_content = None
+            for key, value in form.items():
+                logger.info(f"  - {key}: {type(value)}")
+                if isinstance(value, StarletteUploadFile):
+                    file_content = await value.read()
+                    logger.info(f"✅ Found file in form field '{key}': {len(file_content)} bytes")
+                    break
+
+            if file_content is None:
+                # Fallback: read raw body
+                logger.warning("⚠️ No file found in form, reading raw body")
+                file_content = await request.body()
+        except Exception as e:
+            logger.error(f"❌ Error parsing multipart: {e}", exc_info=True)
+            file_content = await request.body()
+    else:
+        # Read raw file bytes from request body
+        file_content = await request.body()
+
+    logger.info(f"📤 Uploading attachment: {attachment_id} ({len(file_content)} bytes, {mime_type}, {filename})")
+
+    # Store in memory first (for backward compatibility with MemoryAttachmentStore)
+    store_attachment_content(attachment_id, file_content)
+
+    # Upload to Supabase Storage
+    try:
+        storage = get_attachment_storage()
+        success, url, error = storage.upload_attachment(
+            attachment_id=attachment_id,
+            content=file_content,
+            mime_type=mime_type,
+            filename=filename
+        )
+
+        if not success:
+            logger.error(f"❌ Failed to upload to Supabase: {error}")
+            return JSONResponse(
+                {
+                    "success": False,
+                    "error": error,
+                    "attachment_id": attachment_id
+                },
+                status_code=500
+            )
+
+        logger.info(f"✅ Attachment uploaded to Supabase: {url}")
+
+        # For PDFs: Also upload to OpenAI Files API and create Vector Store
+        openai_file_id = None
+        vector_store_id = None
+
+        if mime_type == "application/pdf":
+            from .services.openai_files import get_openai_files_service
+
+            logger.info(f"📄 PDF detected, uploading to OpenAI Files API for file_search")
+            openai_service = get_openai_files_service()
+
+            # Upload to OpenAI Files API
+            success_openai, openai_file_id, error_openai = openai_service.upload_file_for_file_search(
+                file_content=file_content,
+                filename=filename,
+                mime_type=mime_type
+            )
+
+            if success_openai and openai_file_id:
+                logger.info(f"✅ PDF uploaded to OpenAI: {openai_file_id}")
+
+                # Create Vector Store for this file
+                success_vs, vector_store_id, error_vs = openai_service.create_vector_store_with_file(
+                    file_id=openai_file_id,
+                    store_name=f"{filename}"
+                )
+
+                if success_vs and vector_store_id:
+                    logger.info(f"✅ Vector Store created: {vector_store_id}")
+                    # Store OpenAI metadata in memory attachment store
+                    server.attachment_store.set_openai_metadata(
+                        attachment_id=attachment_id,
+                        file_id=openai_file_id,
+                        vector_store_id=vector_store_id
+                    )
+
+                    # IMPORTANT: Also persist to database via SupabaseStore
+                    # We need to get the attachment and re-save it with OpenAI metadata
+                    attachment_for_db = await server.attachment_store.get_attachment(attachment_id)
+                    if attachment_for_db:
+                        context_with_openai = {
+                            "thread_id": None,  # Will be set when message is sent
+                            "openai_file_id": openai_file_id,
+                            "openai_vector_store_id": vector_store_id
+                        }
+                        await server.attachment_store.store.save_attachment(
+                            attachment_for_db,
+                            context_with_openai
+                        )
+                        logger.info(f"💾 Persisted OpenAI metadata to database for {attachment_id}")
+                else:
+                    logger.warning(f"⚠️ Failed to create Vector Store: {error_vs}")
+            else:
+                logger.warning(f"⚠️ Failed to upload PDF to OpenAI: {error_openai}")
+                # Don't fail the whole upload - PDF is still in Supabase
+
+        # CRITICAL: Get the full attachment object and update preview_url
+        # ChatKit needs the complete attachment object to display the image correctly
+        attachment = await server.attachment_store.get_attachment(attachment_id)
+
+        if not attachment:
+            logger.error(f"❌ Attachment not found after upload: {attachment_id}")
+            return JSONResponse(
+                {
+                    "success": False,
+                    "error": "Attachment not found after upload",
+                    "attachment_id": attachment_id
+                },
+                status_code=404
+            )
+
+        # Update preview_url with the Supabase public URL for images
+        if mime_type.startswith("image/"):
+            # Convert string URL to HttpUrl (Pydantic type) to avoid serialization warnings
+            attachment.preview_url = HttpUrl(url)
+            # Update in memory store
+            server.attachment_store._attachments[attachment_id] = attachment
+            logger.info(f"✅ Updated preview_url with Supabase public URL: {url}")
+
+        # CRITICAL: ChatKit expects the response in this exact format
+        # Must be nested inside a "file" object with these specific fields
+        response = {
+            "file": {
+                "id": attachment_id,
+                "name": filename,
+                "content_type": mime_type,
+                "url": url
+            }
+        }
+
+        logger.info(f"📤 Returning ChatKit-formatted response with url: {url}")
+        return JSONResponse(response)
+
+    except Exception as e:
+        logger.error(f"❌ Error uploading attachment: {e}", exc_info=True)
+        return JSONResponse(
+            {
+                "success": False,
+                "error": str(e),
+                "attachment_id": attachment_id
+            },
+            status_code=500
+        )
 
 
 @app.post("/chatkit")

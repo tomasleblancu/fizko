@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   FileText,
   Download,
@@ -13,9 +13,7 @@ import {
   Info,
   X,
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { API_BASE_URL } from '../lib/config';
-import { apiFetch } from '../lib/api-client';
+import { useF29List, useDownloadF29Pdf } from '../hooks/useF29List';
 
 interface F29Download {
   id: string;
@@ -44,11 +42,6 @@ interface F29ListProps {
 }
 
 export default function F29List({ companyId }: F29ListProps) {
-  const { session } = useAuth();
-  const [forms, setForms] = useState<F29Download[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   // Filters
   const [selectedYear, setSelectedYear] = useState<number | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<string | 'all'>('all');
@@ -59,42 +52,13 @@ export default function F29List({ companyId }: F29ListProps) {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
-  useEffect(() => {
-    fetchF29List();
-  }, [companyId, selectedYear, selectedStatus]);
+  // Use React Query hooks
+  const { data: forms = [], isLoading: loading, error } = useF29List(companyId, {
+    year: selectedYear,
+    status: selectedStatus,
+  });
 
-  const fetchF29List = async () => {
-    if (!session?.access_token || !companyId) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const params = new URLSearchParams();
-      if (selectedYear !== 'all') params.append('year', selectedYear.toString());
-      if (selectedStatus !== 'all') params.append('status', selectedStatus);
-
-      const url = `${API_BASE_URL}/admin/company/${companyId}/f29${params.toString() ? `?${params.toString()}` : ''}`;
-
-      const response = await apiFetch(url, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Error al obtener formularios F29');
-      }
-
-      const data = await response.json();
-      setForms(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const downloadMutation = useDownloadF29Pdf(companyId);
 
   const formatCurrency = (cents: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -486,7 +450,9 @@ export default function F29List({ companyId }: F29ListProps) {
           <XCircle className="h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400" />
           <div>
             <h3 className="font-medium text-red-800 dark:text-red-300">Error al cargar formularios</h3>
-            <p className="mt-1 text-sm text-red-700 dark:text-red-400">{error}</p>
+            <p className="mt-1 text-sm text-red-700 dark:text-red-400">
+              {error instanceof Error ? error.message : 'Error desconocido'}
+            </p>
           </div>
         </div>
       </div>

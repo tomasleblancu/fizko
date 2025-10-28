@@ -284,9 +284,6 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false,
                   {formatCurrency(taxSummary.monthly_tax)}
                 </div>
               </div>
-              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                {formatDate(taxSummary.period_start)} - {formatDate(taxSummary.period_end)}
-              </div>
             </div>
 
             {/* Toggle button in top-right corner */}

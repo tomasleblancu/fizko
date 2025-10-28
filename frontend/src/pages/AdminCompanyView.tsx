@@ -11,6 +11,8 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowLeft,
+  Bell,
+  Send,
 } from 'lucide-react';
 import { CompanyDetail } from '../types/admin';
 import { API_BASE_URL } from '../lib/config';
@@ -29,6 +31,12 @@ export default function AdminCompanyView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'f29' | 'calendar'>('overview');
+  const [sendingNotification, setSendingNotification] = useState(false);
+  const [notificationResult, setNotificationResult] = useState<{
+    success: boolean;
+    message: string;
+    details?: any[];
+  } | null>(null);
 
   const fetchCompanyData = async () => {
     // Wait for auth to load
@@ -69,6 +77,48 @@ export default function AdminCompanyView() {
   useEffect(() => {
     fetchCompanyData();
   }, [companyId, session?.access_token, authLoading]);
+
+  const sendTestNotification = async () => {
+    if (!companyId || !session?.access_token) return;
+
+    setSendingNotification(true);
+    setNotificationResult(null);
+
+    try {
+      const response = await apiFetch(
+        `${API_BASE_URL}/admin/company/${companyId}/send-test-notification`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: '🔔 Notificación de prueba desde Fizko Admin\n\nSi recibes este mensaje, el sistema de notificaciones está funcionando correctamente.',
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al enviar notificación');
+      }
+
+      const data = await response.json();
+      setNotificationResult({
+        success: data.success,
+        message: data.message,
+        details: data.details,
+      });
+    } catch (err) {
+      setNotificationResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Error desconocido',
+      });
+    } finally {
+      setSendingNotification(false);
+    }
+  };
 
 
   if (loading) {
@@ -147,7 +197,65 @@ export default function AdminCompanyView() {
                 <p className="text-sm text-gray-600 dark:text-gray-400">RUT: {company.rut}</p>
               </div>
             </div>
+
+            {/* Send Test Notification Button */}
+            <button
+              onClick={sendTestNotification}
+              disabled={sendingNotification}
+              className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {sendingNotification ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <span>Enviando...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  <span>Enviar Notificación de Prueba</span>
+                </>
+              )}
+            </button>
           </div>
+
+          {/* Notification Result Alert */}
+          {notificationResult && (
+            <div className={`mt-4 rounded-lg p-4 ${
+              notificationResult.success
+                ? 'bg-green-50 border border-green-200 dark:bg-green-900/20 dark:border-green-800'
+                : 'bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800'
+            }`}>
+              <div className="flex items-start space-x-3">
+                <Bell className={`h-5 w-5 mt-0.5 ${
+                  notificationResult.success ? 'text-green-600' : 'text-red-600'
+                }`} />
+                <div className="flex-1">
+                  <p className={`font-medium ${
+                    notificationResult.success ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'
+                  }`}>
+                    {notificationResult.message}
+                  </p>
+                  {notificationResult.details && notificationResult.details.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {notificationResult.details.map((detail, idx) => (
+                        <p key={idx} className={`text-sm ${
+                          notificationResult.success ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'
+                        }`}>
+                          • {detail.user_name} ({detail.phone}): {detail.status === 'sent' ? '✅ Enviado' : `❌ ${detail.error}`}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setNotificationResult(null)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

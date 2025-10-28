@@ -15,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_db, AsyncSessionLocal
 from app.dependencies import get_current_user_id, require_auth
-from app.services.whatsapp import WhatsAppService, authenticate_user_by_whatsapp, get_user_info_by_whatsapp
+from app.services.whatsapp import WhatsAppService, authenticate_user_by_whatsapp, get_user_info_by_whatsapp, get_whatsapp_service
+from app.db.models import NotificationHistory
 from app.integrations.kapso.models import (
     SendTextRequest,
     SendMediaRequest,
@@ -51,6 +52,68 @@ whatsapp_service = WhatsAppService(
     api_token=KAPSO_API_TOKEN,
     base_url=KAPSO_API_BASE_URL,
 )
+
+
+# =============================================================================
+# Helper Functions - Notification Context
+# =============================================================================
+
+async def find_recent_notification(
+    db: AsyncSession,
+    whatsapp_conversation_id: str,
+    hours_ago: int = 48,
+) -> Optional[NotificationHistory]:
+    """
+    Find most recent notification in a WhatsApp conversation.
+
+    Args:
+        db: Database session
+        whatsapp_conversation_id: The Kapso conversation ID from WhatsApp
+        hours_ago: How many hours back to search (default 48)
+
+    Returns:
+        NotificationHistory object or None if not found
+    """
+    from datetime import datetime, timedelta
+    from sqlalchemy import select
+
+    cutoff = datetime.utcnow() - timedelta(hours=hours_ago)
+
+    stmt = (
+        select(NotificationHistory)
+        .where(
+            NotificationHistory.whatsapp_conversation_id == whatsapp_conversation_id,
+            NotificationHistory.sent_at >= cutoff,
+        )
+        .order_by(NotificationHistory.sent_at.desc())
+        .limit(1)
+    )
+
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+def get_notification_ui_component(entity_type: Optional[str]) -> str:
+    """
+    Map notification entity_type to UI Tool component name.
+
+    Args:
+        entity_type: The entity type from notification_history (e.g., "calendar_event", "form29")
+
+    Returns:
+        UI Tool component name (e.g., "notification_calendar_event", "notification_generic")
+    """
+    if not entity_type:
+        return "notification_generic"
+
+    NOTIFICATION_UI_COMPONENTS = {
+        "calendar_event": "notification_calendar_event",
+        # Add more mappings as needed:
+        # "form29": "notification_form29",
+        # "payroll": "notification_payroll",
+    }
+
+    return NOTIFICATION_UI_COMPONENTS.get(entity_type, "notification_generic")
 
 
 # =============================================================================
@@ -585,7 +648,7 @@ async def handle_webhook(
                     detail="Missing X-Webhook-Signature header",
                 )
 
-            is_valid = whatsapp_service.validate_webhook(
+            is_valid = WhatsAppService.validate_webhook(
                 payload=payload,
                 signature=x_webhook_signature,
                 secret=webhook_secret,
@@ -687,6 +750,15 @@ async def handle_webhook(
                             response_message = None
                             display_name = (user_info.get('full_name') or user_info.get('name')) if user_info else contact_name
 
+                            # Obtener servicio de WhatsApp para envío de mensajes
+                            whatsapp_service = get_whatsapp_service()
+                            if not whatsapp_service:
+                                logger.error("❌ WhatsApp service no disponible (KAPSO_API_TOKEN no configurado)")
+                                raise HTTPException(
+                                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                    detail="WhatsApp service not configured"
+                                )
+
                             # USUARIO AUTENTICADO: Invocar agente de IA
                             if authenticated_user_id and company_id:
                                 logger.info(f"🤖 Invocando agente de IA para usuario autenticado")
@@ -695,15 +767,126 @@ async def handle_webhook(
                                 try:
                                     from app.services.whatsapp.agent_runner import WhatsAppAgentRunner
 
+                                    # NOTIFICATION CONTEXT DETECTION
+                                    # Check if this conversation has a recent notification
+                                    ui_context_text = None
+                                    async with AsyncSessionLocal() as db:
+                                        notification = await find_recent_notification(
+                                            db=db,
+                                            whatsapp_conversation_id=conversation_id,
+                                            hours_ago=48,
+                                        )
+
+                                        if notification:
+                                            logger.info(f"📬 Notificación encontrada: {notification.id} (entity_type: {notification.entity_type})")
+
+                                            # Dispatch to appropriate UI Tool
+                                            try:
+                                                from app.agents.ui_tools.core.dispatcher import UIToolDispatcher
+                                                from app.agents.ui_tools.core.base import UIToolContext
+
+                                                # Map entity_type to UI Tool component
+                                                component_name = get_notification_ui_component(notification.entity_type)
+                                                logger.info(f"🎯 Usando UI Tool: {component_name}")
+
+                                                # Create UI Tool context
+                                                ui_tool_context = UIToolContext(
+                                                    ui_component=component_name,
+                                                    user_message=message_content,
+                                                    company_id=company_id,
+                                                    user_id=str(authenticated_user_id),
+                                                    db=db,
+                                                    additional_data={
+                                                        "notification_id": str(notification.id),
+                                                        "entity_id": str(notification.entity_id) if notification.entity_id else None,
+                                                    }
+                                                )
+
+                                                # Dispatch to UI Tool
+                                                dispatcher = UIToolDispatcher()
+                                                result = await dispatcher.dispatch(ui_tool_context)
+
+                                                if result.success:
+                                                    ui_context_text = result.context_text
+                                                    logger.info(f"✅ Contexto de notificación cargado exitosamente ({len(ui_context_text)} chars)")
+                                                else:
+                                                    logger.warning(f"⚠️ UI Tool falló: {result.error}")
+
+                                            except Exception as e:
+                                                logger.error(f"❌ Error cargando contexto de notificación: {e}")
+                                                import traceback
+                                                logger.error(traceback.format_exc())
+                                        else:
+                                            logger.debug(f"ℹ️ No se encontró notificación reciente en esta conversación")
+
+                                    # MEDIA PROCESSING
+                                    # Check if message has media attachments (images, PDFs, etc.)
+                                    attachments = None
+
+                                    if has_media and message_type != "text":
+                                        logger.info(f"📎 Media detectado: {message_type}")
+
+                                        # Enviar mensaje de confirmación al usuario ANTES de procesar
+                                        try:
+                                            # Determinar mensaje según tipo de archivo
+                                            processing_messages = {
+                                                "image": "📸 Recibí tu imagen, la estoy analizando...",
+                                                "video": "🎥 Recibí tu video, lo estoy procesando...",
+                                                "audio": "🎵 Recibí tu audio, lo estoy procesando...",
+                                                "document": "📄 Recibí tu documento, lo estoy analizando...",
+                                            }
+
+                                            processing_msg = processing_messages.get(message_type, "📎 Recibí tu archivo, lo estoy procesando...")
+
+                                            logger.info(f"💬 Enviando mensaje de procesamiento al usuario: {processing_msg}")
+
+                                            # Enviar mensaje inmediato
+                                            whatsapp_service = get_whatsapp_service()
+                                            if whatsapp_service:
+                                                await whatsapp_service.send_text(
+                                                    conversation_id=conversation_id,
+                                                    message=processing_msg,
+                                                )
+                                                logger.info(f"✅ Mensaje de procesamiento enviado")
+                                        except Exception as e:
+                                            logger.warning(f"⚠️ No se pudo enviar mensaje de procesamiento: {e}")
+                                            # No fallar el flujo - continuar procesando
+
+                                        # Ahora procesar el archivo
+                                        try:
+                                            from app.services.whatsapp.media_processor import get_media_processor
+
+                                            processor = get_media_processor()
+                                            attachment = await processor.process_inbound_media(message_data)
+
+                                            if attachment:
+                                                attachments = [attachment]
+                                                logger.info(f"✅ Media procesado: {attachment['attachment_id']}")
+                                                logger.info(f"  Type: {attachment['mime_type']}")
+                                                logger.info(f"  File: {attachment['filename']}")
+                                                logger.info(f"  URL: {attachment['url']}")
+
+                                                # Log especial para PDFs con vector_store
+                                                if "vector_store_id" in attachment:
+                                                    logger.info(f"  📄 PDF con FileSearch habilitado: {attachment['vector_store_id']}")
+                                            else:
+                                                logger.warning(f"⚠️ No se pudo procesar media (puede ser error de descarga o tipo no soportado)")
+
+                                        except Exception as e:
+                                            logger.error(f"❌ Error procesando media: {e}", exc_info=True)
+                                            # No fallar todo el flujo - continuar sin attachment
+
                                     agent_runner = WhatsAppAgentRunner()
                                     # No guardar assistant message aún - se hará después de enviar
                                     response_message, db_conversation_id = await agent_runner.process_message(
                                         user_id=authenticated_user_id,
                                         company_id=company_id,
-                                        message_content=message_content,
+                                        message_content=message_content or "Archivo adjunto",  # Fallback si solo hay media sin texto
                                         conversation_id=conversation_id,
                                         message_id=message_id,
                                         save_assistant_message=False,  # Guardamos después de enviar
+                                        ui_context_text=ui_context_text,  # Pass notification context to agent
+                                        attachments=attachments,  # Pass processed media attachments
                                     )
 
                                     agent_time = time.time() - agent_start

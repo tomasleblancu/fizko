@@ -1,13 +1,12 @@
 import { useState, useCallback } from 'react';
 import type { ColorScheme } from '../hooks/useColorScheme';
-import { useTaxSummary } from '../hooks/useTaxSummary';
-import { useTaxDocuments } from '../hooks/useTaxDocuments';
-import { useCalendar } from '../hooks/useCalendar';
+import { useTaxSummaryQuery } from '../hooks/useTaxSummaryQuery';
+import { useTaxDocumentsQuery } from '../hooks/useTaxDocumentsQuery';
+import { useCalendarQuery } from '../hooks/useCalendarQuery';
 import { CompanyInfoCard } from './CompanyInfoCard';
 import { TaxSummaryCard } from './TaxSummaryCard';
 import { TaxCalendar } from './TaxCalendar';
 import { RecentDocumentsCard } from './RecentDocumentsCard';
-import { useDashboardCache } from '../contexts/DashboardCacheContext';
 import { ViewContainer } from './layout/ViewContainer';
 import { FizkoLogo } from './FizkoLogo';
 import type { ViewType } from './layout/NavigationPills';
@@ -27,7 +26,6 @@ interface FinancialDashboardProps {
 
 export function FinancialDashboard({ scheme, companyId, isInDrawer = false, company, onThemeChange, onNavigateToSettings, onNavigateToContacts, onNavigateToPersonnel, currentView = 'dashboard' }: FinancialDashboardProps) {
   // Company is now passed as prop to avoid multiple fetches
-  const cache = useDashboardCache();
   const [isDocumentsExpanded, setIsDocumentsExpanded] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<string | undefined>(undefined);
 
@@ -35,15 +33,16 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
   const activeCompanyId = companyId || company?.id || null;
 
   // Tax summary uses period filter to show metrics for selected month
-  const { taxSummary, loading: taxLoading, error: taxError, refresh: refreshTax } = useTaxSummary(activeCompanyId, selectedPeriod);
+  const { data: taxSummary = null, isLoading: taxLoading, error: taxError } = useTaxSummaryQuery(activeCompanyId, selectedPeriod);
 
   // Documents list does NOT filter by period - always shows recent documents
   // This prevents re-fetching documents every time user changes period
   // Fetch more when expanded to show all available documents
-  const { documents, loading: docsLoading, error: docsError, refresh: refreshDocs } = useTaxDocuments(activeCompanyId, isDocumentsExpanded ? 50 : 10);
+  const { data: documents = [], isLoading: docsLoading, error: docsError } = useTaxDocumentsQuery(activeCompanyId, isDocumentsExpanded ? 50 : 10);
 
   // Calendar events for tax obligations
-  const { events, loading: calendarLoading, error: calendarError } = useCalendar(activeCompanyId, 30, false);
+  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useCalendarQuery(activeCompanyId, 30, false);
+  const events = calendarData?.events || [];
 
   // Handle period change from TaxSummaryCard
   const handlePeriodChange = useCallback((period: string | undefined) => {
@@ -51,8 +50,7 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
     setSelectedPeriod(period);
   }, []);
 
-  // Note: NO manual refresh needed here - useTaxSummary and useTaxDocuments
-  // already handle fetching when companyId or period changes via their useEffect
+  // Note: NO manual refresh needed - React Query handles refetching automatically
 
   // Handle navigation
   const handleNavigate = useCallback((view: ViewType) => {

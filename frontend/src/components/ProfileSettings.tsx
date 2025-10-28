@@ -139,7 +139,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
 
 // Account Settings Tab
 function AccountSettings({ user, scheme, profileLoading, profile: profileProp, isInDrawer = false }: { user: any; scheme: ColorScheme; profileLoading: boolean; profile: any; isInDrawer?: boolean }) {
-  const { profile, updateProfile, requestPhoneVerification, confirmPhoneVerification } = useUserProfile();
+  const { profile, updateProfile, requestPhoneVerification, confirmPhoneVerification, error: profileError } = useUserProfile();
   const { signOut } = useAuth();
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
@@ -149,6 +149,7 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp, i
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isSendingCode, setIsSendingCode] = useState(false);
 
   // Load profile data when available
   useEffect(() => {
@@ -241,9 +242,17 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp, i
   };
 
   const handleRequestVerification = async () => {
+    // Open modal immediately for better UX
+    setShowVerificationModal(true);
+    setIsSendingCode(true);
+
+    // Then send the verification code in the background
     const success = await requestPhoneVerification();
-    if (success) {
-      setShowVerificationModal(true);
+    setIsSendingCode(false);
+
+    // If failed, close the modal and show error
+    if (!success) {
+      setShowVerificationModal(false);
     }
   };
 
@@ -428,51 +437,98 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp, i
       {showVerificationModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="mx-4 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-800">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              Verificar Número de Teléfono
-            </h3>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              Ingresa el código de 6 dígitos que te enviamos por SMS a {celular}
-            </p>
-
-            <div className="mt-4">
-              <input
-                type="text"
-                value={verificationCode}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                  setVerificationCode(value);
-                }}
-                placeholder="000000"
-                maxLength={6}
-                inputMode="numeric"
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-center text-2xl tracking-widest text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-              />
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+                <svg className="h-6 w-6 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  Verificar Teléfono
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Código enviado por WhatsApp
+                </p>
+              </div>
             </div>
+
+            {isSendingCode ? (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-600 dark:border-emerald-400"></div>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Enviando código por WhatsApp a <span className="font-semibold text-slate-900 dark:text-slate-100">{celular}</span>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Ingresa el código de 6 dígitos que te enviamos por WhatsApp a <span className="font-semibold text-slate-900 dark:text-slate-100">{celular}</span>
+                </p>
+
+                <div className="mt-6">
+                  <input
+                    type="text"
+                    value={verificationCode}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setVerificationCode(value);
+                    }}
+                    placeholder="000000"
+                    maxLength={6}
+                    inputMode="numeric"
+                    autoFocus
+                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-center text-2xl tracking-widest text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
+                    El código expira en 10 minutos
+                  </p>
+                </div>
+              </>
+            )}
+
+            {profileError && (
+              <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 dark:bg-red-900/20">
+                <p className="text-xs text-red-700 dark:text-red-300">
+                  {profileError}
+                </p>
+              </div>
+            )}
 
             <div className="mt-6 flex gap-3">
               <button
                 onClick={() => {
                   setShowVerificationModal(false);
                   setVerificationCode('');
+                  setIsSendingCode(false);
                 }}
-                disabled={isVerifying}
+                disabled={isVerifying || isSendingCode}
                 className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleConfirmVerification}
-                disabled={isVerifying || verificationCode.length !== 6}
+                disabled={isVerifying || isSendingCode || verificationCode.length !== 6}
                 className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-600"
               >
                 {isVerifying ? 'Verificando...' : 'Verificar'}
               </button>
             </div>
 
-            <p className="mt-4 text-xs text-amber-600 dark:text-amber-400">
-              Nota: La integración con servicio de SMS está pendiente. Por ahora, cualquier código de 6 dígitos será aceptado.
-            </p>
+            {!isSendingCode && (
+              <div className="mt-4 text-center">
+                <button
+                  onClick={handleRequestVerification}
+                  disabled={isVerifying}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 disabled:opacity-50"
+                >
+                  Reenviar código
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

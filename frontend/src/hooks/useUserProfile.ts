@@ -161,12 +161,13 @@ export function useUserProfile() {
     try {
       setError(null);
 
-      const response = await apiFetch(`${API_BASE_URL}/profile/verify-phone/confirm?code=${encodeURIComponent(code)}`, {
+      const response = await apiFetch(`${API_BASE_URL}/profile/verify-phone/confirm`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ code }),
       });
 
       if (!response.ok) {

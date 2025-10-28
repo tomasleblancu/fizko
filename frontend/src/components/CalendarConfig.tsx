@@ -1,173 +1,55 @@
-import { useEffect, useState } from 'react';
-import { Calendar, Check, X, RefreshCw, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { API_BASE_URL } from '../lib/config';
-import { useAuth } from '../contexts/AuthContext';
-import { apiFetch } from '../lib/api-client';
-
-interface EventTemplateConfig {
-  event_template_id: string;
-  code: string;
-  name: string;
-  description: string;
-  category: string;
-  authority: string;
-  is_mandatory: boolean;
-  default_recurrence: {
-    frequency: string;
-    day_of_month?: number;
-    month_of_year?: number;
-  };
-  is_active: boolean;
-  company_event_id: string | null;
-  custom_config: any;
-}
-
-interface CalendarConfigData {
-  company_id: string;
-  company_name: string;
-  event_templates: EventTemplateConfig[];
-  total_available: number;
-  total_active: number;
-}
+import { useState } from 'react';
+import { Calendar, RefreshCw, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useCalendarConfig, useToggleEventTemplate, useSyncCalendar } from '../hooks/useCalendarConfig';
 
 interface CalendarConfigProps {
   companyId: string;
 }
 
 export default function CalendarConfig({ companyId }: CalendarConfigProps) {
-  const { session } = useAuth();
-  const [config, setConfig] = useState<CalendarConfigData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const fetchConfig = async () => {
-    if (!session?.access_token) return;
+  // Use React Query hooks
+  const { data: config, isLoading: loading, error } = useCalendarConfig(companyId);
+  const toggleMutation = useToggleEventTemplate(companyId);
+  const syncMutation = useSyncCalendar(companyId);
 
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await apiFetch(
-        `${API_BASE_URL}/admin/companies/${companyId}/calendar-config`,
-        {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Error al cargar configuración');
-      }
-
-      const data = await response.json();
-      setConfig(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleToggleEvent = (eventTemplateId: string, currentlyActive: boolean) => {
-    if (!session?.access_token) return;
-
-    // Actualización optimista: actualizar el estado inmediatamente en el UI
-    const newActiveState = !currentlyActive;
-    setConfig((prevConfig) => {
-      if (!prevConfig) return prevConfig;
-      return {
-        ...prevConfig,
-        event_templates: prevConfig.event_templates.map((eventTemplate) =>
-          eventTemplate.event_template_id === eventTemplateId
-            ? { ...eventTemplate, is_active: newActiveState }
-            : eventTemplate
-        ),
-        total_active: prevConfig.total_active + (newActiveState ? 1 : -1),
-      };
-    });
-
-    // Hacer la llamada al backend en segundo plano (sin await)
-    const endpoint = currentlyActive ? 'deactivate' : 'activate';
-    apiFetch(
-      `${API_BASE_URL}/admin/companies/${companyId}/calendar-config/${endpoint}`,
+  const handleToggleEvent = (eventTemplateId: string, isActive: boolean) => {
+    toggleMutation.mutate(
+      { eventTemplateId, isActive },
       {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
+        // No success message needed - optimistic update provides instant feedback
+        onError: (err) => {
+          setErrorMessage(err instanceof Error ? err.message : 'Error al actualizar evento');
+          setTimeout(() => setErrorMessage(null), 5000);
         },
-        body: JSON.stringify({ event_template_id: eventTemplateId }),
       }
-    )
-      .then(async (response) => {
-        if (!response.ok) {
-          // Si falla, revertir el cambio optimista
-          setConfig((prevConfig) => {
-            if (!prevConfig) return prevConfig;
-            return {
-              ...prevConfig,
-              event_templates: prevConfig.event_templates.map((eventTemplate) =>
-                eventTemplate.event_template_id === eventTemplateId
-                  ? { ...eventTemplate, is_active: currentlyActive }
-                  : eventTemplate
-              ),
-              total_active: prevConfig.total_active + (currentlyActive ? 1 : -1),
-            };
-          });
-          throw new Error('Error al actualizar evento');
-        }
-        const data = await response.json();
-        setSuccessMessage(data.message);
-        setTimeout(() => setSuccessMessage(null), 3000);
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Error desconocido');
-        setTimeout(() => setError(null), 5000);
-      });
+    );
   };
 
-  const handleSyncCalendar = async () => {
-    if (!session?.access_token) return;
-
-    try {
-      setSyncing(true);
-      setError(null);
-      setSuccessMessage(null);
-
-      const response = await apiFetch(
-        `${API_BASE_URL}/admin/companies/${companyId}/sync-calendar`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
+  const handleSyncCalendar = () => {
+    syncMutation.mutate(undefined, {
+      onSuccess: (data) => {
+        // Construir mensaje con detalles de eventos creados y actualizados
+        let detailMessage = '';
+        if (data.total_created > 0 && data.total_updated > 0) {
+          detailMessage = ` (${data.total_created} creados, ${data.total_updated} actualizados)`;
+        } else if (data.total_created > 0) {
+          detailMessage = ` (${data.total_created} creados)`;
+        } else if (data.total_updated > 0) {
+          detailMessage = ` (${data.total_updated} actualizados)`;
         }
-      );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Error al sincronizar calendario');
-      }
-
-      const data = await response.json();
-      setSuccessMessage(data.message + ` (${data.total_events} eventos creados)`);
-
-      // Limpiar mensaje después de 5 segundos
-      setTimeout(() => setSuccessMessage(null), 5000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setSyncing(false);
-    }
+        setSuccessMessage(data.message + detailMessage);
+        setTimeout(() => setSuccessMessage(null), 5000);
+      },
+      onError: (err) => {
+        setErrorMessage(err instanceof Error ? err.message : 'Error desconocido');
+        setTimeout(() => setErrorMessage(null), 5000);
+      },
+    });
   };
-
-  useEffect(() => {
-    fetchConfig();
-  }, [companyId, session?.access_token]);
 
   if (loading) {
     return (
@@ -235,10 +117,10 @@ export default function CalendarConfig({ companyId }: CalendarConfigProps) {
       {/* Sync Button */}
       <button
         onClick={handleSyncCalendar}
-        disabled={syncing || config.total_active === 0}
+        disabled={syncMutation.isPending || config.total_active === 0}
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {syncing ? (
+        {syncMutation.isPending ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
             Sincronizando...
@@ -259,10 +141,10 @@ export default function CalendarConfig({ companyId }: CalendarConfigProps) {
         </div>
       )}
 
-      {error && (
+      {errorMessage && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-900/20">
           <AlertCircle className="h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />
-          <p className="text-sm text-red-700 dark:text-red-200">{error}</p>
+          <p className="text-sm text-red-700 dark:text-red-200">{errorMessage}</p>
         </div>
       )}
 

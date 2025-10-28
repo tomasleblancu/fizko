@@ -41,6 +41,127 @@ def _user_message_text(item: UserMessageItem) -> str:
     return " ".join(parts).strip()
 
 
+async def _convert_attachments_to_content(item: UserMessageItem, attachment_store) -> list[dict[str, Any]]:
+    """
+    Convert UserMessageItem content (text + attachments) to OpenAI Agents framework format.
+
+    Returns a list of content items that can include:
+    - {"type": "input_text", "text": "..."}
+    - {"type": "input_image", "image_url": "data:image/png;base64,..."}
+    """
+    from .memory_attachment_store import get_attachment_content
+    from ..services.storage.attachment_storage import get_attachment_storage
+    import mimetypes
+
+    content_parts = []
+
+    # First, process text content
+    for part in item.content:
+        text = getattr(part, "text", None)
+        if text:
+            content_parts.append({
+                "type": "input_text",
+                "text": text
+            })
+
+    # Then, check if item has attachments attribute (ChatKit sends this separately)
+    attachment_ids = []
+    attachment_objects = []
+
+    # Method 1: Check for attachments attribute directly on item
+    if hasattr(item, 'attachments') and item.attachments:
+        logger.info(f"📦 Found attachments attribute: {item.attachments}")
+        attachments_list = item.attachments if isinstance(item.attachments, list) else [item.attachments]
+
+        for att in attachments_list:
+            # If it's already an Attachment object, extract the ID
+            if hasattr(att, 'id'):
+                attachment_ids.append(att.id)
+                attachment_objects.append(att)
+            # If it's just a string ID
+            elif isinstance(att, str):
+                attachment_ids.append(att)
+
+    # Method 2: Check for attachment references in content parts
+    for part in item.content:
+        attachment_ref = getattr(part, "attachment", None)
+        if attachment_ref:
+            attachment_id = getattr(attachment_ref, "id", None) or getattr(attachment_ref, "attachment_id", None)
+            if attachment_id and attachment_id not in attachment_ids:
+                attachment_ids.append(attachment_id)
+                if hasattr(attachment_ref, 'mime_type'):
+                    attachment_objects.append(attachment_ref)
+
+    # Process all found attachments
+    if attachment_ids:
+        logger.info(f"🔗 Processing {len(attachment_ids)} attachment(s): {attachment_ids}")
+        storage = get_attachment_storage()
+
+        for i, attachment_id in enumerate(attachment_ids):
+            logger.info(f"🔗 Processing attachment {i+1}/{len(attachment_ids)}: {attachment_id}")
+
+            # Try to get full attachment object first (has all metadata)
+            attachment_obj = attachment_objects[i] if i < len(attachment_objects) else None
+
+            if attachment_obj:
+                # We have the full Attachment object from ChatKit
+                mime_type = getattr(attachment_obj, 'mime_type', '')
+                filename = getattr(attachment_obj, 'name', 'unknown')
+
+                logger.info(f"📎 Using attachment object: {mime_type}, {filename}")
+            else:
+                # Fallback: Get metadata from store
+                metadata = attachment_store.get_attachment_metadata(attachment_id)
+                if metadata:
+                    mime_type = metadata.get("mime_type", "")
+                    filename = metadata.get("name", "")
+                    logger.info(f"📎 Using attachment metadata: {mime_type}, {filename}")
+                else:
+                    logger.warning(f"⚠️ No metadata found for {attachment_id}, skipping")
+                    continue
+
+            # For images, ALWAYS use base64 (agents framework has issues with external URLs)
+            if mime_type.startswith("image/"):
+                base64_content = get_attachment_content(attachment_id)
+
+                if base64_content:
+                    # Create data URL - agents framework expects this format
+                    data_url = f"data:{mime_type};base64,{base64_content}"
+                    content_parts.append({
+                        "type": "input_image",
+                        "image_url": data_url
+                    })
+                    logger.info(f"📸 Added image to content: {filename} (base64, {len(base64_content)} chars)")
+                else:
+                    logger.warning(f"⚠️ Image content not found in memory for {attachment_id}")
+                    # If base64 not available, skip the image
+                    content_parts.append({
+                        "type": "input_text",
+                        "text": f"[Imagen no disponible: {filename}]"
+                    })
+            else:
+                # For non-image files (PDFs, etc.)
+                # Check if this PDF has been uploaded to OpenAI (has vector_store_id)
+                openai_metadata = await attachment_store.get_openai_metadata(attachment_id)
+
+                if openai_metadata and 'vector_store_id' in openai_metadata:
+                    # PDF is available via FileSearchTool - inform the agent
+                    content_parts.append({
+                        "type": "input_text",
+                        "text": f"El usuario ha adjuntado el documento PDF '{filename}'. Usa la herramienta file_search para leer y analizar su contenido."
+                    })
+                    logger.info(f"📄 PDF with vector_store available: {filename}")
+                else:
+                    # PDF not in OpenAI - just add reference
+                    content_parts.append({
+                        "type": "input_text",
+                        "text": f"[Archivo adjunto: {filename}]"
+                    })
+                    logger.info(f"📄 Added file reference: {filename}")
+
+    return content_parts
+
+
 class FizkoChatKitServer(ChatKitServer):
     """ChatKit server with unified Fizko agent."""
 
@@ -89,9 +210,23 @@ class FizkoChatKitServer(ChatKitServer):
         async with AsyncSessionLocal() as db:
             logger.info(f"⏱️  [+{(time.time() - request_start):.3f}s] DB session opened ({(time.time() - db_start):.3f}s)")
 
-            # Create the unified agent for this request
+            # Extract vector_store_ids from PDF attachments (if any)
+            vector_store_ids = []
+            if isinstance(item, UserMessageItem) and hasattr(item, 'attachments') and item.attachments:
+                for attachment in item.attachments:
+                    attachment_id = attachment.id if hasattr(attachment, 'id') else attachment
+                    openai_metadata = await self.attachment_store.get_openai_metadata(attachment_id)
+                    if openai_metadata and 'vector_store_id' in openai_metadata:
+                        vector_store_ids.append(openai_metadata['vector_store_id'])
+                        logger.info(f"📄 Found PDF attachment with vector_store_id: {openai_metadata['vector_store_id']}")
+
+            # Create the unified agent for this request (with FileSearchTool if PDFs attached)
             agent_start = time.time()
-            agent = create_unified_agent(db=db, openai_client=openai_client)
+            agent = create_unified_agent(
+                db=db,
+                openai_client=openai_client,
+                vector_store_ids=vector_store_ids if vector_store_ids else None
+            )
             logger.info(f"⏱️  [+{(time.time() - request_start):.3f}s] Agent created ({(time.time() - agent_start):.3f}s)")
 
             context_start = time.time()
@@ -128,11 +263,23 @@ class FizkoChatKitServer(ChatKitServer):
         if target_item is None:
             return
 
-        # Extract text from user message
+        # Extract text from user message (for logging)
         extract_start = time.time()
-        user_message = _user_message_text(target_item) if isinstance(target_item, UserMessageItem) else ""
+        user_message_text = _user_message_text(target_item) if isinstance(target_item, UserMessageItem) else ""
         logger.info(f"⏱️  [+{(time.time() - request_start):.3f}s] Message extracted ({(time.time() - extract_start):.3f}s)")
-        logger.info(f"💬 User: {user_message[:100]}{'...' if len(user_message) > 100 else ''}")
+        logger.info(f"💬 User: {user_message_text[:100]}{'...' if len(user_message_text) > 100 else ''}")
+
+        # DEBUG: Log the structure of target_item to understand how attachments are passed
+        if isinstance(target_item, UserMessageItem):
+            logger.info(f"🔍 DEBUG - UserMessageItem structure:")
+            logger.info(f"  - content: {target_item.content}")
+            logger.info(f"  - has attachments attr: {hasattr(target_item, 'attachments')}")
+            if hasattr(target_item, 'attachments'):
+                logger.info(f"  - attachments: {target_item.attachments}")
+            logger.info(f"  - content parts count: {len(target_item.content)}")
+            for i, part in enumerate(target_item.content):
+                logger.info(f"  - part {i}: type={type(part)}, attrs={dir(part)}")
+                logger.info(f"  - part {i} dict: {part.__dict__ if hasattr(part, '__dict__') else 'no __dict__'}")
 
         # Stream widget immediately if available (before agent processing)
         ui_tool_result = context.get("ui_tool_result")
@@ -148,19 +295,40 @@ class FizkoChatKitServer(ChatKitServer):
             except Exception as e:
                 logger.error(f"❌ Error streaming widget: {e}", exc_info=True)
 
-        # Prepend company info to user message if available
+        # Convert message content (text + attachments) to OpenAI format
+        convert_start = time.time()
+        if isinstance(target_item, UserMessageItem):
+            content_parts = await _convert_attachments_to_content(target_item, self.attachment_store)
+            logger.info(f"⏱️  [+{(time.time() - request_start):.3f}s] Content converted: {len(content_parts)} parts ({(time.time() - convert_start):.3f}s)")
+        else:
+            # Fallback to simple text
+            content_parts = [{"type": "input_text", "text": user_message_text}]
+
+        # Prepend company info and UI context to the first text part
         context_prep_start = time.time()
+        context_prefix = ""
         if agent_context.company_info:
             from .context_loader import format_company_context
             company_context = format_company_context(agent_context.company_info)
-            user_message = f"{company_context}{user_message}"
+            context_prefix += company_context
 
         # Prepend UI context if available (from UI Tools system)
         ui_context_text = context.get("ui_context_text", "")
         if ui_context_text:
-            user_message = f"{ui_context_text}\n\n{user_message}"
+            context_prefix += f"{ui_context_text}\n\n"
 
-        logger.info(f"⏱️  [+{(time.time() - request_start):.3f}s] Context prepared, final message: {len(user_message)} chars ({(time.time() - context_prep_start):.3f}s)")
+        # Add context prefix to the first text part
+        if context_prefix and content_parts:
+            for i, part in enumerate(content_parts):
+                if part.get("type") == "input_text":
+                    content_parts[i]["text"] = context_prefix + part["text"]
+                    break
+
+        logger.info(f"⏱️  [+{(time.time() - request_start):.3f}s] Context prepared ({(time.time() - context_prep_start):.3f}s)")
+
+        # Wrap in message format (like impai pattern)
+        agent_input = [{"role": "user", "content": content_parts}]
+        logger.info(f"🔄 Agent input: list of {len(agent_input)} messages with {len(content_parts)} content parts")
 
         # Create session for conversation history
         session_start = time.time()
@@ -173,12 +341,31 @@ class FizkoChatKitServer(ChatKitServer):
 
         runner_start = time.time()
         logger.info(f"⏱️  [+{(runner_start - request_start):.3f}s] Runner.run_streamed() started")
+
+        # Define session_input_callback (like impai pattern)
+        from agents import RunConfig
+
+        def session_input_callback(history, new_input):
+            """Merge conversation history with new input."""
+            if isinstance(new_input, list) and len(new_input) > 0:
+                if isinstance(new_input[0], dict) and 'role' in new_input[0]:
+                    return history + new_input
+                else:
+                    return history + [{"role": "user", "content": new_input}]
+            elif isinstance(new_input, str):
+                return history + [{"role": "user", "content": [{"type": "input_text", "text": new_input}]}]
+            else:
+                return history + [{"role": "user", "content": [{"type": "input_text", "text": str(new_input)}]}]
+
+        run_config = RunConfig(session_input_callback=session_input_callback)
+
         result = Runner.run_streamed(
             agent,
-            user_message,
+            agent_input,
             context=agent_context,
             session=session,
-            max_turns=10,  # Allow multiple turns if needed
+            max_turns=10,
+            run_config=run_config,
         )
 
         # Stream response

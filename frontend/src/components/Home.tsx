@@ -18,7 +18,7 @@ import type { ViewType } from "./layout/NavigationPills";
 import { ColorScheme } from "../hooks/useColorScheme";
 import { useAuth } from "../contexts/AuthContext";
 import { useSession } from "../hooks/useSession";
-import { useCompany } from "../hooks/useCompany";
+import { useCompanyQuery } from "../hooks/useCompanyQuery";
 import { ChatProvider, useChat } from "../contexts/ChatContext";
 
 export default function Home({
@@ -46,7 +46,7 @@ function HomeContent({
   const { needsOnboarding, saveSIICredentials, loading: sessionLoading, isInitialized } = useSession();
 
   // Lift company state to Home to avoid multiple fetches
-  const { company, loading: companyLoading, error: companyError } = useCompany();
+  const { data: company = null, isLoading: companyLoading, error: companyError } = useCompanyQuery();
 
   // Chat context for chateable components
   const { setSendUserMessage, setOnChateableClick } = useChat();

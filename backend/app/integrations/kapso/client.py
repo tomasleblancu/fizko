@@ -51,7 +51,7 @@ class KapsoClient:
     def __init__(
         self,
         api_token: str,
-        base_url: str = "https://app.kapso.ai/api/v1",
+        base_url: str | None = None,
         timeout: int = 30,
     ):
         """
@@ -59,10 +59,13 @@ class KapsoClient:
 
         Args:
             api_token: Token de API de Kapso
-            base_url: URL base de la API
+            base_url: URL base de la API (default: https://app.kapso.ai/api/v1)
             timeout: Timeout por defecto en segundos
         """
         self.api_token = api_token
+        # Si base_url es None, usar el default
+        if base_url is None:
+            base_url = "https://app.kapso.ai/api/v1"
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.headers = {

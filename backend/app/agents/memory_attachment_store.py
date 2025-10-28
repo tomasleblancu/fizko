@@ -49,6 +49,7 @@ class MemoryAttachmentStore(AttachmentStore):
     def __init__(self):
         """Initialize the memory attachment store."""
         self._attachments: dict[str, Attachment] = {}
+        self._openai_metadata: dict[str, dict[str, str]] = {}  # Stores OpenAI file_id and vector_store_id
         self.backend_url = os.getenv("BACKEND_URL", "http://localhost:8089")
 
         # Import Store to persist attachment metadata
@@ -56,7 +57,7 @@ class MemoryAttachmentStore(AttachmentStore):
         from ..stores.supabase_store import SupabaseStore
         self.store = SupabaseStore()
 
-        # Memory attachment store initialized
+        logger.info("Initialized MemoryAttachmentStore (in-memory + DB persistence)")
 
     async def create_attachment(
         self,
@@ -127,6 +128,67 @@ class MemoryAttachmentStore(AttachmentStore):
         """
         return self._attachments.get(attachment_id)
 
+    def get_attachment_metadata(self, attachment_id: str) -> dict[str, Any] | None:
+        """
+        Retrieve attachment metadata (mime_type, name) by ID.
+
+        This is used by the upload endpoint to get the correct file metadata.
+
+        Args:
+            attachment_id: The unique attachment identifier
+
+        Returns:
+            Dict with 'mime_type' and 'name', or None if not found
+        """
+        attachment = self._attachments.get(attachment_id)
+        if attachment is None:
+            return None
+
+        return {
+            "mime_type": attachment.mime_type,
+            "name": attachment.name
+        }
+
+    def set_openai_metadata(
+        self,
+        attachment_id: str,
+        file_id: str,
+        vector_store_id: str
+    ) -> None:
+        """
+        Store OpenAI file_id and vector_store_id for an attachment.
+
+        Args:
+            attachment_id: The unique attachment identifier
+            file_id: OpenAI file ID
+            vector_store_id: OpenAI vector store ID
+        """
+        self._openai_metadata[attachment_id] = {
+            "file_id": file_id,
+            "vector_store_id": vector_store_id
+        }
+        logger.info(f"✅ Stored OpenAI metadata for {attachment_id}: file={file_id}, vs={vector_store_id}")
+
+    async def get_openai_metadata(self, attachment_id: str) -> dict[str, str] | None:
+        """
+        Get OpenAI file_id and vector_store_id for an attachment.
+
+        This first checks memory, then falls back to database if not found.
+
+        Args:
+            attachment_id: The unique attachment identifier
+
+        Returns:
+            Dict with file_id and vector_store_id, or None if not found
+        """
+        # Check memory first
+        metadata = self._openai_metadata.get(attachment_id)
+        if metadata:
+            return metadata
+
+        # Fall back to database
+        return await self.store.get_attachment_openai_metadata(attachment_id)
+
     async def delete_attachment(self, attachment_id: str) -> None:
         """
         Delete attachment from memory.
@@ -143,6 +205,11 @@ class MemoryAttachmentStore(AttachmentStore):
         if attachment_id in _global_attachments_content:
             del _global_attachments_content[attachment_id]
             logger.info(f"🗑️  Deleted attachment content: {attachment_id}")
+
+        # Remove OpenAI metadata
+        if attachment_id in self._openai_metadata:
+            del self._openai_metadata[attachment_id]
+            logger.info(f"🗑️  Deleted OpenAI metadata: {attachment_id}")
 
 
 # Helper function to store uploaded content

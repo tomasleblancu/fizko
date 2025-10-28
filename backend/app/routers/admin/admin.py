@@ -1,13 +1,15 @@
 """
 Admin endpoints for company management
 """
+import asyncio
 import logging
+import time
 from uuid import UUID
 from typing import List, Optional
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
@@ -26,6 +28,8 @@ from ...db.models import (
     EventTemplate,
     CompanyEvent,
     CalendarEvent,
+    NotificationTemplate,
+    NotificationHistory,
 )
 
 logger = logging.getLogger(__name__)
@@ -116,6 +120,7 @@ class CompanyDetailResponse(BaseModel):
 @router.get("/company/{company_id}", response_model=CompanyDetailResponse)
 async def get_company_admin_detail(
     company_id: UUID,
+    response: Response,
     current_user_id: UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
 ):
@@ -168,6 +173,7 @@ async def get_company_admin_detail(
             )
 
     # Get company with tax info
+    start_time = time.time()
     company_stmt = select(Company).options(
         selectinload(Company.tax_info)
     ).where(Company.id == company_id)
@@ -180,8 +186,9 @@ async def get_company_admin_detail(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Company {company_id} not found"
         )
+    logger.info(f"[PERF] Company query took {(time.time() - start_time)*1000:.2f}ms")
 
-    # Get users with access (through sessions)
+    # Prepare queries to execute in parallel
     users_stmt = (
         select(SessionModel, Profile)
         .join(Profile, SessionModel.user_id == Profile.id)
@@ -189,9 +196,29 @@ async def get_company_admin_detail(
         .order_by(desc(SessionModel.last_accessed_at))
     )
 
-    users_result = await db.execute(users_stmt)
-    users_data = users_result.all()
+    purchase_stats_stmt = select(
+        func.count(PurchaseDocument.id).label('count'),
+        func.max(PurchaseDocument.created_at).label('latest'),
+        func.sum(PurchaseDocument.total_amount).label('total')
+    ).where(PurchaseDocument.company_id == company_id)
 
+    sales_stats_stmt = select(
+        func.count(SalesDocument.id).label('count'),
+        func.max(SalesDocument.created_at).label('latest'),
+        func.sum(SalesDocument.total_amount).label('total')
+    ).where(SalesDocument.company_id == company_id)
+
+    # Execute all queries in parallel
+    parallel_start = time.time()
+    users_result, purchase_stats_result, sales_stats_result = await asyncio.gather(
+        db.execute(users_stmt),
+        db.execute(purchase_stats_stmt),
+        db.execute(sales_stats_stmt)
+    )
+    logger.info(f"[PERF] Parallel queries took {(time.time() - parallel_start)*1000:.2f}ms")
+
+    # Process users data
+    users_data = users_result.all()
     users = [
         UserInfo(
             id=str(profile.id),
@@ -208,24 +235,9 @@ async def get_company_admin_detail(
         for session, profile in users_data
     ]
 
-    # Get document statistics
-    # Purchase documents
-    purchase_stats_stmt = select(
-        func.count(PurchaseDocument.id).label('count'),
-        func.max(PurchaseDocument.created_at).label('latest'),
-        func.sum(PurchaseDocument.total_amount).label('total')
-    ).where(PurchaseDocument.company_id == company_id)
-
-    purchase_stats = (await db.execute(purchase_stats_stmt)).one()
-
-    # Sales documents
-    sales_stats_stmt = select(
-        func.count(SalesDocument.id).label('count'),
-        func.max(SalesDocument.created_at).label('latest'),
-        func.sum(SalesDocument.total_amount).label('total')
-    ).where(SalesDocument.company_id == company_id)
-
-    sales_stats = (await db.execute(sales_stats_stmt)).one()
+    # Process stats
+    purchase_stats = purchase_stats_result.one()
+    sales_stats = sales_stats_result.one()
 
     document_stats = DocumentStats(
         total_purchase_documents=purchase_stats.count or 0,
@@ -248,6 +260,10 @@ async def get_company_admin_detail(
         for session, profile in users_data
         if session.last_accessed_at
     ]
+
+    # Set cache headers (30 seconds cache, revalidate)
+    response.headers["Cache-Control"] = "private, max-age=30, must-revalidate"
+    response.headers["ETag"] = f'"{company.id}-{company.updated_at.timestamp()}"'
 
     # Build response
     return CompanyDetailResponse(
@@ -273,6 +289,7 @@ async def get_company_admin_detail(
 
 @router.get("/companies", response_model=List[CompanySummary])
 async def list_all_companies(
+    response: Response,
     current_user_id: UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
 ):
@@ -328,35 +345,78 @@ async def list_all_companies(
             .order_by(desc(Company.created_at))
         )
 
+    start_time = time.time()
     result = await db.execute(companies_stmt)
     companies = result.scalars().all()
+    logger.info(f"[PERF] Companies query took {(time.time() - start_time)*1000:.2f}ms")
 
+    if not companies:
+        return []
+
+    # Extract company IDs for batch queries
+    company_ids = [company.id for company in companies]
+
+    # Build batch queries for all companies at once
+    users_count_stmt = (
+        select(
+            SessionModel.company_id,
+            func.count(SessionModel.id).label('user_count')
+        )
+        .where(SessionModel.company_id.in_(company_ids))
+        .group_by(SessionModel.company_id)
+    )
+
+    purchase_count_stmt = (
+        select(
+            PurchaseDocument.company_id,
+            func.count(PurchaseDocument.id).label('purchase_count')
+        )
+        .where(PurchaseDocument.company_id.in_(company_ids))
+        .group_by(PurchaseDocument.company_id)
+    )
+
+    sales_count_stmt = (
+        select(
+            SalesDocument.company_id,
+            func.count(SalesDocument.id).label('sales_count')
+        )
+        .where(SalesDocument.company_id.in_(company_ids))
+        .group_by(SalesDocument.company_id)
+    )
+
+    last_activity_stmt = (
+        select(
+            SessionModel.company_id,
+            func.max(SessionModel.last_accessed_at).label('last_activity')
+        )
+        .where(SessionModel.company_id.in_(company_ids))
+        .group_by(SessionModel.company_id)
+    )
+
+    # Execute all batch queries in parallel
+    batch_start = time.time()
+    users_result, purchase_result, sales_result, activity_result = await asyncio.gather(
+        db.execute(users_count_stmt),
+        db.execute(purchase_count_stmt),
+        db.execute(sales_count_stmt),
+        db.execute(last_activity_stmt)
+    )
+    logger.info(f"[PERF] Batch queries took {(time.time() - batch_start)*1000:.2f}ms for {len(companies)} companies")
+
+    # Build lookup dictionaries for O(1) access
+    users_count_map = {row.company_id: row.user_count for row in users_result.all()}
+    purchase_count_map = {row.company_id: row.purchase_count for row in purchase_result.all()}
+    sales_count_map = {row.company_id: row.sales_count for row in sales_result.all()}
+    last_activity_map = {row.company_id: row.last_activity for row in activity_result.all()}
+
+    # Build summaries using precomputed data
     summaries = []
     for company in companies:
-        # Count users with access
-        users_count_stmt = select(func.count(SessionModel.id)).where(
-            SessionModel.company_id == company.id
-        )
-        users_count = (await db.execute(users_count_stmt)).scalar() or 0
-
-        # Count total documents
-        purchase_count_stmt = select(func.count(PurchaseDocument.id)).where(
-            PurchaseDocument.company_id == company.id
-        )
-        purchase_count = (await db.execute(purchase_count_stmt)).scalar() or 0
-
-        sales_count_stmt = select(func.count(SalesDocument.id)).where(
-            SalesDocument.company_id == company.id
-        )
-        sales_count = (await db.execute(sales_count_stmt)).scalar() or 0
-
+        users_count = users_count_map.get(company.id, 0)
+        purchase_count = purchase_count_map.get(company.id, 0)
+        sales_count = sales_count_map.get(company.id, 0)
         total_documents = purchase_count + sales_count
-
-        # Get last activity (most recent session access)
-        last_activity_stmt = select(
-            func.max(SessionModel.last_accessed_at)
-        ).where(SessionModel.company_id == company.id)
-        last_activity = (await db.execute(last_activity_stmt)).scalar()
+        last_activity = last_activity_map.get(company.id)
 
         summaries.append(CompanySummary(
             id=str(company.id),
@@ -369,6 +429,15 @@ async def list_all_companies(
             created_at=company.created_at,
             last_activity=last_activity
         ))
+
+    logger.info(f"[PERF] Total list_all_companies took {(time.time() - start_time)*1000:.2f}ms")
+
+    # Set cache headers (60 seconds cache for list view)
+    response.headers["Cache-Control"] = "private, max-age=60, must-revalidate"
+    # Generate ETag based on most recent company update
+    if companies:
+        latest_update = max(c.updated_at for c in companies)
+        response.headers["ETag"] = f'"companies-{len(companies)}-{latest_update.timestamp()}"'
 
     return summaries
 
@@ -525,9 +594,15 @@ async def get_company_calendar_config(
     - Cuáles están activos para esta empresa
     - Configuración de recurrencia personalizada
     """
-    logger.info(f"Calendar config requested for company {company_id} by user {current_user_id}")
+    import time
+    start_time = time.time()
+    logger.info(f"[PERF] START get calendar config for company {company_id}")
 
-    # Verificar que la empresa existe
+    # Query optimizado: Company + EventTemplates con LEFT JOIN a CompanyEvents en una sola query
+    from sqlalchemy.orm import joinedload
+    from sqlalchemy import outerjoin
+
+    # Verificar empresa y obtener todos los templates con sus company_events en una sola query
     company_stmt = select(Company).where(Company.id == company_id)
     company_result = await db.execute(company_stmt)
     company = company_result.scalar_one_or_none()
@@ -538,22 +613,36 @@ async def get_company_calendar_config(
             detail="Company not found"
         )
 
-    # Obtener todos los event types
-    event_templates_stmt = select(EventTemplate).order_by(EventTemplate.category, EventTemplate.name)
-    event_templates_result = await db.execute(event_templates_stmt)
-    all_event_templates = event_templates_result.scalars().all()
+    logger.info(f"[PERF] Company query took {(time.time() - start_time)*1000:.2f}ms")
 
-    # Obtener las reglas activas de esta empresa
-    rules_stmt = select(CompanyEvent).where(
-        CompanyEvent.company_id == company_id
-    ).options(selectinload(CompanyEvent.event_template))
-    rules_result = await db.execute(rules_stmt)
+    # Obtener todos los templates y los company_events de esta empresa en paralelo
+    templates_start = time.time()
+    event_templates_stmt = select(EventTemplate).order_by(EventTemplate.category, EventTemplate.name)
+    rules_stmt = select(CompanyEvent).where(CompanyEvent.company_id == company_id)
+
+    # Ejecutar ambas queries en paralelo
+    import asyncio
+    templates_result, rules_result = await asyncio.gather(
+        db.execute(event_templates_stmt),
+        db.execute(rules_stmt)
+    )
+
+    all_event_templates = templates_result.scalars().all()
     active_rules = {rule.event_template_id: rule for rule in rules_result.scalars().all()}
 
+    logger.info(f"[PERF] Templates + rules query took {(time.time() - templates_start)*1000:.2f}ms")
+
     # Construir respuesta
+    build_start = time.time()
     event_templates_config = []
+    total_active = 0
+
     for event_template in all_event_templates:
         company_event = active_rules.get(event_template.id)
+        is_active = company_event is not None and company_event.is_active
+        if is_active:
+            total_active += 1
+
         event_templates_config.append({
             "event_template_id": str(event_template.id),
             "code": event_template.code,
@@ -563,17 +652,20 @@ async def get_company_calendar_config(
             "authority": event_template.authority,
             "is_mandatory": event_template.is_mandatory,
             "default_recurrence": event_template.default_recurrence,
-            "is_active": company_event is not None and company_event.is_active,
+            "is_active": is_active,
             "company_event_id": str(company_event.id) if company_event else None,
             "custom_config": company_event.custom_config if company_event else {},
         })
+
+    logger.info(f"[PERF] Build response took {(time.time() - build_start)*1000:.2f}ms")
+    logger.info(f"[PERF] TOTAL get calendar config took {(time.time() - start_time)*1000:.2f}ms")
 
     return {
         "company_id": str(company_id),
         "company_name": company.business_name,
         "event_templates": event_templates_config,
         "total_available": len(event_templates_config),
-        "total_active": sum(1 for et in event_templates_config if et["is_active"])
+        "total_active": total_active
     }
 
 
@@ -595,7 +687,9 @@ async def activate_event_for_company(
 
     Crea o actualiza un CompanyEvent vinculando el evento a la empresa.
     """
-    logger.info(f"Activating event {request.event_template_id} for company {company_id} by user {current_user_id}")
+    import time
+    start_time = time.time()
+    logger.info(f"[PERF] START activate event {request.event_template_id} for company {company_id}")
 
     # Buscar si ya existe el vínculo empresa-evento (con eager loading del template)
     company_event_stmt = select(CompanyEvent).where(
@@ -603,8 +697,10 @@ async def activate_event_for_company(
         CompanyEvent.event_template_id == request.event_template_id
     ).options(selectinload(CompanyEvent.event_template))
 
+    query_start = time.time()
     company_event_result = await db.execute(company_event_stmt)
     company_event = company_event_result.scalar_one_or_none()
+    logger.info(f"[PERF] Query took {(time.time() - query_start)*1000:.2f}ms")
 
     if company_event:
         # Actualizar vínculo existente
@@ -635,21 +731,25 @@ async def activate_event_for_company(
         db.add(company_event)
         action = "created"
 
-    await db.commit()
-    await db.refresh(company_event)
-
-    logger.info(f"Company event {action} for {event_template.code} on company {company_id}")
-
-    return {
+    # Prepare response data before commit (no need to refresh after commit)
+    response_data = {
         "success": True,
         "action": action,
         "company_event_id": str(company_event.id),
         "event_template_code": event_template.code,
         "event_template_name": event_template.name,
-        "is_active": company_event.is_active,
-        "custom_config": company_event.custom_config,
+        "is_active": True,  # We know it's active since we just set it
+        "custom_config": company_event.custom_config or {},
         "message": f"Evento '{event_template.name}' activado exitosamente"
     }
+
+    commit_start = time.time()
+    await db.commit()
+    logger.info(f"[PERF] Commit took {(time.time() - commit_start)*1000:.2f}ms")
+    logger.info(f"[PERF] TOTAL activate took {(time.time() - start_time)*1000:.2f}ms - {action}")
+
+    # Return immediately - no need to refresh since we have all the data
+    return response_data
 
 
 @router.post("/companies/{company_id}/calendar-config/deactivate")
@@ -664,15 +764,20 @@ async def deactivate_event_for_company(
 
     Marca el CompanyEvent como inactivo (no lo elimina para mantener historial).
     """
-    logger.info(f"Deactivating event {request.event_template_id} for company {company_id} by user {current_user_id}")
+    import time
+    start_time = time.time()
+    logger.info(f"[PERF] START deactivate event {request.event_template_id} for company {company_id}")
 
     # Buscar el vínculo empresa-evento
     company_event_stmt = select(CompanyEvent).where(
         CompanyEvent.company_id == company_id,
         CompanyEvent.event_template_id == request.event_template_id
     ).options(selectinload(CompanyEvent.event_template))
+
+    query_start = time.time()
     company_event_result = await db.execute(company_event_stmt)
     company_event = company_event_result.scalar_one_or_none()
+    logger.info(f"[PERF] Query took {(time.time() - query_start)*1000:.2f}ms")
 
     if not company_event:
         raise HTTPException(
@@ -680,12 +785,8 @@ async def deactivate_event_for_company(
             detail="Company event not found"
         )
 
-    company_event.is_active = False
-    await db.commit()
-
-    logger.info(f"Company event deactivated for {company_event.event_template.code} on company {company_id}")
-
-    return {
+    # Prepare response before commit
+    response_data = {
         "success": True,
         "company_event_id": str(company_event.id),
         "event_template_code": company_event.event_template.code,
@@ -693,6 +794,15 @@ async def deactivate_event_for_company(
         "is_active": False,
         "message": f"Evento '{company_event.event_template.name}' desactivado exitosamente"
     }
+
+    company_event.is_active = False
+
+    commit_start = time.time()
+    await db.commit()
+    logger.info(f"[PERF] Commit took {(time.time() - commit_start)*1000:.2f}ms")
+    logger.info(f"[PERF] TOTAL deactivate took {(time.time() - start_time)*1000:.2f}ms")
+
+    return response_data
 
 
 @router.post("/companies/{company_id}/sync-calendar")
@@ -702,21 +812,26 @@ async def sync_calendar_events(
     current_user_id: str = Depends(get_current_user_id)
 ):
     """
-    Genera automáticamente eventos de calendario para una empresa.
+    Sincroniza el calendario de eventos tributarios para una empresa.
 
-    IMPORTANTE: Solo genera eventos para los company_events activos (is_active=true).
-    Primero configura los eventos con /calendar-config/activate
+    IMPORTANTE: Este endpoint es idempotente. Puede ejecutarse múltiples veces sin duplicar eventos.
+    Solo sincroniza eventos para los company_events activos (is_active=true).
 
     Este endpoint:
     1. Verifica que la empresa existe
     2. Obtiene los vínculos empresa-evento activos (company_events)
-    3. Genera instancias de calendario para los próximos 90 días
+    3. Para cada tipo de evento (F29, F22, etc.):
+       - Crea eventos faltantes para los próximos 90 días
+       - Actualiza el estado de eventos existentes
+       - Solo el próximo a vencer queda con estado 'in_progress'
+       - Los demás quedan con estado 'pending'
+    4. No modifica eventos completados o cancelados
 
     Args:
         company_id: UUID de la empresa
 
     Returns:
-        Resumen de eventos creados
+        Resumen de eventos creados y actualizados
     """
     logger.info(f"Calendar sync requested for company {company_id} by user {current_user_id}")
 
@@ -750,6 +865,7 @@ async def sync_calendar_events(
     logger.info(f"Found {len(active_company_events)} active company events for company {company_id}")
 
     created_events = []
+    updated_events = []
     today = date.today()
 
     # Generar eventos solo para los company_events activos
@@ -758,10 +874,29 @@ async def sync_calendar_events(
         # Usar la configuración del event_template, con posibles overrides de custom_config
         config = {**event_template.default_recurrence, **company_event.custom_config.get('recurrence', {})} if company_event.custom_config else event_template.default_recurrence
 
-        logger.info(f"Generating events for {event_template.code} with config: {config}")
+        logger.info(f"Syncing events for {event_template.code} with config: {config}")
+
+        # Obtener TODOS los eventos existentes de este company_event que NO están completados o cancelados
+        existing_events_stmt = select(CalendarEvent).where(
+            CalendarEvent.company_event_id == company_event.id,
+            CalendarEvent.status.in_(['pending', 'in_progress', 'overdue']),
+            CalendarEvent.due_date >= today
+        ).order_by(CalendarEvent.due_date)
+
+        existing_events_result = await db.execute(existing_events_stmt)
+        existing_events = list(existing_events_result.scalars().all())
+
+        # Crear un mapa de eventos existentes por (due_date, period_start)
+        existing_events_map = {
+            (event.due_date, event.period_start): event
+            for event in existing_events
+        }
+
+        # Almacenar eventos a crear para este company_event
+        events_to_create = []
 
         if config['frequency'] == 'monthly':
-            # Para eventos mensuales, generar próximos 3 meses
+            # Para eventos mensuales, generar próximos 4 meses
             for months_ahead in range(4):
                 period_start = date(today.year, today.month, 1) + relativedelta(months=months_ahead)
                 period_end = period_start + relativedelta(months=1) - timedelta(days=1)
@@ -771,31 +906,14 @@ async def sync_calendar_events(
                 if due_date < today:
                     continue
 
-                # Verificar si ya existe este evento
-                event_stmt = select(CalendarEvent).where(
-                    CalendarEvent.company_event_id == company_event.id,
-                    CalendarEvent.due_date == due_date,
-                    CalendarEvent.period_start == period_start
-                )
-                event_result = await db.execute(event_stmt)
-                existing_event = event_result.scalar_one_or_none()
-
-                if not existing_event:
-                    # Crear evento
-                    event = CalendarEvent(
-                        company_event_id=company_event.id,
-                        company_id=company_id,
-                        event_template_id=event_template.id,
-                        title=event_template.name,
-                        description=f"Declaración y pago correspondiente al período tributario de {period_start.strftime('%B %Y')}",
-                        due_date=due_date,
-                        period_start=period_start,
-                        period_end=period_end,
-                        status='pending',
-                        auto_generated=True
-                    )
-                    db.add(event)
-                    created_events.append(f"{event_template.code}:{period_start.strftime('%Y-%m')}")
+                # Si no existe, agregarlo a la lista para crear
+                if (due_date, period_start) not in existing_events_map:
+                    events_to_create.append({
+                        'due_date': due_date,
+                        'period_start': period_start,
+                        'period_end': period_end,
+                        'description': f"Declaración y pago correspondiente al período tributario de {period_start.strftime('%B %Y')}"
+                    })
 
         elif config['frequency'] == 'annual':
             # Para eventos anuales, generar próximo año si aún no pasó
@@ -811,33 +929,61 @@ async def sync_calendar_events(
             due_date = date(year, month, config['day_of_month'])
 
             if due_date >= today:
-                # Verificar si ya existe
-                event_stmt = select(CalendarEvent).where(
-                    CalendarEvent.company_event_id == company_event.id,
-                    CalendarEvent.due_date == due_date
-                )
-                event_result = await db.execute(event_stmt)
-                existing_event = event_result.scalar_one_or_none()
+                # Si no existe, agregarlo a la lista para crear
+                if (due_date, period_start) not in existing_events_map:
+                    events_to_create.append({
+                        'due_date': due_date,
+                        'period_start': period_start,
+                        'period_end': period_end,
+                        'description': f"Declaración anual de impuesto a la renta correspondiente al AT {year - 1}"
+                    })
 
-                if not existing_event:
-                    event = CalendarEvent(
-                        company_event_id=company_event.id,
-                        company_id=company_id,
-                        event_template_id=event_template.id,
-                        title=event_template.name,
-                        description=f"Declaración anual de impuesto a la renta correspondiente al AT {year - 1}",
-                        due_date=due_date,
-                        period_start=period_start,
-                        period_end=period_end,
-                        status='pending',
-                        auto_generated=True
-                    )
-                    db.add(event)
-                    created_events.append(f"{event_template.code}:AT{year-1}")
+        # Crear los eventos nuevos
+        for event_data in events_to_create:
+            event = CalendarEvent(
+                company_event_id=company_event.id,
+                company_id=company_id,
+                event_template_id=event_template.id,
+                title=event_template.name,
+                description=event_data['description'],
+                due_date=event_data['due_date'],
+                period_start=event_data['period_start'],
+                period_end=event_data['period_end'],
+                status='pending',  # Se creará como pending, luego se actualizará
+                auto_generated=True
+            )
+            db.add(event)
+            existing_events.append(event)  # Agregarlo a la lista para procesamiento de estados
+
+            # Log para tracking
+            period_label = event_data['period_start'].strftime('%Y-%m') if config['frequency'] == 'monthly' else f"AT{event_data['period_start'].year}"
+            created_events.append(f"{event_template.code}:{period_label}")
+
+        # Ahora actualizar estados: solo el primero (más próximo) debe estar en 'in_progress'
+        # Ordenar todos los eventos (existentes + nuevos) por due_date
+        existing_events.sort(key=lambda e: e.due_date)
+
+        for idx, event in enumerate(existing_events):
+            # Solo el primer evento debe estar en 'in_progress', los demás en 'pending'
+            expected_status = 'in_progress' if idx == 0 else 'pending'
+
+            # Solo actualizar si cambió el estado
+            if event.status != expected_status and event.status in ['pending', 'in_progress', 'overdue']:
+                event.status = expected_status
+                updated_events.append(f"{event_template.code}:{event.period_start.strftime('%Y-%m') if event.period_start else 'N/A'}")
 
     await db.commit()
 
-    logger.info(f"Calendar sync completed for company {company_id}: {len(active_company_events)} active company events, {len(created_events)} events")
+    logger.info(f"Calendar sync completed for company {company_id}: {len(active_company_events)} active company events, {len(created_events)} created, {len(updated_events)} updated")
+
+    # Construir mensaje descriptivo
+    messages = []
+    if created_events:
+        messages.append(f"{len(created_events)} eventos creados")
+    if updated_events:
+        messages.append(f"{len(updated_events)} eventos actualizados")
+
+    message = "Calendario sincronizado: " + ", ".join(messages) if messages else "Calendario sincronizado: sin cambios"
 
     return {
         "success": True,
@@ -845,8 +991,10 @@ async def sync_calendar_events(
         "company_name": company.business_name,
         "active_company_events": [ce.event_template.code for ce in active_company_events],
         "created_events": created_events,
-        "total_events": len(created_events),
-        "message": f"Se crearon {len(created_events)} eventos de calendario para los próximos 90 días"
+        "updated_events": updated_events,
+        "total_created": len(created_events),
+        "total_updated": len(updated_events),
+        "message": message
     }
 
 
@@ -982,3 +1130,228 @@ async def get_company_calendar_events(
         )
         for event in calendar_events
     ]
+
+
+# =============================================================================
+# NOTIFICATION TESTING
+# =============================================================================
+
+class SendTestNotificationRequest(BaseModel):
+    """Request to send a test notification"""
+    message: Optional[str] = "🔔 Notificación de prueba desde Fizko Admin"
+    template_code: Optional[str] = None
+
+
+class SendTestNotificationResponse(BaseModel):
+    """Response from sending test notification"""
+    success: bool
+    message: str
+    notifications_sent: int
+    details: List[dict]
+
+
+@router.post("/company/{company_id}/send-test-notification", response_model=SendTestNotificationResponse)
+async def send_test_notification(
+    company_id: UUID,
+    request: SendTestNotificationRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """
+    Envía una notificación de prueba por WhatsApp a todos los usuarios con teléfono verificado de la empresa.
+
+    Útil para:
+    - Probar el sistema de notificaciones
+    - Verificar integración con WhatsApp/Kapso
+    - Testear el contexto de notificaciones en el agente
+
+    Args:
+        company_id: ID de la empresa
+        request: Configuración de la notificación (mensaje personalizado y template opcional)
+
+    Returns:
+        Resumen de notificaciones enviadas
+    """
+    logger.info(f"📬 Admin solicitó envío de notificación de prueba para empresa {company_id}")
+
+    # 1. Verificar que la empresa existe
+    company_stmt = select(Company).where(Company.id == company_id)
+    company_result = await db.execute(company_stmt)
+    company = company_result.scalar_one_or_none()
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+    # 2. Obtener usuarios de la empresa con teléfono verificado
+    users_stmt = (
+        select(Profile)
+        .join(SessionModel, SessionModel.user_id == Profile.id)
+        .where(
+            SessionModel.company_id == company_id,
+            SessionModel.is_active == True,
+            Profile.phone.isnot(None),
+            Profile.phone_verified == True,
+        )
+        .distinct()
+    )
+
+    users_result = await db.execute(users_stmt)
+    users = users_result.scalars().all()
+
+    if not users:
+        return SendTestNotificationResponse(
+            success=False,
+            message="No hay usuarios con teléfono verificado asociados a esta empresa",
+            notifications_sent=0,
+            details=[]
+        )
+
+    logger.info(f"📱 Encontrados {len(users)} usuarios con teléfono verificado")
+
+    # 3. Obtener o crear template de notificación de prueba
+    template = None
+    if request.template_code:
+        # Buscar template específico
+        template_stmt = select(NotificationTemplate).where(
+            NotificationTemplate.code == request.template_code,
+            NotificationTemplate.is_active == True
+        )
+        template_result = await db.execute(template_stmt)
+        template = template_result.scalar_one_or_none()
+
+        if not template:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Template '{request.template_code}' no encontrado o inactivo"
+            )
+    else:
+        # Buscar template genérico de prueba
+        template_stmt = select(NotificationTemplate).where(
+            NotificationTemplate.code == "test_notification"
+        )
+        template_result = await db.execute(template_stmt)
+        template = template_result.scalar_one_or_none()
+
+    # 4. Importar WhatsApp service
+    from ...services.whatsapp import WhatsAppService
+    import os
+
+    whatsapp_service = WhatsAppService(
+        api_token=os.getenv("KAPSO_API_TOKEN", ""),
+        base_url=os.getenv("KAPSO_API_BASE_URL", "https://app.kapso.ai/api/v1"),
+    )
+
+    # Get WhatsApp config ID
+    whatsapp_config_id = os.getenv("DEFAULT_WHATSAPP_CONFIG_ID")
+
+    if not whatsapp_config_id:
+        raise HTTPException(
+            status_code=500,
+            detail="DEFAULT_WHATSAPP_CONFIG_ID no configurado en el servidor"
+        )
+
+    # 5. Enviar notificaciones a cada usuario
+    details = []
+    success_count = 0
+
+    for user in users:
+        try:
+            # Preparar mensaje
+            message = request.message or "🔔 Notificación de prueba desde Fizko Admin"
+
+            if template:
+                # Si hay template, usar su mensaje
+                message = template.message_template.replace("{{company_name}}", company.business_name)
+                message = message.replace("{{user_name}}", user.full_name or user.name or "Usuario")
+
+            # Normalize phone number - remove '+' prefix if present
+            normalized_phone = user.phone.lstrip('+') if user.phone else None
+
+            if not normalized_phone:
+                raise ValueError(f"Número de teléfono inválido: {user.phone}")
+
+            # Find existing active conversation
+            conversations = await whatsapp_service.list_conversations(
+                whatsapp_config_id=whatsapp_config_id,
+                limit=50,
+            )
+
+            conversation_id = None
+            nodes = (
+                conversations.get("data") or
+                conversations.get("nodes") or
+                conversations.get("conversations") or
+                conversations.get("items") or
+                []
+            )
+
+            for conv in nodes:
+                conv_phone = conv.get("phone_number", "").lstrip('+')
+                conv_status = conv.get("status", "")
+
+                if conv_phone == normalized_phone and conv_status == "active":
+                    conversation_id = conv.get("id")
+                    break
+
+            if not conversation_id:
+                raise ValueError(f"No se encontró conversación activa para {normalized_phone}")
+
+            # Enviar mensaje por WhatsApp
+            result = await whatsapp_service.send_text(
+                conversation_id=conversation_id,
+                message=message,
+            )
+
+            # Guardar en historial de notificaciones
+            notification_history = NotificationHistory(
+                company_id=company_id,
+                notification_template_id=template.id if template else None,
+                entity_type="test",
+                entity_id=None,
+                user_id=user.id,
+                phone_number=user.phone,
+                message_content=message,
+                status="sent",
+                whatsapp_conversation_id=result.get("conversation_id"),
+                whatsapp_message_id=result.get("id"),
+                sent_at=datetime.utcnow(),
+                extra_metadata={
+                    "test_notification": True,
+                    "sent_by_admin": str(user_id),
+                    "template_code": template.code if template else None,
+                }
+            )
+
+            db.add(notification_history)
+            success_count += 1
+
+            details.append({
+                "user_email": user.email,
+                "user_name": user.full_name or user.name,
+                "phone": user.phone,
+                "status": "sent",
+                "message_id": result.get("id"),
+                "conversation_id": result.get("conversation_id"),
+            })
+
+            logger.info(f"✅ Notificación enviada a {user.email} ({user.phone})")
+
+        except Exception as e:
+            logger.error(f"❌ Error enviando notificación a {user.email}: {e}")
+            details.append({
+                "user_email": user.email,
+                "user_name": user.full_name or user.name,
+                "phone": user.phone,
+                "status": "error",
+                "error": str(e),
+            })
+
+    # 6. Commit de historial
+    await db.commit()
+
+    return SendTestNotificationResponse(
+        success=success_count > 0,
+        message=f"Notificación enviada a {success_count} de {len(users)} usuarios",
+        notifications_sent=success_count,
+        details=details
+    )

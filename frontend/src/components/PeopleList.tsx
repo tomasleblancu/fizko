@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { UserPlus, Mail, Phone, Briefcase, DollarSign } from 'lucide-react';
-import { usePeople, type Person } from '../hooks/usePeople';
+import { usePeopleQuery, type Person } from '../hooks/usePeopleQuery';
 import type { ColorScheme } from '../hooks/useColorScheme';
 import type { Company } from '../types/fizko';
 
@@ -14,13 +14,14 @@ export function PeopleList({ scheme, company }: PeopleListProps) {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'terminated'>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const { people, loading, error } = usePeople(
+  const { data, isLoading: loading, error } = usePeopleQuery(
     company?.id || null,
     {
       status: statusFilter === 'all' ? undefined : statusFilter,
       search: searchTerm || undefined,
     }
   );
+  const people = data?.people || [];
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {

@@ -103,6 +103,8 @@ class WhatsAppAgentRunner:
         conversation_id: Optional[str] = None,  # Kapso conversation_id
         message_id: Optional[str] = None,  # Kapso message_id
         save_assistant_message: bool = True,  # Si False, no guarda la respuesta del agente
+        ui_context_text: Optional[str] = None,  # Contexto de UI Tools (ej: notificaciones)
+        attachments: Optional[List[Dict[str, Any]]] = None,  # Attachments procesados (imágenes, PDFs)
     ) -> tuple[str, Optional[UUID]]:
         """
         Procesa un mensaje del usuario y retorna la respuesta del agente.
@@ -114,6 +116,17 @@ class WhatsAppAgentRunner:
             conversation_id: ID de conversación de Kapso (opcional)
             message_id: ID del mensaje de Kapso (opcional)
             save_assistant_message: Si True, guarda el mensaje del asistente (default: True)
+            ui_context_text: Contexto adicional de UI Tools (ej: notificaciones)
+            attachments: Lista de attachments procesados por WhatsAppMediaProcessor (opcional)
+                Estructura esperada:
+                [{
+                    "attachment_id": "atc_xxx",
+                    "mime_type": "image/jpeg",
+                    "filename": "photo.jpg",
+                    "url": "https://...",
+                    "base64": "..." (para imágenes),
+                    "vector_store_id": "vs_xxx" (para PDFs)
+                }]
 
         Returns:
             tuple[str, Optional[UUID]]: (respuesta del agente, conversation_id en DB)
@@ -157,21 +170,54 @@ class WhatsAppAgentRunner:
             user_info = await load_user_info_cached(db, user_id)
             logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] User info loaded ({time.time() - step_start:.3f}s)")
 
-            # 5. Preparar mensaje con contexto completo
+            # 5. Preparar mensaje (con o sin attachments)
             step_start = time.time()
-            user_message = self._build_message_with_context(
-                company_info, user_info, message_content
-            )
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Message with context built ({time.time() - step_start:.3f}s)")
+
+            # Determinar si hay attachments y extraer vector_store_ids
+            vector_store_ids = []
+            if attachments:
+                logger.info(f"📎 Procesando mensaje con {len(attachments)} attachment(s)")
+
+                # Extraer vector_store_ids de PDFs (para FileSearchTool)
+                vector_store_ids = [
+                    att["vector_store_id"]
+                    for att in attachments
+                    if "vector_store_id" in att
+                ]
+
+                if vector_store_ids:
+                    logger.info(f"📄 {len(vector_store_ids)} PDF(s) con vector_store disponible(s)")
+
+                # Construir content_parts con attachments
+                content_parts = self._build_content_parts_with_attachments(
+                    company_info, user_info, message_content, ui_context_text, attachments
+                )
+
+                logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Content parts with attachments built ({time.time() - step_start:.3f}s)")
+            else:
+                # Sin attachments: mensaje de texto simple (backward compatible)
+                user_message = self._build_message_with_context(
+                    company_info, user_info, message_content, ui_context_text
+                )
+                logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Message with context built ({time.time() - step_start:.3f}s)")
 
             # 6. Crear cliente OpenAI
             step_start = time.time()
             openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] OpenAI client created ({time.time() - step_start:.3f}s)")
 
-            # 7. Crear agente unificado (mismo que usa el web)
+            # 7. Crear agente unificado con FileSearchTool si hay PDFs
+            # IMPORTANTE: channel="whatsapp" excluye widgets (solo para web)
             step_start = time.time()
-            agent = create_unified_agent(db=db, openai_client=openai_client)
+            agent = create_unified_agent(
+                db=db,
+                openai_client=openai_client,
+                vector_store_ids=vector_store_ids if vector_store_ids else None,
+                channel="whatsapp"  # Sin widgets en WhatsApp
+            )
+
+            if vector_store_ids:
+                logger.info(f"✅ Agente creado con FileSearchTool para {len(vector_store_ids)} PDF(s)")
             logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Agent created ({time.time() - step_start:.3f}s)")
 
             # 8. Crear contexto del agente (mismo que ChatKit)
@@ -208,9 +254,6 @@ class WhatsAppAgentRunner:
             session = SQLiteSession(str(conversation.id), self.session_file)
             logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Session created ({time.time() - step_start:.3f}s)")
 
-            # Log del mensaje completo para debug
-            logger.info(f"📝 Mensaje enviado al agente (primeros 500 chars): {user_message[:500]}")
-
             # TEMPORAL: Limpiar historial para forzar nueva conversación
             logger.warning("⚠️ TEMPORAL: Creando nueva sesión para evitar historial previo")
             import uuid
@@ -218,16 +261,65 @@ class WhatsAppAgentRunner:
             session = SQLiteSession(temp_session_id, self.session_file)
             logger.info(f"🆕 Usando sesión temporal: {temp_session_id}")
 
-            # 10. Ejecutar agente con el contexto correcto
+            # 10. Preparar input para el agente
+            if attachments:
+                # Con attachments: usar content_parts (formato OpenAI)
+                # Wrap en mensaje de usuario
+                agent_input = [{"role": "user", "content": content_parts}]
+                logger.info(f"📝 Mensaje con {len(content_parts)} content parts ({len(attachments)} attachments)")
+
+                # Log preview
+                for i, part in enumerate(content_parts[:3]):  # Solo primeros 3 para no saturar log
+                    part_type = part.get("type")
+                    if part_type == "input_text":
+                        preview = part.get("text", "")[:100]
+                        logger.info(f"  Part {i+1}: text ({len(part.get('text', ''))} chars) - {preview}...")
+                    elif part_type == "input_image":
+                        logger.info(f"  Part {i+1}: image (data URL)")
+            else:
+                # Sin attachments: mensaje de texto simple (backward compatible)
+                agent_input = user_message
+                logger.info(f"📝 Mensaje de texto (primeros 500 chars): {user_message[:500]}")
+
+            # 11. Ejecutar agente con el contexto correcto
             step_start = time.time()
             logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Runner.run() started")
-            result = await Runner.run(
-                agent,
-                user_message,
-                context=agent_context,
-                session=session,
-                max_turns=10,
-            )
+
+            # Para content_parts necesitamos session_input_callback (como ChatKit)
+            if attachments:
+                from agents import RunConfig
+
+                def session_input_callback(history, new_input):
+                    """Merge conversation history with new input."""
+                    if isinstance(new_input, list) and len(new_input) > 0:
+                        if isinstance(new_input[0], dict) and 'role' in new_input[0]:
+                            return history + new_input
+                        else:
+                            return history + [{"role": "user", "content": new_input}]
+                    elif isinstance(new_input, str):
+                        return history + [{"role": "user", "content": [{"type": "input_text", "text": new_input}]}]
+                    else:
+                        return history + [{"role": "user", "content": [{"type": "input_text", "text": str(new_input)}]}]
+
+                run_config = RunConfig(session_input_callback=session_input_callback)
+
+                result = await Runner.run(
+                    agent,
+                    agent_input,
+                    context=agent_context,
+                    session=session,
+                    max_turns=10,
+                    run_config=run_config,
+                )
+            else:
+                # Sin attachments: run simple (backward compatible)
+                result = await Runner.run(
+                    agent,
+                    agent_input,
+                    context=agent_context,
+                    session=session,
+                    max_turns=10,
+                )
             logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Runner.run() completed ({time.time() - step_start:.3f}s)")
 
             # 11. Extraer texto del resultado
@@ -258,7 +350,7 @@ class WhatsAppAgentRunner:
             return (response_text, conversation.id)
 
     def _build_message_with_context(
-        self, company_info: dict, user_info: dict, message: str
+        self, company_info: dict, user_info: dict, message: str, ui_context_text: Optional[str] = None
     ) -> str:
         """
         Construye el mensaje con contexto completo.
@@ -277,7 +369,133 @@ Email: {user_info.get('email', 'N/A')}
 
 """
 
-        return f"{company_context}{user_context}{message}"
+        # Contexto adicional de UI Tools (si existe)
+        ui_context = ""
+        if ui_context_text:
+            ui_context = f"""<ui_context>
+{ui_context_text}
+</ui_context>
+
+"""
+
+        return f"{company_context}{user_context}{ui_context}{message}"
+
+    def _build_content_parts_with_attachments(
+        self,
+        company_info: dict,
+        user_info: dict,
+        message: str,
+        ui_context_text: Optional[str],
+        attachments: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Construye content_parts con attachments para el agente (formato OpenAI).
+        Similar a _convert_attachments_to_content de ChatKit pero adaptado para WhatsApp.
+
+        Args:
+            company_info: Información de la empresa
+            user_info: Información del usuario
+            message: Mensaje de texto del usuario
+            ui_context_text: Contexto de UI Tools (opcional)
+            attachments: Lista de attachments procesados por WhatsAppMediaProcessor
+
+        Returns:
+            Lista de content_parts en formato OpenAI Agents:
+            [
+                {"type": "input_text", "text": "..."},
+                {"type": "input_image", "image_url": "data:image/jpeg;base64,..."},
+                ...
+            ]
+        """
+        from app.agents.context_loader import format_company_context
+
+        content_parts = []
+
+        # 1. Construir contexto completo (empresa + usuario + UI)
+        company_context = format_company_context(company_info)
+
+        user_context = f"""<user_info>
+Nombre: {user_info.get('name', 'Usuario')}
+Email: {user_info.get('email', 'N/A')}
+</user_info>
+
+"""
+
+        ui_context = ""
+        if ui_context_text:
+            ui_context = f"""<ui_context>
+{ui_context_text}
+</ui_context>
+
+"""
+
+        # Combinar contextos
+        full_context = f"{company_context}{user_context}{ui_context}"
+
+        # Agregar contexto como primer content part si existe
+        if full_context.strip():
+            content_parts.append({
+                "type": "input_text",
+                "text": full_context
+            })
+
+        # 2. Agregar mensaje de usuario
+        content_parts.append({
+            "type": "input_text",
+            "text": message
+        })
+
+        # 3. Agregar attachments según su tipo
+        for att in attachments:
+            mime_type = att.get("mime_type", "")
+            filename = att.get("filename", "archivo")
+
+            if mime_type.startswith("image/"):
+                # Imagen: usar base64 (como ChatKit)
+                base64_data = att.get("base64")
+
+                if base64_data:
+                    # Crear data URL para el agente
+                    data_url = f"data:{mime_type};base64,{base64_data}"
+                    content_parts.append({
+                        "type": "input_image",
+                        "image_url": data_url
+                    })
+                    logger.info(f"📸 Imagen agregada al mensaje: {filename}")
+                else:
+                    # Si no hay base64, agregar como texto
+                    content_parts.append({
+                        "type": "input_text",
+                        "text": f"[Imagen no disponible: {filename}]"
+                    })
+                    logger.warning(f"⚠️ Imagen sin base64: {filename}")
+
+            elif mime_type == "application/pdf":
+                # PDF: instruir al agente a usar file_search (como ChatKit mejorado)
+                vector_store_id = att.get("vector_store_id")
+
+                if vector_store_id:
+                    content_parts.append({
+                        "type": "input_text",
+                        "text": f"El usuario ha adjuntado el documento PDF '{filename}'. Usa la herramienta file_search para leer y analizar su contenido."
+                    })
+                    logger.info(f"📄 PDF con vector_store agregado: {filename} (vs: {vector_store_id})")
+                else:
+                    content_parts.append({
+                        "type": "input_text",
+                        "text": f"[Documento PDF adjunto: {filename}]"
+                    })
+                    logger.warning(f"⚠️ PDF sin vector_store: {filename}")
+
+            else:
+                # Otros archivos: solo referencia
+                content_parts.append({
+                    "type": "input_text",
+                    "text": f"[Archivo adjunto: {filename} ({mime_type})]"
+                })
+                logger.info(f"📎 Archivo adjunto: {filename}")
+
+        return content_parts
 
     def _extract_text_from_result(self, result) -> str:
         """

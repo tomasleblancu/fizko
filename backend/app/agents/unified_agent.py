@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from agents import Agent
+from agents import Agent, FileSearchTool
 from agents.model_settings import ModelSettings, Reasoning
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,38 +30,72 @@ logger = logging.getLogger(__name__)
 def create_unified_agent(
     db: AsyncSession,
     openai_client: AsyncOpenAI,
+    vector_store_ids: list[str] | None = None,
+    channel: str = "web",  # "web" o "whatsapp"
 ) -> Agent:
     """
     Create the unified Fizko agent with access to all tools.
 
     This single agent handles all Chilean tax and accounting queries
-    with 9 specialized tools covering:
+    with 9+ specialized tools covering:
     - Tax documents (invoices, receipts, DTE)
-    - Visual widgets (tax calculations, document details)
+    - Visual widgets (tax calculations, document details) - SOLO WEB
+    - File search (for uploaded PDFs)
+
+    Args:
+        db: Database session
+        openai_client: OpenAI client
+        vector_store_ids: Optional list of vector store IDs for FileSearchTool
+        channel: Canal de comunicación ("web" o "whatsapp")
+                 - "web": incluye widgets
+                 - "whatsapp": sin widgets (solo texto)
 
     Note: Company information is now automatically loaded in the agent context,
     so no tool is needed for that.
     """
 
+    # Base tools list - Tax documents (7)
+    tools = [
+        search_documents_by_rut,
+        search_document_by_folio,
+        get_documents_by_date_range,
+        get_purchase_documents,
+        get_sales_documents,
+        get_document_details,
+        get_documents_summary,
+    ]
+
+    # Add widgets ONLY for web channel (not for WhatsApp)
+    if channel == "web":
+        logger.info("📊 Including widget tools (web channel)")
+        tools.extend([
+            show_tax_calculation_widget,
+            show_document_detail_widget,
+        ])
+    else:
+        logger.info("📱 Excluding widget tools (WhatsApp channel)")
+
+
+    # Add FileSearchTool if there are vector stores to search
+    if vector_store_ids:
+        logger.info(f"📄 Adding FileSearchTool with {len(vector_store_ids)} vector store(s)")
+        tools.append(
+            FileSearchTool(
+                max_num_results=5,
+                vector_store_ids=vector_store_ids
+            )
+        )
+
+    # Note: file_search requires reasoning.effort != "minimal"
+    # If there are PDFs attached, we need to use at least "low" reasoning effort
+    reasoning_effort = "low" if vector_store_ids else "minimal"
+
     agent = Agent(
         name="fizko_agent",
         model=MODEL,
         instructions=UNIFIED_AGENT_INSTRUCTIONS,
-        # model_settings=ModelSettings(reasoning=Reasoning(effort="minimal")),
-        tools=[
-            # Tax documents (7)
-            search_documents_by_rut,
-            search_document_by_folio,
-            get_documents_by_date_range,
-            get_purchase_documents,
-            get_sales_documents,
-            get_document_details,
-            get_documents_summary,
-
-            # Widgets (2)
-            show_tax_calculation_widget,
-            show_document_detail_widget,
-        ],
+        model_settings=ModelSettings(reasoning=Reasoning(effort=reasoning_effort)),
+        tools=tools,
     )
 
     return agent

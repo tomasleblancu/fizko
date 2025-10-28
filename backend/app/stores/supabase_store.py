@@ -542,6 +542,10 @@ class SupabaseStore(Store[dict[str, Any]]):
                 if preview_url is not None:
                     preview_url = str(preview_url)
 
+                # Extract OpenAI metadata from context (for PDFs)
+                openai_file_id = context.get("openai_file_id")
+                openai_vector_store_id = context.get("openai_vector_store_id")
+
                 # Check if attachment already exists
                 stmt = select(ChatKitAttachment).where(
                     ChatKitAttachment.id == attachment.id
@@ -556,6 +560,8 @@ class SupabaseStore(Store[dict[str, Any]]):
                     existing.thread_id = context.get("thread_id")
                     existing.upload_url = upload_url
                     existing.preview_url = preview_url
+                    existing.openai_file_id = openai_file_id
+                    existing.openai_vector_store_id = openai_vector_store_id
                     existing.updated_at = datetime.now()
                     logger.info(f"✅ Updated attachment metadata: {attachment.id}")
                 else:
@@ -567,6 +573,8 @@ class SupabaseStore(Store[dict[str, Any]]):
                         thread_id=context.get("thread_id"),
                         upload_url=upload_url,
                         preview_url=preview_url,
+                        openai_file_id=openai_file_id,
+                        openai_vector_store_id=openai_vector_store_id,
                     )
                     session.add(db_attachment)
                     logger.info(f"✅ Created attachment metadata: {attachment.id}")
@@ -629,6 +637,39 @@ class SupabaseStore(Store[dict[str, Any]]):
             except Exception as e:
                 logger.error(f"Error loading attachment {attachment_id}: {e}")
                 raise
+
+    async def get_attachment_openai_metadata(self, attachment_id: str) -> dict[str, str] | None:
+        """
+        Get OpenAI metadata (file_id and vector_store_id) for an attachment.
+
+        Args:
+            attachment_id: The attachment ID
+
+        Returns:
+            Dict with file_id and vector_store_id, or None if not found or no OpenAI metadata
+        """
+        async with await self._get_session() as session:
+            try:
+                result = await session.execute(
+                    select(ChatKitAttachment).where(ChatKitAttachment.id == attachment_id)
+                )
+                db_attachment = result.scalar_one_or_none()
+
+                if not db_attachment:
+                    return None
+
+                # Return OpenAI metadata if both fields are present
+                if db_attachment.openai_file_id and db_attachment.openai_vector_store_id:
+                    return {
+                        "file_id": db_attachment.openai_file_id,
+                        "vector_store_id": db_attachment.openai_vector_store_id,
+                    }
+
+                return None
+
+            except Exception as e:
+                logger.error(f"Error getting OpenAI metadata for {attachment_id}: {e}")
+                return None
 
     async def delete_attachment(self, attachment_id: str, context: dict[str, Any]) -> None:
         """Delete attachment metadata from Supabase using SQLAlchemy ORM."""

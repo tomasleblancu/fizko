@@ -21,7 +21,16 @@ from .contact import Contact
 from .documents import PurchaseDocument, SalesDocument
 from .form29 import Form29
 from .form29_sii_download import Form29SIIDownload
+from .notifications import (
+    NotificationEventTrigger,
+    NotificationHistory,
+    NotificationSubscription,
+    NotificationTemplate,
+    ScheduledNotification,
+    UserNotificationPreference,
+)
 from .personnel import Payroll, Person
+from .phone_verification import PhoneVerification
 from .session import Session
 from .user import Profile
 
@@ -57,4 +66,13 @@ __all__ = [
     # Personnel
     "Person",
     "Payroll",
+    # Phone Verification
+    "PhoneVerification",
+    # Notifications
+    "NotificationTemplate",
+    "NotificationSubscription",
+    "ScheduledNotification",
+    "NotificationHistory",
+    "NotificationEventTrigger",
+    "UserNotificationPreference",
 ]

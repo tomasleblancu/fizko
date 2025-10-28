@@ -16,6 +16,8 @@
   "dependencies": {
     "@openai/chatkit-react": "^0",
     "@supabase/supabase-js": "^2.75.0",
+    "@tanstack/react-query": "^5.90.5",
+    "@tanstack/react-query-devtools": "^5.90.2",
     "lucide-react": "^0.544.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

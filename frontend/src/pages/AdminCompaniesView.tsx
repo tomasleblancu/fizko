@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Building2,
   Users,
@@ -8,36 +9,32 @@ import {
   Activity,
   Search,
   ArrowRight,
+  Bell,
 } from 'lucide-react';
-import { CompanySummary } from '../types/admin';
-import { API_BASE_URL } from '../lib/config';
+import { useAdminCompanies } from '../hooks/useAdminCompanies';
 import { useAuth } from '../contexts/AuthContext';
+import { API_BASE_URL } from '../lib/config';
 import { apiFetch } from '../lib/api-client';
 
 export default function AdminCompaniesView() {
   const navigate = useNavigate();
-  const { session, loading: authLoading } = useAuth();
-  const [companies, setCompanies] = useState<CompanySummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const queryClient = useQueryClient();
+  const { session } = useAuth();
 
-  useEffect(() => {
-    const fetchCompanies = async () => {
-      // Wait for auth to load
-      if (authLoading) {
-        return;
-      }
+  // Use React Query hook
+  const { data: companies = [], isLoading: loading, error } = useAdminCompanies();
 
-      if (!session?.access_token) {
-        setLoading(false);
-        setError('No authenticated session');
-        return;
-      }
+  // Prefetch company details on hover for instant navigation
+  const handlePrefetchCompany = (companyId: string) => {
+    queryClient.prefetchQuery({
+      queryKey: ['admin', 'company', companyId],
+      queryFn: async () => {
+        if (!session?.access_token) {
+          throw new Error('No authenticated session');
+        }
 
-      try {
-        setLoading(true);
-        const response = await apiFetch(`${API_BASE_URL}/admin/companies`, {
+        const response = await apiFetch(`${API_BASE_URL}/admin/company/${companyId}`, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
@@ -45,20 +42,14 @@ export default function AdminCompaniesView() {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch companies');
+          throw new Error('Failed to fetch company data');
         }
 
-        const data = await response.json();
-        setCompanies(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCompanies();
-  }, [session?.access_token, authLoading]);
+        return response.json();
+      },
+      staleTime: 3 * 60 * 1000,
+    });
+  };
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
@@ -101,7 +92,9 @@ export default function AdminCompaniesView() {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <p className="mb-4 text-red-600 dark:text-red-400">{error}</p>
+          <p className="mb-4 text-red-600 dark:text-red-400">
+            {error instanceof Error ? error.message : 'Error desconocido'}
+          </p>
           <button
             onClick={() => navigate(-1)}
             className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
@@ -127,13 +120,22 @@ export default function AdminCompaniesView() {
                 {companies.length} {companies.length === 1 ? 'empresa' : 'empresas'} disponibles
               </p>
             </div>
-            <button
-              onClick={() => navigate('/admin/event-templates')}
-              className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              <Calendar className="h-4 w-4" />
-              Templates de Eventos
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate('/admin/event-templates')}
+                className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                <Calendar className="h-4 w-4" />
+                Templates de Eventos
+              </button>
+              <button
+                onClick={() => navigate('/admin/notification-templates')}
+                className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                <Bell className="h-4 w-4" />
+                Templates de Notificaciones
+              </button>
+            </div>
           </div>
 
           {/* Search bar */}
@@ -173,6 +175,7 @@ export default function AdminCompaniesView() {
             {filteredCompanies.map((company) => (
               <div
                 key={company.id}
+                onMouseEnter={() => handlePrefetchCompany(company.id)}
                 onClick={() => navigate(`/admin/company/${company.id}`)}
                 className="group cursor-pointer rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-blue-500 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-600"
               >

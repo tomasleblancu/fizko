@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import clsx from 'clsx';
 import { Building2, Phone, Mail, MapPin, User, Users } from 'lucide-react';
 import { ChateableWrapper } from './ChateableWrapper';
-import { useContacts, type Contact } from '../hooks/useContacts';
+import { useContactsQuery, type Contact } from '../hooks/useContactsQuery';
 import { ViewContainer } from './layout/ViewContainer';
 import { FizkoLogo } from './FizkoLogo';
 import type { ViewType } from './layout/NavigationPills';
@@ -22,7 +22,7 @@ interface ContactsProps {
 }
 
 export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToDashboard, onNavigateToSettings, onNavigateToPersonnel, currentView = 'contacts' }: ContactsProps) {
-  const { contacts, loading, error } = useContacts(company?.id);
+  const { data: contacts = [], isLoading: loading, error } = useContactsQuery(company?.id);
   const [filter, setFilter] = useState<'all' | 'provider' | 'client' | 'both'>('all');
   const [searchTerm, setSearchTerm] = useState('');
 

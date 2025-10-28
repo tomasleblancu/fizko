@@ -1,75 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Calendar, CheckCircle2, Clock, AlertCircle, XCircle, Loader2 } from 'lucide-react';
-import { API_BASE_URL } from '../lib/config';
-import { useAuth } from '../contexts/AuthContext';
-import { apiFetch } from '../lib/api-client';
-
-interface CalendarEvent {
-  id: string;
-  title: string;
-  description: string | null;
-  event_template_code: string;
-  event_template_name: string;
-  category: string;
-  due_date: string;
-  period_start: string | null;
-  period_end: string | null;
-  status: string;
-  completion_date: string | null;
-  completion_data: any;
-  auto_generated: boolean;
-  created_at: string;
-}
+import { useCalendarEvents } from '../hooks/useCalendarEvents';
 
 interface CalendarEventsSectionProps {
   companyId: string;
 }
 
 export default function CalendarEventsSection({ companyId }: CalendarEventsSectionProps) {
-  const { session } = useAuth();
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
 
-  const fetchEvents = async () => {
-    if (!session?.access_token) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const params = new URLSearchParams();
-      if (statusFilter) {
-        params.append('status', statusFilter);
-      }
-
-      const response = await apiFetch(
-        `${API_BASE_URL}/admin/company/${companyId}/calendar-events?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Error al cargar eventos del calendario');
-      }
-
-      const data = await response.json();
-      setEvents(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchEvents();
-  }, [companyId, session?.access_token, statusFilter]);
+  // Use React Query hook
+  const { data: events = [], isLoading: loading, error } = useCalendarEvents(companyId, {
+    status: statusFilter,
+  });
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -146,7 +89,9 @@ export default function CalendarEventsSection({ companyId }: CalendarEventsSecti
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-900/20">
-        <p className="text-red-700 dark:text-red-200">{error}</p>
+        <p className="text-red-700 dark:text-red-200">
+          {error instanceof Error ? error.message : 'Error desconocido'}
+        </p>
       </div>
     );
   }
@@ -168,9 +113,9 @@ export default function CalendarEventsSection({ companyId }: CalendarEventsSecti
           {/* Status Filter */}
           <div className="flex gap-2">
             <button
-              onClick={() => setStatusFilter(null)}
+              onClick={() => setStatusFilter(undefined)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                statusFilter === null
+                statusFilter === undefined
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
               }`}

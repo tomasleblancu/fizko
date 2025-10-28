@@ -173,7 +173,7 @@ async def create_event_template(
 
     db.add(new_event_template)
     await db.commit()
-    await db.refresh(new_event_template)
+    # No refresh needed - all data is already in memory
 
     return {
         "data": {
@@ -293,7 +293,7 @@ async def update_event_template(
         event_template.extra_metadata = request.metadata
 
     await db.commit()
-    await db.refresh(event_template)
+    # No refresh needed - object already has updated values
 
     return {
         "data": {
@@ -423,7 +423,7 @@ async def create_company_event(
 
     db.add(new_company_event)
     await db.commit()
-    await db.refresh(new_company_event)
+    # No refresh needed - all data is in memory
 
     return {
         "data": {
@@ -461,7 +461,7 @@ async def update_company_event(
         company_event.custom_config = custom_config
 
     await db.commit()
-    await db.refresh(company_event)
+    # No refresh needed - updated object is already in memory
 
     return {
         "data": {
@@ -691,7 +691,7 @@ async def complete_calendar_event(
     event.completion_data = completion_data or {}
 
     await db.commit()
-    await db.refresh(event)
+    # No refresh needed - all updated data is in memory
 
     return {
         "data": {
@@ -739,7 +739,7 @@ async def update_event_status(
         event.completion_date = datetime.now()
 
     await db.commit()
-    await db.refresh(event)
+    # No refresh needed - updated data is in memory
 
     return {
         "data": {
@@ -936,7 +936,7 @@ async def add_event_history(
 
     db.add(history_entry)
     await db.commit()
-    await db.refresh(history_entry)
+    # No refresh needed - all data is in memory (created_at is auto-generated but available)
 
     return {
         "data": {

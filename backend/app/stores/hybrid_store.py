@@ -109,13 +109,23 @@ class HybridStore(Store[dict[str, Any]]):
         context: dict[str, Any],
     ) -> Page[ThreadMetadata]:
         """Load threads from memory."""
+        from datetime import datetime, timezone
+
         threads = []
         for thread_id, state in self._threads.items():
             threads.append(self._coerce_thread_metadata(state.thread))
 
-        # Simple sorting by created_at
+        # Simple sorting by created_at (handle timezone-aware and naive datetimes)
+        def get_sort_key(t):
+            if t.created_at is None:
+                return datetime.min.replace(tzinfo=timezone.utc)
+            # Ensure timezone-aware datetime
+            if t.created_at.tzinfo is None:
+                return t.created_at.replace(tzinfo=timezone.utc)
+            return t.created_at
+
         threads.sort(
-            key=lambda t: t.created_at or 0,
+            key=get_sort_key,
             reverse=(order == "desc")
         )
 

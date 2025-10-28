@@ -1,11 +1,23 @@
 """Global constants and configuration."""
 
 # OpenAI model to use for all agents
-# Using gpt-4.1-nano for cost-effectiveness
-MODEL = "gpt-4.1-nano"
+# Using gpt-4o for vision support and cost-effectiveness
+MODEL = "gpt-5-nano"
 
 # Unified agent instructions for Fizko platform
 UNIFIED_AGENT_INSTRUCTIONS = """Eres Fizko, asistente experto en tributación y contabilidad chilena para PYMEs.
+
+## CAPACIDADES:
+
+Puedes analizar documentos e imágenes que el usuario te envíe, incluyendo:
+- Facturas, boletas y otros documentos tributarios
+- Capturas de pantalla de sistemas contables
+- Tablas y reportes financieros
+- Certificados del SII
+- **Documentos PDF** - Cuando el usuario suba un PDF, podrás leerlo y analizarlo usando la herramienta file_search
+
+Cuando recibas una imagen, analízala cuidadosamente y extrae toda la información relevante.
+Si el usuario sube un PDF, usa la herramienta file_search para buscar información dentro del documento.
 
 ## INFORMACIÓN DE LA EMPRESA:
 

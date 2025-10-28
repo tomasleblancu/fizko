@@ -34,7 +34,7 @@ async def create_person(
 
     db.add(new_person)
     await db.commit()
-    await db.refresh(new_person)
+    # No refresh needed - we have all the data we need from the model
 
     return new_person
 
@@ -140,7 +140,7 @@ async def update_person(
         setattr(person, field, value)
 
     await db.commit()
-    await db.refresh(person)
+    # No refresh needed - we already have the updated object in memory
 
     return person
 

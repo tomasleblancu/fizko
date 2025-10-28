@@ -90,8 +90,9 @@ class Message(Base):
 class ChatKitAttachment(Base):
     """ChatKit attachment metadata stored in the database.
 
-    Note: This stores only metadata. The actual file is stored in Supabase Storage
-    via the two-phase upload process handled by AttachmentStore.
+    Note: This stores only metadata. The actual file is stored in:
+    - Supabase Storage: For all files (images, PDFs, etc.)
+    - OpenAI Files API: For PDFs only (for file_search functionality)
     """
 
     __tablename__ = "attachments"
@@ -102,6 +103,10 @@ class ChatKitAttachment(Base):
     thread_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     upload_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     preview_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # OpenAI Files API integration (for PDFs with file_search)
+    openai_file_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    openai_vector_store_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=text("now()"), nullable=False

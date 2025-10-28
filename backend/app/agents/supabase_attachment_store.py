@@ -177,3 +177,48 @@ class SupabaseAttachmentStore(AttachmentStore):
         # metadata = self._attachments.get(attachment_id)
         # if metadata and 'storage_path' in metadata:
         #     supabase.storage.from_("product-images").remove([metadata['storage_path']])
+
+    def set_openai_metadata(
+        self,
+        attachment_id: str,
+        file_id: str,
+        vector_store_id: str
+    ) -> None:
+        """
+        Store OpenAI file_id and vector_store_id for an attachment.
+
+        Note: This stores in memory only. Database persistence is handled
+        via save_attachment() with context containing the OpenAI metadata.
+
+        Args:
+            attachment_id: The unique attachment identifier
+            file_id: OpenAI file ID
+            vector_store_id: OpenAI vector store ID
+        """
+        if attachment_id in self._attachments:
+            self._attachments[attachment_id]["openai_file_id"] = file_id
+            self._attachments[attachment_id]["openai_vector_store_id"] = vector_store_id
+            logger.info(f"✅ Stored OpenAI metadata for {attachment_id}: file={file_id}, vs={vector_store_id}")
+
+    async def get_openai_metadata(self, attachment_id: str) -> dict[str, str] | None:
+        """
+        Get OpenAI file_id and vector_store_id for an attachment.
+
+        This first checks memory, then falls back to database if not found.
+
+        Args:
+            attachment_id: The unique attachment identifier
+
+        Returns:
+            Dict with file_id and vector_store_id, or None if not found
+        """
+        # Check memory first
+        metadata = self._attachments.get(attachment_id)
+        if metadata and "openai_file_id" in metadata and "openai_vector_store_id" in metadata:
+            return {
+                "file_id": metadata["openai_file_id"],
+                "vector_store_id": metadata["openai_vector_store_id"],
+            }
+
+        # Fall back to database
+        return await self.store.get_attachment_openai_metadata(attachment_id)
