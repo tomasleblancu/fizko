@@ -137,6 +137,7 @@ class MultiAgentOrchestrator:
             logger.info(f"🔄 → Supervisor | {reason}")
 
         # Add return-to-supervisor handoff to each specialized agent
+        # Disabled by default to prevent unnecessary handoffs
         for agent_name in ["general_knowledge_agent", "tax_documents_agent"]:
             agent = self.agents[agent_name]
             agent.handoffs = [
@@ -146,9 +147,12 @@ class MultiAgentOrchestrator:
                     input_type=HandoffMetadata,
                     tool_name_override="return_to_main_menu",
                     tool_description_override=(
-                        "Return to main menu if user wants to change topic completely "
-                        "or ask about a different area. Provide a brief reason for returning."
+                        "Return to main menu ONLY if user explicitly requests a completely different topic "
+                        "(e.g., switching from documents to tax concepts, or vice versa). "
+                        "Do NOT use for simple acknowledgments like 'thanks', 'ok', 'got it'. "
+                        "Stay in current conversation for follow-up questions."
                     ),
+                    is_enabled=False,  # Disabled to prevent unnecessary handoffs
                 )
             ]
 

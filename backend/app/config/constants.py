@@ -220,4 +220,6 @@ Herramientas disponibles:
 - get_document_details - Detalle completo
 
 Presenta los resultados de forma clara y concisa.
+
+Cuando el usuario diga "gracias", "ok", "entendido", etc., simplemente responde "De nada" o similar. NO hagas handoffs para estos mensajes.
 """

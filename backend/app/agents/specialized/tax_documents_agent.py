@@ -70,7 +70,6 @@ def create_tax_documents_agent(
         name="tax_documents_agent",
         model=SPECIALIZED_MODEL,  # gpt-5-nano (fast and cheap)
         instructions=f"{RECOMMENDED_PROMPT_PREFIX}\n\n{TAX_DOCUMENTS_INSTRUCTIONS}",
-        # model_settings=ModelSettings(reasoning=Reasoning(effort="medium")),
         tools=tools,
     )
 

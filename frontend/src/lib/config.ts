@@ -1,15 +1,8 @@
 import { StartScreenPrompt } from "@openai/chatkit";
 
 // Backend URL base - puede ser sobrescrito con VITE_BACKEND_URL
-// IMPORTANT: Always force HTTPS in production to avoid mixed content errors
-let BACKEND_URL = import.meta.env.VITE_BACKEND_URL ??
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ??
   (import.meta.env.PROD ? "https://fizko-ai.up.railway.app" : "");
-
-// Force HTTPS in production if http:// is accidentally configured
-if (import.meta.env.PROD && BACKEND_URL.startsWith("http://")) {
-  BACKEND_URL = BACKEND_URL.replace("http://", "https://");
-  console.warn("⚠️ Backend URL was http:// in production. Auto-corrected to https://");
-}
 
 export const CHATKIT_API_URL = BACKEND_URL ? `${BACKEND_URL}/chatkit` : "/chatkit";
 
