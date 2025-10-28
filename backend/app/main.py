@@ -118,7 +118,12 @@ def get_chatkit_server() -> FizkoServer:
     global _chatkit_server
     if _chatkit_server is None:
         try:
-            _chatkit_server = create_chatkit_server()
+            # Get mode from environment variable (default: multi_agent)
+            import os
+            mode = os.getenv("CHATKIT_MODE", "multi_agent")
+            logger.info(f"🤖 Initializing ChatKit server in '{mode}' mode")
+
+            _chatkit_server = create_chatkit_server(mode=mode)
             if _chatkit_server is None:
                 raise ValueError("Failed to create ChatKit server")
         except Exception as e:

@@ -12,7 +12,7 @@ from agents import RunContextWrapper, function_tool
 from sqlalchemy import select, and_, desc
 
 from ...config.database import AsyncSessionLocal
-from ..context import FizkoContext
+from ...core import FizkoContext
 
 logger = logging.getLogger(__name__)
 
@@ -591,9 +591,12 @@ async def get_documents_summary(
     Returns:
         Summary with totals and counts by document type including IVA calculations
     """
+    import time
     from ...db.models import PurchaseDocument, SalesDocument
 
-    logger.info(f"🔍 get_documents_summary called: month={month}, year={year}")
+    tool_start = time.time()
+    logger.info("=" * 60)
+    logger.info(f"🔧 [TOOL START] get_documents_summary(month={month}, year={year})")
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
@@ -609,7 +612,9 @@ async def get_documents_summary(
     logger.info(f"✅ Contexto: user_id={user_id}, company_id={company_id}")
 
     try:
+        db_start = time.time()
         async with AsyncSessionLocal() as session:
+            logger.info(f"⏱️  DB session created: {time.time() - db_start:.3f}s")
             # Use current month/year if not provided
             if month is None or year is None:
                 now = datetime.now()
@@ -672,7 +677,9 @@ async def get_documents_summary(
                 }
             }
 
-            logger.info(f"✅ get_documents_summary completado exitosamente")
+            total_time = time.time() - tool_start
+            logger.info(f"✅ [TOOL END] get_documents_summary completed: {total_time:.3f}s")
+            logger.info("=" * 60)
             return result
 
     except Exception as e:

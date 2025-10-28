@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from app.services.storage.attachment_storage import get_attachment_storage
 from app.services.openai_files import get_openai_files_service
-from app.agents.memory_attachment_store import (
+from app.agents.core import (
     generate_attachment_id,
     store_attachment_content,
 )
@@ -342,7 +342,7 @@ class WhatsAppMediaProcessor:
 
             # 3. Guardar metadata en MemoryAttachmentStore para persistencia
             # Esto permite que el attachment_store.get_openai_metadata() funcione
-            from app.agents.memory_attachment_store import MemoryAttachmentStore
+            from app.agents.core import MemoryAttachmentStore
 
             # TODO: Considerar hacer esto más elegante con singleton o inyección
             # Por ahora usamos una instancia temporal para set_openai_metadata

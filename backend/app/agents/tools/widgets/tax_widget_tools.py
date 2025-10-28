@@ -7,8 +7,8 @@ from typing import Any
 
 from agents import RunContextWrapper, function_tool
 
-from ..context import FizkoContext
-from ..widgets import (
+from ...core import FizkoContext
+from .widgets import (
     create_tax_calculation_widget,
     tax_calculation_widget_copy_text,
     create_document_detail_widget,

@@ -1,6 +1,6 @@
 """
 Runner del agente de IA para WhatsApp
-Invoca el agente unificado directamente (sin pasar por ChatKit)
+Soporta tanto el agente unificado (legacy) como el nuevo sistema multi-agente
 """
 import logging
 import os
@@ -11,8 +11,8 @@ from datetime import datetime
 from agents import Runner, SQLiteSession
 from openai import AsyncOpenAI
 
-from app.agents.unified_agent import create_unified_agent
-from app.agents.context_loader import load_company_info, format_company_context
+from app.agents.orchestration import create_unified_agent, handoffs_manager
+from app.agents.core import load_company_info, format_company_context
 from app.config.database import AsyncSessionLocal
 from .conversation_manager import WhatsAppConversationManager
 
@@ -35,9 +35,6 @@ async def load_user_info_cached(db, user_id: UUID, use_cache: bool = True) -> Di
     Returns:
         Dict with user info
     """
-    import time
-    load_start = time.time()
-
     cache_key = str(user_id)
 
     # Check cache first
@@ -46,22 +43,16 @@ async def load_user_info_cached(db, user_id: UUID, use_cache: bool = True) -> Di
         cache_age = (datetime.now() - cached_time).total_seconds()
 
         if cache_age < _USER_CACHE_TTL_SECONDS:
-            logger.info(f"  💾 User cache HIT: {cache_age:.1f}s old ({(time.time() - load_start):.3f}s)")
             return cached_data
         else:
-            logger.info(f"  💾 User cache EXPIRED: {cache_age:.1f}s old")
             del _user_info_cache[cache_key]
-
-    logger.info(f"  💾 User cache MISS - fetching from DB")
 
     # Fetch from DB
     from app.db.models import Profile
     from sqlalchemy import select
 
-    query_start = time.time()
     result = await db.execute(select(Profile).where(Profile.id == user_id))
     profile = result.scalar_one_or_none()
-    logger.info(f"  🔍 User query: {(time.time() - query_start):.3f}s")
 
     if profile:
         user_info = {
@@ -76,18 +67,29 @@ async def load_user_info_cached(db, user_id: UUID, use_cache: bool = True) -> Di
     # Store in cache
     if use_cache:
         _user_info_cache[cache_key] = (datetime.now(), user_info)
-        logger.info(f"  💾 User info cached for {_USER_CACHE_TTL_SECONDS}s")
 
     return user_info
 
 
 class WhatsAppAgentRunner:
     """
-    Ejecuta el agente unificado de Fizko para mensajes de WhatsApp.
-    Comparte el mismo agente y herramientas que el canal web.
+    Ejecuta agentes de Fizko para mensajes de WhatsApp.
+
+    Soporta dos modos:
+    - unified: Agente único con todas las tools (legacy)
+    - multi_agent: Sistema de handoffs con supervisor + agentes especializados (nuevo)
     """
 
-    def __init__(self):
+    def __init__(self, mode: str = "multi_agent"):
+        """
+        Inicializa el runner.
+
+        Args:
+            mode: "unified" (agente único) o "multi_agent" (sistema con handoffs)
+        """
+        self.mode = mode
+        logger.info(f"🤖 WhatsAppAgentRunner initialized in '{mode}' mode")
+
         # Directorio para sesiones del agente
         sessions_dir = os.path.join(
             os.path.dirname(__file__), "..", "..", "sessions"
@@ -134,99 +136,77 @@ class WhatsAppAgentRunner:
         import time
         process_start = time.time()
         logger.info("=" * 80)
-        logger.info("🚀 [WHATSAPP AGENT START]")
-        logger.info(f"⏱️  [+0.000s] Process started")
+        logger.info(f"🚀 WhatsApp Agent | user={user_id} | mode={self.mode}")
 
         async with AsyncSessionLocal() as db:
-            # 1. Obtener o crear conversación
-            step_start = time.time()
+            # 1. Setup: conversation + messages + context (paralelo internamente)
+            setup_start = time.time()
+
             conversation = await WhatsAppConversationManager.get_or_create_conversation(
-                db=db,
-                user_id=user_id,
-                conversation_id=conversation_id,
+                db=db, user_id=user_id, conversation_id=conversation_id
             )
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Conversation loaded ({time.time() - step_start:.3f}s)")
 
-            # 2. Guardar mensaje del usuario (pasar conversación para evitar query adicional)
-            step_start = time.time()
             await WhatsAppConversationManager.add_message(
-                db=db,
-                conversation_id=conversation.id,
-                user_id=user_id,
-                content=message_content,
-                role="user",
-                message_id=message_id,
-                conversation=conversation,  # Pasar conversación para optimización
+                db=db, conversation_id=conversation.id, user_id=user_id,
+                content=message_content, role="user", message_id=message_id,
+                conversation=conversation
             )
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] User message saved ({time.time() - step_start:.3f}s)")
 
-            # 3. Cargar info de empresa (mismo método que ChatKit)
-            step_start = time.time()
             company_info = await load_company_info(db, company_id)
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Company info loaded ({time.time() - step_start:.3f}s)")
-
-            # 4. Cargar info de usuario con caché
-            step_start = time.time()
             user_info = await load_user_info_cached(db, user_id)
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] User info loaded ({time.time() - step_start:.3f}s)")
 
-            # 5. Preparar mensaje (con o sin attachments)
-            step_start = time.time()
+            setup_time = time.time() - setup_start
+            logger.info(f"⏱️  Setup: {setup_time:.3f}s | conv_id={conversation.id}")
 
-            # Determinar si hay attachments y extraer vector_store_ids
+            # 2. Preparar mensaje
             vector_store_ids = []
             if attachments:
-                logger.info(f"📎 Procesando mensaje con {len(attachments)} attachment(s)")
-
-                # Extraer vector_store_ids de PDFs (para FileSearchTool)
-                vector_store_ids = [
-                    att["vector_store_id"]
-                    for att in attachments
-                    if "vector_store_id" in att
-                ]
-
-                if vector_store_ids:
-                    logger.info(f"📄 {len(vector_store_ids)} PDF(s) con vector_store disponible(s)")
-
-                # Construir content_parts con attachments
+                vector_store_ids = [att["vector_store_id"] for att in attachments if "vector_store_id" in att]
                 content_parts = self._build_content_parts_with_attachments(
                     company_info, user_info, message_content, ui_context_text, attachments
                 )
+                agent_input = [{"role": "user", "content": content_parts}]
 
-                logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Content parts with attachments built ({time.time() - step_start:.3f}s)")
+                att_summary = f"{len(attachments)} files"
+                if vector_store_ids:
+                    att_summary += f" ({len(vector_store_ids)} PDFs)"
+                logger.info(f"📎 Message with attachments: {att_summary}")
             else:
-                # Sin attachments: mensaje de texto simple (backward compatible)
                 user_message = self._build_message_with_context(
                     company_info, user_info, message_content, ui_context_text
                 )
-                logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Message with context built ({time.time() - step_start:.3f}s)")
+                agent_input = user_message
 
-            # 6. Crear cliente OpenAI
-            step_start = time.time()
+            # 3. Crear agente
+            agent_start = time.time()
             openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] OpenAI client created ({time.time() - step_start:.3f}s)")
 
-            # 7. Crear agente unificado con FileSearchTool si hay PDFs
-            # IMPORTANTE: channel="whatsapp" excluye widgets (solo para web)
-            step_start = time.time()
-            agent = create_unified_agent(
-                db=db,
-                openai_client=openai_client,
-                vector_store_ids=vector_store_ids if vector_store_ids else None,
-                channel="whatsapp"  # Sin widgets en WhatsApp
-            )
+            if self.mode == "multi_agent":
+                agent = await handoffs_manager.get_supervisor_agent(
+                    thread_id=str(conversation.id), db=db, user_id=str(user_id)
+                )
+                all_agents = await handoffs_manager.get_all_agents(
+                    thread_id=str(conversation.id), db=db, user_id=str(user_id)
+                )
 
-            if vector_store_ids:
-                logger.info(f"✅ Agente creado con FileSearchTool para {len(vector_store_ids)} PDF(s)")
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Agent created ({time.time() - step_start:.3f}s)")
+                if vector_store_ids:
+                    logger.warning(f"⚠️  PDFs not supported in multi-agent mode yet")
+            else:
+                agent = create_unified_agent(
+                    db=db, openai_client=openai_client,
+                    vector_store_ids=vector_store_ids if vector_store_ids else None,
+                    channel="whatsapp"
+                )
+                all_agents = None
 
-            # 8. Crear contexto del agente (mismo que ChatKit)
-            step_start = time.time()
-            from app.agents.context import FizkoContext
+            agent_time = time.time() - agent_start
+            logger.info(f"⏱️  Agent init: {agent_time:.3f}s")
+
+            # 4. Contexto
+            from app.agents.core import FizkoContext
             from chatkit.types import ThreadMetadata
             from datetime import datetime, timezone
 
-            # Crear thread metadata mínimo para WhatsApp
             thread_metadata = ThreadMetadata(
                 id=str(conversation.id),
                 created_at=conversation.created_at or datetime.now(timezone.utc),
@@ -234,55 +214,21 @@ class WhatsAppAgentRunner:
             )
 
             agent_context = FizkoContext(
-                thread=thread_metadata,
-                store=None,   # WhatsApp no usa store de ChatKit
-                request_context={
-                    "user_id": str(user_id),
-                    "company_id": str(company_id),
-                },
+                thread=thread_metadata, store=None,
+                request_context={"user_id": str(user_id), "company_id": str(company_id)},
                 current_agent_type="fizko_agent",
             )
             agent_context.company_info = company_info
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Agent context created ({time.time() - step_start:.3f}s)")
 
-            # Log para debug
-            logger.info(f"🔍 WhatsApp Agent Context: user_id={user_id}, company_id={company_id}")
-            logger.info(f"📋 Company info loaded: {bool(company_info and 'company' in company_info)}")
-
-            # 9. Crear sesión para historial
-            step_start = time.time()
-            session = SQLiteSession(str(conversation.id), self.session_file)
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Session created ({time.time() - step_start:.3f}s)")
-
-            # TEMPORAL: Limpiar historial para forzar nueva conversación
-            logger.warning("⚠️ TEMPORAL: Creando nueva sesión para evitar historial previo")
+            # 5. Sesión
+            # TEMPORAL: Nueva sesión para evitar historial
+            logger.warning("⚠️  TEMP: Using fresh session (no history)")
             import uuid
             temp_session_id = str(uuid.uuid4())
             session = SQLiteSession(temp_session_id, self.session_file)
-            logger.info(f"🆕 Usando sesión temporal: {temp_session_id}")
 
-            # 10. Preparar input para el agente
-            if attachments:
-                # Con attachments: usar content_parts (formato OpenAI)
-                # Wrap en mensaje de usuario
-                agent_input = [{"role": "user", "content": content_parts}]
-                logger.info(f"📝 Mensaje con {len(content_parts)} content parts ({len(attachments)} attachments)")
-
-                # Log preview
-                for i, part in enumerate(content_parts[:3]):  # Solo primeros 3 para no saturar log
-                    part_type = part.get("type")
-                    if part_type == "input_text":
-                        preview = part.get("text", "")[:100]
-                        logger.info(f"  Part {i+1}: text ({len(part.get('text', ''))} chars) - {preview}...")
-                    elif part_type == "input_image":
-                        logger.info(f"  Part {i+1}: image (data URL)")
-            else:
-                # Sin attachments: mensaje de texto simple (backward compatible)
-                agent_input = user_message
-                logger.info(f"📝 Mensaje de texto (primeros 500 chars): {user_message[:500]}")
-
-            # 11. Ejecutar agente con el contexto correcto
-            step_start = time.time()
+            # 6. Ejecutar agente
+            runner_start = time.time()
             logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Runner.run() started")
 
             # Para content_parts necesitamos session_input_callback (como ChatKit)
@@ -304,47 +250,29 @@ class WhatsAppAgentRunner:
                 run_config = RunConfig(session_input_callback=session_input_callback)
 
                 result = await Runner.run(
-                    agent,
-                    agent_input,
-                    context=agent_context,
-                    session=session,
-                    max_turns=10,
-                    run_config=run_config,
+                    agent, agent_input, context=agent_context,
+                    session=session, max_turns=10, run_config=run_config
                 )
             else:
-                # Sin attachments: run simple (backward compatible)
                 result = await Runner.run(
-                    agent,
-                    agent_input,
-                    context=agent_context,
-                    session=session,
-                    max_turns=10,
+                    agent, agent_input, context=agent_context,
+                    session=session, max_turns=10
                 )
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Runner.run() completed ({time.time() - step_start:.3f}s)")
 
-            # 11. Extraer texto del resultado
-            step_start = time.time()
+            runner_time = time.time() - runner_start
+            logger.info(f"⏱️  Runner.run(): {runner_time:.3f}s")
+
+            # 7. Extraer y guardar respuesta
             response_text = self._extract_text_from_result(result)
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Text extracted ({time.time() - step_start:.3f}s)")
-            logger.info(f"💬 Response length: {len(response_text)} chars")
 
-            # 12. Guardar respuesta del agente (opcional - se puede hacer después de enviar)
             if save_assistant_message:
-                step_start = time.time()
                 await WhatsAppConversationManager.add_message(
-                    db=db,
-                    conversation_id=conversation.id,
-                    user_id=user_id,
-                    content=response_text,
-                    role="assistant",
-                    conversation=conversation,  # Pasar conversación para optimización
+                    db=db, conversation_id=conversation.id, user_id=user_id,
+                    content=response_text, role="assistant", conversation=conversation
                 )
-                logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Assistant message saved ({time.time() - step_start:.3f}s)")
-            else:
-                logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Assistant message save skipped (will save after send)")
 
             total_time = time.time() - process_start
-            logger.info(f"✅ [WHATSAPP AGENT COMPLETE] Total time: {total_time:.3f}s")
+            logger.info(f"✅ Complete: {total_time:.3f}s | response={len(response_text)} chars")
             logger.info("=" * 80)
 
             return (response_text, conversation.id)
@@ -356,7 +284,7 @@ class WhatsAppAgentRunner:
         Construye el mensaje con contexto completo.
         Usa el mismo formato que ChatKit para consistencia.
         """
-        from app.agents.context_loader import format_company_context
+        from app.agents.core import format_company_context
 
         # Contexto de empresa (mismo formato que ChatKit)
         company_context = format_company_context(company_info)
@@ -407,7 +335,7 @@ Email: {user_info.get('email', 'N/A')}
                 ...
             ]
         """
-        from app.agents.context_loader import format_company_context
+        from app.agents.core import format_company_context
 
         content_parts = []
 
@@ -451,27 +379,21 @@ Email: {user_info.get('email', 'N/A')}
             filename = att.get("filename", "archivo")
 
             if mime_type.startswith("image/"):
-                # Imagen: usar base64 (como ChatKit)
                 base64_data = att.get("base64")
 
                 if base64_data:
-                    # Crear data URL para el agente
                     data_url = f"data:{mime_type};base64,{base64_data}"
                     content_parts.append({
                         "type": "input_image",
                         "image_url": data_url
                     })
-                    logger.info(f"📸 Imagen agregada al mensaje: {filename}")
                 else:
-                    # Si no hay base64, agregar como texto
                     content_parts.append({
                         "type": "input_text",
                         "text": f"[Imagen no disponible: {filename}]"
                     })
-                    logger.warning(f"⚠️ Imagen sin base64: {filename}")
 
             elif mime_type == "application/pdf":
-                # PDF: instruir al agente a usar file_search (como ChatKit mejorado)
                 vector_store_id = att.get("vector_store_id")
 
                 if vector_store_id:
@@ -479,21 +401,17 @@ Email: {user_info.get('email', 'N/A')}
                         "type": "input_text",
                         "text": f"El usuario ha adjuntado el documento PDF '{filename}'. Usa la herramienta file_search para leer y analizar su contenido."
                     })
-                    logger.info(f"📄 PDF con vector_store agregado: {filename} (vs: {vector_store_id})")
                 else:
                     content_parts.append({
                         "type": "input_text",
                         "text": f"[Documento PDF adjunto: {filename}]"
                     })
-                    logger.warning(f"⚠️ PDF sin vector_store: {filename}")
 
             else:
-                # Otros archivos: solo referencia
                 content_parts.append({
                     "type": "input_text",
                     "text": f"[Archivo adjunto: {filename} ({mime_type})]"
                 })
-                logger.info(f"📎 Archivo adjunto: {filename}")
 
         return content_parts
 

@@ -14,8 +14,8 @@ from chatkit.types import ThreadItem, ThreadMetadata, ThreadStreamEvent, UserMes
 
 from ..config.database import AsyncSessionLocal
 from ..stores import MemoryStore, HybridStore
-from .context import FizkoContext
-from .unified_agent import create_unified_agent
+from .core import FizkoContext
+from .orchestration import create_unified_agent, handoffs_manager
 
 try:
     from ..stores import SupabaseStore
@@ -163,9 +163,24 @@ async def _convert_attachments_to_content(item: UserMessageItem, attachment_stor
 
 
 class FizkoChatKitServer(ChatKitServer):
-    """ChatKit server with unified Fizko agent."""
+    """
+    ChatKit server for Fizko platform.
 
-    def __init__(self):
+    Supports two modes:
+    - unified: Single agent with all tools (legacy)
+    - multi_agent: Supervisor with handoffs to specialized agents (new)
+    """
+
+    def __init__(self, mode: str = "multi_agent"):
+        """
+        Initialize ChatKit server.
+
+        Args:
+            mode: "unified" (single agent) or "multi_agent" (handoffs system)
+        """
+        self.mode = mode
+        logger.info(f"🤖 FizkoChatKitServer initialized in '{mode}' mode")
+
         # Use HybridStore: Fast in-memory reads + background Supabase sync
         # This eliminates network latency (3s per query) while keeping persistence
         if SUPABASE_AVAILABLE:
@@ -220,13 +235,52 @@ class FizkoChatKitServer(ChatKitServer):
                         vector_store_ids.append(openai_metadata['vector_store_id'])
                         logger.info(f"📄 Found PDF attachment with vector_store_id: {openai_metadata['vector_store_id']}")
 
-            # Create the unified agent for this request (with FileSearchTool if PDFs attached)
+            # Create agent according to mode (unified or multi_agent)
             agent_start = time.time()
-            agent = create_unified_agent(
-                db=db,
-                openai_client=openai_client,
-                vector_store_ids=vector_store_ids if vector_store_ids else None
-            )
+
+            if self.mode == "multi_agent":
+                # Multi-agent system with handoffs
+                logger.info("=" * 60)
+                logger.info("🔀 [MULTI-AGENT MODE]")
+
+                # Get supervisor agent from handoffs_manager
+                supervisor_fetch_start = time.time()
+                agent = await handoffs_manager.get_supervisor_agent(
+                    thread_id=thread.id,
+                    db=db,
+                    user_id=context.get("user_id"),
+                )
+                supervisor_fetch_time = time.time() - supervisor_fetch_start
+                logger.info(f"⏱️  Supervisor agent fetch: {supervisor_fetch_time:.3f}s")
+
+                # Get all agents for handoffs
+                agents_fetch_start = time.time()
+                all_agents = await handoffs_manager.get_all_agents(
+                    thread_id=thread.id,
+                    db=db,
+                    user_id=context.get("user_id"),
+                )
+                agents_fetch_time = time.time() - agents_fetch_start
+                logger.info(f"⏱️  All agents fetch: {agents_fetch_time:.3f}s")
+
+                logger.info(f"✅ Multi-agent system ready: {len(all_agents)} agents available")
+                logger.info("=" * 60)
+
+                if vector_store_ids:
+                    logger.warning(f"⚠️  PDFs detected but multi-agent mode doesn't support FileSearch yet")
+
+            else:
+                # Unified agent (legacy) with all tools
+                logger.info("📦 Using unified agent (legacy mode)")
+
+                agent = create_unified_agent(
+                    db=db,
+                    openai_client=openai_client,
+                    vector_store_ids=vector_store_ids if vector_store_ids else None
+                )
+
+                all_agents = None  # Unified mode doesn't use multiple agents
+
             logger.info(f"⏱️  [+{(time.time() - request_start):.3f}s] Agent created ({(time.time() - agent_start):.3f}s)")
 
             context_start = time.time()
@@ -241,7 +295,7 @@ class FizkoChatKitServer(ChatKitServer):
             # Load company info automatically at thread start (usando la misma sesión db)
             company_id = context.get("company_id")
             if company_id:
-                from .context_loader import load_company_info
+                from .core import load_company_info
                 company_load_start = time.time()
                 logger.info(f"⏱️  [+{(company_load_start - request_start):.3f}s] Company info fetch started")
                 company_info = await load_company_info(db, company_id)
@@ -308,7 +362,7 @@ class FizkoChatKitServer(ChatKitServer):
         context_prep_start = time.time()
         context_prefix = ""
         if agent_context.company_info:
-            from .context_loader import format_company_context
+            from .core import format_company_context
             company_context = format_company_context(agent_context.company_info)
             context_prefix += company_context
 
@@ -359,6 +413,8 @@ class FizkoChatKitServer(ChatKitServer):
 
         run_config = RunConfig(session_input_callback=session_input_callback)
 
+        # Handoffs are configured in the agent itself (via agent.handoffs)
+        # No need to pass agents parameter - the SDK handles it automatically
         result = Runner.run_streamed(
             agent,
             agent_input,

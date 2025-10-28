@@ -9,11 +9,11 @@ from agents.model_settings import ModelSettings, Reasoning
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config.constants import MODEL, UNIFIED_AGENT_INSTRUCTIONS
+from ...config.constants import MODEL, UNIFIED_AGENT_INSTRUCTIONS
 
 # Import all tools
 # NOTE: get_company_info removed - company info is now loaded automatically in context
-from .tools.documentos_tributarios_tools import (
+from ..tools.tax.documentos_tributarios_tools import (
     search_documents_by_rut,
     search_document_by_folio,
     get_documents_by_date_range,
@@ -22,7 +22,7 @@ from .tools.documentos_tributarios_tools import (
     get_document_details,
     get_documents_summary,
 )
-from .tools.tax_widget_tools import show_tax_calculation_widget, show_document_detail_widget
+from ..tools.widgets.tax_widget_tools import show_tax_calculation_widget, show_document_detail_widget
 
 logger = logging.getLogger(__name__)
 
