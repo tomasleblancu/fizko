@@ -64,15 +64,28 @@ async def startup_event():
         # Don't raise - let the app start but log the error
         # The actual endpoints will fail if DB is not accessible
 
-# Add CORS middleware
+# Add CORS middleware with flexible origin checking
+from fastapi.middleware.cors import CORSMiddleware
+
+def is_allowed_origin(origin: str) -> bool:
+    """Check if origin is allowed for CORS."""
+    allowed = [
+        "http://localhost:5171",
+        "http://127.0.0.1:5171",
+        "https://fizko-ai-mr.vercel.app",
+        "https://demo.fizko.ai",
+    ]
+
+    # Allow any Vercel preview/production domain
+    if origin and (".vercel.app" in origin or "fizko.ai" in origin):
+        return True
+
+    return origin in allowed
+
+# Custom CORS middleware that checks origins dynamically
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5171",  # Local development
-        "http://127.0.0.1:5171",  # Local development
-        "https://fizko-ai-mr.vercel.app",  # Production frontend
-        "https://demo.fizko.ai",  # Demo frontend
-    ],
+    allow_origin_regex=r"https://.*\.vercel\.app|https://.*fizko\.ai|http://localhost:\d+|http://127\.0\.0\.1:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
