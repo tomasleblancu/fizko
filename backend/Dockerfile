@@ -14,8 +14,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies
-RUN uv pip install --system --no-cache -r pyproject.toml
+# Install dependencies using uv sync
+RUN uv sync --frozen --no-dev
 
 # Stage 2: Runtime
 # Using full python image for better browser compatibility
@@ -34,9 +34,11 @@ RUN apt-get update && apt-get install -y \
     && chromium --version \
     && chromedriver --version
 
-# Copy Python packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Add virtual environment to PATH
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy application code
 COPY ./app ./app
