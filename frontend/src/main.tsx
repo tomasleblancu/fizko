@@ -10,6 +10,8 @@ import AdminCompaniesView from "./pages/AdminCompaniesView";
 import AdminCompanyView from "./pages/AdminCompanyView";
 import AdminEventTypes from "./pages/AdminEventTypes";
 import AdminNotificationTemplates from "./pages/AdminNotificationTemplates";
+import TermsOfService from "./pages/TermsOfService";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import "./index.css";
 
 // Configure React Query
@@ -39,6 +41,8 @@ createRoot(container).render(
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Root />} />
+            <Route path="/terminos" element={<TermsOfService />} />
+            <Route path="/privacidad" element={<PrivacyPolicy />} />
             <Route path="/admin" element={<AdminCompaniesView />} />
             <Route path="/admin/company/:companyId" element={<AdminCompanyView />} />
             <Route path="/admin/event-templates" element={<AdminEventTypes />} />

@@ -47,6 +47,7 @@ app = FastAPI(
     title="Fizko API",
     description="API for Fizko tax/accounting platform with AI assistance",
     version="1.0.0",
+    redirect_slashes=False,  # Prevent 307 redirects for trailing slashes
 )
 
 
