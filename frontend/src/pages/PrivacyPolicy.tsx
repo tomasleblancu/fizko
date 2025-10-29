@@ -1,5 +1,6 @@
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { LandingFooter } from '../components/LandingFooter';
 
 export default function PrivacyPolicy() {
   return (
@@ -814,6 +815,9 @@ export default function PrivacyPolicy() {
           </div>
         </article>
       </div>
+
+      {/* Footer */}
+      <LandingFooter />
     </main>
   );
 }

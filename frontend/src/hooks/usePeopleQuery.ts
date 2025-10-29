@@ -69,7 +69,7 @@ export function usePeopleQuery(companyId: string | null, options: UsePeopleOptio
         params.append('search', search);
       }
 
-      const url = `${API_BASE_URL}/personnel/people?${params.toString()}`;
+      const url = `${API_BASE_URL}/personnel/people/?${params.toString()}`;
 
       const response = await apiFetch(url, {
         headers: {
@@ -126,7 +126,7 @@ export function useCreatePerson(companyId: string | null) {
         throw new Error('No authentication token available');
       }
 
-      const url = `${API_BASE_URL}/personnel/people`;
+      const url = `${API_BASE_URL}/personnel/people/`;
 
       const response = await apiFetch(url, {
         method: 'POST',
