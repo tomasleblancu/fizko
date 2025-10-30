@@ -1,21 +1,23 @@
 # ============================================
-# Docker Compose - Fizko Backend (Híbrido)
+# Docker Compose - Fizko Backend (Desarrollo)
 # ============================================
-# Servicios locales: FastAPI, Celery Worker, Celery Beat, Redis
+# Servicios locales: FastAPI, Celery Worker, Celery Beat, Redis, Flower, ngrok
 # Servicios externos: PostgreSQL (Supabase), OpenAI, Kapso
 #
+# Servicios incluidos:
+#   - backend:       FastAPI + Gunicorn (http://localhost:8000)
+#   - celery-worker: Procesamiento de tareas asíncronas
+#   - celery-beat:   Scheduler de tareas programadas
+#   - flower:        Monitoring de Celery (http://localhost:5555)
+#   - ngrok:         Tunnel público para webhooks (http://localhost:4040)
+#   - redis:         Broker para Celery
+#
 # Uso:
-#   docker-compose up              # Todos los servicios (sin profiles)
+#   docker-compose up              # Iniciar todos los servicios
 #   docker-compose up backend      # Solo FastAPI
 #   docker-compose up -d           # En background
 #   docker-compose logs -f backend # Ver logs
-#   docker-compose down            # Detener servicios sin profiles
-#
-# Profiles:
-#   docker-compose --profile monitoring up      # Incluye Flower
-#   docker-compose --profile dev up             # Incluye ngrok
-#   docker-compose --profile monitoring --profile dev up  # Todo
-#   docker-compose --profile monitoring down    # Detener incluyendo Flower
+#   docker-compose down            # Detener todo
 #
 
 services:
@@ -155,8 +157,6 @@ services:
     restart: unless-stopped
     networks:
       - fizko-network
-    profiles:
-      - monitoring  # Solo se inicia con: docker-compose --profile monitoring up
 
   # ==========================================
   # ngrok - Tunnel público para desarrollo local
@@ -180,8 +180,6 @@ services:
     restart: unless-stopped
     networks:
       - fizko-network
-    profiles:
-      - dev  # Solo se inicia con: docker-compose --profile dev up
 
 # ==========================================
 # Networks
