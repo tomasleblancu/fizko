@@ -1,6 +1,0 @@
-# Force Railway to use Dockerfile
-[phases.build]
-dependsOn = []
-
-[start]
-cmd = "/docker-entrypoint.sh fastapi"
