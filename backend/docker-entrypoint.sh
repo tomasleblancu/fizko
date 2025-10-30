@@ -71,9 +71,11 @@ check_env_vars() {
 
 # Wait for Redis (always required)
 if [ -n "$REDIS_URL" ]; then
-    # Parse Redis URL (redis://host:port/db)
-    REDIS_HOST=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+):.*|\1|')
-    REDIS_PORT=$(echo "$REDIS_URL" | sed -E 's|redis://[^:]+:([0-9]+).*|\1|')
+    # Parse Redis URL - supports both formats:
+    # redis://host:port/db
+    # redis://user:pass@host:port/db
+    REDIS_HOST=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+:[^@]+@)?([^:]+):.*|\2|')
+    REDIS_PORT=$(echo "$REDIS_URL" | sed -E 's|redis://.*:([0-9]+).*|\1|')
 
     wait_for_service "$REDIS_HOST" "$REDIS_PORT" "Redis"
 fi
