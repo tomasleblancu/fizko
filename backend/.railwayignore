@@ -100,7 +100,3 @@ celerybeat.pid
 node_modules/
 package-lock.json
 yarn.lock
-
-# Railway specific (evitar duplicados)
-railway.toml
-railway.*.json
