@@ -36,12 +36,14 @@ WORKDIR /app
 # Install system dependencies
 # - Chromium + ChromeDriver para Selenium (SII scraping)
 # - curl para healthchecks
+# - netcat-openbsd para wait_for_service checks
 # - postgresql-client para migrations (opcional)
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
     wget \
     curl \
+    netcat-openbsd \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/* \
     && chromium --version \

@@ -30,10 +30,11 @@ wait_for_service() {
 
     echo -e "${YELLOW}→${NC} Waiting for ${service_name} (${host}:${port})..."
 
-    # Usar timeout y /dev/tcp para verificar conexión (más portátil)
-    while ! timeout 1 bash -c "cat < /dev/null > /dev/tcp/$host/$port" 2>/dev/null; do
+    # Use nc (netcat) for connection check - more reliable in containers
+    while ! nc -z -w1 "$host" "$port" 2>/dev/null; do
         if [ $attempt -ge $max_attempts ]; then
             echo -e "${RED}✗${NC} ${service_name} not available after ${max_attempts} attempts"
+            echo -e "${YELLOW}ℹ${NC}  Make sure Redis plugin is running in the same Railway project"
             exit 1
         fi
         echo -e "  Attempt ${attempt}/${max_attempts}..."
