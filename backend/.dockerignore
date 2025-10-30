@@ -74,6 +74,7 @@ supabase/
 Dockerfile
 docker-compose*.yml
 .dockerignore
+ngrok.yml
 
 # CI/CD
 .github/

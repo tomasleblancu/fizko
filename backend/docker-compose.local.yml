@@ -10,8 +10,6 @@
 # Solo usar para desarrollo completamente offline
 # Para desarrollo normal, usar docker-compose.yml (híbrido)
 
-version: '3.8'
-
 services:
   # ==========================================
   # PostgreSQL - Base de datos local

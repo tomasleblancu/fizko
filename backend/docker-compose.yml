@@ -5,14 +5,18 @@
 # Servicios externos: PostgreSQL (Supabase), OpenAI, Kapso
 #
 # Uso:
-#   docker-compose up              # Todos los servicios
+#   docker-compose up              # Todos los servicios (sin profiles)
 #   docker-compose up backend      # Solo FastAPI
 #   docker-compose up -d           # En background
 #   docker-compose logs -f backend # Ver logs
-#   docker-compose down            # Detener todo
+#   docker-compose down            # Detener servicios sin profiles
 #
-
-version: '3.8'
+# Profiles:
+#   docker-compose --profile monitoring up      # Incluye Flower
+#   docker-compose --profile dev up             # Incluye ngrok
+#   docker-compose --profile monitoring --profile dev up  # Todo
+#   docker-compose --profile monitoring down    # Detener incluyendo Flower
+#
 
 services:
   # ==========================================
@@ -153,6 +157,31 @@ services:
       - fizko-network
     profiles:
       - monitoring  # Solo se inicia con: docker-compose --profile monitoring up
+
+  # ==========================================
+  # ngrok - Tunnel público para desarrollo local
+  # ==========================================
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: fizko-ngrok
+    command:
+      - "start"
+      - "--all"
+      - "--config"
+      - "/etc/ngrok.yml"
+    volumes:
+      - ./ngrok.yml:/etc/ngrok.yml
+    ports:
+      - "4040:4040"  # ngrok web interface
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - fizko-network
+    profiles:
+      - dev  # Solo se inicia con: docker-compose --profile dev up
 
 # ==========================================
 # Networks
