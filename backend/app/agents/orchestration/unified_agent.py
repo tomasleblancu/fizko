@@ -14,12 +14,7 @@ from ...config.constants import MODEL, UNIFIED_AGENT_INSTRUCTIONS
 # Import all tools
 # NOTE: get_company_info removed - company info is now loaded automatically in context
 from ..tools.tax.documentos_tributarios_tools import (
-    search_documents_by_rut,
-    search_document_by_folio,
-    get_documents_by_date_range,
-    get_purchase_documents,
-    get_sales_documents,
-    get_document_details,
+    get_documents,
     get_documents_summary,
 )
 from ..tools.widgets.tax_widget_tools import show_tax_calculation_widget, show_document_detail_widget
@@ -54,15 +49,10 @@ def create_unified_agent(
     so no tool is needed for that.
     """
 
-    # Base tools list - Tax documents (7)
+    # Base tools list - Tax documents (2 simplified tools)
     tools = [
-        search_documents_by_rut,
-        search_document_by_folio,
-        get_documents_by_date_range,
-        get_purchase_documents,
-        get_sales_documents,
-        get_document_details,
-        get_documents_summary,
+        get_documents_summary,  # Monthly/yearly summaries with IVA
+        get_documents,  # Flexible search (RUT, folio, dates, type)
     ]
 
     # Add widgets ONLY for web channel (not for WhatsApp)

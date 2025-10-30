@@ -10,13 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.constants import SPECIALIZED_MODEL, TAX_DOCUMENTS_INSTRUCTIONS
 from ..tools.tax.documentos_tributarios_tools import (
-    get_purchase_documents,
-    get_sales_documents,
-    get_document_details,
+    get_documents,
     get_documents_summary,
-    search_documents_by_rut,
-    search_document_by_folio,
-    get_documents_by_date_range,
 )
 
 
@@ -44,17 +39,10 @@ def create_tax_documents_agent(
     """
 
     tools = [
-        # Summary tools
+        # Summary tool - for monthly/yearly aggregations
         get_documents_summary,
-        # Document listing tools
-        get_sales_documents,
-        get_purchase_documents,
-        # Search tools
-        search_documents_by_rut,
-        search_document_by_folio,
-        get_documents_by_date_range,
-        # Detail tool
-        get_document_details,
+        # Main search tool - flexible filtering (RUT, folio, dates, type)
+        get_documents,
     ]
 
     # Add FileSearchTool if there are vector stores to search

@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime
 from typing import Any, AsyncIterator
 from uuid import uuid4
 
 from agents import Runner, SQLiteSession
+from chatkit.actions import Action
 from chatkit.agents import stream_agent_response
 from chatkit.server import ChatKitServer
-from chatkit.types import ThreadItem, ThreadMetadata, ThreadStreamEvent, UserMessageItem
+from chatkit.types import HiddenContextItem, ThreadItem, ThreadMetadata, ThreadStreamEvent, UserMessageItem, WidgetItem
 
 from ..config.database import AsyncSessionLocal
 from app.stores import MemoryStore, HybridStore
@@ -124,6 +126,18 @@ async def _convert_attachments_to_content(item: UserMessageItem, attachment_stor
             if mime_type.startswith("image/"):
                 base64_content = get_attachment_content(attachment_id)
 
+                # Fallback: Try to load from Supabase Storage if not in memory
+                if not base64_content:
+                    logger.warning(f"⚠️ Image content not found in memory for {attachment_id}, trying Supabase...")
+                    try:
+                        import base64 as b64
+                        file_data = storage.download_attachment(attachment_id)
+                        if file_data:
+                            base64_content = b64.b64encode(file_data).decode('utf-8')
+                            logger.info(f"✅ Loaded image from Supabase Storage: {len(base64_content)} chars")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to load from Supabase: {e}")
+
                 if base64_content:
                     # Create data URL - agents framework expects this format
                     data_url = f"data:{mime_type};base64,{base64_content}"
@@ -133,7 +147,7 @@ async def _convert_attachments_to_content(item: UserMessageItem, attachment_stor
                     })
                     logger.info(f"📸 Added image to content: {filename} (base64, {len(base64_content)} chars)")
                 else:
-                    logger.warning(f"⚠️ Image content not found in memory for {attachment_id}")
+                    logger.warning(f"⚠️ Image content not available from any source for {attachment_id}")
                     # If base64 not available, skip the image
                     content_parts.append({
                         "type": "input_text",
@@ -372,12 +386,25 @@ class FizkoChatKitServer(ChatKitServer):
             content_parts = [{"type": "input_text", "text": user_message_text}]
 
         # Prepend company info and UI context to the first text part
+        # IMPORTANT: Company info should only be sent on the FIRST message to save tokens
         context_prep_start = time.time()
         context_prefix = ""
-        if agent_context.company_info:
+
+        # Check if this is the first message (company context not yet sent)
+        is_first_message = thread.metadata is None or not thread.metadata.get("company_context_sent", False)
+
+        if agent_context.company_info and is_first_message:
             from .core import format_company_context
             company_context = format_company_context(agent_context.company_info)
             context_prefix += company_context
+
+            # Mark company context as sent
+            if thread.metadata is None:
+                thread.metadata = {}
+            thread.metadata["company_context_sent"] = True
+            logger.info("📋 Company context added to message (first message)")
+        elif agent_context.company_info and not is_first_message:
+            logger.info("⏭️  Company context skipped (already sent in previous message)")
 
         # Prepend UI context if available (from UI Tools system)
         ui_context_text = context.get("ui_context_text", "")
@@ -506,4 +533,62 @@ class FizkoChatKitServer(ChatKitServer):
             logger.error(f"Error loading latest thread item: {e}")
 
         return None
+
+    async def action(
+        self,
+        thread: ThreadMetadata,
+        action: Action[str, Any],
+        sender: WidgetItem | None,
+        context: dict[str, Any],
+    ) -> AsyncIterator[ThreadStreamEvent]:
+        """
+        Handle custom actions from widget buttons by converting them into user messages.
+
+        This creates a synthetic user message and processes it through the normal chat flow.
+        """
+        logger.info(f"🎬 Custom action: type={action.type}, thread={thread.id}")
+        if sender:
+            logger.info(f"🎬 Sender widget item ID: {sender.id}")
+
+            # IMPORTANT: Add the sender (widget) item to the store if it doesn't exist
+            # ChatKit will try to load this item, so it must be in the store
+            try:
+                await self.store.load_item(thread.id, sender.id, context)
+                logger.info(f"✅ Sender item already in store")
+            except Exception:
+                logger.info(f"📝 Adding sender widget item to store: {sender.id}")
+                await self.store.add_thread_item(thread.id, sender, context)
+
+        # Determine message text based on action type
+        action_type = getattr(action, "type", None) or str(action)
+
+        if action_type == "confirm":
+            message_text = "Confirmar"
+            logger.info("✅ User confirmed via button")
+        elif action_type == "cancel":
+            message_text = "Rechazar"
+            logger.info("❌ User cancelled via button")
+        else:
+            logger.warning(f"⚠️ Unknown action type: {action_type}")
+            return
+
+        # Create a UserMessageItem and add it to the store
+        from chatkit.types import InferenceOptions, UserMessageTextContent
+
+        user_item = UserMessageItem(
+            id=_gen_id("msg"),
+            thread_id=thread.id,
+            created_at=datetime.now(),
+            content=[UserMessageTextContent(text=message_text)],
+            attachments=[],
+            inference_options=InferenceOptions(),
+        )
+
+        # Add to store
+        await self.store.add_thread_item(thread.id, user_item, context)
+        logger.info(f"💾 Added user message item: {user_item.id}")
+
+        # Now process through respond() with the item we just created
+        async for event in self.respond(thread=thread, item=user_item, context=context):
+            yield event
 

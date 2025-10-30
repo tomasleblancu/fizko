@@ -1,0 +1,1 @@
+export { ChatKitPanel } from './ChatKitPanel';

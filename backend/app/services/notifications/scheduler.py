@@ -75,7 +75,7 @@ def run_notification_scheduler_sync(batch_size: int = 50):
 
 # Para integrar con Celery, descomentar y configurar:
 #
-# from app.celery_app import celery_app
+# from app.infrastructure.celery import celery_app
 #
 # @celery_app.task(name="process_pending_notifications")
 # def celery_process_pending_notifications(batch_size: int = 50):

@@ -602,6 +602,46 @@ class SIIService:
         logger.info(f"✅ Saved {len(saved_downloads)} F29 downloads for company {company_id}")
         return saved_downloads
 
+    async def get_pending_f29_downloads(
+        self,
+        company_id: Union[str, UUID],
+        limit: int = 10
+    ) -> List[Form29SIIDownload]:
+        """
+        Obtiene formularios F29 que tienen folio e id_interno pero no tienen PDF descargado.
+
+        Args:
+            company_id: UUID de la compañía
+            limit: Máximo número de registros a retornar
+
+        Returns:
+            Lista de Form29SIIDownload pendientes de descarga
+        """
+        from uuid import UUID as UUIDType
+
+        # Convertir a UUID si es string
+        if isinstance(company_id, str):
+            company_id = UUIDType(company_id)
+
+        stmt = (
+            select(Form29SIIDownload)
+            .where(Form29SIIDownload.company_id == company_id)
+            .where(Form29SIIDownload.sii_id_interno.isnot(None))  # Tiene id_interno
+            .where(Form29SIIDownload.pdf_download_status != 'downloaded')  # No descargado
+            .order_by(Form29SIIDownload.period_year.desc(), Form29SIIDownload.period_month.desc())
+            .limit(limit)
+        )
+
+        result = await self.db.execute(stmt)
+        pending_downloads = result.scalars().all()
+
+        logger.info(
+            f"📋 Found {len(pending_downloads)} pending F29 PDFs for company {company_id} "
+            f"(limit: {limit})"
+        )
+
+        return list(pending_downloads)
+
     async def download_and_save_f29_pdf(
         self,
         download_id: str,

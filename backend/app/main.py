@@ -33,7 +33,9 @@ from .routers import (
 )
 from .routers.admin import notifications as admin_notifications
 from .routers.personnel import router as personnel_router
+from .routers.scheduled_tasks import router as scheduled_tasks_router
 from .routers.sii import router as sii_router
+from .routers.tasks import router as tasks_router
 from .utils.ui_component_context import extract_ui_component_context, format_ui_context_for_agent
 from .agents.ui_tools import UIToolDispatcher
 
@@ -113,6 +115,8 @@ app.include_router(sii_router)
 app.include_router(whatsapp.router)
 app.include_router(whatsapp.webhook_router)  # Webhook sin autenticación JWT
 app.include_router(personnel_router)  # Personnel management (people & payroll)
+app.include_router(tasks_router)  # Celery task management
+app.include_router(scheduled_tasks_router, prefix="/api")  # Celery Beat scheduled tasks
 
 
 def get_chatkit_server() -> FizkoServer:
@@ -213,6 +217,15 @@ async def chatkit_upload_attachment(
 
     # Store in memory first (for backward compatibility with MemoryAttachmentStore)
     store_attachment_content(attachment_id, file_content)
+    logger.info(f"💾 Stored in memory: {attachment_id} ({len(file_content)} bytes)")
+
+    # Verify storage immediately
+    from .agents.core import get_attachment_content
+    verification = get_attachment_content(attachment_id)
+    if verification:
+        logger.info(f"✅ Memory verification successful: {len(verification)} chars base64")
+    else:
+        logger.error(f"❌ Memory verification FAILED for {attachment_id}")
 
     # Upload to Supabase Storage
     try:

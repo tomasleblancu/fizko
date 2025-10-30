@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..general_knowledge_agent import create_general_knowledge_agent
-from ..specialized import create_tax_documents_agent
+from ..specialized import create_tax_documents_agent, create_payroll_agent
 from ..supervisor_agent import create_supervisor_agent
 
 logger = logging.getLogger(__name__)
@@ -35,6 +35,7 @@ class MultiAgentOrchestrator:
     Architecture:
         Supervisor (gpt-4o-mini) → General Knowledge (gpt-5-nano)
                                  → Tax Documents (gpt-5-nano)
+                                 → Payroll (gpt-5-nano)
     """
 
     def __init__(
@@ -70,13 +71,16 @@ class MultiAgentOrchestrator:
             db=self.db, openai_client=self.openai_client,
             vector_store_ids=self.vector_store_ids
         )
+        self.agents["payroll_agent"] = create_payroll_agent(
+            db=self.db, openai_client=self.openai_client
+        )
 
         # Configure handoffs
         self._configure_supervisor_handoffs()
         self._configure_bidirectional_handoffs()
 
         total_init_time = time.time() - init_start
-        logger.info(f"🏗️  Orchestrator init: {total_init_time:.3f}s (3 agents + handoffs)")
+        logger.info(f"🏗️  Orchestrator init: {total_init_time:.3f}s (4 agents + handoffs)")
 
     def _configure_supervisor_handoffs(self):
         """Configure handoffs for the Supervisor Agent to all specialized agents."""
@@ -96,6 +100,14 @@ class MultiAgentOrchestrator:
             tax_agent = self.agents["tax_documents_agent"]
             logger.info(f"📄 → Tax Documents | {reason}")
             logger.info(f"  🔧 Tax agent has {len(tax_agent.tools)} tools available")
+
+        async def on_handoff_to_payroll(
+            ctx: RunContextWrapper, input_data: HandoffMetadata | None = None
+        ):
+            reason = input_data.reason if input_data else "No reason"
+            payroll_agent = self.agents["payroll_agent"]
+            logger.info(f"💼 → Payroll | {reason}")
+            logger.info(f"  🔧 Payroll agent has {len(payroll_agent.tools)} tools available")
 
         # Add handoffs to specialized agents with callbacks and metadata
         supervisor.handoffs = [
@@ -119,6 +131,16 @@ class MultiAgentOrchestrator:
                     "Provide a brief reason for the transfer."
                 ),
             ),
+            handoff(
+                agent=self.agents["payroll_agent"],
+                on_handoff=on_handoff_to_payroll,
+                input_type=HandoffMetadata,
+                tool_description_override=(
+                    "Transfer to Payroll expert for labor law questions, "
+                    "employee management, payroll processing, and work contracts. "
+                    "Provide a brief reason for the transfer."
+                ),
+            ),
         ]
 
     def _configure_bidirectional_handoffs(self):
@@ -138,7 +160,7 @@ class MultiAgentOrchestrator:
 
         # Add return-to-supervisor handoff to each specialized agent
         # Disabled by default to prevent unnecessary handoffs
-        for agent_name in ["general_knowledge_agent", "tax_documents_agent"]:
+        for agent_name in ["general_knowledge_agent", "tax_documents_agent", "payroll_agent"]:
             agent = self.agents[agent_name]
             agent.handoffs = [
                 handoff(

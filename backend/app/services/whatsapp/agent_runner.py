@@ -158,12 +158,12 @@ class WhatsAppAgentRunner:
             setup_time = time.time() - setup_start
             logger.info(f"⏱️  Setup: {setup_time:.3f}s | conv_id={conversation.id}")
 
-            # 2. Preparar mensaje
+            # 2. Preparar mensaje (sin inyectar company_context aquí - se hace en session_input_callback)
             vector_store_ids = []
             if attachments:
                 vector_store_ids = [att["vector_store_id"] for att in attachments if "vector_store_id" in att]
                 content_parts = self._build_content_parts_with_attachments(
-                    company_info, user_info, message_content, ui_context_text, attachments
+                    user_info, message_content, ui_context_text, attachments
                 )
                 agent_input = [{"role": "user", "content": content_parts}]
 
@@ -172,8 +172,9 @@ class WhatsAppAgentRunner:
                     att_summary += f" ({len(vector_store_ids)} PDFs)"
                 logger.info(f"📎 Message with attachments: {att_summary}")
             else:
-                user_message = self._build_message_with_context(
-                    company_info, user_info, message_content, ui_context_text
+                # Construir mensaje simple con user_info + ui_context (NO company_info)
+                user_message = self._build_message_simple(
+                    user_info, message_content, ui_context_text
                 )
                 agent_input = user_message
 
@@ -223,43 +224,51 @@ class WhatsAppAgentRunner:
             agent_context.company_info = company_info
 
             # 5. Sesión
-            # TEMPORAL: Nueva sesión para evitar historial
-            logger.warning("⚠️  TEMP: Using fresh session (no history)")
-            import uuid
-            temp_session_id = str(uuid.uuid4())
-            session = SQLiteSession(temp_session_id, self.session_file)
+            # Usar conversation.id para mantener historial persistente entre mensajes
+            session = SQLiteSession(str(conversation.id), self.session_file)
+            logger.info(f"📝 Session created with conversation_id: {conversation.id}")
 
-            # 6. Ejecutar agente
+            # 6. Ejecutar agente con session_input_callback
             runner_start = time.time()
             logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Runner.run() started")
 
-            # Para content_parts necesitamos session_input_callback (como ChatKit)
-            if attachments:
-                from agents import RunConfig
+            # Preparar company_context para inyectar en el primer mensaje
+            from app.agents.core import format_company_context
+            company_context = format_company_context(company_info)
 
-                def session_input_callback(history, new_input):
-                    """Merge conversation history with new input."""
-                    if isinstance(new_input, list) and len(new_input) > 0:
-                        if isinstance(new_input[0], dict) and 'role' in new_input[0]:
-                            return history + new_input
-                        else:
-                            return history + [{"role": "user", "content": new_input}]
-                    elif isinstance(new_input, str):
-                        return history + [{"role": "user", "content": [{"type": "input_text", "text": new_input}]}]
+            # Session input callback para mantener historial + inyectar contexto
+            from agents import RunConfig
+
+            def session_input_callback(history, new_input):
+                """
+                Merge conversation history with new input.
+                On first message, inject company_context as system-level context.
+                """
+                # Inyectar company_context en el primer mensaje (history vacío)
+                if len(history) == 0 and company_context:
+                    history = [{
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": company_context}]
+                    }]
+                    logger.debug(f"📋 Injected company_context into session history ({len(company_context)} chars)")
+
+                # Merge new input
+                if isinstance(new_input, list) and len(new_input) > 0:
+                    if isinstance(new_input[0], dict) and 'role' in new_input[0]:
+                        return history + new_input
                     else:
-                        return history + [{"role": "user", "content": [{"type": "input_text", "text": str(new_input)}]}]
+                        return history + [{"role": "user", "content": new_input}]
+                elif isinstance(new_input, str):
+                    return history + [{"role": "user", "content": [{"type": "input_text", "text": new_input}]}]
+                else:
+                    return history + [{"role": "user", "content": [{"type": "input_text", "text": str(new_input)}]}]
 
-                run_config = RunConfig(session_input_callback=session_input_callback)
+            run_config = RunConfig(session_input_callback=session_input_callback)
 
-                result = await Runner.run(
-                    agent, agent_input, context=agent_context,
-                    session=session, max_turns=10, run_config=run_config
-                )
-            else:
-                result = await Runner.run(
-                    agent, agent_input, context=agent_context,
-                    session=session, max_turns=10
-                )
+            result = await Runner.run(
+                agent, agent_input, context=agent_context,
+                session=session, max_turns=10, run_config=run_config
+            )
 
             runner_time = time.time() - runner_start
             logger.info(f"⏱️  Runner.run(): {runner_time:.3f}s")
@@ -279,18 +288,13 @@ class WhatsAppAgentRunner:
 
             return (response_text, conversation.id)
 
-    def _build_message_with_context(
-        self, company_info: dict, user_info: dict, message: str, ui_context_text: Optional[str] = None
+    def _build_message_simple(
+        self, user_info: dict, message: str, ui_context_text: Optional[str] = None
     ) -> str:
         """
-        Construye el mensaje con contexto completo.
-        Usa el mismo formato que ChatKit para consistencia.
+        Construye el mensaje SIN contexto de company (se inyecta en session_input_callback).
+        Solo incluye user_info + ui_context + mensaje del usuario.
         """
-        from app.agents.core import format_company_context
-
-        # Contexto de empresa (mismo formato que ChatKit)
-        company_context = format_company_context(company_info)
-
         # Contexto de usuario (específico de WhatsApp)
         user_context = f"""<user_info>
 Nombre: {user_info.get('name', 'Usuario')}
@@ -308,11 +312,10 @@ Email: {user_info.get('email', 'N/A')}
 
 """
 
-        return f"{company_context}{user_context}{ui_context}{message}"
+        return f"{user_context}{ui_context}{message}"
 
     def _build_content_parts_with_attachments(
         self,
-        company_info: dict,
         user_info: dict,
         message: str,
         ui_context_text: Optional[str],
@@ -320,10 +323,9 @@ Email: {user_info.get('email', 'N/A')}
     ) -> List[Dict[str, Any]]:
         """
         Construye content_parts con attachments para el agente (formato OpenAI).
-        Similar a _convert_attachments_to_content de ChatKit pero adaptado para WhatsApp.
+        SIN inyectar company_context (se hace en session_input_callback).
 
         Args:
-            company_info: Información de la empresa
             user_info: Información del usuario
             message: Mensaje de texto del usuario
             ui_context_text: Contexto de UI Tools (opcional)
@@ -337,13 +339,9 @@ Email: {user_info.get('email', 'N/A')}
                 ...
             ]
         """
-        from app.agents.core import format_company_context
-
         content_parts = []
 
-        # 1. Construir contexto completo (empresa + usuario + UI)
-        company_context = format_company_context(company_info)
-
+        # 1. Construir contexto (usuario + UI, SIN company)
         user_context = f"""<user_info>
 Nombre: {user_info.get('name', 'Usuario')}
 Email: {user_info.get('email', 'N/A')}
@@ -360,7 +358,7 @@ Email: {user_info.get('email', 'N/A')}
 """
 
         # Combinar contextos
-        full_context = f"{company_context}{user_context}{ui_context}"
+        full_context = f"{user_context}{ui_context}"
 
         # Agregar contexto como primer content part si existe
         if full_context.strip():

@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config.constants import SUPERVISOR_MODEL, SUPERVISOR_INSTRUCTIONS
 
+from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,7 +35,7 @@ def create_supervisor_agent(
     agent = Agent(
         name="supervisor_agent",
         model=SUPERVISOR_MODEL,  # gpt-4o-mini (fast routing)
-        instructions=SUPERVISOR_INSTRUCTIONS,
+        instructions=f"{RECOMMENDED_PROMPT_PREFIX}\n\n{SUPERVISOR_INSTRUCTIONS}",
         # model_settings=ModelSettings(reasoning=Reasoning(effort="low")),
         tools=[],  # Handoffs will be configured by orchestrator
     )

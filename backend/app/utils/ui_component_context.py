@@ -96,6 +96,12 @@ def extract_ui_component_context(
             "suggested_agents": ["f29_agent", "operacion_renta_agent"],
             "context_hint": "Usuario está consultando sobre una obligación tributaria específica del calendario",
         },
+        "person_detail": {
+            "domain": "payroll_management",
+            "relevant_data": ["employee_data", "person_info", "payroll_history", "employment_status"],
+            "suggested_agents": ["payroll_agent"],
+            "context_hint": "Usuario está consultando sobre un colaborador/empleado específico",
+        },
     }
 
     # Get component-specific context

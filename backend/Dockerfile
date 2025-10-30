@@ -1,9 +1,12 @@
 # ============================================
-# Dockerfile para Backend Fizko (Railway)
+# Dockerfile para Backend Fizko
 # ============================================
-# FastAPI + Selenium + Chrome para SII scraping
+# FastAPI + Celery + Selenium + Chrome para SII scraping
+# Multi-stage build optimizado para desarrollo y producción
 
-# Stage 1: Builder
+# ============================================
+# Stage 1: Builder - Instalar dependencias
+# ============================================
 FROM python:3.11-slim as builder
 
 WORKDIR /app
@@ -12,24 +15,34 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy dependency files
-COPY backend/pyproject.toml backend/uv.lock ./
+COPY pyproject.toml uv.lock ./
 
-# Install dependencies using uv sync
-RUN uv sync --frozen --no-dev
+# Install ALL dependencies (including dev for local development)
+# Production will use --no-dev
+ARG INSTALL_DEV=false
+RUN if [ "$INSTALL_DEV" = "true" ]; then \
+        uv sync --frozen; \
+    else \
+        uv sync --frozen --no-dev; \
+    fi
 
-# Stage 2: Runtime
-# Using full python image for better browser compatibility
+# ============================================
+# Stage 2: Runtime - Imagen final
+# ============================================
 FROM python:3.11
 
 WORKDIR /app
 
-# Install Chromium and ChromeDriver for Selenium
-# Using Chromium from Debian repos (easier than Chrome)
+# Install system dependencies
+# - Chromium + ChromeDriver para Selenium (SII scraping)
+# - curl para healthchecks
+# - postgresql-client para migrations (opcional)
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
     wget \
     curl \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/* \
     && chromium --version \
     && chromedriver --version
@@ -41,44 +54,38 @@ COPY --from=builder /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy application code
-COPY backend/app ./app
+COPY app ./app
 
-# Copy migrations if they exist (optional for runtime)
-# Migrations should be applied separately via Supabase SQL Editor
-# COPY ./migrations ./migrations
+# Copy entrypoint script
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
-# Create necessary directories
-RUN mkdir -p /app/sessions /app/chrome-data /app/screenshots
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/sessions /app/chrome-data /app/screenshots \
+    && chmod -R 755 /app/sessions /app/chrome-data /app/screenshots
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
 
 # Chromium settings for headless mode
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 ENV CHROME_BINARY_PATH=/usr/bin/chromium
 
-# Expose port (Railway assigns dynamically)
-EXPOSE 8080
+# Expose port
+# - 8080: FastAPI (production/Railway)
+# - 8000: FastAPI (development)
+EXPOSE 8080 8000
 
-# Health check (use $PORT from Railway)
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
-# Run FastAPI with Gunicorn + Uvicorn workers for production
-# - 2 workers for small instances (Railway Starter)
-# - Use uvicorn.workers.UvicornWorker for ASGI support
-# - Timeout: 120s for long-running SII scraping tasks
-# - Graceful timeout: 30s for shutdown
-# - Keep-alive: 5s for connection reuse
-CMD gunicorn app.main:app \
-    --workers 2 \
-    --worker-class uvicorn.workers.UvicornWorker \
-    --bind 0.0.0.0:${PORT:-8080} \
-    --timeout 120 \
-    --graceful-timeout 30 \
-    --keep-alive 5 \
-    --access-logfile - \
-    --error-logfile - \
-    --log-level info
+# Use entrypoint for flexible command execution
+ENTRYPOINT ["/docker-entrypoint.sh"]
+
+# Default command: FastAPI with Gunicorn (production)
+# Override in docker-compose.yml for different services
+CMD ["fastapi"]

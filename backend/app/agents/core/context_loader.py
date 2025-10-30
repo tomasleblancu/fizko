@@ -128,6 +128,7 @@ def format_company_context(company_info: Dict[str, Any]) -> str:
     Format company information as XML context for the agent.
 
     This ensures consistent formatting across all channels.
+    Includes current date for temporal context.
 
     Args:
         company_info: Company data from load_company_info()
@@ -143,8 +144,26 @@ def format_company_context(company_info: Dict[str, Any]) -> str:
 
     company_data = company_info["company"]
 
-    # Build company context
+    # Get current date in Chilean timezone (America/Santiago)
+    from zoneinfo import ZoneInfo
+    chile_tz = ZoneInfo("America/Santiago")
+    current_date = datetime.now(chile_tz)
+
+    # Format date in Spanish (e.g., "Lunes 29 de Octubre de 2025")
+    months_es = [
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ]
+    days_es = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+
+    day_name = days_es[current_date.weekday()]
+    month_name = months_es[current_date.month - 1]
+    formatted_date = f"{day_name} {current_date.day} de {month_name} de {current_date.year}"
+
+    # Build company context with current date at the top
     context = f"""<company_info>
+Fecha actual: {formatted_date}
+
 RUT: {company_data.get('rut', 'N/A')}
 Razón Social: {company_data.get('business_name', 'N/A')}
 Nombre Fantasía: {company_data.get('trade_name', 'N/A')}"""

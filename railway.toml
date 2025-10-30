@@ -1,0 +1,32 @@
+# ============================================
+# Railway.toml - Fizko Backend Multi-Service
+# ============================================
+# Este archivo define la configuración para deployar múltiples servicios
+# desde un único repositorio en Railway.
+#
+# Servicios incluidos:
+# - backend: FastAPI + Gunicorn (puerto público)
+# - celery-worker: Procesamiento de tareas asíncronas
+# - celery-beat: Scheduler de tareas programadas
+# - flower: UI de monitoring para Celery
+#
+# IMPORTANTE: Después de pushear este archivo a GitHub, Railway
+# detectará automáticamente los 4 servicios y los creará.
+#
+# Setup:
+# 1. Conectar repositorio a Railway
+# 2. Railway detecta railway.toml
+# 3. Railway crea 4 servicios automáticamente
+# 4. Configurar variables de entorno compartidas
+# 5. Agregar Redis Plugin desde Railway dashboard
+# 6. Deploy automático con cada push
+#
+# Documentación: Ver backend/RAILWAY_SETUP.md
+# ============================================
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
+
+[build.watchPatterns]
+paths = ["backend/**"]

@@ -129,8 +129,20 @@ class SeleniumDriver:
 
         # Opciones específicas para Docker
         if is_docker:
-            options.add_argument("--single-process")
+            # IMPORTANTE: NO usar --single-process porque causa crashes cuando se abren popups/ventanas nuevas
+            # En su lugar, usar estas opciones más estables para Docker:
             options.add_argument("--disable-setuid-sandbox")
+            options.add_argument("--disable-dev-shm-usage")  # Evita problemas de memoria compartida en Docker
+            options.add_argument("--disable-software-rasterizer")
+
+            # Opciones para mejorar estabilidad con ventanas/popups en headless
+            options.add_argument("--disable-blink-features=AutomationControlled")
+            options.add_argument("--disable-extensions")
+            options.add_argument("--disable-infobars")
+
+            # Aumentar límites de recursos para evitar crashes
+            options.add_argument("--disable-gpu-sandbox")
+            options.add_argument("--js-flags=--max-old-space-size=4096")
 
         # Habilitar performance logging para capturar headers de requests
         options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})

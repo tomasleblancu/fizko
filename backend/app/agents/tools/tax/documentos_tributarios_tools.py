@@ -1,8 +1,12 @@
-"""Tools for Documentos Tributarios Agent - Chilean tax documents (DTE) queries."""
+"""Tools for Documentos Tributarios Agent - Chilean tax documents (DTE) queries.
+
+Simplified to 2 main tools:
+1. get_documents() - Flexible search with multiple filters
+2. get_documents_summary() - Monthly/yearly summaries with IVA calculations
+"""
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 from datetime import datetime, date
@@ -18,24 +22,40 @@ logger = logging.getLogger(__name__)
 
 
 @function_tool(strict_mode=False)
-async def search_documents_by_rut(
+async def get_documents(
     ctx: RunContextWrapper[FizkoContext],
-    rut: str,
-    company_id: str | None = None,
-    document_category: str = "both",
+    document_type: str = "both",
+    rut: str | None = None,
+    folio: int | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     limit: int = 20,
 ) -> dict[str, Any]:
     """
-    Search documents by RUT (supplier or customer).
+    Search and retrieve tax documents with flexible filters.
+
+    This is the main tool for querying documents. All filters are optional and can be combined.
 
     Args:
-        rut: RUT to search (format: 12345678-9)
-        company_id: Company UUID (optional, uses context if not provided)
-        document_category: "purchase" (from suppliers), "sales" (to customers), or "both"
-        limit: Number of documents to return (default 20, max 50)
+        document_type: Type of documents to search:
+            - "sales" = ventas (facturas emitidas, boletas)
+            - "purchases" = compras (facturas recibidas)
+            - "both" = ambos tipos (default)
+        rut: Filter by RUT (supplier for purchases, customer for sales). Format: 12345678-9
+        folio: Filter by folio number (exact match)
+        start_date: Filter by start date (format: YYYY-MM-DD)
+        end_date: Filter by end date (format: YYYY-MM-DD)
+        limit: Maximum documents to return per type (default 20, max 100)
 
     Returns:
-        Documents from/to the specified RUT
+        Documents matching the filters with totals and summaries
+
+    Examples:
+        - Get last 10 sales: get_documents(document_type="sales", limit=10)
+        - Search by RUT: get_documents(rut="12345678-9")
+        - Search by folio: get_documents(folio=12345)
+        - Date range: get_documents(start_date="2024-10-01", end_date="2024-10-31")
+        - Combined: get_documents(document_type="purchases", rut="12345678-9", limit=5)
     """
     from ....db.models import PurchaseDocument, SalesDocument
 
@@ -43,233 +63,46 @@ async def search_documents_by_rut(
     if not user_id:
         return {"error": "Usuario no autenticado"}
 
-    # Get company_id from context if not provided
+    company_id = ctx.context.request_context.get("company_id")
     if not company_id:
-        company_id = ctx.context.request_context.get("company_id")
-        if not company_id:
-            return {"error": "company_id no disponible en el contexto"}
+        return {"error": "company_id no disponible en el contexto"}
 
     try:
         async with AsyncSessionLocal() as session:
-            results = {"purchase_documents": [], "sales_documents": []}
-
-            if document_category in ["purchase", "both"]:
-                purchase_stmt = select(PurchaseDocument).where(
-                    and_(
-                        PurchaseDocument.company_id == UUID(company_id),
-                        PurchaseDocument.sender_rut == rut,
-                    )
-                ).order_by(desc(PurchaseDocument.issue_date)).limit(min(limit, 50))
-
-                purchase_result = await session.execute(purchase_stmt)
-                purchases = purchase_result.scalars().all()
-
-                results["purchase_documents"] = [
-                    {
-                        "id": str(doc.id),
-                        "document_type": doc.document_type,
-                        "folio": doc.folio,
-                        "issue_date": doc.issue_date.isoformat(),
-                        "sender_name": doc.sender_name,
-                        "total_amount": float(doc.total_amount),
-                        "status": doc.status,
-                    }
-                    for doc in purchases
-                ]
-
-            if document_category in ["sales", "both"]:
-                sales_stmt = select(SalesDocument).where(
-                    and_(
-                        SalesDocument.company_id == UUID(company_id),
-                        SalesDocument.recipient_rut == rut,
-                    )
-                ).order_by(desc(SalesDocument.issue_date)).limit(min(limit, 50))
-
-                sales_result = await session.execute(sales_stmt)
-                sales = sales_result.scalars().all()
-
-                results["sales_documents"] = [
-                    {
-                        "id": str(doc.id),
-                        "document_type": doc.document_type,
-                        "folio": doc.folio,
-                        "issue_date": doc.issue_date.isoformat(),
-                        "recipient_name": doc.recipient_name,
-                        "total_amount": float(doc.total_amount),
-                        "status": doc.status,
-                    }
-                    for doc in sales
-                ]
-
-            total_found = len(results["purchase_documents"]) + len(results["sales_documents"])
-
-            return {
-                "rut": rut,
-                "total_found": total_found,
-                "results": results
-            }
-
-    except Exception as e:
-        logger.error(f"Error searching documents by RUT: {e}")
-        return {"error": str(e)}
-
-
-@function_tool(strict_mode=False)
-async def search_document_by_folio(
-    ctx: RunContextWrapper[FizkoContext],
-    folio: int,
-    company_id: str | None = None,
-    document_category: str = "both",
-) -> dict[str, Any]:
-    """
-    Search a specific document by its folio number.
-
-    Args:
-        folio: Folio number to search
-        company_id: Company UUID (optional, uses context if not provided)
-        document_category: "purchase", "sales", or "both"
-
-    Returns:
-        Document(s) with the specified folio
-    """
-    from ....db.models import PurchaseDocument, SalesDocument
-
-    user_id = ctx.context.request_context.get("user_id")
-    if not user_id:
-        return {"error": "Usuario no autenticado"}
-
-    # Get company_id from context if not provided
-    if not company_id:
-        company_id = ctx.context.request_context.get("company_id")
-        if not company_id:
-            return {"error": "company_id no disponible en el contexto"}
-
-    try:
-        async with AsyncSessionLocal() as session:
-            results = {"purchase_documents": [], "sales_documents": []}
-
-            if document_category in ["purchase", "both"]:
-                purchase_stmt = select(PurchaseDocument).where(
-                    and_(
-                        PurchaseDocument.company_id == UUID(company_id),
-                        PurchaseDocument.folio == folio,
-                    )
-                )
-                purchase_result = await session.execute(purchase_stmt)
-                purchases = purchase_result.scalars().all()
-
-                results["purchase_documents"] = [
-                    {
-                        "id": str(doc.id),
-                        "document_type": doc.document_type,
-                        "folio": doc.folio,
-                        "issue_date": doc.issue_date.isoformat(),
-                        "sender_rut": doc.sender_rut,
-                        "sender_name": doc.sender_name,
-                        "net_amount": float(doc.net_amount),
-                        "tax_amount": float(doc.tax_amount),
-                        "total_amount": float(doc.total_amount),
-                        "status": doc.status,
-                    }
-                    for doc in purchases
-                ]
-
-            if document_category in ["sales", "both"]:
-                sales_stmt = select(SalesDocument).where(
-                    and_(
-                        SalesDocument.company_id == UUID(company_id),
-                        SalesDocument.folio == folio,
-                    )
-                )
-                sales_result = await session.execute(sales_stmt)
-                sales = sales_result.scalars().all()
-
-                results["sales_documents"] = [
-                    {
-                        "id": str(doc.id),
-                        "document_type": doc.document_type,
-                        "folio": doc.folio,
-                        "issue_date": doc.issue_date.isoformat(),
-                        "recipient_rut": doc.recipient_rut,
-                        "recipient_name": doc.recipient_name,
-                        "net_amount": float(doc.net_amount),
-                        "tax_amount": float(doc.tax_amount),
-                        "total_amount": float(doc.total_amount),
-                        "status": doc.status,
-                    }
-                    for doc in sales
-                ]
-
-            total_found = len(results["purchase_documents"]) + len(results["sales_documents"])
-
-            if total_found == 0:
-                return {
+            results = {
+                "filters_applied": {
+                    "document_type": document_type,
+                    "rut": rut,
                     "folio": folio,
-                    "message": f"No se encontraron documentos con folio {folio}",
-                    "results": results
-                }
-
-            return {
-                "folio": folio,
-                "total_found": total_found,
-                "results": results
+                    "date_range": f"{start_date} to {end_date}" if start_date and end_date else None,
+                },
+                "purchase_documents": [],
+                "sales_documents": [],
             }
 
-    except Exception as e:
-        logger.error(f"Error searching document by folio: {e}")
-        return {"error": str(e)}
+            # Parse dates if provided
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
 
+            # Query purchases if needed
+            if document_type in ["purchases", "both"]:
+                purchase_conditions = [PurchaseDocument.company_id == UUID(company_id)]
 
-@function_tool(strict_mode=False)
-async def get_documents_by_date_range(
-    ctx: RunContextWrapper[FizkoContext],
-    start_date: str,
-    end_date: str,
-    company_id: str | None = None,
-    document_category: str = "both",
-    limit: int = 50,
-) -> dict[str, Any]:
-    """
-    Get documents within a specific date range.
+                if rut:
+                    purchase_conditions.append(PurchaseDocument.sender_rut == rut)
+                if folio:
+                    purchase_conditions.append(PurchaseDocument.folio == folio)
+                if start_dt:
+                    purchase_conditions.append(PurchaseDocument.issue_date >= start_dt)
+                if end_dt:
+                    purchase_conditions.append(PurchaseDocument.issue_date <= end_dt)
 
-    Args:
-        start_date: Start date (format: YYYY-MM-DD)
-        end_date: End date (format: YYYY-MM-DD)
-        company_id: Company UUID (optional, uses context if not provided)
-        document_category: "purchase", "sales", or "both"
-        limit: Maximum documents per category (default 50, max 100)
-
-    Returns:
-        Documents within the date range
-    """
-    from ....db.models import PurchaseDocument, SalesDocument
-
-    user_id = ctx.context.request_context.get("user_id")
-    if not user_id:
-        return {"error": "Usuario no autenticado"}
-
-    # Get company_id from context if not provided
-    if not company_id:
-        company_id = ctx.context.request_context.get("company_id")
-        if not company_id:
-            return {"error": "company_id no disponible en el contexto"}
-
-    try:
-        # Parse dates
-        start = datetime.strptime(start_date, "%Y-%m-%d").date()
-        end = datetime.strptime(end_date, "%Y-%m-%d").date()
-
-        async with AsyncSessionLocal() as session:
-            results = {"purchase_documents": [], "sales_documents": []}
-
-            if document_category in ["purchase", "both"]:
-                purchase_stmt = select(PurchaseDocument).where(
-                    and_(
-                        PurchaseDocument.company_id == UUID(company_id),
-                        PurchaseDocument.issue_date >= start,
-                        PurchaseDocument.issue_date <= end,
-                    )
-                ).order_by(desc(PurchaseDocument.issue_date)).limit(min(limit, 100))
+                purchase_stmt = (
+                    select(PurchaseDocument)
+                    .where(and_(*purchase_conditions))
+                    .order_by(desc(PurchaseDocument.issue_date))
+                    .limit(min(limit, 100))
+                )
 
                 purchase_result = await session.execute(purchase_stmt)
                 purchases = purchase_result.scalars().all()
@@ -283,9 +116,12 @@ async def get_documents_by_date_range(
                         "document_type": doc.document_type,
                         "folio": doc.folio,
                         "issue_date": doc.issue_date.isoformat(),
+                        "sender_rut": doc.sender_rut,
                         "sender_name": doc.sender_name,
-                        "total_amount": float(doc.total_amount),
+                        "net_amount": float(doc.net_amount),
                         "tax_amount": float(doc.tax_amount),
+                        "total_amount": float(doc.total_amount),
+                        "status": doc.status,
                     }
                     for doc in purchases
                 ]
@@ -296,14 +132,25 @@ async def get_documents_by_date_range(
                     "total_iva": purchase_iva,
                 }
 
-            if document_category in ["sales", "both"]:
-                sales_stmt = select(SalesDocument).where(
-                    and_(
-                        SalesDocument.company_id == UUID(company_id),
-                        SalesDocument.issue_date >= start,
-                        SalesDocument.issue_date <= end,
-                    )
-                ).order_by(desc(SalesDocument.issue_date)).limit(min(limit, 100))
+            # Query sales if needed
+            if document_type in ["sales", "both"]:
+                sales_conditions = [SalesDocument.company_id == UUID(company_id)]
+
+                if rut:
+                    sales_conditions.append(SalesDocument.recipient_rut == rut)
+                if folio:
+                    sales_conditions.append(SalesDocument.folio == folio)
+                if start_dt:
+                    sales_conditions.append(SalesDocument.issue_date >= start_dt)
+                if end_dt:
+                    sales_conditions.append(SalesDocument.issue_date <= end_dt)
+
+                sales_stmt = (
+                    select(SalesDocument)
+                    .where(and_(*sales_conditions))
+                    .order_by(desc(SalesDocument.issue_date))
+                    .limit(min(limit, 100))
+                )
 
                 sales_result = await session.execute(sales_stmt)
                 sales = sales_result.scalars().all()
@@ -317,9 +164,12 @@ async def get_documents_by_date_range(
                         "document_type": doc.document_type,
                         "folio": doc.folio,
                         "issue_date": doc.issue_date.isoformat(),
+                        "recipient_rut": doc.recipient_rut,
                         "recipient_name": doc.recipient_name,
-                        "total_amount": float(doc.total_amount),
+                        "net_amount": float(doc.net_amount),
                         "tax_amount": float(doc.tax_amount),
+                        "total_amount": float(doc.total_amount),
+                        "status": doc.status,
                     }
                     for doc in sales
                 ]
@@ -330,248 +180,19 @@ async def get_documents_by_date_range(
                     "total_iva": sales_iva,
                 }
 
-            return {
-                "date_range": {
-                    "start": start_date,
-                    "end": end_date,
-                },
-                "results": results
-            }
+            # Add total counts
+            total_docs = len(results.get("purchase_documents", [])) + len(results.get("sales_documents", []))
+            results["total_documents_found"] = total_docs
+
+            if total_docs == 0:
+                results["message"] = "No se encontraron documentos con los filtros aplicados"
+
+            return results
 
     except ValueError as e:
         return {"error": f"Formato de fecha inválido. Use YYYY-MM-DD. Error: {str(e)}"}
     except Exception as e:
-        logger.error(f"Error getting documents by date range: {e}")
-        return {"error": str(e)}
-
-
-@function_tool(strict_mode=False)
-async def get_purchase_documents(
-    ctx: RunContextWrapper[FizkoContext],
-    company_id: str | None = None,
-    limit: int = 10,
-    document_type: str | None = None,
-    status: str | None = None,
-) -> dict[str, Any]:
-    """
-    Get purchase documents (documentos de compra - facturas recibidas).
-
-    Args:
-        company_id: Company UUID (optional, uses context if not provided)
-        limit: Number of documents to return (default 10, max 50)
-        document_type: Filter by document type (factura_compra, factura_exenta_compra, nota_credito_compra, nota_debito_compra, liquidacion_factura)
-        status: Filter by status (pending, approved, rejected, cancelled)
-
-    Returns:
-        List of purchase documents with details
-    """
-    from ....db.models import PurchaseDocument
-
-    user_id = ctx.context.request_context.get("user_id")
-    if not user_id:
-        return {"error": "Usuario no autenticado"}
-
-    # Get company_id from context if not provided
-    if not company_id:
-        company_id = ctx.context.request_context.get("company_id")
-        if not company_id:
-            return {"error": "company_id no disponible en el contexto"}
-
-    try:
-        async with AsyncSessionLocal() as session:
-            # Build query
-            stmt = select(PurchaseDocument).where(
-                PurchaseDocument.company_id == UUID(company_id)
-            )
-
-            if document_type:
-                stmt = stmt.where(PurchaseDocument.document_type == document_type)
-            if status:
-                stmt = stmt.where(PurchaseDocument.status == status)
-
-            stmt = stmt.order_by(desc(PurchaseDocument.issue_date)).limit(min(limit, 50))
-
-            result = await session.execute(stmt)
-            documents = result.scalars().all()
-
-            return {
-                "total": len(documents),
-                "documents": [
-                    {
-                        "id": str(doc.id),
-                        "document_type": doc.document_type,
-                        "folio": doc.folio,
-                        "issue_date": doc.issue_date.isoformat(),
-                        "sender_rut": doc.sender_rut,
-                        "sender_name": doc.sender_name,
-                        "net_amount": float(doc.net_amount),
-                        "tax_amount": float(doc.tax_amount),
-                        "exempt_amount": float(doc.exempt_amount),
-                        "total_amount": float(doc.total_amount),
-                        "status": doc.status,
-                    }
-                    for doc in documents
-                ]
-            }
-
-    except Exception as e:
-        logger.error(f"Error getting purchase documents: {e}")
-        return {"error": str(e)}
-
-
-@function_tool(strict_mode=False)
-async def get_sales_documents(
-    ctx: RunContextWrapper[FizkoContext],
-    company_id: str | None = None,
-    limit: int = 10,
-    document_type: str | None = None,
-    status: str | None = None,
-) -> dict[str, Any]:
-    """
-    Get sales documents (documentos de venta - facturas emitidas).
-
-    Args:
-        company_id: Company UUID (optional, uses context if not provided)
-        limit: Number of documents to return (default 10, max 50)
-        document_type: Filter by document type (factura_venta, boleta, factura_exenta, nota_credito_venta, nota_debito_venta, liquidacion_factura)
-        status: Filter by status (pending, approved, rejected, cancelled)
-
-    Returns:
-        List of sales documents with details
-    """
-    from ....db.models import SalesDocument
-
-    user_id = ctx.context.request_context.get("user_id")
-    if not user_id:
-        return {"error": "Usuario no autenticado"}
-
-    # Get company_id from context if not provided
-    if not company_id:
-        company_id = ctx.context.request_context.get("company_id")
-        if not company_id:
-            return {"error": "company_id no disponible en el contexto"}
-
-    try:
-        async with AsyncSessionLocal() as session:
-            # Build query
-            stmt = select(SalesDocument).where(
-                SalesDocument.company_id == UUID(company_id)
-            )
-
-            if document_type:
-                stmt = stmt.where(SalesDocument.document_type == document_type)
-            if status:
-                stmt = stmt.where(SalesDocument.status == status)
-
-            stmt = stmt.order_by(desc(SalesDocument.issue_date)).limit(min(limit, 50))
-
-            result = await session.execute(stmt)
-            documents = result.scalars().all()
-
-            return {
-                "total": len(documents),
-                "documents": [
-                    {
-                        "id": str(doc.id),
-                        "document_type": doc.document_type,
-                        "folio": doc.folio,
-                        "issue_date": doc.issue_date.isoformat(),
-                        "recipient_rut": doc.recipient_rut,
-                        "recipient_name": doc.recipient_name,
-                        "net_amount": float(doc.net_amount),
-                        "tax_amount": float(doc.tax_amount),
-                        "exempt_amount": float(doc.exempt_amount),
-                        "total_amount": float(doc.total_amount),
-                        "status": doc.status,
-                    }
-                    for doc in documents
-                ]
-            }
-
-    except Exception as e:
-        logger.error(f"Error getting sales documents: {e}")
-        return {"error": str(e)}
-
-
-@function_tool(strict_mode=False)
-async def get_document_details(
-    ctx: RunContextWrapper[FizkoContext],
-    document_id: str,
-    document_category: str,
-) -> dict[str, Any]:
-    """
-    Get detailed information about a specific document.
-
-    Args:
-        document_id: Document UUID
-        document_category: Category of document ("purchase" or "sales")
-
-    Returns:
-        Detailed document information
-    """
-    from ....db.models import PurchaseDocument, SalesDocument
-
-    user_id = ctx.context.request_context.get("user_id")
-    if not user_id:
-        return {"error": "Usuario no autenticado"}
-
-    try:
-        async with AsyncSessionLocal() as session:
-            if document_category == "purchase":
-                stmt = select(PurchaseDocument).where(PurchaseDocument.id == UUID(document_id))
-                result = await session.execute(stmt)
-                doc = result.scalar_one_or_none()
-
-                if not doc:
-                    return {"error": "Documento no encontrado"}
-
-                return {
-                    "id": str(doc.id),
-                    "company_id": str(doc.company_id),
-                    "document_type": doc.document_type,
-                    "folio": doc.folio,
-                    "issue_date": doc.issue_date.isoformat(),
-                    "sender_rut": doc.sender_rut,
-                    "sender_name": doc.sender_name,
-                    "net_amount": float(doc.net_amount),
-                    "tax_amount": float(doc.tax_amount),
-                    "exempt_amount": float(doc.exempt_amount),
-                    "total_amount": float(doc.total_amount),
-                    "status": doc.status,
-                    "sii_track_id": doc.sii_track_id,
-                    "created_at": doc.created_at.isoformat(),
-                }
-
-            elif document_category == "sales":
-                stmt = select(SalesDocument).where(SalesDocument.id == UUID(document_id))
-                result = await session.execute(stmt)
-                doc = result.scalar_one_or_none()
-
-                if not doc:
-                    return {"error": "Documento no encontrado"}
-
-                return {
-                    "id": str(doc.id),
-                    "company_id": str(doc.company_id),
-                    "document_type": doc.document_type,
-                    "folio": doc.folio,
-                    "issue_date": doc.issue_date.isoformat(),
-                    "recipient_rut": doc.recipient_rut,
-                    "recipient_name": doc.recipient_name,
-                    "net_amount": float(doc.net_amount),
-                    "tax_amount": float(doc.tax_amount),
-                    "exempt_amount": float(doc.exempt_amount),
-                    "total_amount": float(doc.total_amount),
-                    "status": doc.status,
-                    "sii_track_id": doc.sii_track_id,
-                    "created_at": doc.created_at.isoformat(),
-                }
-
-            else:
-                return {"error": "Categoría de documento inválida. Usa 'purchase' o 'sales'"}
-
-    except Exception as e:
-        logger.error(f"Error getting document details: {e}")
+        logger.error(f"Error in get_documents: {e}", exc_info=True)
         return {"error": str(e)}
 
 
@@ -584,12 +205,23 @@ async def get_documents_summary(
     """
     Get a summary of purchase and sales documents for a period.
 
+    This tool provides aggregated totals and IVA calculations for a given month/year.
+    Perfect for monthly reports, F29 declarations, and financial summaries.
+
     Args:
-        month: Month (1-12), optional. If not provided, uses current month.
-        year: Year, optional. If not provided, uses current year.
+        month: Month (1-12). If not provided, uses current month.
+        year: Year (e.g., 2024). If not provided, uses current year.
 
     Returns:
-        Summary with totals and counts by document type including IVA calculations
+        Summary with:
+        - Purchase totals (count, amounts, IVA)
+        - Sales totals (count, amounts, IVA)
+        - IVA summary (débito fiscal, crédito fiscal, IVA a pagar)
+
+    Examples:
+        - Current month summary: get_documents_summary()
+        - Specific month: get_documents_summary(month=9, year=2024)
+        - Last year summary: get_documents_summary(year=2023)
     """
     import time
     from ....db.models import PurchaseDocument, SalesDocument
@@ -603,7 +235,6 @@ async def get_documents_summary(
         logger.error("❌ Usuario no autenticado")
         return {"error": "Usuario no autenticado"}
 
-    # Always get company_id from context (never from agent parameter)
     company_id = ctx.context.request_context.get("company_id")
     if not company_id:
         logger.error("❌ company_id no disponible en el contexto")
@@ -615,6 +246,7 @@ async def get_documents_summary(
         db_start = time.time()
         async with AsyncSessionLocal() as session:
             logger.info(f"⏱️  DB session created: {time.time() - db_start:.3f}s")
+
             # Use current month/year if not provided
             if month is None or year is None:
                 now = datetime.now()
@@ -653,28 +285,40 @@ async def get_documents_summary(
             # Calculate totals
             purchase_total = sum(float(doc.total_amount) for doc in purchases)
             purchase_iva = sum(float(doc.tax_amount) for doc in purchases)
+            purchase_net = sum(float(doc.net_amount) for doc in purchases)
+
             sales_total = sum(float(doc.total_amount) for doc in sales)
             sales_iva = sum(float(doc.tax_amount) for doc in sales)
+            sales_net = sum(float(doc.net_amount) for doc in sales)
 
-            logger.info(f"📊 Resumen calculado: {len(purchases)} compras (${purchase_total:,.0f}), {len(sales)} ventas (${sales_total:,.0f})")
+            logger.info(
+                f"📊 Resumen calculado: {len(purchases)} compras (${purchase_total:,.0f}), "
+                f"{len(sales)} ventas (${sales_total:,.0f})"
+            )
 
             result = {
-                "period": f"{year}-{month:02d}",
+                "period": {
+                    "month": month,
+                    "year": year,
+                    "formatted": f"{year}-{month:02d}",
+                },
                 "purchases": {
                     "count": len(purchases),
+                    "net_amount": purchase_net,
+                    "tax_amount": purchase_iva,
                     "total_amount": purchase_total,
-                    "total_iva": purchase_iva,
                 },
                 "sales": {
                     "count": len(sales),
+                    "net_amount": sales_net,
+                    "tax_amount": sales_iva,
                     "total_amount": sales_total,
-                    "total_iva": sales_iva,
                 },
                 "iva_summary": {
                     "debito_fiscal": sales_iva,  # IVA cobrado en ventas
                     "credito_fiscal": purchase_iva,  # IVA pagado en compras
                     "iva_a_pagar": sales_iva - purchase_iva,  # IVA neto a pagar (o saldo a favor)
-                }
+                },
             }
 
             total_time = time.time() - tool_start

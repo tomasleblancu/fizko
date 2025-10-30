@@ -31,6 +31,15 @@ from .notifications import (
 )
 from .personnel import Payroll, Person
 from .phone_verification import PhoneVerification
+from .scheduled_tasks import (
+    CrontabSchedule,
+    IntervalSchedule,
+    PeriodicTask,
+    PeriodicTaskChanged,
+    TaskResult,
+    create_crontab_schedule,
+    create_interval_schedule,
+)
 from .session import Session
 from .user import Profile
 
@@ -75,4 +84,12 @@ __all__ = [
     "NotificationHistory",
     "NotificationEventTrigger",
     "UserNotificationPreference",
+    # Celery Beat Scheduled Tasks
+    "IntervalSchedule",
+    "CrontabSchedule",
+    "PeriodicTask",
+    "PeriodicTaskChanged",
+    "TaskResult",
+    "create_interval_schedule",
+    "create_crontab_schedule",
 ]

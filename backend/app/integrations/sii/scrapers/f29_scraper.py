@@ -5,7 +5,12 @@ import time
 import logging
 from typing import List, Optional
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import (
+    TimeoutException,
+    InvalidSessionIdException,
+    WebDriverException,
+    NoSuchWindowException
+)
 
 from .base_scraper import BaseScraper
 from ..models.f29_types import FormularioF29
@@ -24,6 +29,24 @@ class F29Scraper(BaseScraper):
 
     SEARCH_URL = "https://www4.sii.cl/sifmConsultaInternet/index.html?dest=cifxx&form=29"
     FORM_CODE = "29"
+
+    def _check_session_valid(self) -> bool:
+        """
+        Verifica si la sesión de Selenium sigue activa
+
+        Returns:
+            True si la sesión está activa, False si no
+        """
+        try:
+            _ = self.driver.driver.current_url
+            _ = self.driver.driver.window_handles
+            return True
+        except (InvalidSessionIdException, WebDriverException) as e:
+            logger.warning(f"⚠️ Sesión de Selenium inválida detectada: {type(e).__name__}")
+            return False
+        except Exception as e:
+            logger.warning(f"⚠️ Error verificando sesión: {type(e).__name__}: {e}")
+            return False
 
     def scrape(self, **kwargs) -> dict:
         """
@@ -62,7 +85,11 @@ class F29Scraper(BaseScraper):
             # Validar parametros
             self._validar_parametros(anio, folio)
 
-            logger.info(f"Buscando F29 - Ano: {anio}, Folio: {folio}")
+            logger.info(f"🔎 Iniciando búsqueda F29 - Año: {anio}, Folio: {folio}")
+
+            # Validar sesión al inicio
+            if not self._check_session_valid():
+                raise ScrapingException("Sesión de Selenium inválida al inicio de búsqueda F29")
 
             # Navegar a pagina de busqueda
             self._navegar_a_busqueda(max_retries)
@@ -80,16 +107,37 @@ class F29Scraper(BaseScraper):
             gwt_response = self._ejecutar_consulta()
 
             # Extraer resultados de la tabla HTML con codInt incluido
-            # El codInt se extrae directamente del atributo onclick de cada link de folio
+            # El codInt se extrae haciendo click en "Ver" → "Formulario Compacto"
+            # y capturando la URL que se abre en la nueva ventana
             resultados = self._extraer_resultados()
 
-            logger.info(f"Busqueda completada: {len(resultados)} formularios")
+            # Resumen final
+            total = len(resultados)
+            con_codint = sum(1 for r in resultados if r.get('id_interno_sii'))
+            sin_codint = total - con_codint
+
+            logger.info(
+                f"✅ Búsqueda F29 completada: {total} formularios encontrados\n"
+                f"   - Con id_interno_sii: {con_codint}\n"
+                f"   - Sin id_interno_sii: {sin_codint}"
+            )
+
+            if sin_codint > 0:
+                logger.warning(
+                    f"⚠️ {sin_codint} formularios sin id_interno_sii\n"
+                    f"   Estos formularios no podrán descargar PDFs hasta que se extraiga el codInt"
+                )
+
             return resultados
 
         except ValueError:
             raise
         except Exception as e:
-            logger.error(f"Error buscando formularios: {str(e)}")
+            logger.error(
+                f"❌ Error buscando formularios F29\n"
+                f"   Error: {type(e).__name__}: {str(e)}",
+                exc_info=True
+            )
             raise ScrapingException(f"Error en busqueda de formularios: {str(e)}") from e
 
     def _validar_parametros(
@@ -345,31 +393,64 @@ class F29Scraper(BaseScraper):
         import re
         import time
 
+        # Validar sesión ANTES de intentar operaciones
+        if not self._check_session_valid():
+            logger.error(
+                f"❌ SESIÓN INVÁLIDA antes de extraer codInt para folio {folio_text}\n"
+                f"   La sesión de Selenium ya estaba cerrada/expirada antes de comenzar"
+            )
+            return None
+
         try:
-            # Buscar el botón "Formulario Compacto"
+            logger.debug(f"🔍 Iniciando extracción de codInt para folio {folio_text}")
+
+            # Paso 1: Buscar el botón "Formulario Compacto"
+            logger.debug(f"   [1/6] Buscando botón 'Formulario Compacto'...")
             formulario_compacto_btn = self.driver.driver.find_element(
                 By.XPATH,
                 "//button[contains(text(), 'Formulario Compacto')]"
             )
+            logger.debug(f"   [1/6] ✓ Botón encontrado")
 
-            # Guardar ventanas actuales
+            # Paso 2: Guardar ventanas actuales
+            logger.debug(f"   [2/6] Obteniendo ventanas actuales...")
             ventanas_antes = self.driver.driver.window_handles
+            logger.debug(f"   [2/6] ✓ Ventanas antes: {len(ventanas_antes)}")
 
-            # Click en Formulario Compacto (abrirá nueva pestaña con el PDF)
+            # Paso 3: Click en Formulario Compacto (abrirá nueva pestaña con el PDF)
+            logger.debug(f"   [3/6] Haciendo click en 'Formulario Compacto'...")
             formulario_compacto_btn.click()
-            time.sleep(2)
+            logger.debug(f"   [3/6] ✓ Click realizado, esperando 3s (más tiempo en Docker)...")
+            time.sleep(3)  # Aumentado a 3s para dar más tiempo en Docker
 
-            # Verificar si se abrió nueva pestaña
+            # Paso 4: Verificar sesión después del click
+            logger.debug(f"   [4/6] Verificando sesión después del click...")
+            if not self._check_session_valid():
+                logger.error(f"   [4/6] ❌ SESIÓN SE INVALIDÓ DESPUÉS DEL CLICK en 'Formulario Compacto'")
+                return None
+            logger.debug(f"   [4/6] ✓ Sesión sigue válida")
+
+            # Paso 5: Verificar si se abrió nueva pestaña
+            logger.debug(f"   [5/6] Verificando nuevas ventanas...")
             ventanas_despues = self.driver.driver.window_handles
+            logger.debug(f"   [5/6] ✓ Ventanas después: {len(ventanas_despues)}")
 
             if len(ventanas_despues) > len(ventanas_antes):
-                # Cambiar a la nueva pestaña
+                # Paso 6a: Cambiar a la nueva pestaña
+                logger.debug(f"   [6a] Cambiando a nueva ventana...")
                 nueva_ventana = ventanas_despues[-1]
                 self.driver.driver.switch_to.window(nueva_ventana)
+                logger.debug(f"   [6a] ✓ Cambiado a ventana nueva")
+
+                # Verificar sesión después del switch
+                if not self._check_session_valid():
+                    logger.error(f"   [6a] ❌ SESIÓN SE INVALIDÓ DESPUÉS DE switch_to.window()")
+                    return None
 
                 # Obtener la URL (contiene el codInt)
+                logger.debug(f"   [6b] Obteniendo URL del formulario compacto...")
                 url_compacto = self.driver.driver.current_url
-                logger.debug(f"URL Formulario Compacto: {url_compacto}")
+                logger.debug(f"   [6b] ✓ URL Formulario Compacto: {url_compacto}")
 
                 # Extraer codInt de la URL usando regex
                 # Formato: ...?folio=XXX&rut=YYY&form=029&codInt=ZZZ
@@ -378,29 +459,97 @@ class F29Scraper(BaseScraper):
                 cod_int = None
                 if match:
                     cod_int = match.group(1)
-                    logger.debug(f"✅ codInt extraído de URL: {cod_int}")
+                    logger.debug(f"   [6c] ✅ codInt extraído de URL: {cod_int}")
                 else:
-                    logger.warning(f"⚠️ No se encontró codInt en URL: {url_compacto}")
+                    logger.warning(f"   [6c] ⚠️ No se encontró codInt en URL: {url_compacto}")
 
                 # Cerrar la pestaña del PDF y volver a la anterior
+                logger.debug(f"   [6d] Cerrando ventana del PDF...")
                 self.driver.driver.close()
-                self.driver.driver.switch_to.window(ventanas_antes[0])
+                logger.debug(f"   [6d] ✓ Ventana cerrada")
 
+                # Volver a la ventana original
+                # NOTA: No verificamos la sesión aquí porque window_handles puede fallar temporalmente
+                # después de close(), pero switch_to.window() funciona correctamente
+                logger.debug(f"   [6e] Volviendo a ventana original...")
+                try:
+                    self.driver.driver.switch_to.window(ventanas_antes[0])
+                    logger.debug(f"   [6e] ✓ Vuelto a ventana original")
+                except Exception as e:
+                    logger.warning(f"   [6e] ⚠️ Error al volver a ventana: {e}")
+                    # Aún así, devolver el codInt que ya extrajimos
+                    return cod_int
+
+                logger.debug(f"   ✅ Extracción completada exitosamente: codInt={cod_int}")
                 return cod_int
             else:
                 logger.warning("⚠️ No se abrió nueva pestaña al hacer click en Formulario Compacto")
                 return None
 
+        except InvalidSessionIdException as e:
+            logger.error(
+                f"🔴 INVALID SESSION ID para folio {folio_text}\n"
+                f"   Error: {e}\n"
+                f"   Tipo: {type(e).__name__}\n"
+                f"   Causa probable: La sesión de Selenium expiró durante la operación\n"
+                f"   Posibles razones:\n"
+                f"     - Timeout del navegador (inactividad)\n"
+                f"     - Driver cerrado prematuramente por otro proceso\n"
+                f"     - Problema de red con Selenium/ChromeDriver\n"
+                f"     - Navegador crasheó o fue cerrado manualmente",
+                exc_info=True
+            )
+            return None
+
+        except NoSuchWindowException as e:
+            logger.error(
+                f"🪟 VENTANA NO ENCONTRADA para folio {folio_text}\n"
+                f"   Error: {e}\n"
+                f"   Tipo: {type(e).__name__}\n"
+                f"   La ventana/pestaña que intentamos usar ya no existe\n"
+                f"   Posible causa: El navegador cerró la pestaña automáticamente",
+                exc_info=True
+            )
+            return None
+
+        except WebDriverException as e:
+            logger.error(
+                f"🌐 WEBDRIVER ERROR para folio {folio_text}\n"
+                f"   Error: {e}\n"
+                f"   Tipo: {type(e).__name__}\n"
+                f"   Error general de comunicación con el navegador\n"
+                f"   Posibles causas:\n"
+                f"     - ChromeDriver no responde\n"
+                f"     - Navegador no responde\n"
+                f"     - Problema de red entre Selenium y Chrome",
+                exc_info=True
+            )
+            return None
+
         except Exception as e:
-            logger.error(f"❌ Error extrayendo codInt desde Formulario Compacto: {e}")
+            logger.error(
+                f"❌ ERROR INESPERADO extrayendo codInt para folio {folio_text}\n"
+                f"   Error: {e}\n"
+                f"   Tipo: {type(e).__name__}\n"
+                f"   Este es un error no manejado específicamente",
+                exc_info=True
+            )
+
             # Asegurarse de volver a la ventana original en caso de error
-            try:
-                ventanas = self.driver.driver.window_handles
-                if len(ventanas) > 1:
-                    self.driver.driver.close()
-                    self.driver.driver.switch_to.window(ventanas[0])
-            except:
-                pass
+            # Solo si la sesión sigue válida
+            if self._check_session_valid():
+                try:
+                    ventanas = self.driver.driver.window_handles
+                    if len(ventanas) > 1:
+                        logger.debug("🔄 Intentando cerrar ventanas adicionales...")
+                        self.driver.driver.close()
+                        self.driver.driver.switch_to.window(ventanas[0])
+                        logger.debug("✅ Ventanas cerradas correctamente")
+                except Exception as cleanup_error:
+                    logger.warning(f"⚠️ Error limpiando ventanas: {cleanup_error}")
+            else:
+                logger.warning("⚠️ No se puede limpiar ventanas: sesión inválida")
+
             return None
 
     def _descargar_pdf_desde_modal(self, folio_link, folio_text: str, rut: str) -> Optional[bytes]:
@@ -594,6 +743,17 @@ class F29Scraper(BaseScraper):
 
                 # Extraer codInt usando el flujo completo (Ver → Formulario Compacto)
                 try:
+                    # Validar que la sesión sigue activa antes de intentar
+                    if not self._check_session_valid():
+                        logger.error(
+                            f"❌ Sesión inválida al intentar extraer codInt para folio {datos['folio']}\n"
+                            f"   Saltando este formulario"
+                        )
+                        resultados.append(formulario)
+                        continue
+
+                    logger.debug(f"🔍 Procesando folio {datos['folio']} (índice {datos['row_index']})")
+
                     # Re-obtener la tabla actualizada
                     tabla = self.driver.wait_for_element(
                         By.CLASS_NAME,
@@ -612,8 +772,8 @@ class F29Scraper(BaseScraper):
                         ver_link = ultima_celda.find_element(By.LINK_TEXT, "Ver")
 
                         # Click en Ver para abrir vista de detalle
+                        logger.debug(f"👁️  Click en 'Ver' para folio {datos['folio']}")
                         ver_link.click()
-                        logger.debug(f"Click en 'Ver' para folio {datos['folio']}")
                         time.sleep(1.5)
 
                         # Extraer codInt desde el botón "Formulario Compacto"
@@ -623,21 +783,52 @@ class F29Scraper(BaseScraper):
                             formulario['id_interno_sii'] = id_interno_sii
                             logger.info(f"✅ Folio {datos['folio']} → codInt {id_interno_sii}")
                         else:
-                            logger.warning(f"⚠️ No se pudo extraer codInt para folio {datos['folio']}")
+                            logger.warning(
+                                f"⚠️ No se pudo extraer codInt para folio {datos['folio']}\n"
+                                f"   El formulario se guardará sin id_interno_sii"
+                            )
 
                         # Volver a la tabla principal
                         try:
-                            volver_btn = self.driver.driver.find_element(
-                                By.XPATH,
-                                "//button[contains(text(), 'Volver')]"
-                            )
-                            volver_btn.click()
-                            time.sleep(1)
+                            if self._check_session_valid():
+                                volver_btn = self.driver.driver.find_element(
+                                    By.XPATH,
+                                    "//button[contains(text(), 'Volver')]"
+                                )
+                                volver_btn.click()
+                                time.sleep(1)
+                                logger.debug(f"🔙 Volviendo a tabla principal")
+                            else:
+                                logger.error("❌ Sesión inválida, no se puede hacer click en 'Volver'")
                         except Exception as e:
-                            logger.warning(f"Error al volver: {e}")
+                            logger.warning(f"⚠️ Error al volver a tabla principal: {type(e).__name__}: {e}")
+
+                except InvalidSessionIdException as e:
+                    logger.error(
+                        f"🔴 INVALID SESSION ID al procesar folio {datos['folio']}\n"
+                        f"   Error: {e}\n"
+                        f"   El formulario se guardará sin id_interno_sii\n"
+                        f"   La sesión expiró durante el procesamiento de este formulario",
+                        exc_info=True
+                    )
+                    # Continuar sin codInt si falla
+
+                except WebDriverException as e:
+                    logger.error(
+                        f"🌐 WEBDRIVER ERROR al procesar folio {datos['folio']}\n"
+                        f"   Error: {type(e).__name__}: {e}\n"
+                        f"   El formulario se guardará sin id_interno_sii",
+                        exc_info=True
+                    )
+                    # Continuar sin codInt si falla
 
                 except Exception as e:
-                    logger.warning(f"⚠️ Error extrayendo codInt para folio {datos['folio']}: {e}")
+                    logger.error(
+                        f"❌ ERROR INESPERADO al procesar folio {datos['folio']}\n"
+                        f"   Error: {type(e).__name__}: {e}\n"
+                        f"   El formulario se guardará sin id_interno_sii",
+                        exc_info=True
+                    )
                     # Continuar sin codInt si falla
 
                 resultados.append(formulario)
