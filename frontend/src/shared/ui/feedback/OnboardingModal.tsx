@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { ColorScheme } from "@/shared/hooks/useColorScheme";
+import { useAuth } from "@/app/providers/AuthContext";
 
 interface OnboardingModalProps {
   scheme: ColorScheme;
@@ -8,6 +10,8 @@ interface OnboardingModalProps {
 }
 
 export function OnboardingModal({ scheme, onComplete }: OnboardingModalProps) {
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [rut, setRut] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,6 +34,15 @@ export function OnboardingModal({ scheme, onComplete }: OnboardingModalProps) {
       window.removeEventListener('sii-login-progress', handleProgress);
     };
   }, []);
+
+  const handleLogoClick = async () => {
+    try {
+      await signOut();
+      navigate('/');
+    } catch (err) {
+      console.error('Error during logout:', err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,13 +87,19 @@ export function OnboardingModal({ scheme, onComplete }: OnboardingModalProps) {
         <div className="relative p-6 md:p-10">
           {/* Header */}
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30 animate-in zoom-in duration-500">
+            <button
+              type="button"
+              onClick={handleLogoClick}
+              disabled={loading}
+              className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30 animate-in zoom-in duration-500 hover:scale-105 transition-transform duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Volver al inicio"
+            >
               <img
                 src="/encabezado.png"
                 alt="Fizko Logo"
                 className="h-12 w-12 object-contain brightness-0 invert"
               />
-            </div>
+            </button>
             <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-slate-900 via-emerald-900 to-teal-900 dark:from-white dark:via-emerald-100 dark:to-teal-100 bg-clip-text text-transparent mb-2 animate-in slide-in-from-top-4 duration-500">
               Conecta tu cuenta SII
             </h2>
