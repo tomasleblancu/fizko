@@ -126,15 +126,46 @@ async def handle_webhook(
                 message_data = event_data.get("message", {})
                 conversation_data = event_data.get("conversation", {})
 
+                # DEBUG: Log completo de message_data para entender estructura
+                logger.info(f"🔍 Message data keys: {list(message_data.keys())}")
+                logger.info(f"🔍 Conversation data keys: {list(conversation_data.keys())}")
+
+                # ============================================================
+                # SOPORTE PARA PAYLOAD V2 DE KAPSO
+                # ============================================================
+                # V2 usa: message.from, message.text.body, message.direction
+                # V1 usaba: message.conversation_phone_number, message.content
+
                 # Extraer IDs y datos del mensaje
                 message_id = message_data.get("id")
                 conversation_id = conversation_data.get("id")
-                message_content = message_data.get("content", "")
-                sender_phone = message_data.get("conversation_phone_number", "")
-                contact_name = message_data.get("contact_name", "")
-                direction = message_data.get("direction", "")
-                message_type = message_data.get("message_type", "text")
+
+                # Contenido del mensaje (v2: text.body, v1: content)
+                message_content = ""
+                if "text" in message_data and isinstance(message_data["text"], dict):
+                    # V2: text.body
+                    message_content = message_data["text"].get("body", "")
+                else:
+                    # V1: content o body directo
+                    message_content = message_data.get("content") or message_data.get("body", "")
+
+                # Teléfono del remitente (v2: from, v1: conversation_phone_number)
+                sender_phone = message_data.get("from") or message_data.get("conversation_phone_number", "")
+
+                # Nombre del contacto (puede estar en message o conversation)
+                contact_name = message_data.get("contact_name") or conversation_data.get("contact_name", "")
+
+                # Direction (v2: en message, v1: podía estar en conversation)
+                direction = message_data.get("direction") or conversation_data.get("direction", "")
+
+                # Tipo de mensaje (v2: type, v1: message_type)
+                message_type = message_data.get("type") or message_data.get("message_type", "text")
+
+                # Media flag
                 has_media = message_data.get("has_media", False)
+
+                # DEBUG: Log de los valores extraídos
+                logger.info(f"🔍 Direction: '{direction}' | Sender: {sender_phone} | Type: {message_type} | Content: {message_content[:50]}...")
 
                 logger.info(f"📥 Procesando evento: {event_type} | Conv: {conversation_id} | Msg: {message_id}")
 
