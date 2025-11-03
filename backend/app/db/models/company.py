@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from .form29_sii_download import Form29SIIDownload
     from .personnel import Payroll, Person
     from .session import Session
+    from .honorarios import HonorariosReceipt
 
 
 class Company(Base):
@@ -65,6 +66,9 @@ class Company(Base):
     tax_info: Mapped[Optional["CompanyTaxInfo"]] = relationship(
         "CompanyTaxInfo", back_populates="company", uselist=False, cascade="all, delete-orphan"
     )
+    settings: Mapped[Optional["CompanySettings"]] = relationship(
+        "CompanySettings", back_populates="company", uselist=False, cascade="all, delete-orphan"
+    )
     sessions: Mapped[list["Session"]] = relationship(
         "Session", back_populates="company", cascade="all, delete-orphan"
     )
@@ -96,6 +100,11 @@ class Company(Base):
     )
     payroll_records: Mapped[list["Payroll"]] = relationship(
         "Payroll", back_populates="company", cascade="all, delete-orphan"
+    )
+
+    # Honorarios relationships
+    honorarios_receipts: Mapped[list["HonorariosReceipt"]] = relationship(
+        "HonorariosReceipt", back_populates="company", cascade="all, delete-orphan"
     )
 
     @hybrid_property
@@ -184,6 +193,46 @@ class CompanyTaxInfo(Base):
 
     # Relationships
     company: Mapped["Company"] = relationship("Company", back_populates="tax_info")
+
+
+class CompanySettings(Base):
+    """General company business settings and configuration.
+
+    Stores business operation settings that help customize the platform
+    experience and provide relevant features to the company.
+    """
+
+    __tablename__ = "company_settings"
+
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    company_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("companies.id"), unique=True
+    )
+
+    # Business operations settings
+    has_formal_employees: Mapped[Optional[bool]] = mapped_column(nullable=True)
+    has_imports: Mapped[Optional[bool]] = mapped_column(nullable=True)
+    has_exports: Mapped[Optional[bool]] = mapped_column(nullable=True)
+    has_lease_contracts: Mapped[Optional[bool]] = mapped_column(nullable=True)
+
+    # Setup tracking
+    is_initial_setup_complete: Mapped[bool] = mapped_column(default=False)
+    initial_setup_completed_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=text("now()")
+    )
+
+    # Relationships
+    company: Mapped["Company"] = relationship("Company", back_populates="settings")
 
 
 # Event listeners for RUT normalization

@@ -94,7 +94,7 @@ export function PeopleList({ scheme, company }: PeopleListProps) {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className={clsx(
-                "w-full rounded-lg border px-4 py-2 pl-10 text-sm transition-colors",
+                "w-full rounded-lg border px-4 py-2.5 pl-10 text-base transition-colors",
                 "border-slate-200 bg-white placeholder-slate-400",
                 "focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20",
                 "dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
@@ -127,7 +127,7 @@ export function PeopleList({ scheme, company }: PeopleListProps) {
                 key={filterOption.value}
                 onClick={() => setStatusFilter(filterOption.value)}
                 className={clsx(
-                  "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                  "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
                   statusFilter === filterOption.value
                     ? "bg-emerald-600 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -189,25 +189,25 @@ export function PeopleList({ scheme, company }: PeopleListProps) {
               <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
               <thead className="bg-slate-50 dark:bg-slate-800/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Empleado
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     RUT
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Contacto
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Salario Base
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     AFP / Salud
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Estado
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
@@ -229,7 +229,7 @@ export function PeopleList({ scheme, company }: PeopleListProps) {
                     <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
-                          <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          <div className="text-base font-medium text-slate-900 dark:text-slate-100">
                             {person.first_name} {person.last_name}
                           </div>
                           <div className="text-sm text-slate-500 dark:text-slate-400">
@@ -237,27 +237,27 @@ export function PeopleList({ scheme, company }: PeopleListProps) {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 dark:text-slate-100">
+                      <td className="px-6 py-4 whitespace-nowrap text-base text-slate-900 dark:text-slate-100">
                         {person.rut}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm space-y-1">
                           {person.email && (
                             <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
-                              <Mail className="h-3 w-3" />
+                              <Mail className="h-4 w-4" />
                               <span className="truncate max-w-[150px]">{person.email}</span>
                             </div>
                           )}
                           {person.phone && (
                             <div className="flex items-center gap-1 text-slate-600 dark:text-slate-400">
-                              <Phone className="h-3 w-3" />
+                              <Phone className="h-4 w-4" />
                               <span>{person.phone}</span>
                             </div>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        <div className="text-base font-medium text-slate-900 dark:text-slate-100">
                           {formatCurrency(person.base_salary)}
                         </div>
                       </td>

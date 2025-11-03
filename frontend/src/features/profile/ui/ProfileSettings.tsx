@@ -4,6 +4,8 @@ import { Settings, LogOut } from 'lucide-react';
 import { useAuth } from "@/app/providers/AuthContext";
 import { useUserProfile } from "@/shared/hooks/useUserProfile";
 import { ProfileSettingsSkeleton } from './ProfileSettingsSkeleton';
+import { UserNotificationPreferences } from './UserNotificationPreferences';
+import { useCompanySettings } from "@/shared/hooks/useCompanySettings";
 import { ViewContainer } from '@/shared/layouts/ViewContainer';
 import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
 import type { ViewType } from '@/shared/layouts/NavigationPills';
@@ -68,7 +70,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={clsx(
-                    'border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+                    'border-b-2 px-4 py-2.5 text-base font-medium transition-colors',
                     activeTab === tab.id
                       ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
                       : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
@@ -84,7 +86,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
               {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} isInDrawer={isInDrawer} />}
               {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} isInDrawer={isInDrawer} />}
               {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} isInDrawer={isInDrawer} />}
-              {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} isInDrawer={isInDrawer} />}
+              {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} isInDrawer={isInDrawer} company={company} />}
             </div>
           </div>
         </div>
@@ -114,7 +116,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={clsx(
-                'border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+                'border-b-2 px-4 py-3 text-base font-medium transition-colors',
                 activeTab === tab.id
                   ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
                   : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
@@ -131,7 +133,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
         {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} />}
         {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} />}
         {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} />}
-        {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} />}
+        {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} company={company} />}
       </div>
     </ViewContainer>
   );
@@ -278,10 +280,10 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp, i
             {user?.email?.charAt(0).toUpperCase() || '?'}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <h3 className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">
               {user?.email || 'Usuario'}
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Cuenta activa
             </p>
           </div>
@@ -291,13 +293,13 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp, i
       {/* Contact Information Section - Compact */}
       <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <div className="mb-3 flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">
             Información de Contacto
           </h4>
           {!isEditing ? (
             <button
               onClick={() => setIsEditing(true)}
-              className="text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+              className="text-sm font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
             >
               Editar
             </button>
@@ -585,6 +587,18 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp, i
 
 // Company Settings Tab
 function CompanySettings({ company, scheme, isInDrawer = false }: { company: any; scheme: ColorScheme; isInDrawer?: boolean }) {
+  const { settings, updateSettings, loading: settingsLoading } = useCompanySettings(company?.id);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedSettings, setEditedSettings] = useState(settings);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Update local state when settings are loaded
+  useEffect(() => {
+    if (settings) {
+      setEditedSettings(settings);
+    }
+  }, [settings]);
+
   if (!company) {
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-6 text-center dark:border-slate-800 dark:bg-slate-900">
@@ -594,6 +608,72 @@ function CompanySettings({ company, scheme, isInDrawer = false }: { company: any
       </div>
     );
   }
+
+  const handleToggleSetting = (key: keyof typeof editedSettings) => {
+    if (!editedSettings) return;
+    const currentValue = editedSettings[key];
+    // Cycle: null -> true -> false -> null
+    let newValue: boolean | null;
+    if (currentValue === null) {
+      newValue = true;
+    } else if (currentValue === true) {
+      newValue = false;
+    } else {
+      newValue = null;
+    }
+    setEditedSettings({ ...editedSettings, [key]: newValue });
+  };
+
+  const handleSave = async () => {
+    if (!editedSettings) return;
+    setIsSaving(true);
+    try {
+      await updateSettings.mutateAsync({
+        has_formal_employees: editedSettings.has_formal_employees,
+        has_imports: editedSettings.has_imports,
+        has_exports: editedSettings.has_exports,
+        has_lease_contracts: editedSettings.has_lease_contracts,
+      });
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating settings:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditedSettings(settings);
+    setIsEditing(false);
+  };
+
+  const renderSettingIcon = (value: boolean | null) => {
+    if (value === true) {
+      return (
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+          <svg className="h-4 w-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+      );
+    } else if (value === false) {
+      return (
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+          <svg className="h-4 w-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </div>
+      );
+    } else {
+      return (
+        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+          <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      );
+    }
+  };
 
   return (
     <div className={isInDrawer ? "space-y-0 divide-y divide-slate-200/50 dark:divide-slate-700/50" : "space-y-3"}>
@@ -657,6 +737,85 @@ function CompanySettings({ company, scheme, isInDrawer = false }: { company: any
         </div>
       </div>
 
+      {/* Business Configuration Section */}
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Configuración del Negocio
+            </h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Características operacionales de tu empresa
+            </p>
+          </div>
+          {!isEditing ? (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+            >
+              Editar
+            </button>
+          ) : null}
+        </div>
+
+        {settingsLoading ? (
+          <div className="py-4 text-center text-xs text-slate-500 dark:text-slate-400">
+            Cargando configuración...
+          </div>
+        ) : editedSettings ? (
+          <div className="space-y-2.5">
+            {[
+              { key: 'has_formal_employees', label: 'Empleados con contrato formal' },
+              { key: 'has_imports', label: 'Realiza importaciones' },
+              { key: 'has_exports', label: 'Realiza exportaciones' },
+              { key: 'has_lease_contracts', label: 'Tiene contratos de arriendo' },
+            ].map(({ key, label }) => (
+              <div
+                key={key}
+                className="flex items-center justify-between rounded-lg border border-slate-200/50 bg-slate-50/30 p-2.5 dark:border-slate-700/50 dark:bg-slate-800/30"
+              >
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {label}
+                </span>
+                {isEditing ? (
+                  <button
+                    onClick={() => handleToggleSetting(key as any)}
+                    className="transition-transform hover:scale-105"
+                  >
+                    {renderSettingIcon(editedSettings[key as keyof typeof editedSettings] as boolean | null)}
+                  </button>
+                ) : (
+                  renderSettingIcon(editedSettings[key as keyof typeof editedSettings] as boolean | null)
+                )}
+              </div>
+            ))}
+
+            {isEditing && (
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+                >
+                  {isSaving ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+                <button
+                  onClick={handleCancel}
+                  disabled={isSaving}
+                  className="flex-1 rounded-lg border border-slate-200 bg-white py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="py-4 text-center text-xs text-slate-500 dark:text-slate-400">
+            No hay configuración disponible
+          </div>
+        )}
+      </div>
+
       <div className={isInDrawer ? "py-4" : "rounded-lg bg-amber-50 p-3 shadow-sm dark:bg-amber-950/30"}>
         <p className="text-xs text-amber-800 dark:text-amber-200">
           Los datos de la empresa son obtenidos del SII y no pueden ser modificados desde aquí.
@@ -667,7 +826,7 @@ function CompanySettings({ company, scheme, isInDrawer = false }: { company: any
 }
 
 // Preferences Settings Tab
-function PreferencesSettings({ scheme, isInDrawer = false }: { scheme: ColorScheme; isInDrawer?: boolean }) {
+function PreferencesSettings({ scheme, isInDrawer = false, company }: { scheme: ColorScheme; isInDrawer?: boolean; company: Company | null }) {
   return (
     <div className={isInDrawer ? "space-y-0 divide-y divide-slate-200/50 dark:divide-slate-700/50" : "space-y-3"}>
       {/* Theme Preference - Compact */}
@@ -708,53 +867,10 @@ function PreferencesSettings({ scheme, isInDrawer = false }: { scheme: ColorSche
         </p>
       </div>
 
-      {/* Language (placeholder) - Compact */}
-      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
-        <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-          Idioma
-        </h4>
-        <select
-          disabled
-          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
-        >
-          <option>Español (Chile)</option>
-        </select>
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          Próximamente disponible
-        </p>
-      </div>
-
-      {/* Notifications (placeholder) - Compact */}
-      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
-        <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-          Notificaciones
-        </h4>
-        <div className="space-y-2">
-          <label className="flex items-center justify-between">
-            <span className="text-xs text-slate-700 dark:text-slate-300">
-              Notificaciones de email
-            </span>
-            <input
-              type="checkbox"
-              disabled
-              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700"
-            />
-          </label>
-          <label className="flex items-center justify-between">
-            <span className="text-xs text-slate-700 dark:text-slate-300">
-              Actualizaciones de documentos
-            </span>
-            <input
-              type="checkbox"
-              disabled
-              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700"
-            />
-          </label>
-        </div>
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          Próximamente disponible
-        </p>
-      </div>
+      {/* Notifications - Real Implementation */}
+      {company && company.id && (
+        <UserNotificationPreferences companyId={company.id} isInDrawer={isInDrawer} />
+      )}
     </div>
   );
 }

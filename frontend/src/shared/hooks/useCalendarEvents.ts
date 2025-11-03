@@ -71,5 +71,6 @@ export function useCalendarEvents(
     },
     enabled: !!session?.access_token && !!companyId,
     staleTime: 2 * 60 * 1000, // 2 minutes (events can change frequently)
+    refetchOnWindowFocus: true, // Calendar events change frequently, keep in sync
   });
 }

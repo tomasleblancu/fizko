@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....db.models import Company, Contact, SalesDocument
+from ....repositories.tax import TaxSummaryRepository
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 
@@ -62,8 +63,8 @@ class TaxSummaryRevenueTool(BaseUITool):
             )
 
         try:
-            # Get current period
-            period = self._extract_period_from_message(context.user_message)
+            # Get period from entity_id (format: "YYYY-MM") or default to current month
+            period = self._parse_period_from_entity_id(context.additional_data.get("entity_id"))
 
             # Get company info
             company_data = await self._get_company_info(context.db, context.company_id)
@@ -150,58 +151,58 @@ class TaxSummaryRevenueTool(BaseUITool):
         year: int,
         month: int,
     ) -> dict[str, Any]:
-        """Get revenue summary for a specific period."""
+        """
+        Get revenue summary for a specific period using TaxSummaryRepository.
 
+        This ensures consistency with the /api/tax-summary endpoint.
+        """
         company_uuid = self._safe_get_uuid(company_id)
         if not company_uuid:
             return {"total_revenue": 0.0, "total_documents": 0, "by_type": []}
 
-        # Date range
-        start_date = datetime(year, month, 1).date()
-        if month == 12:
-            end_date = datetime(year + 1, 1, 1).date()
-        else:
-            end_date = datetime(year, month + 1, 1).date()
+        try:
+            # Use TaxSummaryRepository for consistent calculation
+            repo = TaxSummaryRepository(db)
+            period_str = f"{year}-{month:02d}"
 
-        # Get total revenue
-        total_stmt = select(
-            func.count(SalesDocument.id).label("count"),
-            func.coalesce(func.sum(SalesDocument.total_amount), 0).label("total"),
-        ).where(
-            SalesDocument.company_id == company_uuid,
-            SalesDocument.issue_date >= start_date,
-            SalesDocument.issue_date < end_date,
-        )
+            tax_summary = await repo.get_tax_summary(company_uuid, period_str)
 
-        total_result = await db.execute(total_stmt)
-        total_row = total_result.first()
+            # Get breakdown by document type (not in TaxSummary, needs direct query)
+            start_date = datetime(year, month, 1).date()
+            if month == 12:
+                end_date = datetime(year + 1, 1, 1).date()
+            else:
+                end_date = datetime(year, month + 1, 1).date()
 
-        # Get breakdown by document type
-        by_type_stmt = select(
-            SalesDocument.document_type,
-            func.count(SalesDocument.id).label("count"),
-            func.coalesce(func.sum(SalesDocument.total_amount), 0).label("total"),
-        ).where(
-            SalesDocument.company_id == company_uuid,
-            SalesDocument.issue_date >= start_date,
-            SalesDocument.issue_date < end_date,
-        ).group_by(SalesDocument.document_type)
+            by_type_stmt = select(
+                SalesDocument.document_type,
+                func.count(SalesDocument.id).label("count"),
+                func.coalesce(func.sum(SalesDocument.total_amount), 0).label("total"),
+            ).where(
+                SalesDocument.company_id == company_uuid,
+                SalesDocument.issue_date >= start_date,
+                SalesDocument.issue_date < end_date,
+            ).group_by(SalesDocument.document_type)
 
-        by_type_result = await db.execute(by_type_stmt)
-        by_type_data = [
-            {
-                "tipo": row.document_type or "Sin tipo",
-                "count": row.count,
-                "total": float(row.total),
+            by_type_result = await db.execute(by_type_stmt)
+            by_type_data = [
+                {
+                    "tipo": row.document_type or "Sin tipo",
+                    "count": row.count,
+                    "total": float(row.total),
+                }
+                for row in by_type_result
+            ]
+
+            return {
+                "total_revenue": tax_summary.total_revenue,
+                "total_documents": len(by_type_data) if by_type_data else 0,  # Approximation
+                "by_type": by_type_data,
             }
-            for row in by_type_result
-        ]
 
-        return {
-            "total_revenue": float(total_row.total) if total_row else 0.0,
-            "total_documents": total_row.count if total_row else 0,
-            "by_type": by_type_data,
-        }
+        except Exception as e:
+            logger.error(f"Error getting revenue summary: {e}", exc_info=True)
+            return {"total_revenue": 0.0, "total_documents": 0, "by_type": []}
 
     async def _get_top_clients(
         self,
@@ -254,18 +255,38 @@ class TaxSummaryRevenueTool(BaseUITool):
             for row in result
         ]
 
-    def _extract_period_from_message(self, message: str) -> dict[str, int]:
-        """Extract period (year/month) from message, default to current month."""
-        import re
+    def _parse_period_from_entity_id(self, entity_id: str | None) -> dict[str, int]:
+        """
+        Parse period from entity_id (format: "YYYY-MM" or ISO datetime).
 
+        Args:
+            entity_id: Period string in format "YYYY-MM" or ISO datetime (e.g., "2025-10-01T00:00:00") or None
+
+        Returns:
+            Dict with year and month integers
+        """
         now = datetime.now()
         year = now.year
         month = now.month
 
-        match = re.search(r"(\d{4})[-/](\d{1,2})", message)
-        if match:
-            year = int(match.group(1))
-            month = int(match.group(2))
+        if entity_id:
+            try:
+                # Handle ISO datetime format (e.g., "2025-10-01T00:00:00")
+                if "T" in entity_id:
+                    # Extract just the date part before 'T'
+                    date_part = entity_id.split("T")[0]
+                    parts = date_part.split("-")
+                    if len(parts) >= 2:
+                        year = int(parts[0])
+                        month = int(parts[1])
+                # Handle simple "YYYY-MM" format
+                else:
+                    parts = entity_id.split("-")
+                    if len(parts) == 2:
+                        year = int(parts[0])
+                        month = int(parts[1])
+            except (ValueError, AttributeError) as e:
+                logger.warning(f"Failed to parse period from entity_id '{entity_id}': {e}")
 
         return {"year": year, "month": month}
 

@@ -3,6 +3,7 @@ import { useAuth } from "@/app/providers/AuthContext";
 import type { TaxSummary } from "@/shared/types/fizko";
 import { API_BASE_URL } from "@/shared/lib/config";
 import { apiFetch } from "@/shared/lib/api-client";
+import { queryKeys } from "@/shared/lib/query-keys";
 
 /**
  * React Query hook for fetching tax summary data for a company.
@@ -19,14 +20,14 @@ import { apiFetch } from "@/shared/lib/api-client";
  * const { data: taxSummary, isLoading } = useTaxSummaryQuery(companyId, '2024-01');
  * ```
  */
-export function useTaxSummaryQuery(companyId: string | null, period?: string) {
+export function useTaxSummaryQuery(companyId?: string | null, period?: string, enabled: boolean = true) {
   const { session } = useAuth();
 
   return useQuery({
-    queryKey: ['home', 'tax-summary', companyId, period],
+    queryKey: queryKeys.taxSummary.byPeriod(companyId, period),
     queryFn: async (): Promise<TaxSummary | null> => {
-      if (!session?.access_token || !companyId) {
-        throw new Error('No authenticated session or company ID');
+      if (!session?.access_token) {
+        throw new Error('No authenticated session');
       }
 
       const params = new URLSearchParams();
@@ -34,7 +35,8 @@ export function useTaxSummaryQuery(companyId: string | null, period?: string) {
         params.append('period', period);
       }
 
-      const url = `${API_BASE_URL}/tax-summary/${companyId}${params.toString() ? `?${params.toString()}` : ''}`;
+      // Use new endpoint that doesn't require company_id - backend will resolve it from user session
+      const url = `${API_BASE_URL}/tax-summary${params.toString() ? `?${params.toString()}` : ''}`;
 
       const response = await apiFetch(url, {
         headers: {
@@ -53,7 +55,8 @@ export function useTaxSummaryQuery(companyId: string | null, period?: string) {
 
       return await response.json();
     },
-    enabled: !!session?.access_token && !!companyId,
+    enabled: !!session?.access_token && enabled,
     staleTime: 3 * 60 * 1000, // 3 minutes
+    refetchOnWindowFocus: true, // Refetch financial data when user returns to window
   });
 }

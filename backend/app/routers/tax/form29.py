@@ -8,63 +8,18 @@ from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
-from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.database import get_db
-from ...db.models import Form29, Session
-from ...dependencies import get_current_user_id, require_auth
+from ...db.models import Session
+from ...dependencies import get_current_user_id, require_auth, Form29RepositoryDep
+from ...schemas.tax import Form29Create, Form29Submit, Form29Update
 
 router = APIRouter(
     prefix="/api/form29",
     tags=["form29"],
     dependencies=[Depends(require_auth)]
 )
-
-
-# =============================================================================
-# Request/Response Models
-# =============================================================================
-
-class Form29Create(BaseModel):
-    """Request model for creating a Form29."""
-    company_id: str  # UUID string
-    period_year: int
-    period_month: int
-    total_sales: Decimal = Decimal("0")
-    taxable_sales: Decimal = Decimal("0")
-    exempt_sales: Decimal = Decimal("0")
-    sales_tax: Decimal = Decimal("0")
-    total_purchases: Decimal = Decimal("0")
-    taxable_purchases: Decimal = Decimal("0")
-    purchases_tax: Decimal = Decimal("0")
-    iva_to_pay: Decimal = Decimal("0")
-    iva_credit: Decimal = Decimal("0")
-    net_iva: Decimal = Decimal("0")
-    status: str = "draft"
-    extra_data: Optional[dict] = None
-
-
-class Form29Update(BaseModel):
-    """Request model for updating a Form29."""
-    total_sales: Optional[Decimal] = None
-    taxable_sales: Optional[Decimal] = None
-    exempt_sales: Optional[Decimal] = None
-    sales_tax: Optional[Decimal] = None
-    total_purchases: Optional[Decimal] = None
-    taxable_purchases: Optional[Decimal] = None
-    purchases_tax: Optional[Decimal] = None
-    iva_to_pay: Optional[Decimal] = None
-    iva_credit: Optional[Decimal] = None
-    net_iva: Optional[Decimal] = None
-    status: Optional[str] = None
-    extra_data: Optional[dict] = None
-
-
-class Form29Submit(BaseModel):
-    """Request model for submitting a Form29 to SII."""
-    folio: Optional[str] = None
 
 
 # =============================================================================
@@ -98,6 +53,7 @@ async def verify_company_access(
 
 @router.get("")
 async def list_form29(
+    repo: Form29RepositoryDep,
     company_id: str = Query(..., description="Company ID (required)"),
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
@@ -123,35 +79,25 @@ async def list_form29(
     # Verify access
     await verify_company_access(company_uuid, user_id, db)
 
-    # Build query
-    stmt = select(Form29).where(Form29.company_id == company_uuid)
+    # Validate month if provided
+    if period_month and (period_month < 1 or period_month > 12):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="period_month must be between 1 and 12"
+        )
 
-    # Apply filters
-    if period_year:
-        stmt = stmt.where(Form29.period_year == period_year)
-    if period_month:
-        if period_month < 1 or period_month > 12:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="period_month must be between 1 and 12"
-            )
-        stmt = stmt.where(Form29.period_month == period_month)
-    if status_filter:
-        stmt = stmt.where(Form29.status == status_filter)
-
-    # Get total count
-    count_stmt = select(func.count()).select_from(stmt.subquery())
-    total_result = await db.execute(count_stmt)
-    total = total_result.scalar()
-
-    # Apply pagination and ordering
-    stmt = stmt.offset(skip).limit(limit).order_by(
-        Form29.period_year.desc(),
-        Form29.period_month.desc()
+    # Use repository (injected via Depends)
+    forms = await repo.find_by_company(
+        company_id=company_uuid,
+        period_year=period_year,
+        period_month=period_month,
+        status=status_filter,
+        skip=skip,
+        limit=limit
     )
 
-    result = await db.execute(stmt)
-    forms = result.scalars().all()
+    # Get total count
+    total = await repo.count(filters={'company_id': company_uuid})
 
     return {
         "data": [
@@ -189,6 +135,7 @@ async def list_form29(
 @router.get("/{form_id}")
 async def get_form29(
     form_id: UUID,
+    repo: Form29RepositoryDep,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -197,10 +144,8 @@ async def get_form29(
 
     User must have access to the company that owns this form.
     """
-    # Get form
-    stmt = select(Form29).where(Form29.id == form_id)
-    result = await db.execute(stmt)
-    form = result.scalar_one_or_none()
+    # Get form using repository (injected via Depends)
+    form = await repo.get(form_id)
 
     if not form:
         raise HTTPException(
@@ -240,6 +185,7 @@ async def get_form29(
 @router.post("")
 async def create_form29(
     data: Form29Create,
+    repo: Form29RepositoryDep,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -261,23 +207,17 @@ async def create_form29(
             detail="period_month must be between 1 and 12"
         )
 
-    # Check if Form29 already exists for this period
-    stmt = select(Form29).where(
-        Form29.company_id == company_id,
-        Form29.period_year == data.period_year,
-        Form29.period_month == data.period_month
-    )
-    result = await db.execute(stmt)
-    existing_form = result.scalar_one_or_none()
+    # Check if Form29 already exists for this period (using injected repo)
+    exists = await repo.exists_for_period(company_id, data.period_year, data.period_month)
 
-    if existing_form:
+    if exists:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Form29 already exists for period {data.period_year}-{data.period_month:02d}"
         )
 
-    # Create form
-    form = Form29(
+    # Create form using repository
+    form = await repo.create(
         company_id=company_id,
         period_year=data.period_year,
         period_month=data.period_month,
@@ -294,8 +234,6 @@ async def create_form29(
         status=data.status,
         extra_data=data.extra_data or {},
     )
-
-    db.add(form)
     await db.commit()
     await db.refresh(form)
 
@@ -316,6 +254,7 @@ async def create_form29(
 async def update_form29(
     form_id: UUID,
     data: Form29Update,
+    repo: Form29RepositoryDep,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -325,10 +264,8 @@ async def update_form29(
     User must have access to the company that owns this form.
     Note: Cannot update a Form29 that has been submitted.
     """
-    # Get form
-    stmt = select(Form29).where(Form29.id == form_id)
-    result = await db.execute(stmt)
-    form = result.scalar_one_or_none()
+    # Get form using repository (injected via Depends)
+    form = await repo.get(form_id)
 
     if not form:
         raise HTTPException(
@@ -346,11 +283,9 @@ async def update_form29(
             detail="Cannot update a submitted Form29"
         )
 
-    # Update only provided fields
+    # Update only provided fields using repository
     update_data = data.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(form, field, value)
-
+    form = await repo.update(form_id, **update_data)
     await db.commit()
     await db.refresh(form)
 
@@ -371,6 +306,7 @@ async def update_form29(
 @router.delete("/{form_id}")
 async def delete_form29(
     form_id: UUID,
+    repo: Form29RepositoryDep,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -381,10 +317,8 @@ async def delete_form29(
     Note: Cannot delete a Form29 that has been submitted.
     This is a hard delete. For soft delete, update the status instead.
     """
-    # Get form
-    stmt = select(Form29).where(Form29.id == form_id)
-    result = await db.execute(stmt)
-    form = result.scalar_one_or_none()
+    # Get form using repository (injected via Depends)
+    form = await repo.get(form_id)
 
     if not form:
         raise HTTPException(
@@ -402,8 +336,8 @@ async def delete_form29(
             detail="Cannot delete a submitted Form29"
         )
 
-    # Delete form
-    await db.delete(form)
+    # Delete form using repository
+    await repo.delete(form_id)
     await db.commit()
 
     return {
@@ -418,6 +352,7 @@ async def delete_form29(
 async def submit_form29(
     form_id: UUID,
     data: Form29Submit,
+    repo: Form29RepositoryDep,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -430,10 +365,8 @@ async def submit_form29(
     Note: This is a placeholder endpoint. In production, this would integrate
     with the actual SII submission service.
     """
-    # Get form
-    stmt = select(Form29).where(Form29.id == form_id)
-    result = await db.execute(stmt)
-    form = result.scalar_one_or_none()
+    # Get form using repository (injected via Depends)
+    form = await repo.get(form_id)
 
     if not form:
         raise HTTPException(
@@ -458,12 +391,15 @@ async def submit_form29(
     # 3. Submitting the form
     # 4. Getting back a folio/confirmation number
 
-    # Update form status
-    form.status = "submitted"
-    form.submission_date = datetime.utcnow()
+    # Update form status using repository
+    update_data = {
+        "status": "submitted",
+        "submission_date": datetime.utcnow()
+    }
     if data.folio:
-        form.folio = data.folio
+        update_data["folio"] = data.folio
 
+    form = await repo.update(form_id, **update_data)
     await db.commit()
     await db.refresh(form)
 

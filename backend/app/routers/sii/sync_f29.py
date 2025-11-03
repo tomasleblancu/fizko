@@ -196,12 +196,11 @@ async def download_single_f29_pdf(
     # 3. Log session info for debugging
     logger.info(f"📋 Session {request.session_id} is active, downloading PDF with Selenium")
 
-    # 4. Intentar descargar el PDF usando Selenium
+    # 4. Descargar el PDF (incluye extracción automática de datos)
     service = SIIService(db)
-    result = await service.download_f29_pdf_with_selenium(
+    result = await service.download_and_save_f29_pdf(
         download_id=str(request.download_id),
-        session_id=request.session_id,
-        force_new_login=False
+        session_id=request.session_id
     )
 
     if not result.get("success"):
@@ -307,10 +306,9 @@ async def download_f29_pdfs(
 
         for download in downloads_to_process:
             try:
-                result = await service.download_f29_pdf_with_selenium(
+                result = await service.download_and_save_f29_pdf(
                     download_id=str(download.id),
-                    session_id=request.session_id,
-                    force_new_login=False
+                    session_id=request.session_id
                 )
 
                 if result["success"]:
@@ -456,83 +454,133 @@ async def sync_f29_for_year(
 # F29 Data Extraction
 # ============================================================================
 
-@router.post("/extract-data/{download_id}")
-async def extract_f29_data(
+@router.get("/extract-data/{download_id}")
+async def get_extracted_f29_data(
     download_id: UUID,
-    session_id: UUID,
-    save_to_form29: bool = True,
     current_user_id: UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Descarga el PDF del F29, extrae los datos estructurados y los guarda en Form29
+    Obtiene los datos estructurados ya extraídos del PDF F29
 
-    Este endpoint:
-    1. Descarga el PDF del F29 desde el SII
-    2. Extrae datos estructurados (ventas, compras, IVA, etc.)
-    3. Guarda/actualiza el registro Form29 con los datos extraídos
-    4. Vincula el Form29 con el Form29SIIDownload
+    Los datos se extraen automáticamente cuando se descarga el PDF,
+    por lo que este endpoint simplemente retorna los datos almacenados
+    en el campo extra_data del registro Form29SIIDownload.
+
+    Si el PDF no ha sido descargado aún, retorna un error indicando
+    que primero debe descargarse el PDF usando /download-single-pdf.
 
     Args:
         download_id: UUID del registro Form29SIIDownload
-        session_id: UUID de la sesión SII activa
-        save_to_form29: Si True, guarda los datos en la tabla form29 (default: True)
         current_user_id: ID del usuario autenticado
         db: Sesión de base de datos
 
     Returns:
-        Datos extraídos y resultado del guardado
+        Datos extraídos del PDF
 
     Example:
-        POST /api/sii/sync/f29/extract-data/550e8400...?session_id=abc123...
+        GET /api/sii/sync/f29/extract-data/550e8400...
 
         Response:
         {
             "success": true,
+            "download_id": "550e8400...",
+            "folio": "7904207766",
+            "has_pdf": true,
+            "has_extracted_data": true,
             "extracted_data": {
-                "period_year": 2024,
-                "period_month": 1,
-                "total_sales": 1000000,
-                "sales_tax": 190000,
+                "extraction_success": true,
+                "codes_extracted": 45,
+                "encabezado": {...},
+                "debitos": {...},
+                "creditos": {...},
                 ...
-            },
-            "form29_id": "...",
-            "message": "PDF descargado, datos extraídos y Form29 guardado"
+            }
         }
     """
     logger.info(
-        f"🔍 F29 data extraction requested by user {current_user_id}: "
-        f"download_id={download_id}, session_id={session_id}"
+        f"🔍 F29 extracted data requested by user {current_user_id}: "
+        f"download_id={download_id}"
     )
 
-    # Validar que el usuario tenga acceso a usar la sesión
-    session = await validate_session_access(session_id, current_user_id, db)
-
     try:
-        service = SIIService(db)
-
-        # Extraer datos del PDF
-        result = await service.download_and_extract_f29_data(
-            download_id=str(download_id),
-            session_id=str(session_id),
-            save_to_form29=save_to_form29
+        # 1. Obtener el registro Form29SIIDownload
+        stmt = select(Form29SIIDownload).where(
+            Form29SIIDownload.id == download_id
         )
+        result = await db.execute(stmt)
+        download = result.scalar_one_or_none()
 
-        if not result.get('success'):
+        if not download:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=result.get('error', 'Error extracting F29 data')
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Form29SIIDownload {download_id} no encontrado"
             )
 
-        logger.info(f"✅ F29 data extraction completed: {result.get('message')}")
+        # 2. Verificar que el usuario tenga acceso (verificar que pertenece a su company)
+        # Obtener sesiones del usuario para esta company
+        stmt_access = select(SessionModel).where(
+            SessionModel.user_id == current_user_id,
+            SessionModel.company_id == download.company_id
+        )
+        result_access = await db.execute(stmt_access)
+        has_access = result_access.scalar_one_or_none() is not None
 
-        return result
+        # Verificar si es admin
+        user_stmt = select(Profile).where(Profile.id == current_user_id)
+        user_result = await db.execute(user_stmt)
+        user = user_result.scalar_one_or_none()
+        is_admin = user and user.rol == "admin-kaiken"
+
+        if not has_access and not is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permisos para acceder a este formulario"
+            )
+
+        # 3. Verificar si tiene PDF descargado
+        if not download.pdf_storage_url:
+            return {
+                "success": False,
+                "download_id": str(download_id),
+                "folio": download.sii_folio,
+                "has_pdf": False,
+                "has_extracted_data": False,
+                "message": "El PDF no ha sido descargado aún. Usa /download-single-pdf primero."
+            }
+
+        # 4. Verificar si tiene datos extraídos
+        extracted_data = download.extra_data.get('f29_data') if download.extra_data else None
+
+        if not extracted_data:
+            return {
+                "success": False,
+                "download_id": str(download_id),
+                "folio": download.sii_folio,
+                "has_pdf": True,
+                "has_extracted_data": False,
+                "message": "El PDF fue descargado pero no se extrajeron datos. Intenta re-descargar el PDF."
+            }
+
+        # 5. Retornar datos extraídos
+        logger.info(f"✅ Returning extracted data for folio {download.sii_folio}")
+
+        return {
+            "success": True,
+            "download_id": str(download_id),
+            "folio": download.sii_folio,
+            "period": download.period_display,
+            "has_pdf": True,
+            "has_extracted_data": True,
+            "pdf_url": download.pdf_storage_url,
+            "extracted_data": extracted_data
+        }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ F29 data extraction failed: {e}", exc_info=True)
+        logger.error(f"❌ Failed to get extracted F29 data: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al extraer datos del F29: {str(e)}"
+            detail=f"Error al obtener datos extraídos del F29: {str(e)}"
         )

@@ -111,20 +111,19 @@ async def list_scheduled_tasks(
 @router.get("/{task_id}", response_model=ScheduledTaskResponse)
 async def get_scheduled_task(
     task_id: int,
-    company_id: UUID = Depends(get_user_company_id),
     scheduler_service: SchedulerService = Depends(get_scheduler_service),
 ) -> ScheduledTaskResponse:
     """
     Get details of a specific scheduled task.
 
-    The task must belong to the user's company (multi-tenancy check).
+    Note: Only system-level tasks (company_id IS NULL) are returned by this endpoint.
     """
-    task = await scheduler_service.get_scheduled_task(task_id=task_id, company_id=company_id)
+    task = await scheduler_service.get_scheduled_task(task_id=task_id, company_id=None)
 
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Task with id {task_id} not found or access denied",
+            detail=f"Task with id {task_id} not found",
         )
 
     return format_task_response(task)
@@ -139,19 +138,20 @@ async def update_scheduled_task(
     """
     Update an existing scheduled task.
 
-    Note: You cannot change the schedule type or schedule parameters.
-    To change the schedule, delete the task and create a new one.
+    You can now update schedule parameters (interval or crontab).
+    To change the schedule type (from interval to crontab or vice versa),
+    provide the new schedule parameters and the task will be updated accordingly.
 
-    Only system-level tasks (company_id = NULL) can be updated via this endpoint.
+    This endpoint works for both system-level and company-specific tasks.
     """
     task = await scheduler_service.update_scheduled_task(
-        task_id=task_id, request=request, company_id=None  # System-level only
+        task_id=task_id, request=request, company_id=None
     )
 
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"System task with id {task_id} not found",
+            detail=f"Task with id {task_id} not found",
         )
 
     return format_task_response(task)
@@ -256,7 +256,6 @@ async def run_scheduled_task_now(
 async def get_task_executions(
     task_id: int,
     limit: int = 20,
-    company_id: UUID = Depends(get_user_company_id),
     scheduler_service: SchedulerService = Depends(get_scheduler_service),
 ) -> List[TaskExecutionResponse]:
     """
@@ -264,18 +263,20 @@ async def get_task_executions(
 
     Query Parameters:
         limit: Maximum number of executions to return (default: 20, max: 100)
+
+    Note: Only system-level tasks (company_id IS NULL) are queried by this endpoint.
     """
     executions = await scheduler_service.get_task_executions(
-        task_id=task_id, limit=limit, company_id=company_id
+        task_id=task_id, limit=limit, company_id=None
     )
 
     if not executions:
         # Check if task exists to provide better error message
-        task = await scheduler_service.get_scheduled_task(task_id=task_id, company_id=company_id)
+        task = await scheduler_service.get_scheduled_task(task_id=task_id, company_id=None)
         if not task:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Task with id {task_id} not found or access denied",
+                detail=f"Task with id {task_id} not found",
             )
 
     return [TaskExecutionResponse.model_validate(execution) for execution in executions]

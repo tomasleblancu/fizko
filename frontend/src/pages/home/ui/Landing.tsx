@@ -1,4 +1,4 @@
-import { ArrowRight, Zap, Shield, Clock, CheckCircle } from 'lucide-react';
+import { TrendingUp, MessageCircle, CalendarCheck } from 'lucide-react';
 import { useAuth } from "@/app/providers/AuthContext";
 import { DashboardPreview } from "@/features/dashboard/ui/DashboardPreview";
 import { DocumentsPreview } from "@/shared/ui/DocumentsPreview";
@@ -31,22 +31,15 @@ export default function Landing() {
 
             {/* Main Headline */}
             <h1 className="mx-auto max-w-4xl text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-6xl">
-              Tu negocio ya vive en el{' '}
+              Tus números, claros.{' '}
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                futuro
+                Tus impuestos, bajo control.
               </span>
-              .
             </h1>
-            <h2 className="mx-auto mt-4 max-w-2xl text-4xl font-bold text-gray-900 dark:text-white sm:text-5xl">
-              Ahora tus impuestos también.
-            </h2>
 
             {/* Subtitle */}
             <p className="mx-auto mt-8 max-w-2xl text-xl leading-relaxed text-gray-600 dark:text-gray-300">
-              Fizko se conecta con el <strong>SII</strong>,{' '}
-              <strong>organiza</strong> ingresos y gastos en tiempo real,{' '}
-              <strong>responde</strong> tus dudas 24/7 y{' '}
-              <strong>proyecta</strong> tus impuestos para pagarlos desde la app.
+              Conexión directa al SII, actualización en tiempo real y proyecciones para pagar a tiempo tus obligaciones.
             </p>
 
             {/* CTA Button */}
@@ -99,101 +92,74 @@ export default function Landing() {
             {/* Step 1 */}
             <div className="relative">
               <div className="flex h-full flex-col items-center rounded-2xl border border-gray-200 bg-gradient-to-br from-blue-50 to-blue-100/50 p-8 text-center transition-all hover:shadow-xl dark:border-gray-700 dark:from-blue-900/20 dark:to-blue-800/10">
-                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-700 text-3xl font-bold text-white shadow-lg">
-                  1
+                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-blue-700 shadow-lg">
+                  <TrendingUp className="h-8 w-8 text-white" />
                 </div>
-                <h3 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">conectar</h3>
-                <p className="mb-6 text-gray-600 dark:text-gray-300">
-                  La app de Fizko se conecta al SII, y muestra los ingresos y gastos de tu negocio
-                  día a día.
+                <h3 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">Información en tiempo real</h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Nos conectamos al SII y te actualizamos de todo lo que está pasando con tu negocio.
                 </p>
-                <div className="mt-auto">
-                  <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    Protegemos tus claves con tecnología de cifrado avanzado, y cumplimos con todas
-                    las normas de protección de datos vigentes en Chile.
-                  </p>
-                </div>
               </div>
             </div>
 
             {/* Step 2 */}
             <div className="relative">
               <div className="flex h-full flex-col items-center rounded-2xl border border-gray-200 bg-gradient-to-br from-purple-50 to-purple-100/50 p-8 text-center transition-all hover:shadow-xl dark:border-gray-700 dark:from-purple-900/20 dark:to-purple-800/10">
-                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-purple-700 text-3xl font-bold text-white shadow-lg">
-                  2
+                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-purple-700 shadow-lg">
+                  <MessageCircle className="h-8 w-8 text-white" />
                 </div>
-                <h3 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">usar</h3>
-                <p className="mb-6 text-gray-600 dark:text-gray-300">
-                  Usa la app para seguir cada movimiento de tu negocio, recibir notificaciones, y
-                  resolver tus preguntas con nuestro Notebook.
+                <h3 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">Asistente disponible 24/7</h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Chat que resuelve todas las dudas que tengas, las 24 horas del día.
                 </p>
-                <div className="mt-auto">
-                  <Clock className="h-8 w-8 text-purple-600 dark:text-purple-400" />
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    Disponible 24/7 para ayudarte con tus dudas fiscales y contables
-                  </p>
-                </div>
               </div>
             </div>
 
             {/* Step 3 */}
             <div className="relative">
               <div className="flex h-full flex-col items-center rounded-2xl border border-gray-200 bg-gradient-to-br from-green-50 to-green-100/50 p-8 text-center transition-all hover:shadow-xl dark:border-gray-700 dark:from-green-900/20 dark:to-green-800/10">
-                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-600 to-green-700 text-3xl font-bold text-white shadow-lg">
-                  3
+                <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-600 to-green-700 shadow-lg">
+                  <CalendarCheck className="h-8 w-8 text-white" />
                 </div>
-                <h3 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">declarar</h3>
-                <p className="mb-6 text-gray-600 dark:text-gray-300">
-                  Declara y paga tus impuestos directamente desde la app, o sigue de cerca cómo tu
-                  equipo se encarga de ello.
+                <h3 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">Calendario tributario</h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Nos encargamos de generar tus declaraciones y cumplir con las fechas que establece el SII.
                 </p>
-                <div className="mt-auto">
-                  <Zap className="h-8 w-8 text-green-600 dark:text-green-400" />
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    Automatiza el proceso y ahorra tiempo en cada declaración
-                  </p>
-                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Benefits Section */}
-      <section className="bg-gradient-to-br from-gray-50 to-blue-50 py-24 dark:from-gray-900 dark:to-gray-800" aria-labelledby="benefits-heading">
+      {/* Video Demo Section */}
+      <section className="bg-gradient-to-br from-gray-50 to-blue-50 py-24 dark:from-gray-900 dark:to-gray-800" aria-labelledby="demo-heading">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-            <article>
-              <h2 id="benefits-heading" className="text-3xl font-bold text-gray-900 dark:text-white sm:text-4xl">
-                Control total de tu negocio en tiempo real
-              </h2>
-              <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">
-                Con Fizko tienes visibilidad completa de tu situación fiscal, proyecciones precisas
-                y respuestas instantáneas a tus dudas.
-              </p>
-              <ul className="mt-8 space-y-4" role="list">
-                {[
-                  'Sincronización automática con el SII',
-                  'Dashboard en tiempo real con tus números',
-                  'Asistente IA disponible 24/7',
-                  'Proyecciones de impuestos mensuales',
-                  'Gestión de F29 y documentos tributarios',
-                  'Notificaciones de vencimientos importantes',
-                ].map((benefit, index) => (
-                  <li key={index} className="flex items-center space-x-3">
-                    <CheckCircle className="h-6 w-6 flex-shrink-0 text-green-600 dark:text-green-400" aria-hidden="true" />
-                    <span className="text-gray-700 dark:text-gray-300">{benefit}</span>
-                  </li>
-                ))}
-              </ul>
-            </article>
-            <figure className="relative">
+          <header className="text-center">
+            <h2 id="demo-heading" className="text-3xl font-bold text-gray-900 dark:text-white sm:text-4xl">
+              Mira cómo funciona
+            </h2>
+            <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">
+              Un vistazo rápido a la plataforma en acción
+            </p>
+          </header>
+
+          <div className="mt-12 flex justify-center">
+            <div className="relative w-full max-w-5xl">
               <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 blur-2xl" aria-hidden="true" />
-              <div className="relative">
-                <DocumentsPreview scheme="light" />
+              <div className="relative overflow-hidden rounded-2xl bg-gray-900 shadow-2xl">
+                {/* Video player - replace /demo-video.mp4 with your actual video path */}
+                <video
+                  className="w-full"
+                  controls
+                  poster="/video-poster.jpg"
+                  aria-label="Video demostrativo de la plataforma Fizko mostrando cambio de empresa, agregar trabajador y chat en acción"
+                >
+                  <source src="/demo-video.mp4" type="video/mp4" />
+                  <source src="/demo-video.webm" type="video/webm" />
+                  Tu navegador no soporta la reproducción de video. Por favor actualiza tu navegador.
+                </video>
               </div>
-            </figure>
+            </div>
           </div>
         </div>
       </section>

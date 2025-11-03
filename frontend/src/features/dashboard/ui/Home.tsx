@@ -14,6 +14,8 @@ import { Personnel } from "../../payroll/ui/Personnel";
 import { PersonnelDrawer } from "../../payroll/ui/PersonnelDrawer";
 import { LoginOverlay } from "@/shared/ui/feedback/LoginOverlay";
 import { OnboardingModal } from "@/shared/ui/feedback/OnboardingModal";
+import { FizkoLoadingScreen } from "@/shared/ui/feedback/FizkoLoadingScreen";
+import { CompanyInitialSetupModal } from "../../profile/ui/CompanyInitialSetupModal";
 import type { ViewType } from "@/shared/layouts/NavigationPills";
 import { ColorScheme } from "@/shared/hooks/useColorScheme";
 import { useAuth } from "@/app/providers/AuthContext";
@@ -43,7 +45,15 @@ function HomeContent({
   handleThemeChange: (scheme: ColorScheme) => void;
 }) {
   const { session: authSession, loading: authLoading } = useAuth();
-  const { needsOnboarding, saveSIICredentials, loading: sessionLoading, isInitialized } = useSession();
+  const {
+    needsOnboarding,
+    needsInitialSetup,
+    setupCompanyId,
+    saveSIICredentials,
+    loading: sessionLoading,
+    isInitialized,
+    refresh: refreshSession
+  } = useSession();
 
   // Lift company state to Home to avoid multiple fetches
   const { data: company = null, isLoading: companyLoading, error: companyError } = useCompanyQuery();
@@ -78,9 +88,20 @@ function HomeContent({
     sessionLoading,
     isInitialized,
     needsOnboarding,
+    needsInitialSetup,
+    setupCompanyId,
     isLoading,
     hasAuthSession: !!authSession,
   });
+
+  // Handler for completing initial setup
+  const handleCompleteInitialSetup = () => {
+    // Clear sessionStorage flags
+    sessionStorage.removeItem('needs_initial_setup');
+    sessionStorage.removeItem('setup_company_id');
+    // Refresh session to update state
+    refreshSession();
+  };
 
   const handleSendMessageReady = useCallback((sendFn: (text: string, metadata?: Record<string, any>) => Promise<void>) => {
     setSendMessage(() => sendFn);
@@ -178,18 +199,7 @@ function HomeContent({
 
   // Show loading state while checking auth or session status is unknown
   if (isLoading) {
-    return (
-      <div className={containerClass}>
-        <div className="flex h-[100dvh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-300 border-t-emerald-600 dark:border-slate-700 dark:border-t-emerald-400" />
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Cargando...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return <FizkoLoadingScreen />;
   }
 
   // Not authenticated - show login overlay
@@ -238,6 +248,50 @@ function HomeContent({
         <OnboardingModal
           scheme={scheme}
           onComplete={saveSIICredentials}
+        />
+      </div>
+    );
+  }
+
+  // Authenticated and onboarded, but needs initial setup - show setup modal
+  if (needsInitialSetup && setupCompanyId && company) {
+    return (
+      <div className={containerClass}>
+        <div className="flex h-[100dvh] w-full flex-col-reverse gap-0 p-0 lg:flex-row">
+          {/* Chat Panel Container - Blurred background */}
+          <div className="relative flex h-full w-full flex-col lg:w-[35%] lg:flex-none lg:border-r lg:border-slate-200 dark:lg:border-slate-800">
+            <div className="relative flex flex-1 items-stretch overflow-hidden bg-white/80 backdrop-blur dark:bg-slate-900/70 blur-md pointer-events-none">
+              <ChatKitPanel
+                theme={scheme}
+                onResponseEnd={handleResponseEnd}
+                onThemeRequest={handleThemeChange}
+                onSendMessageReady={handleSendMessageReady}
+                currentCompanyId={activeCompanyId}
+                onCompanyIdChange={handleCompanyIdChange}
+              />
+            </div>
+          </div>
+
+          {/* Dashboard - Blurred background */}
+          <div className="hidden lg:block lg:flex-1 lg:overflow-hidden blur-md pointer-events-none">
+            <FinancialDashboard
+              scheme={scheme}
+              companyId={activeCompanyId}
+              company={company}
+              onThemeChange={handleThemeChange}
+              onNavigateToSettings={handleNavigateToSettings}
+              onNavigateToContacts={handleNavigateToContacts}
+              currentView={currentView}
+            />
+          </div>
+        </div>
+
+        {/* Company Initial Setup Modal Overlay */}
+        <CompanyInitialSetupModal
+          companyId={setupCompanyId}
+          companyName={company.business_name || company.rut}
+          scheme={scheme}
+          onComplete={handleCompleteInitialSetup}
         />
       </div>
     );

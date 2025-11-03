@@ -25,11 +25,11 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
 
   // Filter documents based on search and filter
   const filteredDocuments = documents.filter((doc) => {
-    // Apply type filter
-    if (filter === 'venta' && !doc.document_type.toLowerCase().startsWith('venta_')) {
+    // Apply type filter based on source field
+    if (filter === 'venta' && doc.source !== 'sale') {
       return false;
     }
-    if (filter === 'compra' && !doc.document_type.toLowerCase().startsWith('compra_')) {
+    if (filter === 'compra' && doc.source !== 'purchase') {
       return false;
     }
 
@@ -249,36 +249,34 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
           {!isExpanded && (
             <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden" style={{ scrollbarGutter: 'stable' }}>
               {displayedDocuments.map((doc) => {
-                // Determine if it's a purchase or sale based on document_type prefix
-                const isVenta = doc.document_type.toLowerCase().startsWith('venta_');
-                const isCompra = doc.document_type.toLowerCase().startsWith('compra_');
+                // Determine if it's a purchase or sale based on source field (from backend)
+                const isCompra = doc.source === 'purchase';
+                const isVenta = doc.source === 'sale';
 
-                // Clean document type: remove "venta_" or "compra_" prefix
-                const cleanDocType = doc.document_type.replace(/^(venta_|compra_)/i, '');
+                // Clean document type: remove "_venta" or "_compra" suffix
+                const cleanDocType = doc.document_type.replace(/_(venta|compra)$/i, '');
 
                 // Check if it's a credit note (nota de crédito)
                 const isNotaCredito = cleanDocType.toLowerCase().includes('nota') && cleanDocType.toLowerCase().includes('credito');
 
-                // Clean description: remove document type prefix if present
+                // Clean description: remove "Purchase: " or "Sale: " prefix
                 const cleanDescription = doc.description
-                  ? doc.description.replace(new RegExp(`^(${doc.document_type}|${cleanDocType})\\s*-?\\s*`, 'i'), '')
+                  ? doc.description.replace(/^(Purchase|Sale):\s*/i, '')
                   : '';
 
                 // Format amount with sign
-                // Credit notes have opposite sign: venta NC = negative, compra NC = positive
+                // Ventas: positivas en verde (+)
+                // Compras: negativas en rojo (-)
+                // Notas de crédito invierten el signo
                 let amountSign = '';
                 let amountColor = 'text-slate-900 dark:text-slate-100';
 
                 if (isVenta) {
                   amountSign = isNotaCredito ? '-' : '+';
-                  amountColor = isNotaCredito
-                    ? 'text-rose-600 dark:text-rose-400'
-                    : 'text-emerald-600 dark:text-emerald-400';
+                  amountColor = 'text-emerald-600 dark:text-emerald-400'; // Verde para ventas
                 } else if (isCompra) {
                   amountSign = isNotaCredito ? '+' : '-';
-                  amountColor = isNotaCredito
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-rose-600 dark:text-rose-400';
+                  amountColor = 'text-rose-600 dark:text-rose-400'; // Rojo para compras
                 }
 
                 return (
@@ -336,36 +334,34 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
                   {/* Documents for this date */}
                   <div className="space-y-1.5">
                     {docs.map((doc) => {
-                      // Determine if it's a purchase or sale based on document_type prefix
-                      const isVenta = doc.document_type.toLowerCase().startsWith('venta_');
-                      const isCompra = doc.document_type.toLowerCase().startsWith('compra_');
+                      // Determine if it's a purchase or sale based on source field (from backend)
+                      const isCompra = doc.source === 'purchase';
+                      const isVenta = doc.source === 'sale';
 
-                      // Clean document type: remove "venta_" or "compra_" prefix
-                      const cleanDocType = doc.document_type.replace(/^(venta_|compra_)/i, '');
+                      // Clean document type: remove "_venta" or "_compra" suffix
+                      const cleanDocType = doc.document_type.replace(/_(venta|compra)$/i, '');
 
                       // Check if it's a credit note (nota de crédito)
                       const isNotaCredito = cleanDocType.toLowerCase().includes('nota') && cleanDocType.toLowerCase().includes('credito');
 
-                      // Clean description: remove document type prefix if present
+                      // Clean description: remove "Purchase: " or "Sale: " prefix
                       const cleanDescription = doc.description
-                        ? doc.description.replace(new RegExp(`^(${doc.document_type}|${cleanDocType})\\s*-?\\s*`, 'i'), '')
+                        ? doc.description.replace(/^(Purchase|Sale):\s*/i, '')
                         : '';
 
                       // Format amount with sign
-                      // Credit notes have opposite sign: venta NC = negative, compra NC = positive
+                      // Ventas: positivas en verde (+)
+                      // Compras: negativas en rojo (-)
+                      // Notas de crédito invierten el signo
                       let amountSign = '';
                       let amountColor = 'text-slate-900 dark:text-slate-100';
 
                       if (isVenta) {
                         amountSign = isNotaCredito ? '-' : '+';
-                        amountColor = isNotaCredito
-                          ? 'text-rose-600 dark:text-rose-400'
-                          : 'text-emerald-600 dark:text-emerald-400';
+                        amountColor = 'text-emerald-600 dark:text-emerald-400'; // Verde para ventas
                       } else if (isCompra) {
                         amountSign = isNotaCredito ? '+' : '-';
-                        amountColor = isNotaCredito
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : 'text-rose-600 dark:text-rose-400';
+                        amountColor = 'text-rose-600 dark:text-rose-400'; // Rojo para compras
                       }
 
                       return (

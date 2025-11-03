@@ -80,6 +80,11 @@ class NotificationTemplate(Base):
     # Estado
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
 
+    # Auto-asignación para nuevas empresas
+    auto_assign_to_new_companies: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false")
+    )
+
     # Metadata (extra_metadata to avoid SQLAlchemy reserved name)
     extra_metadata: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
 
@@ -446,7 +451,9 @@ class UserNotificationPreference(Base):
     )
 
     # Metadata (extra_metadata to avoid SQLAlchemy reserved name)
-    extra_metadata: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    extra_metadata: Mapped[dict] = mapped_column(
+        "metadata", JSONB, server_default=text("'{}'::jsonb")
+    )
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

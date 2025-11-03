@@ -148,6 +148,20 @@ class BeatService:
             },
         }
 
+        # Define default args for known tasks (positional arguments)
+        # Template-driven notifications use args, not kwargs
+        TASK_DEFAULT_ARGS = {
+            "notifications.process_template_notification": {
+                "args": ["daily_business_summary"],  # template_code
+                "examples": [
+                    "daily_business_summary",
+                    "weekly_business_summary",
+                    "monthly_business_summary"
+                ],
+                "help": "Código del template de notificación a procesar. Ejemplos: daily_business_summary, weekly_business_summary"
+            },
+        }
+
         # Filter out Celery internal tasks and format the response
         available_tasks = []
         for task_name in sorted(registered_tasks.keys()):
@@ -166,13 +180,22 @@ class BeatService:
             # Get default kwargs for this task
             default_kwargs = TASK_DEFAULT_KWARGS.get(task_name, {})
 
-            available_tasks.append(
-                {
-                    "name": task_name,
-                    "description": description,
-                    "default_kwargs": default_kwargs,
-                }
-            )
+            # Get default args for this task (if any)
+            default_args_info = TASK_DEFAULT_ARGS.get(task_name, None)
+
+            task_info = {
+                "name": task_name,
+                "description": description,
+                "default_kwargs": default_kwargs,
+            }
+
+            # Add args info if this task uses positional arguments
+            if default_args_info:
+                task_info["default_args"] = default_args_info["args"]
+                task_info["args_examples"] = default_args_info.get("examples", [])
+                task_info["args_help"] = default_args_info.get("help", "")
+
+            available_tasks.append(task_info)
 
         logger.debug(f"Found {len(available_tasks)} available Celery tasks")
         return available_tasks

@@ -40,6 +40,9 @@ interface AvailableTask {
   name: string;
   description: string;
   default_kwargs: Record<string, any>;
+  default_args?: any[];  // Some tasks use positional args instead of kwargs
+  args_examples?: string[];
+  args_help?: string;
 }
 
 export default function CreateTaskDialog({
@@ -68,8 +71,10 @@ export default function CreateTaskDialog({
   const [crontabDayOfMonth, setCrontabDayOfMonth] = useState('*');
   const [crontabMonthOfYear, setCrontabMonthOfYear] = useState('*');
 
-  // Task kwargs (JSON)
+  // Task arguments (JSON)
   const [kwargs, setKwargs] = useState('{"session_id": "", "months": 1}');
+  const [args, setArgs] = useState('[]');
+  const [selectedTaskInfo, setSelectedTaskInfo] = useState<AvailableTask | null>(null);
 
   // Fetch available tasks
   const { data: availableTasks = [], isLoading: isLoadingTasks } = useQuery<AvailableTask[]>({
@@ -92,19 +97,32 @@ export default function CreateTaskDialog({
     enabled: !!session?.access_token,
   });
 
-  // Auto-populate kwargs based on selected task (from backend)
+  // Auto-populate args/kwargs based on selected task (from backend)
   useEffect(() => {
     if (!task) return;
 
     // Find the selected task in available tasks
     const selectedTask = availableTasks.find(t => t.name === task);
+    setSelectedTaskInfo(selectedTask || null);
 
-    if (selectedTask && selectedTask.default_kwargs) {
-      // Use default_kwargs from backend
-      setKwargs(JSON.stringify(selectedTask.default_kwargs, null, 2));
+    if (selectedTask) {
+      // Check if this task uses positional args (like template-driven notifications)
+      if (selectedTask.default_args && selectedTask.default_args.length > 0) {
+        // Task uses args
+        setArgs(JSON.stringify(selectedTask.default_args, null, 2));
+        setKwargs('{}');  // Clear kwargs when using args
+      } else if (selectedTask.default_kwargs) {
+        // Task uses kwargs
+        setKwargs(JSON.stringify(selectedTask.default_kwargs, null, 2));
+        setArgs('[]');  // Clear args when using kwargs
+      } else {
+        // No defaults
+        setKwargs('{}');
+        setArgs('[]');
+      }
     } else {
-      // Fallback to empty object if no defaults provided
       setKwargs('{}');
+      setArgs('[]');
     }
   }, [task, availableTasks]);
 
@@ -153,12 +171,27 @@ export default function CreateTaskDialog({
     setCrontabDayOfMonth('*');
     setCrontabMonthOfYear('*');
     setKwargs('{"session_id": "", "months": 1}');
+    setArgs('[]');
+    setSelectedTaskInfo(null);
   };
 
   const handleSubmit = () => {
     // Validate name
     if (!name.trim()) {
       toast.error('El nombre es obligatorio');
+      return;
+    }
+
+    // Parse args
+    let parsedArgs = [];
+    try {
+      parsedArgs = JSON.parse(args);
+      if (!Array.isArray(parsedArgs)) {
+        toast.error('Los args deben ser un array JSON');
+        return;
+      }
+    } catch (error) {
+      toast.error('Los args deben ser JSON válido');
       return;
     }
 
@@ -177,6 +210,7 @@ export default function CreateTaskDialog({
       task,
       description: description.trim() || undefined,
       queue,
+      args: parsedArgs,
       kwargs: parsedKwargs,
       schedule_type: scheduleType,
       enabled: true,
@@ -390,21 +424,57 @@ export default function CreateTaskDialog({
             </Tabs>
           </div>
 
-          {/* Task Arguments (kwargs) */}
-          <div className="space-y-2">
-            <Label htmlFor="kwargs">Argumentos (JSON)</Label>
-            <Textarea
-              id="kwargs"
-              placeholder='{"session_id": "uuid", "months": 1}'
-              value={kwargs}
-              onChange={(e) => setKwargs(e.target.value)}
-              rows={3}
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-slate-500">
-              Parámetros que se pasarán a la tarea en formato JSON
-            </p>
-          </div>
+          {/* Task Arguments - Show args or kwargs depending on task */}
+          {selectedTaskInfo?.default_args && selectedTaskInfo.default_args.length > 0 ? (
+            // Task uses positional arguments (args)
+            <div className="space-y-2">
+              <Label htmlFor="args">Argumentos Posicionales (Array JSON)</Label>
+              <Textarea
+                id="args"
+                placeholder='["daily_business_summary"]'
+                value={args}
+                onChange={(e) => setArgs(e.target.value)}
+                rows={3}
+                className="font-mono text-sm"
+              />
+              {selectedTaskInfo.args_help && (
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  💡 {selectedTaskInfo.args_help}
+                </p>
+              )}
+              {selectedTaskInfo.args_examples && selectedTaskInfo.args_examples.length > 0 && (
+                <details className="text-xs text-slate-500">
+                  <summary className="cursor-pointer font-medium">Ver ejemplos</summary>
+                  <ul className="mt-2 space-y-1 pl-4">
+                    {selectedTaskInfo.args_examples.map((example, idx) => (
+                      <li key={idx} className="font-mono">
+                        ["{example}"]
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              <p className="text-xs text-slate-500">
+                Array de argumentos posicionales que se pasarán a la tarea
+              </p>
+            </div>
+          ) : (
+            // Task uses keyword arguments (kwargs)
+            <div className="space-y-2">
+              <Label htmlFor="kwargs">Argumentos (Object JSON)</Label>
+              <Textarea
+                id="kwargs"
+                placeholder='{"session_id": "uuid", "months": 1}'
+                value={kwargs}
+                onChange={(e) => setKwargs(e.target.value)}
+                rows={3}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-slate-500">
+                Parámetros clave-valor que se pasarán a la tarea en formato JSON
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>

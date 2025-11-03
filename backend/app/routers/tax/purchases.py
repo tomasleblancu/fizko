@@ -8,60 +8,18 @@ from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
-from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.database import get_db
-from ...db.models import PurchaseDocument, Session
-from ...dependencies import get_current_user_id, require_auth
+from ...db.models import Session
+from ...dependencies import get_current_user_id, require_auth, PurchaseDocumentRepositoryDep
+from ...schemas.tax import PurchaseDocumentCreate, PurchaseDocumentUpdate
 
 router = APIRouter(
     prefix="/api/purchase-documents",
     tags=["purchase-documents"],
     dependencies=[Depends(require_auth)]
 )
-
-
-# =============================================================================
-# Request/Response Models
-# =============================================================================
-
-class PurchaseDocumentCreate(BaseModel):
-    """Request model for creating a purchase document."""
-    company_id: str  # UUID string
-    document_type: str  # factura_compra, nota_credito_compra, nota_debito_compra
-    folio: Optional[int] = None
-    issue_date: str  # ISO date string
-    sender_rut: Optional[str] = None
-    sender_name: Optional[str] = None
-    net_amount: Decimal
-    tax_amount: Decimal = Decimal("0")
-    exempt_amount: Decimal = Decimal("0")
-    total_amount: Decimal
-    status: str = "pending"
-    dte_xml: Optional[str] = None
-    sii_track_id: Optional[str] = None
-    file_url: Optional[str] = None
-    extra_data: Optional[dict] = None
-
-
-class PurchaseDocumentUpdate(BaseModel):
-    """Request model for updating a purchase document."""
-    document_type: Optional[str] = None
-    folio: Optional[int] = None
-    issue_date: Optional[str] = None
-    sender_rut: Optional[str] = None
-    sender_name: Optional[str] = None
-    net_amount: Optional[Decimal] = None
-    tax_amount: Optional[Decimal] = None
-    exempt_amount: Optional[Decimal] = None
-    total_amount: Optional[Decimal] = None
-    status: Optional[str] = None
-    dte_xml: Optional[str] = None
-    sii_track_id: Optional[str] = None
-    file_url: Optional[str] = None
-    extra_data: Optional[dict] = None
 
 
 # =============================================================================
@@ -95,6 +53,7 @@ async def verify_company_access(
 
 @router.get("")
 async def list_purchase_documents(
+    repo: PurchaseDocumentRepositoryDep,
     company_id: str = Query(..., description="Company ID (required)"),
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
@@ -122,20 +81,12 @@ async def list_purchase_documents(
     # Verify access
     await verify_company_access(company_uuid, user_id, db)
 
-    # Build query
-    stmt = select(PurchaseDocument).where(
-        PurchaseDocument.company_id == company_uuid
-    )
-
-    # Apply filters
-    if document_type:
-        stmt = stmt.where(PurchaseDocument.document_type == document_type)
-    if status_filter:
-        stmt = stmt.where(PurchaseDocument.status == status_filter)
+    # Parse dates
+    from_date = None
+    to_date = None
     if date_from:
         try:
             from_date = date.fromisoformat(date_from)
-            stmt = stmt.where(PurchaseDocument.issue_date >= from_date)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -144,23 +95,25 @@ async def list_purchase_documents(
     if date_to:
         try:
             to_date = date.fromisoformat(date_to)
-            stmt = stmt.where(PurchaseDocument.issue_date <= to_date)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid date_to format. Use ISO format (YYYY-MM-DD)"
             )
 
+    # Use repository (injected via Depends)
+    documents = await repo.find_by_company(
+        company_id=company_uuid,
+        document_type=document_type,
+        start_date=from_date,
+        end_date=to_date,
+        status=status_filter,
+        skip=skip,
+        limit=limit
+    )
+
     # Get total count
-    count_stmt = select(func.count()).select_from(stmt.subquery())
-    total_result = await db.execute(count_stmt)
-    total = total_result.scalar()
-
-    # Apply pagination and ordering
-    stmt = stmt.offset(skip).limit(limit).order_by(PurchaseDocument.issue_date.desc())
-
-    result = await db.execute(stmt)
-    documents = result.scalars().all()
+    total = await repo.count(filters={'company_id': company_uuid})
 
     return {
         "data": [
@@ -195,6 +148,7 @@ async def list_purchase_documents(
 @router.get("/{document_id}")
 async def get_purchase_document(
     document_id: UUID,
+    repo: PurchaseDocumentRepositoryDep,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -203,10 +157,8 @@ async def get_purchase_document(
 
     User must have access to the company that owns this document.
     """
-    # Get document
-    stmt = select(PurchaseDocument).where(PurchaseDocument.id == document_id)
-    result = await db.execute(stmt)
-    document = result.scalar_one_or_none()
+    # Get document using repository (injected via Depends)
+    document = await repo.get(document_id)
 
     if not document:
         raise HTTPException(
@@ -244,6 +196,7 @@ async def get_purchase_document(
 @router.post("")
 async def create_purchase_document(
     data: PurchaseDocumentCreate,
+    repo: PurchaseDocumentRepositoryDep,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -266,8 +219,8 @@ async def create_purchase_document(
             detail="Invalid issue_date format. Use ISO format (YYYY-MM-DD)"
         )
 
-    # Create document
-    document = PurchaseDocument(
+    # Create document using repository (injected via Depends)
+    document = await repo.create(
         company_id=company_id,
         document_type=data.document_type,
         folio=data.folio,
@@ -284,8 +237,6 @@ async def create_purchase_document(
         file_url=data.file_url,
         extra_data=data.extra_data or {},
     )
-
-    db.add(document)
     await db.commit()
     await db.refresh(document)
 
@@ -307,6 +258,7 @@ async def create_purchase_document(
 async def update_purchase_document(
     document_id: UUID,
     data: PurchaseDocumentUpdate,
+    repo: PurchaseDocumentRepositoryDep,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -315,10 +267,8 @@ async def update_purchase_document(
 
     User must have access to the company that owns this document.
     """
-    # Get document
-    stmt = select(PurchaseDocument).where(PurchaseDocument.id == document_id)
-    result = await db.execute(stmt)
-    document = result.scalar_one_or_none()
+    # Get document using repository (injected via Depends)
+    document = await repo.get(document_id)
 
     if not document:
         raise HTTPException(
@@ -342,9 +292,8 @@ async def update_purchase_document(
                 detail="Invalid issue_date format. Use ISO format (YYYY-MM-DD)"
             )
 
-    for field, value in update_data.items():
-        setattr(document, field, value)
-
+    # Update using repository
+    document = await repo.update(document_id, **update_data)
     await db.commit()
     await db.refresh(document)
 
@@ -366,6 +315,7 @@ async def update_purchase_document(
 @router.delete("/{document_id}")
 async def delete_purchase_document(
     document_id: UUID,
+    repo: PurchaseDocumentRepositoryDep,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -375,10 +325,8 @@ async def delete_purchase_document(
     User must have access to the company that owns this document.
     This is a hard delete. For soft delete, update the status instead.
     """
-    # Get document
-    stmt = select(PurchaseDocument).where(PurchaseDocument.id == document_id)
-    result = await db.execute(stmt)
-    document = result.scalar_one_or_none()
+    # Get document using repository (injected via Depends)
+    document = await repo.get(document_id)
 
     if not document:
         raise HTTPException(
@@ -389,8 +337,8 @@ async def delete_purchase_document(
     # Verify access
     await verify_company_access(document.company_id, user_id, db)
 
-    # Delete document
-    await db.delete(document)
+    # Delete document using repository
+    await repo.delete(document_id)
     await db.commit()
 
     return {

@@ -96,6 +96,45 @@ class ScheduledTaskUpdate(BaseModel):
     hard_time_limit: Optional[int] = Field(None, gt=0)
     description: Optional[str] = None
 
+    # Schedule update fields (optional)
+    # Interval schedule fields
+    interval_every: Optional[int] = Field(None, gt=0, description="Interval count (e.g., 30)")
+    interval_period: Optional[Literal["days", "hours", "minutes", "seconds"]] = Field(
+        None, description="Interval period"
+    )
+
+    # Crontab schedule fields
+    crontab_minute: Optional[str] = Field(None, description="Crontab minute (0-59, *, etc.)")
+    crontab_hour: Optional[str] = Field(None, description="Crontab hour (0-23, *, etc.)")
+    crontab_day_of_week: Optional[str] = Field(
+        None, description="Crontab day of week (0-6, *, mon-fri, etc.)"
+    )
+    crontab_day_of_month: Optional[str] = Field(
+        None, description="Crontab day of month (1-31, *, etc.)"
+    )
+    crontab_month_of_year: Optional[str] = Field(
+        None, description="Crontab month (1-12, *, jan-jun, etc.)"
+    )
+    crontab_timezone: Optional[str] = Field(
+        None, description="Timezone for crontab schedule"
+    )
+
+
+class IntervalSchedule(BaseModel):
+    """Interval schedule details."""
+    every: int
+    period: str
+
+
+class CrontabSchedule(BaseModel):
+    """Crontab schedule details."""
+    minute: str
+    hour: str
+    day_of_week: str
+    day_of_month: str
+    month_of_year: str
+    timezone: str
+
 
 class ScheduledTaskResponse(BaseModel):
     """Response model for scheduled task details."""
@@ -105,6 +144,11 @@ class ScheduledTaskResponse(BaseModel):
     task: str
     schedule_type: str
     schedule_display: str
+
+    # Schedule details (mutually exclusive - one will be None)
+    interval: Optional[IntervalSchedule] = None
+    crontab: Optional[CrontabSchedule] = None
+
     args: List[Any]
     kwargs: Dict[str, Any]
     queue: Optional[str]

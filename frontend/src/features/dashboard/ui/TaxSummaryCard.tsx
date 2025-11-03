@@ -93,6 +93,8 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false,
     } : {},
     disabled: !taxSummary,
     uiComponent: 'tax_summary_iva',
+    entityId: `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}`,
+    entityType: 'tax_period',
   });
 
   const revenueClickProps = useChateableClick({

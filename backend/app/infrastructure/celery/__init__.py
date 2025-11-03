@@ -17,26 +17,15 @@ celery_app = Celery("fizko")
 celery_app.config_from_object(config)
 
 # Auto-discover tasks from tasks/ directory
-# This will import all *_tasks.py files and register their @celery_app.task decorators
+# This will import all task modules and register their @celery_app.task decorators
 celery_app.autodiscover_tasks(
     [
-        "app.infrastructure.celery.tasks",
+        "app.infrastructure.celery.tasks.sii",
+        "app.infrastructure.celery.tasks.documents",
+        "app.infrastructure.celery.tasks.whatsapp",
+        "app.infrastructure.celery.tasks.notifications",
+        "app.infrastructure.celery.tasks",  # For calendar.py and other root-level tasks
     ],
-    related_name="sii_tasks",
-    force=True,
-)
-celery_app.autodiscover_tasks(
-    [
-        "app.infrastructure.celery.tasks",
-    ],
-    related_name="document_tasks",
-    force=True,
-)
-celery_app.autodiscover_tasks(
-    [
-        "app.infrastructure.celery.tasks",
-    ],
-    related_name="whatsapp_tasks",
     force=True,
 )
 

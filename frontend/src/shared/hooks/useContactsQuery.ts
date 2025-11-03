@@ -50,17 +50,18 @@ export interface ContactUpdate {
  * const { data: contacts = [], isLoading } = useContactsQuery(companyId);
  * ```
  */
-export function useContactsQuery(companyId: string | null | undefined) {
+export function useContactsQuery(companyId?: string | null | undefined) {
   const { session } = useAuth();
 
   return useQuery({
     queryKey: ['home', 'contacts', companyId],
     queryFn: async (): Promise<Contact[]> => {
-      if (!session?.access_token || !companyId) {
-        throw new Error('No authenticated session or company ID');
+      if (!session?.access_token) {
+        throw new Error('No authenticated session');
       }
 
-      const response = await apiFetch(`${API_BASE_URL}/contacts?company_id=${companyId}`, {
+      // Don't pass company_id - backend will resolve it from user session
+      const response = await apiFetch(`${API_BASE_URL}/contacts`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -73,7 +74,7 @@ export function useContactsQuery(companyId: string | null | undefined) {
 
       return await response.json();
     },
-    enabled: !!session?.access_token && !!companyId,
+    enabled: !!session?.access_token,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

@@ -25,17 +25,18 @@ import { apiFetch } from "@/shared/lib/api-client";
  * ```
  */
 export function useTaxDocumentsQuery(
-  companyId: string | null,
+  companyId?: string | null,
   limit: number = 10,
-  period?: string
+  period?: string,
+  enabled: boolean = true
 ) {
   const { session } = useAuth();
 
   return useQuery({
     queryKey: ['home', 'tax-documents', companyId, limit, period],
     queryFn: async (): Promise<TaxDocument[]> => {
-      if (!session?.access_token || !companyId) {
-        throw new Error('No authenticated session or company ID');
+      if (!session?.access_token) {
+        throw new Error('No authenticated session');
       }
 
       const params = new URLSearchParams();
@@ -44,7 +45,8 @@ export function useTaxDocumentsQuery(
         params.append('period', period);
       }
 
-      const url = `${API_BASE_URL}/tax-documents/${companyId}?${params.toString()}`;
+      // Use new endpoint that doesn't require company_id - backend will resolve it from user session
+      const url = `${API_BASE_URL}/tax-documents?${params.toString()}`;
 
       const response = await apiFetch(url, {
         headers: {
@@ -63,7 +65,7 @@ export function useTaxDocumentsQuery(
 
       return await response.json();
     },
-    enabled: !!session?.access_token && !!companyId,
+    enabled: !!session?.access_token && enabled,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }

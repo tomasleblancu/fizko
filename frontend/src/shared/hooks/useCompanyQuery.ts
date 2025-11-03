@@ -3,6 +3,7 @@ import { useAuth } from "@/app/providers/AuthContext";
 import type { Company } from "@/shared/types/fizko";
 import { API_BASE_URL } from "@/shared/lib/config";
 import { apiFetch } from "@/shared/lib/api-client";
+import { queryKeys } from "@/shared/lib/query-keys";
 
 /**
  * React Query hook for fetching the user's company data.
@@ -21,7 +22,7 @@ export function useCompanyQuery() {
   const { session } = useAuth();
 
   return useQuery({
-    queryKey: ['home', 'company', session?.user.id],
+    queryKey: queryKeys.company.byUser(session?.user.id),
     queryFn: async (): Promise<Company | null> => {
       if (!session?.access_token) {
         throw new Error('No authenticated session');

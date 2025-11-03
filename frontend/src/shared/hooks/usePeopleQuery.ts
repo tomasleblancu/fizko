@@ -38,7 +38,7 @@ interface UsePeopleOptions {
  * });
  * ```
  */
-export function usePeopleQuery(companyId: string | null, options: UsePeopleOptions = {}) {
+export function usePeopleQuery(companyId?: string | null, options: UsePeopleOptions = {}) {
   const { session } = useAuth();
   const {
     status,
@@ -50,13 +50,12 @@ export function usePeopleQuery(companyId: string | null, options: UsePeopleOptio
   return useQuery({
     queryKey: ['home', 'people', companyId, status, search, page, pageSize],
     queryFn: async (): Promise<{ people: Person[]; total: number }> => {
-      if (!session?.access_token || !companyId) {
-        throw new Error('No authenticated session or company ID');
+      if (!session?.access_token) {
+        throw new Error('No authenticated session');
       }
 
-      // Build query params
+      // Build query params - don't include company_id, backend will resolve it from user session
       const params = new URLSearchParams({
-        company_id: companyId,
         page: page.toString(),
         page_size: pageSize.toString(),
       });
@@ -89,7 +88,7 @@ export function usePeopleQuery(companyId: string | null, options: UsePeopleOptio
         total: data.total,
       };
     },
-    enabled: !!session?.access_token && !!companyId,
+    enabled: !!session?.access_token,
     staleTime: 3 * 60 * 1000, // 3 minutes
   });
 }

@@ -12,6 +12,19 @@ export interface Company {
   session_id?: string;
 }
 
+export interface CompanySettings {
+  id?: string;
+  company_id: string;
+  has_formal_employees: boolean | null;
+  has_imports: boolean | null;
+  has_exports: boolean | null;
+  has_lease_contracts: boolean | null;
+  is_initial_setup_complete: boolean;
+  initial_setup_completed_at: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface TaxSummary {
   id: string;
   company_id: string;
@@ -62,6 +75,7 @@ export interface TaxDocument {
   tax_amount?: number;
   status: string;
   description?: string;
+  source: 'sale' | 'purchase'; // Indicates if document is a sale or purchase
   created_at: string;
 }
 

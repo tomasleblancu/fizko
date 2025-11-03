@@ -9,7 +9,7 @@ from typing import List, Optional
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response, Body
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
@@ -686,70 +686,47 @@ async def activate_event_for_company(
     Activa un tipo de evento tributario para una empresa.
 
     Crea o actualiza un CompanyEvent vinculando el evento a la empresa.
+
+    Este endpoint delega la lógica de negocio a CalendarService.
     """
+    from app.services.calendar import CalendarService
     import time
+
     start_time = time.time()
-    logger.info(f"[PERF] START activate event {request.event_template_id} for company {company_id}")
+    logger.info(
+        f"[PERF] START activate event {request.event_template_id} "
+        f"for company {company_id} by user {current_user_id}"
+    )
 
-    # Buscar si ya existe el vínculo empresa-evento (con eager loading del template)
-    company_event_stmt = select(CompanyEvent).where(
-        CompanyEvent.company_id == company_id,
-        CompanyEvent.event_template_id == request.event_template_id
-    ).options(selectinload(CompanyEvent.event_template))
-
-    query_start = time.time()
-    company_event_result = await db.execute(company_event_stmt)
-    company_event = company_event_result.scalar_one_or_none()
-    logger.info(f"[PERF] Query took {(time.time() - query_start)*1000:.2f}ms")
-
-    if company_event:
-        # Actualizar vínculo existente
-        company_event.is_active = True
-        if request.custom_config:
-            company_event.custom_config = request.custom_config
-        action = "updated"
-        event_template = company_event.event_template
-    else:
-        # Verificar que el event template existe antes de crear
-        event_template_stmt = select(EventTemplate).where(EventTemplate.id == request.event_template_id)
-        event_template_result = await db.execute(event_template_stmt)
-        event_template = event_template_result.scalar_one_or_none()
-
-        if not event_template:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Event template not found"
-            )
-
-        # Crear nuevo vínculo empresa-evento
-        company_event = CompanyEvent(
+    try:
+        # Delegar a la capa de servicio
+        service = CalendarService(db)
+        result = await service.activate_event(
             company_id=company_id,
             event_template_id=request.event_template_id,
-            is_active=True,
-            custom_config=request.custom_config or {}
+            custom_config=request.custom_config
         )
-        db.add(company_event)
-        action = "created"
 
-    # Prepare response data before commit (no need to refresh after commit)
-    response_data = {
-        "success": True,
-        "action": action,
-        "company_event_id": str(company_event.id),
-        "event_template_code": event_template.code,
-        "event_template_name": event_template.name,
-        "is_active": True,  # We know it's active since we just set it
-        "custom_config": company_event.custom_config or {},
-        "message": f"Evento '{event_template.name}' activado exitosamente"
-    }
+        logger.info(
+            f"[PERF] TOTAL activate took {(time.time() - start_time)*1000:.2f}ms - "
+            f"{result['action']}"
+        )
 
-    commit_start = time.time()
-    await db.commit()
-    logger.info(f"[PERF] Commit took {(time.time() - commit_start)*1000:.2f}ms")
-    logger.info(f"[PERF] TOTAL activate took {(time.time() - start_time)*1000:.2f}ms - {action}")
+        return result
 
-    # Return immediately - no need to refresh since we have all the data
-    return response_data
+    except ValueError as e:
+        # Event template no existe
+        logger.error(f"Activate event validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Activate event failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al activar evento: {str(e)}"
+        )
 
 
 @router.post("/companies/{company_id}/calendar-config/deactivate")
@@ -763,46 +740,45 @@ async def deactivate_event_for_company(
     Desactiva un tipo de evento tributario para una empresa.
 
     Marca el CompanyEvent como inactivo (no lo elimina para mantener historial).
+
+    Este endpoint delega la lógica de negocio a CalendarService.
     """
+    from app.services.calendar import CalendarService
     import time
+
     start_time = time.time()
-    logger.info(f"[PERF] START deactivate event {request.event_template_id} for company {company_id}")
+    logger.info(
+        f"[PERF] START deactivate event {request.event_template_id} "
+        f"for company {company_id} by user {current_user_id}"
+    )
 
-    # Buscar el vínculo empresa-evento
-    company_event_stmt = select(CompanyEvent).where(
-        CompanyEvent.company_id == company_id,
-        CompanyEvent.event_template_id == request.event_template_id
-    ).options(selectinload(CompanyEvent.event_template))
-
-    query_start = time.time()
-    company_event_result = await db.execute(company_event_stmt)
-    company_event = company_event_result.scalar_one_or_none()
-    logger.info(f"[PERF] Query took {(time.time() - query_start)*1000:.2f}ms")
-
-    if not company_event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Company event not found"
+    try:
+        # Delegar a la capa de servicio
+        service = CalendarService(db)
+        result = await service.deactivate_event(
+            company_id=company_id,
+            event_template_id=request.event_template_id
         )
 
-    # Prepare response before commit
-    response_data = {
-        "success": True,
-        "company_event_id": str(company_event.id),
-        "event_template_code": company_event.event_template.code,
-        "event_template_name": company_event.event_template.name,
-        "is_active": False,
-        "message": f"Evento '{company_event.event_template.name}' desactivado exitosamente"
-    }
+        logger.info(
+            f"[PERF] TOTAL deactivate took {(time.time() - start_time)*1000:.2f}ms"
+        )
 
-    company_event.is_active = False
+        return result
 
-    commit_start = time.time()
-    await db.commit()
-    logger.info(f"[PERF] Commit took {(time.time() - commit_start)*1000:.2f}ms")
-    logger.info(f"[PERF] TOTAL deactivate took {(time.time() - start_time)*1000:.2f}ms")
-
-    return response_data
+    except ValueError as e:
+        # Company event no existe
+        logger.error(f"Deactivate event validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Deactivate event failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al desactivar evento: {str(e)}"
+        )
 
 
 @router.post("/companies/{company_id}/sync-calendar")
@@ -817,11 +793,11 @@ async def sync_calendar_events(
     IMPORTANTE: Este endpoint es idempotente. Puede ejecutarse múltiples veces sin duplicar eventos.
     Solo sincroniza eventos para los company_events activos (is_active=true).
 
-    Este endpoint:
+    Este endpoint delega la lógica de negocio a CalendarService:
     1. Verifica que la empresa existe
     2. Obtiene los vínculos empresa-evento activos (company_events)
     3. Para cada tipo de evento (F29, F22, etc.):
-       - Crea eventos faltantes para los próximos 90 días
+       - Crea eventos faltantes para los próximos periodos
        - Actualiza el estado de eventos existentes
        - Solo el próximo a vencer queda con estado 'in_progress'
        - Los demás quedan con estado 'pending'
@@ -833,169 +809,35 @@ async def sync_calendar_events(
     Returns:
         Resumen de eventos creados y actualizados
     """
+    from app.services.calendar import CalendarService
+
     logger.info(f"Calendar sync requested for company {company_id} by user {current_user_id}")
 
-    # Verificar que la empresa existe
-    company_stmt = select(Company).where(Company.id == company_id)
-    company_result = await db.execute(company_stmt)
-    company = company_result.scalar_one_or_none()
+    try:
+        # Delegar a la capa de servicio
+        service = CalendarService(db)
+        result = await service.sync_company_calendar(company_id=company_id)
 
-    if not company:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Company not found"
+        logger.info(
+            f"Calendar sync completed for company {company_id}: "
+            f"{result['total_created']} created, {result['total_updated']} updated"
         )
 
-    logger.info(f"Syncing calendar for company: {company.business_name}")
+        return result
 
-    # Obtener SOLO los company_events activos de esta empresa
-    company_events_stmt = select(CompanyEvent).where(
-        CompanyEvent.company_id == company_id,
-        CompanyEvent.is_active == True
-    ).options(selectinload(CompanyEvent.event_template))
-    company_events_result = await db.execute(company_events_stmt)
-    active_company_events = company_events_result.scalars().all()
-
-    if not active_company_events:
+    except ValueError as e:
+        # Empresa no existe o no tiene eventos activos
+        logger.error(f"Calendar sync validation error: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No hay eventos activos configurados para esta empresa. Primero activa eventos en /calendar-config/activate"
+            detail=str(e)
         )
-
-    logger.info(f"Found {len(active_company_events)} active company events for company {company_id}")
-
-    created_events = []
-    updated_events = []
-    today = date.today()
-
-    # Generar eventos solo para los company_events activos
-    for company_event in active_company_events:
-        event_template = company_event.event_template
-        # Usar la configuración del event_template, con posibles overrides de custom_config
-        config = {**event_template.default_recurrence, **company_event.custom_config.get('recurrence', {})} if company_event.custom_config else event_template.default_recurrence
-
-        logger.info(f"Syncing events for {event_template.code} with config: {config}")
-
-        # Obtener TODOS los eventos existentes de este company_event que NO están completados o cancelados
-        existing_events_stmt = select(CalendarEvent).where(
-            CalendarEvent.company_event_id == company_event.id,
-            CalendarEvent.status.in_(['pending', 'in_progress', 'overdue']),
-            CalendarEvent.due_date >= today
-        ).order_by(CalendarEvent.due_date)
-
-        existing_events_result = await db.execute(existing_events_stmt)
-        existing_events = list(existing_events_result.scalars().all())
-
-        # Crear un mapa de eventos existentes por (due_date, period_start)
-        existing_events_map = {
-            (event.due_date, event.period_start): event
-            for event in existing_events
-        }
-
-        # Almacenar eventos a crear para este company_event
-        events_to_create = []
-
-        if config['frequency'] == 'monthly':
-            # Para eventos mensuales, generar próximos 4 meses
-            for months_ahead in range(4):
-                period_start = date(today.year, today.month, 1) + relativedelta(months=months_ahead)
-                period_end = period_start + relativedelta(months=1) - timedelta(days=1)
-                due_date = date(period_start.year, period_start.month, config['day_of_month'])
-
-                # Si la fecha de vencimiento es anterior a hoy, saltear
-                if due_date < today:
-                    continue
-
-                # Si no existe, agregarlo a la lista para crear
-                if (due_date, period_start) not in existing_events_map:
-                    events_to_create.append({
-                        'due_date': due_date,
-                        'period_start': period_start,
-                        'period_end': period_end,
-                        'description': f"Declaración y pago correspondiente al período tributario de {period_start.strftime('%B %Y')}"
-                    })
-
-        elif config['frequency'] == 'annual':
-            # Para eventos anuales, generar próximo año si aún no pasó
-            year = today.year
-            # Soportar tanto 'month_of_year' como 'months' (lista)
-            month = config.get('month_of_year') or (config.get('months', [1])[0] if config.get('months') else 1)
-
-            if today.month >= month:
-                year += 1
-
-            period_start = date(year - 1, 1, 1)
-            period_end = date(year - 1, 12, 31)
-            due_date = date(year, month, config['day_of_month'])
-
-            if due_date >= today:
-                # Si no existe, agregarlo a la lista para crear
-                if (due_date, period_start) not in existing_events_map:
-                    events_to_create.append({
-                        'due_date': due_date,
-                        'period_start': period_start,
-                        'period_end': period_end,
-                        'description': f"Declaración anual de impuesto a la renta correspondiente al AT {year - 1}"
-                    })
-
-        # Crear los eventos nuevos
-        for event_data in events_to_create:
-            event = CalendarEvent(
-                company_event_id=company_event.id,
-                company_id=company_id,
-                event_template_id=event_template.id,
-                title=event_template.name,
-                description=event_data['description'],
-                due_date=event_data['due_date'],
-                period_start=event_data['period_start'],
-                period_end=event_data['period_end'],
-                status='pending',  # Se creará como pending, luego se actualizará
-                auto_generated=True
-            )
-            db.add(event)
-            existing_events.append(event)  # Agregarlo a la lista para procesamiento de estados
-
-            # Log para tracking
-            period_label = event_data['period_start'].strftime('%Y-%m') if config['frequency'] == 'monthly' else f"AT{event_data['period_start'].year}"
-            created_events.append(f"{event_template.code}:{period_label}")
-
-        # Ahora actualizar estados: solo el primero (más próximo) debe estar en 'in_progress'
-        # Ordenar todos los eventos (existentes + nuevos) por due_date
-        existing_events.sort(key=lambda e: e.due_date)
-
-        for idx, event in enumerate(existing_events):
-            # Solo el primer evento debe estar en 'in_progress', los demás en 'pending'
-            expected_status = 'in_progress' if idx == 0 else 'pending'
-
-            # Solo actualizar si cambió el estado
-            if event.status != expected_status and event.status in ['pending', 'in_progress', 'overdue']:
-                event.status = expected_status
-                updated_events.append(f"{event_template.code}:{event.period_start.strftime('%Y-%m') if event.period_start else 'N/A'}")
-
-    await db.commit()
-
-    logger.info(f"Calendar sync completed for company {company_id}: {len(active_company_events)} active company events, {len(created_events)} created, {len(updated_events)} updated")
-
-    # Construir mensaje descriptivo
-    messages = []
-    if created_events:
-        messages.append(f"{len(created_events)} eventos creados")
-    if updated_events:
-        messages.append(f"{len(updated_events)} eventos actualizados")
-
-    message = "Calendario sincronizado: " + ", ".join(messages) if messages else "Calendario sincronizado: sin cambios"
-
-    return {
-        "success": True,
-        "company_id": str(company_id),
-        "company_name": company.business_name,
-        "active_company_events": [ce.event_template.code for ce in active_company_events],
-        "created_events": created_events,
-        "updated_events": updated_events,
-        "total_created": len(created_events),
-        "total_updated": len(updated_events),
-        "message": message
-    }
+    except Exception as e:
+        logger.error(f"Calendar sync failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al sincronizar calendario: {str(e)}"
+        )
 
 
 class CalendarEventInfo(BaseModel):
@@ -1355,3 +1197,197 @@ async def send_test_notification(
         notifications_sent=success_count,
         details=details
     )
+
+
+# ============================================================================
+# NOTIFICATION SUBSCRIPTIONS
+# ============================================================================
+
+@router.get("/company/{company_id}/notification-subscriptions")
+async def get_company_notification_subscriptions(
+    company_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: UUID = Depends(get_current_user_id)
+):
+    """
+    Obtener todas las suscripciones de notificaciones de una empresa.
+    """
+    from app.db.models import NotificationSubscription, NotificationTemplate
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(NotificationSubscription, NotificationTemplate)
+        .join(
+            NotificationTemplate,
+            NotificationSubscription.notification_template_id == NotificationTemplate.id
+        )
+        .where(NotificationSubscription.company_id == company_id)
+    )
+
+    subscriptions_data = []
+    for subscription, template in result.all():
+        subscriptions_data.append({
+            "id": str(subscription.id),
+            "notification_template_id": str(subscription.notification_template_id),
+            "is_enabled": subscription.is_enabled,
+            "custom_timing_config": subscription.custom_timing_config,
+            "custom_message_template": subscription.custom_message_template,
+            "created_at": subscription.created_at.isoformat(),
+            "template": {
+                "id": str(template.id),
+                "code": template.code,
+                "name": template.name,
+                "description": template.description,
+                "category": template.category,
+                "entity_type": template.entity_type,
+                "is_active": template.is_active,
+            }
+        })
+
+    return {"data": subscriptions_data}
+
+
+@router.post("/company/{company_id}/notification-subscriptions")
+async def create_company_notification_subscription(
+    company_id: UUID,
+    notification_template_id: UUID = Body(...),
+    is_enabled: bool = Body(True),
+    custom_timing_config: dict | None = Body(None),
+    custom_message_template: str | None = Body(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: UUID = Depends(get_current_user_id)
+):
+    """
+    Crear una nueva suscripción de notificación para una empresa.
+    """
+    from app.db.models import NotificationSubscription, NotificationTemplate
+    from sqlalchemy import select
+
+    # Verificar que el template existe
+    template_result = await db.execute(
+        select(NotificationTemplate).where(NotificationTemplate.id == notification_template_id)
+    )
+    template = template_result.scalar_one_or_none()
+
+    if not template:
+        raise HTTPException(status_code=404, detail="Template de notificación no encontrado")
+
+    # Verificar si ya existe una suscripción
+    existing_result = await db.execute(
+        select(NotificationSubscription).where(
+            NotificationSubscription.company_id == company_id,
+            NotificationSubscription.notification_template_id == notification_template_id
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe una suscripción a este template para esta empresa"
+        )
+
+    # Crear suscripción
+    subscription = NotificationSubscription(
+        company_id=company_id,
+        notification_template_id=notification_template_id,
+        is_enabled=is_enabled,
+        custom_timing_config=custom_timing_config,
+        custom_message_template=custom_message_template
+    )
+
+    db.add(subscription)
+    await db.commit()
+    await db.refresh(subscription)
+
+    return {
+        "data": {
+            "id": str(subscription.id),
+            "notification_template_id": str(subscription.notification_template_id),
+            "is_enabled": subscription.is_enabled,
+            "custom_timing_config": subscription.custom_timing_config,
+            "custom_message_template": subscription.custom_message_template,
+            "created_at": subscription.created_at.isoformat(),
+        },
+        "message": "Suscripción creada exitosamente"
+    }
+
+
+@router.put("/company/{company_id}/notification-subscriptions/{subscription_id}")
+async def update_company_notification_subscription(
+    company_id: UUID,
+    subscription_id: UUID,
+    is_enabled: bool | None = Body(None),
+    custom_timing_config: dict | None = Body(None),
+    custom_message_template: str | None = Body(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: UUID = Depends(get_current_user_id)
+):
+    """
+    Actualizar una suscripción de notificación.
+    """
+    from app.db.models import NotificationSubscription
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(NotificationSubscription).where(
+            NotificationSubscription.id == subscription_id,
+            NotificationSubscription.company_id == company_id
+        )
+    )
+    subscription = result.scalar_one_or_none()
+
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada")
+
+    # Actualizar campos
+    if is_enabled is not None:
+        subscription.is_enabled = is_enabled
+    if custom_timing_config is not None:
+        subscription.custom_timing_config = custom_timing_config
+    if custom_message_template is not None:
+        subscription.custom_message_template = custom_message_template
+
+    await db.commit()
+    await db.refresh(subscription)
+
+    return {
+        "data": {
+            "id": str(subscription.id),
+            "notification_template_id": str(subscription.notification_template_id),
+            "is_enabled": subscription.is_enabled,
+            "custom_timing_config": subscription.custom_timing_config,
+            "custom_message_template": subscription.custom_message_template,
+        },
+        "message": "Suscripción actualizada exitosamente"
+    }
+
+
+@router.delete("/company/{company_id}/notification-subscriptions/{subscription_id}")
+async def delete_company_notification_subscription(
+    company_id: UUID,
+    subscription_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: UUID = Depends(get_current_user_id)
+):
+    """
+    Eliminar una suscripción de notificación.
+    """
+    from app.db.models import NotificationSubscription
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(NotificationSubscription).where(
+            NotificationSubscription.id == subscription_id,
+            NotificationSubscription.company_id == company_id
+        )
+    )
+    subscription = result.scalar_one_or_none()
+
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada")
+
+    await db.delete(subscription)
+    await db.commit()
+
+    return {"message": "Suscripción eliminada exitosamente"}

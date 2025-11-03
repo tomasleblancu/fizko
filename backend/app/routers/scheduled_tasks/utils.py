@@ -2,7 +2,11 @@
 
 import json
 from app.db.models.scheduled_tasks import PeriodicTask
-from app.routers.scheduled_tasks.schemas import ScheduledTaskResponse
+from app.routers.scheduled_tasks.schemas import (
+    ScheduledTaskResponse,
+    IntervalSchedule,
+    CrontabSchedule,
+)
 
 
 def format_task_response(task: PeriodicTask) -> ScheduledTaskResponse:
@@ -16,9 +20,16 @@ def format_task_response(task: PeriodicTask) -> ScheduledTaskResponse:
         ScheduledTaskResponse: Formatted response with schedule display string.
     """
     # Determine schedule type and display string
+    interval_data = None
+    crontab_data = None
+
     if task.interval:
         schedule_type = "interval"
         schedule_display = f"Every {task.interval.every} {task.interval.period}"
+        interval_data = IntervalSchedule(
+            every=task.interval.every,
+            period=task.interval.period
+        )
     elif task.crontab:
         schedule_type = "crontab"
         c = task.crontab
@@ -27,6 +38,15 @@ def format_task_response(task: PeriodicTask) -> ScheduledTaskResponse:
         )
         if c.timezone != "UTC":
             schedule_display += f" ({c.timezone})"
+
+        crontab_data = CrontabSchedule(
+            minute=c.minute,
+            hour=c.hour,
+            day_of_week=c.day_of_week,
+            day_of_month=c.day_of_month,
+            month_of_year=c.month_of_year,
+            timezone=c.timezone,
+        )
     else:
         schedule_type = "unknown"
         schedule_display = "No schedule"
@@ -49,6 +69,8 @@ def format_task_response(task: PeriodicTask) -> ScheduledTaskResponse:
         task=task.task,
         schedule_type=schedule_type,
         schedule_display=schedule_display,
+        interval=interval_data,
+        crontab=crontab_data,
         args=args,
         kwargs=kwargs,
         queue=task.queue,

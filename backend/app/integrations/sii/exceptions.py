@@ -47,12 +47,19 @@ class DriverNotStartedException(RPAException):
 
 class DriverTimeoutException(RPAException):
     """Error de timeout del driver"""
-    pass
+
+    def __init__(self, message: str, selector: str = None, timeout: int = None):
+        self.selector = selector
+        self.timeout = timeout
+        super().__init__(message)
 
 
 class ElementNotFoundException(RPAException):
     """Error cuando no se encuentra un elemento en la página"""
-    pass
+
+    def __init__(self, message: str, selector: str = None):
+        self.selector = selector
+        super().__init__(message)
 
 
 class AuthenticationException(RPAException):

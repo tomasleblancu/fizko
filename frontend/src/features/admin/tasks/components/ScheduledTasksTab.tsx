@@ -16,8 +16,10 @@ import {
   TrendingUp,
   RefreshCw,
   Loader2,
+  Pencil,
 } from 'lucide-react';
 import CreateTaskDialog from './CreateTaskDialog';
+import EditTaskDialog from './EditTaskDialog';
 // import { toast } from 'sonner'; // TODO: Install sonner package
 const toast = {
   success: (msg: string) => console.log('✓', msg),
@@ -41,6 +43,7 @@ export default function ScheduledTasksTab() {
   const { session } = useAuth();
   const queryClient = useQueryClient();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
 
   // Fetch scheduled tasks
   const { data: tasks = [], isLoading, refetch } = useQuery({
@@ -323,6 +326,15 @@ export default function ScheduledTasksTab() {
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={() => setEditingTaskId(task.id)}
+                    title="Editar tarea"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => runTaskMutation.mutate(task.id)}
                     disabled={runTaskMutation.isPending || !task.enabled}
                     title={!task.enabled ? 'La tarea debe estar activa' : 'Ejecutar ahora'}
@@ -363,6 +375,21 @@ export default function ScheduledTasksTab() {
           queryClient.invalidateQueries({ queryKey: ['scheduled-tasks'] });
         }}
       />
+
+      {/* Edit Task Dialog */}
+      {editingTaskId && (
+        <EditTaskDialog
+          open={editingTaskId !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditingTaskId(null);
+          }}
+          taskId={editingTaskId}
+          onSuccess={() => {
+            setEditingTaskId(null);
+            queryClient.invalidateQueries({ queryKey: ['scheduled-tasks'] });
+          }}
+        />
+      )}
     </div>
   );
 }

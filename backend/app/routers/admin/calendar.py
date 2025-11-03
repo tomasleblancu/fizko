@@ -5,7 +5,6 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,40 +12,14 @@ from sqlalchemy.orm import selectinload
 from ...config.database import get_db
 from ...db.models import CalendarEvent, Company, CompanyEvent, EventHistory, EventTask, EventTemplate
 from ...dependencies import get_current_user_id, require_auth
+from ...schemas.calendar import CreateEventHistoryRequest, CreateEventTemplateRequest, UpdateEventTemplateRequest
+from ...utils.company_resolver import get_user_primary_company_id
 
 router = APIRouter(
     prefix="/api/calendar",
     tags=["calendar"],
     dependencies=[Depends(require_auth)]
 )
-
-
-# ============================================================================
-# PYDANTIC MODELS
-# ============================================================================
-
-class CreateEventTemplateRequest(BaseModel):
-    code: str
-    name: str
-    category: str
-    authority: str
-    is_mandatory: bool
-    default_recurrence: dict
-    description: Optional[str] = None
-    applies_to_regimes: Optional[dict] = None
-    metadata: Optional[dict] = None
-
-
-class UpdateEventTemplateRequest(BaseModel):
-    code: Optional[str] = None
-    name: Optional[str] = None
-    category: Optional[str] = None
-    authority: Optional[str] = None
-    is_mandatory: Optional[bool] = None
-    default_recurrence: Optional[dict] = None
-    description: Optional[str] = None
-    applies_to_regimes: Optional[dict] = None
-    metadata: Optional[dict] = None
 
 
 # ============================================================================
@@ -555,17 +528,26 @@ async def list_calendar_events(
 
 @router.get("/events/upcoming")
 async def get_upcoming_events(
-    company_id: UUID,
+    company_id: Optional[UUID] = Query(None, description="Company ID (optional, resolved from user if not provided)"),
     days_ahead: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Obtener eventos próximos a vencer.
 
-    - **company_id**: ID de la empresa
+    - **company_id**: ID de la empresa (opcional, se resuelve automáticamente del usuario si no se proporciona)
     - **days_ahead**: Días hacia adelante (default: 30, max: 365)
     """
+    # Resolve company_id from user's active session if not provided
+    if company_id is None:
+        company_id = await get_user_primary_company_id(user_id, db)
+        if not company_id:
+            raise HTTPException(
+                status_code=404,
+                detail="No active company found for user"
+            )
+
     today = date.today()
     end_date = today + timedelta(days=days_ahead)
 
@@ -828,13 +810,6 @@ async def get_calendar_stats(
 # ============================================================================
 # EVENT HISTORY
 # ============================================================================
-
-class CreateEventHistoryRequest(BaseModel):
-    event_type: str
-    title: str
-    description: Optional[str] = None
-    metadata: Optional[dict] = None
-
 
 @router.get("/events/{event_id}/history")
 async def get_event_history(

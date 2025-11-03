@@ -5,6 +5,7 @@ from .contact_card import ContactCardTool
 from .document_detail import DocumentDetailTool
 from .notification_calendar_event import NotificationCalendarEventTool
 from .notification_generic import NotificationGenericTool
+from .person_detail import PersonDetailTool
 from .tax_calendar_event import TaxCalendarEventTool
 from .tax_summary_expenses import TaxSummaryExpensesTool
 from .tax_summary_iva import TaxSummaryIVATool
@@ -15,6 +16,7 @@ __all__ = [
     "DocumentDetailTool",
     "NotificationCalendarEventTool",
     "NotificationGenericTool",
+    "PersonDetailTool",
     "TaxCalendarEventTool",
     "TaxSummaryIVATool",
     "TaxSummaryRevenueTool",

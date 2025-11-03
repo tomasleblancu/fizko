@@ -72,7 +72,7 @@ export function Personnel({
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={clsx(
-                  'inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+                  'inline-flex items-center gap-2 border-b-2 px-4 py-3 text-base font-medium transition-colors',
                   isActive
                     ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
                     : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'

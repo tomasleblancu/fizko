@@ -1,27 +1,39 @@
 """Agents module for Fizko platform - Multi-Agent System with Handoffs."""
 
+# Import legacy ChatKitServer for backward compatibility
 from .chat import FizkoChatKitServer
 
 
-def create_chatkit_server(mode: str = "multi_agent"):
+def create_chatkit_server(mode: str = "multi_agent", use_new_adapter: bool = True):
     """
     Create the ChatKit server instance.
 
     Args:
         mode: "unified" (single agent) or "multi_agent" (handoffs system)
               Default: "multi_agent"
+        use_new_adapter: Use new ChatKitServerAdapter (default: True)
+                        Set to False to use legacy FizkoChatKitServer
 
     Returns:
-        FizkoChatKitServer instance
+        ChatKitServerAdapter or FizkoChatKitServer instance
     """
-    return FizkoChatKitServer(mode=mode)
+    if use_new_adapter:
+        # Import here to avoid circular dependency
+        from app.integrations.chatkit import ChatKitServerAdapter
+        return ChatKitServerAdapter(mode=mode)
+    else:
+        return FizkoChatKitServer(mode=mode)
 
 
-# Alias for backward compatibility
+# For backward compatibility, FizkoServer is an alias to FizkoChatKitServer
+# This maintains the type annotation compatibility in main.py
+# To use the new adapter, use create_chatkit_server() or ChatKitServerAdapter directly
 FizkoServer = FizkoChatKitServer
+LegacyFizkoServer = FizkoChatKitServer  # Keep explicit legacy alias
 
 __all__ = [
     "FizkoServer",
     "FizkoChatKitServer",
+    "LegacyFizkoServer",
     "create_chatkit_server",
 ]

@@ -12,8 +12,15 @@ Structure:
     │   └── sync_tasks.py    # Document synchronization
     ├── documents/           # Document processing tasks
     │   └── __init__.py
-    └── whatsapp/            # WhatsApp messaging tasks
-        └── __init__.py
+    ├── whatsapp/            # WhatsApp messaging tasks
+    │   └── __init__.py
+    ├── notifications/       # Notification tasks
+    │   ├── __init__.py
+    │   ├── calendar_notifications.py
+    │   └── processing.py
+    └── calendar/            # Calendar synchronization tasks
+        ├── __init__.py
+        └── sync.py          # Calendar sync tasks
 
 Import your task modules here to ensure they're discovered by Celery.
 """
@@ -22,9 +29,13 @@ Import your task modules here to ensure they're discovered by Celery.
 from . import sii
 from . import documents
 from . import whatsapp
+from . import calendar
+from . import notifications
 
 __all__ = [
     "sii",
     "documents",
     "whatsapp",
+    "calendar",
+    "notifications",
 ]

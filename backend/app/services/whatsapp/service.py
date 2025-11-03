@@ -82,6 +82,11 @@ class WhatsAppService:
                 message=message,
             )
 
+            # Asegurar que conversation_id esté en el resultado
+            # (Kapso API puede no incluirlo en la respuesta)
+            if "conversation_id" not in result:
+                result["conversation_id"] = conversation_id
+
             logger.info(f"📱 Mensaje de texto enviado a conversación {conversation_id}")
             return result
 
@@ -221,37 +226,57 @@ class WhatsAppService:
         whatsapp_config_id: str,
     ) -> Dict[str, Any]:
         """
-        Busca una conversación activa o crea una nueva
+        Busca una conversación activa existente.
+
+        IMPORTANTE: Para sandbox de Kapso, NO se pueden crear conversaciones nuevas.
+        Solo se pueden usar conversaciones que ya existen (iniciadas por el usuario).
 
         Args:
-            phone_number: Número de teléfono
+            phone_number: Número de teléfono (será normalizado automáticamente)
             whatsapp_config_id: ID de configuración
 
         Returns:
-            Conversación existente o nueva
+            Conversación existente activa
+
+        Raises:
+            ValueError: Si no se encuentra conversación activa
         """
         try:
-            # Buscar conversación activa
+            # Normalizar número (remover '+' si existe)
+            normalized_phone = phone_number.lstrip('+') if phone_number.startswith('+') else phone_number
+
+            # Buscar conversaciones activas (aumentar límite para encontrar el número)
             conversations = await self.client.list_conversations(
                 whatsapp_config_id=whatsapp_config_id,
-                limit=1,
+                limit=50,  # Buscar en más conversaciones
             )
 
-            # Si existe, retornar la primera activa
-            if conversations.get("nodes") or conversations.get("conversations"):
-                nodes = conversations.get("nodes") or conversations.get("conversations", [])
-                for conv in nodes:
-                    if conv.get("phone_number") == phone_number:
-                        return conv
+            # Buscar en diferentes formatos de respuesta
+            nodes = (
+                conversations.get("data") or
+                conversations.get("nodes") or
+                conversations.get("conversations") or
+                conversations.get("items") or
+                []
+            )
 
-            # Si no existe, crear nueva
-            return await self.client.create_conversation(
-                phone_number=phone_number,
-                whatsapp_config_id=whatsapp_config_id,
+            # Buscar conversación activa que coincida con el número
+            for conv in nodes:
+                conv_phone = conv.get("phone_number", "").lstrip('+')
+                conv_status = conv.get("status", "")
+
+                if conv_phone == normalized_phone and conv_status == "active":
+                    logger.info(f"✅ Conversación activa encontrada para {normalized_phone}")
+                    return conv
+
+            # Si no se encuentra, lanzar error explicativo
+            raise ValueError(
+                f"No se encontró conversación activa para {normalized_phone}. "
+                f"El usuario debe iniciar primero una conversación enviando un mensaje."
             )
 
         except Exception as e:
-            logger.error(f"Error obteniendo/creando conversación: {e}")
+            logger.error(f"Error buscando conversación: {e}")
             raise
 
     async def get_conversation(self, conversation_id: str) -> Dict[str, Any]:

@@ -157,8 +157,20 @@ class F29Scraper(BaseScraper):
         for attempt in range(max_retries):
             try:
                 logger.info(f"Navegando a busqueda (intento {attempt + 1}/{max_retries})")
+
                 self.driver.navigate_to(self.SEARCH_URL)
-                time.sleep(3)  # Aumentado de 2 a 3 segundos
+                time.sleep(3)
+
+                # Verificar URL después de navegar (para detectar redirects al login)
+                current_url = self.driver.driver.current_url
+
+                # Detectar si fuimos redirigidos al login
+                if "AUT2000" in current_url or "IngresoRutClave" in current_url:
+                    logger.error(f"❌ Redirigido al login - sesión no válida")
+                    raise ScrapingException(
+                        "Redirigido a página de login - sesión no válida. "
+                        "Las cookies de autenticación no se están propagando correctamente"
+                    )
 
                 # Verificar múltiples indicadores de que la página cargó
                 page_source = self.driver.driver.page_source
@@ -198,12 +210,14 @@ class F29Scraper(BaseScraper):
     def _click_buscar_formulario(self) -> None:
         """Click en boton 'Buscar Formulario' o verifica si ya está en el formulario"""
         try:
+            # Esperar un poco más para que cargue completamente (GWT es lento)
+            time.sleep(3)
+
             # Primero verificar si ya estamos en el formulario de búsqueda
-            # (puede suceder si la sesión reutilizada ya tiene la página cargada)
             try:
                 listboxes = self.driver.driver.find_elements(By.CLASS_NAME, "gwt-ListBox")
                 if len(listboxes) >= 2:
-                    logger.info("✅ Formulario de búsqueda ya está cargado, saltando click en botón")
+                    logger.info("✅ Formulario de búsqueda ya está cargado")
                     return
             except:
                 pass  # Continuar con el click normal
@@ -213,40 +227,65 @@ class F29Scraper(BaseScraper):
                 "//button[contains(@class, 'gw-button-blue-bootstrap') and contains(text(), 'Buscar Formulario')]",
                 "//button[contains(text(), 'Buscar Formulario')]",
                 "//button[contains(@class, 'gw-button-blue')]",
+                "//a[contains(text(), 'Buscar Formulario')]",
                 "//*[contains(text(), 'Buscar Formulario')]"
             ]
 
             buscar_button = None
             last_error = None
 
-            for selector in button_selectors:
+            for i, selector in enumerate(button_selectors, 1):
                 try:
                     buscar_button = self.driver.wait_for_clickable(
                         By.XPATH,
                         selector,
-                        timeout=10
+                        timeout=15
                     )
                     if buscar_button:
-                        logger.debug(f"Botón encontrado con selector: {selector}")
+                        logger.debug(f"Botón encontrado con selector {i}")
                         break
                 except Exception as e:
                     last_error = e
                     continue
 
             if not buscar_button:
+                # Tomar screenshot para debugging
+                import os
+                timestamp = int(time.time())
+                screenshot_dir = "/app/screenshots"
+                os.makedirs(screenshot_dir, exist_ok=True)
+
+                screenshot_path = f"{screenshot_dir}/f29_error_{timestamp}.png"
+                html_path = f"{screenshot_dir}/f29_error_{timestamp}.html"
+
+                logger.error(f"❌ No se pudo encontrar el botón 'Buscar Formulario'")
+
+                try:
+                    self.driver.driver.save_screenshot(screenshot_path)
+                    logger.error(f"📸 Screenshot: backend/screenshots/f29_error_{timestamp}.png")
+                except Exception as screenshot_error:
+                    logger.warning(f"⚠️ No se pudo guardar screenshot: {screenshot_error}")
+
+                try:
+                    with open(html_path, 'w', encoding='utf-8') as f:
+                        f.write(self.driver.driver.page_source)
+                    logger.error(f"📄 HTML: backend/screenshots/f29_error_{timestamp}.html")
+                except Exception as html_error:
+                    logger.warning(f"⚠️ No se pudo guardar HTML: {html_error}")
+
                 raise ScrapingException(
-                    f"No se pudo encontrar el botón 'Buscar Formulario' con ningún selector. "
+                    f"No se pudo encontrar el botón 'Buscar Formulario'. "
                     f"Último error: {str(last_error)}"
                 )
 
             buscar_button.click()
-            time.sleep(1)
-            logger.debug("Click en 'Buscar Formulario'")
+            time.sleep(2)
+            logger.debug("Click en 'Buscar Formulario' exitoso")
 
         except Exception as e:
             if "No se pudo encontrar el botón" in str(e):
                 raise
-            raise ScrapingException(f"No se pudo hacer click en 'Buscar Formulario': {str(e)}") from e
+            raise ScrapingException(f"Error en click 'Buscar Formulario': {str(e)}") from e
 
     def _seleccionar_tipo_formulario(self) -> None:
         """Selecciona el tipo de formulario (DPS) y codigo (29)"""
@@ -788,20 +827,56 @@ class F29Scraper(BaseScraper):
                                 f"   El formulario se guardará sin id_interno_sii"
                             )
 
-                        # Volver a la tabla principal
+                        # Volver a la tabla principal con retry mejorado
                         try:
                             if self._check_session_valid():
-                                volver_btn = self.driver.driver.find_element(
-                                    By.XPATH,
-                                    "//button[contains(text(), 'Volver')]"
-                                )
-                                volver_btn.click()
+                                from selenium.common.exceptions import ElementClickInterceptedException
+                                from selenium.webdriver.support.ui import WebDriverWait
+                                from selenium.webdriver.support import expected_conditions as EC
+
+                                max_retries = 3
+                                for attempt in range(max_retries):
+                                    try:
+                                        # Esperar a que desaparezcan overlays (máximo 3 segundos)
+                                        time.sleep(1)
+
+                                        volver_btn = WebDriverWait(self.driver.driver, 5).until(
+                                            EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Volver')]"))
+                                        )
+
+                                        # Intentar scroll al elemento
+                                        try:
+                                            self.driver.driver.execute_script("arguments[0].scrollIntoView(true);", volver_btn)
+                                            time.sleep(0.5)
+                                        except:
+                                            pass
+
+                                        # Intentar click normal
+                                        volver_btn.click()
+                                        logger.debug(f"🔙 Click exitoso en 'Volver' (intento {attempt + 1})")
+                                        break
+
+                                    except ElementClickInterceptedException:
+                                        if attempt < max_retries - 1:
+                                            logger.debug(f"⚠️ Click bloqueado, reintentando... ({attempt + 1}/{max_retries})")
+                                            time.sleep(1)
+                                        else:
+                                            # Último intento: usar JavaScript click
+                                            logger.warning(f"⚠️ Click bloqueado después de {max_retries} intentos, usando JavaScript")
+                                            try:
+                                                self.driver.driver.execute_script("arguments[0].click();", volver_btn)
+                                                logger.debug("✅ JavaScript click exitoso")
+                                            except Exception as js_error:
+                                                logger.warning(f"⚠️ JavaScript click también falló: {js_error}")
+                                                raise
+
                                 time.sleep(1)
                                 logger.debug(f"🔙 Volviendo a tabla principal")
                             else:
                                 logger.error("❌ Sesión inválida, no se puede hacer click en 'Volver'")
                         except Exception as e:
                             logger.warning(f"⚠️ Error al volver a tabla principal: {type(e).__name__}: {e}")
+                            # No es crítico - continuar procesando
 
                 except InvalidSessionIdException as e:
                     logger.error(

@@ -32,26 +32,25 @@ if (!container) {
 }
 
 createRoot(container).render(
-  // Note: StrictMode removed to avoid double-fetching in development
-  // This is NOT recommended for production apps as it helps catch bugs
-  // Only remove if you understand the trade-offs
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <DashboardCacheProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/terminos" element={<TermsOfService />} />
-            <Route path="/privacidad" element={<PrivacyPolicy />} />
-            <Route path="/admin" element={<CompaniesListPage />} />
-            <Route path="/admin/company/:companyId" element={<CompanyDetailPage />} />
-            <Route path="/admin/event-templates" element={<EventTemplatesPage />} />
-            <Route path="/admin/notification-templates" element={<NotificationTemplatesPage />} />
-            <Route path="/admin/task-manager" element={<TaskManagerPage />} />
-          </Routes>
-        </BrowserRouter>
-      </DashboardCacheProvider>
-    </AuthProvider>
-    <ReactQueryDevtools initialIsOpen={false} />
-  </QueryClientProvider>
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <DashboardCacheProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/terminos" element={<TermsOfService />} />
+              <Route path="/privacidad" element={<PrivacyPolicy />} />
+              <Route path="/admin" element={<CompaniesListPage />} />
+              <Route path="/admin/company/:companyId" element={<CompanyDetailPage />} />
+              <Route path="/admin/event-templates" element={<EventTemplatesPage />} />
+              <Route path="/admin/notification-templates" element={<NotificationTemplatesPage />} />
+              <Route path="/admin/task-manager" element={<TaskManagerPage />} />
+            </Routes>
+          </BrowserRouter>
+        </DashboardCacheProvider>
+      </AuthProvider>
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
+  </StrictMode>
 );

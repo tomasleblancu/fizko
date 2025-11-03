@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 _user_info_cache: Dict[str, tuple[datetime, Dict[str, Any]]] = {}
 _USER_CACHE_TTL_SECONDS = 1800  # 30 minutes
 
+# In-memory cache for company info (30 minute TTL)
+_company_info_cache: Dict[str, tuple[datetime, Dict[str, Any]]] = {}
+_COMPANY_CACHE_TTL_SECONDS = 1800  # 30 minutes
+
 
 async def load_user_info_cached(db, user_id: UUID, use_cache: bool = True) -> Dict[str, Any]:
     """
@@ -71,6 +75,40 @@ async def load_user_info_cached(db, user_id: UUID, use_cache: bool = True) -> Di
     return user_info
 
 
+async def load_company_info_cached(db, company_id: UUID, use_cache: bool = True) -> Dict[str, Any]:
+    """
+    Load company information with in-memory caching.
+
+    Args:
+        db: Database session
+        company_id: Company UUID
+        use_cache: Whether to use cache (default: True)
+
+    Returns:
+        Dict with company info (same structure as load_company_info from app.agents.core)
+    """
+    cache_key = str(company_id)
+
+    # Check cache first
+    if use_cache and cache_key in _company_info_cache:
+        cached_time, cached_data = _company_info_cache[cache_key]
+        cache_age = (datetime.now() - cached_time).total_seconds()
+
+        if cache_age < _COMPANY_CACHE_TTL_SECONDS:
+            return cached_data
+        else:
+            del _company_info_cache[cache_key]
+
+    # Fetch from DB using the existing load_company_info function
+    company_info = await load_company_info(db, company_id)
+
+    # Store in cache
+    if use_cache:
+        _company_info_cache[cache_key] = (datetime.now(), company_info)
+
+    return company_info
+
+
 class WhatsAppAgentRunner:
     """
     Ejecuta agentes de Fizko para mensajes de WhatsApp.
@@ -104,8 +142,8 @@ class WhatsAppAgentRunner:
         message_content: str,
         conversation_id: Optional[str] = None,  # Kapso conversation_id
         message_id: Optional[str] = None,  # Kapso message_id
+        phone_number: Optional[str] = None,  # Número de WhatsApp para cachear
         save_assistant_message: bool = True,  # Si False, no guarda la respuesta del agente
-        ui_context_text: Optional[str] = None,  # Contexto de UI Tools (ej: notificaciones)
         attachments: Optional[List[Dict[str, Any]]] = None,  # Attachments procesados (imágenes, PDFs)
     ) -> tuple[str, Optional[UUID]]:
         """
@@ -117,8 +155,8 @@ class WhatsAppAgentRunner:
             message_content: Contenido del mensaje
             conversation_id: ID de conversación de Kapso (opcional)
             message_id: ID del mensaje de Kapso (opcional)
+            phone_number: Número de WhatsApp para cachear en metadata (opcional)
             save_assistant_message: Si True, guarda el mensaje del asistente (default: True)
-            ui_context_text: Contexto adicional de UI Tools (ej: notificaciones)
             attachments: Lista de attachments procesados por WhatsAppMediaProcessor (opcional)
                 Estructura esperada:
                 [{
@@ -139,31 +177,49 @@ class WhatsAppAgentRunner:
         logger.info(f"🚀 WhatsApp Agent | user={user_id} | mode={self.mode}")
 
         async with AsyncSessionLocal() as db:
-            # 1. Setup: conversation + messages + context (paralelo internamente)
+            # 1. Setup: conversation + messages + context (con timing detallado)
             setup_start = time.time()
 
+            # Operación 1: Buscar/crear conversación
+            conv_start = time.time()
             conversation = await WhatsAppConversationManager.get_or_create_conversation(
-                db=db, user_id=user_id, conversation_id=conversation_id
+                db=db,
+                user_id=user_id,
+                company_id=company_id,
+                conversation_id=conversation_id,
+                phone_number=phone_number,
             )
+            conv_time = time.time() - conv_start
+            logger.info(f"  ⏱️  DB: get_or_create_conversation: {conv_time:.3f}s")
 
-            await WhatsAppConversationManager.add_message(
-                db=db, conversation_id=conversation.id, user_id=user_id,
-                content=message_content, role="user", message_id=message_id,
-                conversation=conversation
-            )
+            # Operación 2: Guardar mensaje del usuario → MOVIDO A BACKGROUND
+            # Se guardará después de enviar respuesta al usuario para reducir latencia
+            logger.info(f"  ⏱️  DB: add_message(user): skipped (will save in background)")
 
-            company_info = await load_company_info(db, company_id)
+            # Operación 3: Cargar company_info
+            company_start = time.time()
+            company_info = await load_company_info_cached(db, company_id)
+            company_time = time.time() - company_start
+            cache_hit_company = company_time < 0.05
+            logger.info(f"  ⏱️  DB: load_company_info_cached: {company_time:.3f}s (cache_hit: {cache_hit_company})")
+
+            # Operación 4: Cargar user_info
+            user_start = time.time()
             user_info = await load_user_info_cached(db, user_id)
+            user_time = time.time() - user_start
+            cache_hit_user = user_time < 0.05
+            logger.info(f"  ⏱️  DB: load_user_info_cached: {user_time:.3f}s (cache_hit: {cache_hit_user})")
 
             setup_time = time.time() - setup_start
-            logger.info(f"⏱️  Setup: {setup_time:.3f}s | conv_id={conversation.id}")
+            logger.info(f"⏱️  Setup total: {setup_time:.3f}s | conv_id={conversation.id}")
+            logger.info(f"    └─ Breakdown: conv={conv_time:.3f}s + company={company_time:.3f}s + user={user_time:.3f}s")
 
             # 2. Preparar mensaje (sin inyectar company_context aquí - se hace en session_input_callback)
             vector_store_ids = []
             if attachments:
                 vector_store_ids = [att["vector_store_id"] for att in attachments if "vector_store_id" in att]
                 content_parts = self._build_content_parts_with_attachments(
-                    user_info, message_content, ui_context_text, attachments
+                    user_info, message_content, attachments
                 )
                 agent_input = [{"role": "user", "content": content_parts}]
 
@@ -172,10 +228,8 @@ class WhatsAppAgentRunner:
                     att_summary += f" ({len(vector_store_ids)} PDFs)"
                 logger.info(f"📎 Message with attachments: {att_summary}")
             else:
-                # Construir mensaje simple con user_info + ui_context (NO company_info)
-                user_message = self._build_message_simple(
-                    user_info, message_content, ui_context_text
-                )
+                # Construir mensaje simple con user_info (NO company_info)
+                user_message = self._build_message_simple(user_info, message_content)
                 agent_input = user_message
 
             # 3. Crear agente
@@ -277,23 +331,30 @@ class WhatsAppAgentRunner:
             response_text = self._extract_text_from_result(result)
 
             if save_assistant_message:
+                save_start = time.time()
                 await WhatsAppConversationManager.add_message(
                     db=db, conversation_id=conversation.id, user_id=user_id,
                     content=response_text, role="assistant", conversation=conversation
                 )
+                save_time = time.time() - save_start
+                logger.info(f"  ⏱️  DB: add_message(assistant): {save_time:.3f}s")
 
             total_time = time.time() - process_start
             logger.info(f"✅ Complete: {total_time:.3f}s | response={len(response_text)} chars")
             logger.info("=" * 80)
 
-            return (response_text, conversation.id)
+            # Retornar datos adicionales para guardar mensaje del usuario en background
+            return (response_text, conversation.id, message_content, message_id)
 
     def _build_message_simple(
-        self, user_info: dict, message: str, ui_context_text: Optional[str] = None
+        self, user_info: dict, message: str
     ) -> str:
         """
         Construye el mensaje SIN contexto de company (se inyecta en session_input_callback).
-        Solo incluye user_info + ui_context + mensaje del usuario.
+        Solo incluye user_info + mensaje del usuario.
+
+        Nota: El contexto de notificaciones ya está anclado como mensaje assistant
+        en el historial, por lo que el agente lo verá automáticamente.
         """
         # Contexto de usuario (específico de WhatsApp)
         user_context = f"""<user_info>
@@ -303,32 +364,24 @@ Email: {user_info.get('email', 'N/A')}
 
 """
 
-        # Contexto adicional de UI Tools (si existe)
-        ui_context = ""
-        if ui_context_text:
-            ui_context = f"""<ui_context>
-{ui_context_text}
-</ui_context>
-
-"""
-
-        return f"{user_context}{ui_context}{message}"
+        return f"{user_context}{message}"
 
     def _build_content_parts_with_attachments(
         self,
         user_info: dict,
         message: str,
-        ui_context_text: Optional[str],
         attachments: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
         Construye content_parts con attachments para el agente (formato OpenAI).
         SIN inyectar company_context (se hace en session_input_callback).
 
+        Nota: El contexto de notificaciones ya está anclado como mensaje assistant
+        en el historial.
+
         Args:
             user_info: Información del usuario
             message: Mensaje de texto del usuario
-            ui_context_text: Contexto de UI Tools (opcional)
             attachments: Lista de attachments procesados por WhatsAppMediaProcessor
 
         Returns:
@@ -341,7 +394,7 @@ Email: {user_info.get('email', 'N/A')}
         """
         content_parts = []
 
-        # 1. Construir contexto (usuario + UI, SIN company)
+        # 1. Construir contexto de usuario (SIN company)
         user_context = f"""<user_info>
 Nombre: {user_info.get('name', 'Usuario')}
 Email: {user_info.get('email', 'N/A')}
@@ -349,23 +402,11 @@ Email: {user_info.get('email', 'N/A')}
 
 """
 
-        ui_context = ""
-        if ui_context_text:
-            ui_context = f"""<ui_context>
-{ui_context_text}
-</ui_context>
-
-"""
-
-        # Combinar contextos
-        full_context = f"{user_context}{ui_context}"
-
-        # Agregar contexto como primer content part si existe
-        if full_context.strip():
-            content_parts.append({
-                "type": "input_text",
-                "text": full_context
-            })
+        # Agregar contexto como primer content part
+        content_parts.append({
+            "type": "input_text",
+            "text": user_context
+        })
 
         # 2. Agregar mensaje de usuario
         content_parts.append({

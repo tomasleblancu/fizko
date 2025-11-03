@@ -82,3 +82,6 @@ class Contact(Base):
     sales_documents: Mapped[list["SalesDocument"]] = relationship(
         "SalesDocument", back_populates="contact"
     )
+    honorarios_receipts: Mapped[list["HonorariosReceipt"]] = relationship(
+        "HonorariosReceipt", back_populates="contact"
+    )

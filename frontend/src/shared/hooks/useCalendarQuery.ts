@@ -32,27 +32,29 @@ interface CalendarData {
  * ```
  */
 export function useCalendarQuery(
-  companyId: string | null,
+  companyId?: string | null,
   daysAhead: number = 30,
-  includeStats: boolean = false
+  includeStats: boolean = false,
+  enabled: boolean = true
 ) {
   const { session } = useAuth();
 
   return useQuery({
     queryKey: ['home', 'calendar', companyId, daysAhead, includeStats],
     queryFn: async (): Promise<CalendarData> => {
-      if (!session?.access_token || !companyId) {
-        throw new Error('No authenticated session or company ID');
+      if (!session?.access_token) {
+        throw new Error('No authenticated session');
       }
 
       // Fetch events (and optionally stats) in parallel for better performance
-      const eventsUrl = `${API_BASE_URL}/calendar/events/upcoming?company_id=${companyId}&days_ahead=${daysAhead}`;
+      // Don't pass company_id - backend will resolve it from user session
+      const eventsUrl = `${API_BASE_URL}/calendar/events/upcoming?days_ahead=${daysAhead}`;
 
       let eventsData;
       let statsData = null;
 
       if (includeStats) {
-        const statsUrl = `${API_BASE_URL}/calendar/stats?company_id=${companyId}`;
+        const statsUrl = `${API_BASE_URL}/calendar/stats`;
         const [eventsResponse, statsResponse] = await Promise.all([
           apiFetch(eventsUrl, {
             headers: {
@@ -101,7 +103,7 @@ export function useCalendarQuery(
         stats: statsData?.data || null,
       };
     },
-    enabled: !!session?.access_token && !!companyId,
+    enabled: !!session?.access_token && enabled,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

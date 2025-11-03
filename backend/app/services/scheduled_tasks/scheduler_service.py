@@ -214,7 +214,7 @@ class SchedulerService:
         """
         Update an existing scheduled task.
 
-        Note: Cannot change schedule type or parameters. Delete and recreate for that.
+        Now supports updating schedule parameters (interval or crontab).
 
         Args:
             task_id: Task ID to update
@@ -229,8 +229,74 @@ class SchedulerService:
         if not task:
             return None
 
-        # Update fields
-        update_data = request.model_dump(exclude_unset=True)
+        # Build update data, excluding schedule-related fields
+        update_data = request.model_dump(
+            exclude_unset=True,
+            exclude={
+                'interval_every', 'interval_period',
+                'crontab_minute', 'crontab_hour', 'crontab_day_of_week',
+                'crontab_day_of_month', 'crontab_month_of_year', 'crontab_timezone'
+            }
+        )
+
+        # Convert args and kwargs to JSON strings (database expects TEXT, not JSONB)
+        if 'args' in update_data:
+            update_data['args'] = json.dumps(update_data['args'])
+        if 'kwargs' in update_data:
+            update_data['kwargs'] = json.dumps(update_data['kwargs'])
+
+        # Handle schedule updates
+        schedule_fields = {
+            'interval_every', 'interval_period',
+            'crontab_minute', 'crontab_hour', 'crontab_day_of_week',
+            'crontab_day_of_month', 'crontab_month_of_year', 'crontab_timezone'
+        }
+
+        request_dict = request.model_dump(exclude_unset=True)
+        schedule_updated = any(field in request_dict for field in schedule_fields)
+
+        if schedule_updated:
+            # Determine if updating interval or crontab based on provided fields
+            is_interval_update = 'interval_every' in request_dict or 'interval_period' in request_dict
+            is_crontab_update = any(f in request_dict for f in ['crontab_minute', 'crontab_hour',
+                                                                   'crontab_day_of_week', 'crontab_day_of_month',
+                                                                   'crontab_month_of_year'])
+
+            if is_interval_update:
+                # Update interval schedule
+                every = request.interval_every or (task.interval.every if task.interval else None)
+                period = request.interval_period or (task.interval.period if task.interval else None)
+
+                if every and period:
+                    schedule = await self._get_or_create_interval_schedule(every=every, period=period)
+                    update_data['interval_id'] = schedule.id
+                    update_data['crontab_id'] = None
+                    update_data['discriminator'] = "intervalschedule"
+                    update_data['schedule_id'] = schedule.id
+
+            elif is_crontab_update:
+                # Update crontab schedule
+                minute = request.crontab_minute or (task.crontab.minute if task.crontab else "*")
+                hour = request.crontab_hour or (task.crontab.hour if task.crontab else "*")
+                day_of_week = request.crontab_day_of_week or (task.crontab.day_of_week if task.crontab else "*")
+                day_of_month = request.crontab_day_of_month or (task.crontab.day_of_month if task.crontab else "*")
+                month_of_year = request.crontab_month_of_year or (task.crontab.month_of_year if task.crontab else "*")
+                timezone = request.crontab_timezone or (task.crontab.timezone if task.crontab else "America/Santiago")
+
+                schedule = await self._get_or_create_crontab_schedule(
+                    minute=minute,
+                    hour=hour,
+                    day_of_week=day_of_week,
+                    day_of_month=day_of_month,
+                    month_of_year=month_of_year,
+                    timezone=timezone
+                )
+                update_data['interval_id'] = None
+                update_data['crontab_id'] = schedule.id
+                update_data['discriminator'] = "crontabschedule"
+                update_data['schedule_id'] = schedule.id
+
+        # Apply updates
         if update_data:
             await self.db.execute(
                 update(PeriodicTask)

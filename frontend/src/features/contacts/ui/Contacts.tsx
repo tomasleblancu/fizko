@@ -84,7 +84,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className={clsx(
-                "w-full rounded-lg border px-4 py-2 pl-10 text-sm transition-colors",
+                "w-full rounded-lg border px-4 py-2.5 pl-10 text-base transition-colors",
                 "border-slate-200 bg-white placeholder-slate-400",
                 "focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20",
                 "dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
@@ -117,7 +117,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
                 key={filterOption.value}
                 onClick={() => setFilter(filterOption.value)}
                 className={clsx(
-                  "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                  "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
                   filter === filterOption.value
                     ? "bg-emerald-600 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -203,11 +203,11 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
                   <div className="mb-2">
                     <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-2">
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-slate-900 dark:text-slate-100 truncate text-sm sm:text-base">
+                        <h3 className="font-semibold text-slate-900 dark:text-slate-100 truncate text-base sm:text-lg">
                           {contact.business_name}
                         </h3>
                         {contact.trade_name && (
-                          <p className="text-xs text-slate-500 dark:text-slate-500 truncate mt-0.5">
+                          <p className="text-sm text-slate-500 dark:text-slate-500 truncate mt-0.5">
                             {contact.trade_name}
                           </p>
                         )}
@@ -218,29 +218,29 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 text-xs sm:text-sm">
+                  <div className="space-y-2 text-sm sm:text-base">
                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 min-w-0">
-                      <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                      <Building2 className="h-4 w-4 sm:h-4.5 sm:w-4.5 flex-shrink-0" />
                       <span className="truncate">{contact.rut}</span>
                     </div>
 
                     {contact.email && (
                       <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 min-w-0">
-                        <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                        <Mail className="h-4 w-4 sm:h-4.5 sm:w-4.5 flex-shrink-0" />
                         <span className="truncate">{contact.email}</span>
                       </div>
                     )}
 
                     {contact.phone && (
                       <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 min-w-0">
-                        <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                        <Phone className="h-4 w-4 sm:h-4.5 sm:w-4.5 flex-shrink-0" />
                         <span className="truncate">{contact.phone}</span>
                       </div>
                     )}
 
                     {contact.address && (
                       <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 min-w-0">
-                        <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                        <MapPin className="h-4 w-4 sm:h-4.5 sm:w-4.5 flex-shrink-0" />
                         <span className="truncate">{contact.address}</span>
                       </div>
                     )}
@@ -260,7 +260,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
             ? "border-t border-slate-200/50 dark:border-slate-700/50"
             : "border-t border-slate-200/60 bg-white/30 dark:border-slate-800/60 dark:bg-slate-900/30"
         )}>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-base text-slate-600 dark:text-slate-400">
             Mostrando {filteredContacts.length} {filteredContacts.length === 1 ? 'contacto' : 'contactos'}
             {filter !== 'all' && ` (${getContactTypeLabel(filter).toLowerCase()})`}
           </p>

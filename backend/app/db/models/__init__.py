@@ -16,10 +16,11 @@ Key Design Principles:
 from .base import Base
 from .calendar import CalendarEvent, CompanyEvent, EventDependency, EventHistory, EventTask, EventTemplate
 from .chat import ChatKitAttachment, Conversation, Message
-from .company import Company, CompanyTaxInfo
+from .company import Company, CompanyTaxInfo, CompanySettings
 from .contact import Contact
 from .documents import PurchaseDocument, SalesDocument
 from .form29 import Form29
+from .honorarios import HonorariosReceipt
 from .form29_sii_download import Form29SIIDownload
 from .notifications import (
     NotificationEventTrigger,
@@ -51,6 +52,7 @@ __all__ = [
     # Company
     "Company",
     "CompanyTaxInfo",
+    "CompanySettings",
     # Session
     "Session",
     # Contacts
@@ -58,6 +60,7 @@ __all__ = [
     # Documents
     "PurchaseDocument",
     "SalesDocument",
+    "HonorariosReceipt",
     # Form29
     "Form29",
     "Form29SIIDownload",

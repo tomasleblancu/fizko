@@ -63,19 +63,17 @@ Complete CRUD interface for scheduled tasks:
 
 ### TaskQueueTab
 
-Real-time monitoring:
-- Active tasks count
-- Queued tasks
-- Worker status
-- Live task list
+Integration with Flower for real-time monitoring:
+- Redirects to Flower dashboard (http://localhost:5555)
+- Provides quick access to active tasks, workers, and queues
+- Note: Native integration pending - uses Flower as the monitoring tool
 
 ### TaskHistoryTab
 
-Execution history:
-- Past executions with status
-- Result data (JSON)
-- Error tracebacks
-- Duration metrics
+Integration with Flower for execution history:
+- Redirects to Flower tasks page (http://localhost:5555/tasks)
+- Provides quick access to past executions with results and errors
+- Note: Native integration pending - uses Flower as the history viewer
 
 ### CreateTaskDialog
 
@@ -89,6 +87,7 @@ Modal form for creating new tasks:
 
 ### Endpoints Used
 
+**Scheduled Tasks (Backend):**
 - `GET /api/scheduled-tasks` - List tasks
 - `POST /api/scheduled-tasks` - Create task
 - `PUT /api/scheduled-tasks/{id}` - Update task
@@ -97,6 +96,11 @@ Modal form for creating new tasks:
 - `POST /api/scheduled-tasks/{id}/disable` - Disable task
 - `POST /api/scheduled-tasks/{id}/run-now` - Execute immediately
 - `GET /api/scheduled-tasks/{id}/executions` - Get history
+
+**Task Queue & History (Flower):**
+- Queue monitoring: http://localhost:5555
+- Task history: http://localhost:5555/tasks
+- Note: No custom endpoints needed - Flower provides the UI
 
 ## Dependencies
 

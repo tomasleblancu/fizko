@@ -202,9 +202,11 @@ async def request_phone_verification(
     logger.info(f"🔐 Verification code generated for {profile.phone}: {verification_code}")
 
     try:
-        # Import WhatsApp service from routers to access the initialized instance
-        from ...routers.whatsapp.main import whatsapp_service
+        # Import WhatsApp service from services module
+        from ...services.whatsapp import get_whatsapp_service
         import os
+
+        whatsapp_service = get_whatsapp_service()
 
         # Get default WhatsApp config ID from environment
         # You can set this in your .env file: DEFAULT_WHATSAPP_CONFIG_ID=your-config-id

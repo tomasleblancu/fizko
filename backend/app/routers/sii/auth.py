@@ -2,17 +2,19 @@
 Router para autenticación SII
 Endpoints para login, logout y gestión de sesiones del SII
 """
+import json
+import asyncio
+from typing import AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import datetime
 from uuid import UUID
 
 from ...config.database import get_db
-from ...db.models import Company, CompanyTaxInfo, Profile, Session as SessionModel
 from ...dependencies import get_current_user_id, require_auth, get_current_user
+from ...services.sii.auth_service import SIIAuthService
+from ...integrations.sii.exceptions import AuthenticationError, ExtractionError
 
 router = APIRouter(
     prefix="/auth",
@@ -64,13 +66,14 @@ async def sii_login_and_setup(
     Endpoint completo de login SII y setup de compañía
 
     Flujo:
-    0. **NUEVO**: Crea perfil de usuario si no existe (usando datos de OAuth)
-    1. Autentica con el SII usando RUT y password
-    2. Extrae información del contribuyente
-    3. Busca o crea la compañía en la DB
-    4. Busca o crea CompanyTaxInfo
-    5. Obtiene o genera Session del usuario con esa compañía
-    6. Guarda las cookies del SII en la session
+    1. Crea perfil de usuario si no existe (usando datos de OAuth)
+    2. Autentica con el SII usando RUT y password
+    3. Extrae información del contribuyente
+    4. Busca o crea la compañía en la DB
+    5. Busca o crea CompanyTaxInfo
+    6. Obtiene o genera Session del usuario con esa compañía
+    7. Guarda las cookies del SII en la session
+    8. Dispara tareas de sincronización en background (documentos + F29)
 
     Args:
         request: RUT y password del SII
@@ -97,7 +100,7 @@ async def sii_login_and_setup(
         Response:
         {
             "success": true,
-            "message": "Login exitoso y sesión configurada",
+            "message": "Login exitoso. Compañía creada, tax info creada, sesión creada.",
             "company": {...},
             "company_tax_info": {...},
             "session": {...},
@@ -105,275 +108,166 @@ async def sii_login_and_setup(
         }
     """
 
-    # ========================================================================
-    # PASO 0: Crear perfil de usuario si no existe
-    # ========================================================================
-
-    # Check if profile exists
-    stmt = select(Profile).where(Profile.id == current_user_id)
-    result = await db.execute(stmt)
-    profile = result.scalar_one_or_none()
-
-    if not profile:
-        # Extract user data from JWT payload
-        # Supabase JWT contains: sub, email, user_metadata (from OAuth)
-        email = user.get("email", "")
-        user_metadata = user.get("user_metadata", {})
-        full_name = user_metadata.get("full_name", "")
-
-        # Split full_name into name and lastname
-        if full_name:
-            parts = full_name.split(" ", 1)
-            name = parts[0]
-            lastname = parts[1] if len(parts) > 1 else ""
-        else:
-            name = ""
-            lastname = ""
-
-        # Extract other fields from OAuth metadata
-        phone = user_metadata.get("phone")
-        avatar_url = user_metadata.get("avatar_url") or user_metadata.get("picture")
-
-        # Create profile
-        profile = Profile(
-            id=current_user_id,
-            email=email,
-            full_name=full_name,
-            name=name,
-            lastname=lastname,
-            phone=phone,
-            avatar_url=avatar_url,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-        )
-        db.add(profile)
-        await db.flush()  # Ensure profile is created before continuing
-
-        print(f"[SII Auth] Created profile for user {current_user_id} during onboarding")
-
-    # ========================================================================
-    # PASO 1: Autenticar con el SII y extraer datos del contribuyente
-    # ========================================================================
-
-    # Lazy import to avoid loading selenium at server startup
-    from ...integrations.sii import SIIClient
-    from ...integrations.sii.exceptions import AuthenticationError, ExtractionError
+    # Instanciar servicio de autenticación
+    auth_service = SIIAuthService(db)
 
     try:
-        with SIIClient(
-            tax_id=request.rut,
+        # Delegar toda la lógica al servicio
+        result = await auth_service.login_and_setup(
+            rut=request.rut,
             password=request.password,
-            headless=True
-        ) as sii_client:
+            user_id=current_user_id,
+            user_data=user
+        )
 
-            # Intentar login
-            login_success = sii_client.login()
-
-            if not login_success:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Error en la autenticación. Credenciales incorrectas o SII no disponible."
-                )
-
-            # Extraer información del contribuyente
-            try:
-                contribuyente_info = sii_client.get_contribuyente()
-            except ExtractionError as e:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Error al obtener información del contribuyente: {str(e)}"
-                )
-
-            # Obtener cookies para guardar en session
-            sii_cookies = sii_client.get_cookies()
+        return SIILoginResponse(**result)
 
     except AuthenticationError as e:
+        # Error de autenticación con el SII
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Error en la autenticación: {str(e)}"
         )
+
+    except ExtractionError as e:
+        # Error al extraer datos del SII
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener información del contribuyente: {str(e)}"
+        )
+
     except Exception as e:
+        # Rollback en caso de error
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error inesperado durante el login: {str(e)}"
         )
 
-    # ========================================================================
-    # PASO 2: Buscar o crear Company en la DB
-    # ========================================================================
 
-    # Normalizar RUT para búsqueda (minúsculas, sin puntos ni guiones)
-    # Ejemplo: "77.794.858-k" -> "77794858k"
-    rut_normalized = request.rut.replace(".", "").replace("-", "").lower()
+@router.post("/login/stream")
+async def sii_login_and_setup_stream(
+    request: SIILoginRequest,
+    current_user_id: UUID = Depends(get_current_user_id),
+    user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Endpoint de login SII con streaming de progreso (Server-Sent Events)
 
-    # Buscar compañía existente
-    stmt = select(Company).where(Company.rut == rut_normalized)
-    result = await db.execute(stmt)
-    company = result.scalar_one_or_none()
+    Envía eventos de progreso en tiempo real durante el proceso de autenticación
+    y extracción de datos del SII.
 
-    if not company:
-        # Crear nueva compañía
-        company = Company(
-            rut=rut_normalized,
-            business_name=contribuyente_info.get('razon_social', f'Empresa {rut_normalized}'),
-            trade_name=contribuyente_info.get('nombre', None),
-            address=contribuyente_info.get('direccion', None),
-            email=contribuyente_info.get('email', None),
-        )
-        company.sii_password = request.password  # Asignar password del SII (será encriptado automáticamente)
-        db.add(company)
-        await db.flush()  # Flush para obtener el ID
-        await db.refresh(company)
+    Formato de eventos SSE:
+    - event: progress - Progreso del proceso (0-100)
+    - event: status - Mensaje de estado actual
+    - event: error - Error durante el proceso
+    - event: complete - Proceso completado con datos finales
 
-        action = "creada"
-    else:
-        # Actualizar información de compañía existente
-        company.business_name = contribuyente_info.get('razon_social', company.business_name)
-        company.trade_name = contribuyente_info.get('nombre', company.trade_name)
-        company.address = contribuyente_info.get('direccion', company.address)
-        company.email = contribuyente_info.get('email', company.email)
-        company.sii_password = request.password  # Actualizar password del SII
-        company.updated_at = datetime.utcnow()
+    Example response stream:
+        event: progress
+        data: {"progress": 10, "message": "Autenticando con el SII..."}
 
-        action = "actualizada"
+        event: progress
+        data: {"progress": 30, "message": "Extrayendo información del contribuyente..."}
 
-    # ========================================================================
-    # PASO 3: Buscar o crear CompanyTaxInfo
-    # ========================================================================
+        event: complete
+        data: {"success": true, "company": {...}, "session": {...}}
+    """
 
-    # Buscar tax info existente
-    stmt = select(CompanyTaxInfo).where(CompanyTaxInfo.company_id == company.id)
-    result = await db.execute(stmt)
-    company_tax_info = result.scalar_one_or_none()
+    async def event_generator() -> AsyncGenerator[str, None]:
+        """Genera eventos SSE con el progreso del login"""
+        try:
+            # Helper para enviar eventos SSE
+            def send_event(event_type: str, data: dict) -> str:
+                return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
-    if not company_tax_info:
-        # Crear nuevo CompanyTaxInfo
-        company_tax_info = CompanyTaxInfo(
-            company_id=company.id,
-            tax_regime='regimen_general',  # Default
-            sii_activity_code=contribuyente_info.get('activity_code', None),
-            sii_activity_name=contribuyente_info.get('activity_name', None),
-            legal_representative_name=contribuyente_info.get('legal_representative', None),
-            extra_data={
-                'sii_info': contribuyente_info,
-                'last_sii_sync': datetime.utcnow().isoformat()
-            }
-        )
-        db.add(company_tax_info)
-        await db.flush()
-        await db.refresh(company_tax_info)
+            # Paso 1: Iniciar autenticación
+            yield send_event("progress", {
+                "progress": 10,
+                "message": "Iniciando autenticación con el SII..."
+            })
+            await asyncio.sleep(0.5)  # Delay visible
 
-        tax_action = "creada"
-    else:
-        # Actualizar CompanyTaxInfo existente
-        company_tax_info.sii_activity_code = contribuyente_info.get('activity_code', company_tax_info.sii_activity_code)
-        company_tax_info.sii_activity_name = contribuyente_info.get('activity_name', company_tax_info.sii_activity_name)
-        company_tax_info.legal_representative_name = contribuyente_info.get('legal_representative', company_tax_info.legal_representative_name)
+            # Instanciar servicio
+            auth_service = SIIAuthService(db)
 
-        # Actualizar extra_data con nueva info del SII
-        extra_data = company_tax_info.extra_data or {}
-        extra_data['sii_info'] = contribuyente_info
-        extra_data['last_sii_sync'] = datetime.utcnow().isoformat()
-        company_tax_info.extra_data = extra_data
-        company_tax_info.updated_at = datetime.utcnow()
+            # Paso 2: Autenticar
+            yield send_event("progress", {
+                "progress": 25,
+                "message": "Conectando con el portal del SII..."
+            })
+            await asyncio.sleep(0.7)
 
-        tax_action = "actualizada"
+            # Paso 3: Validando credenciales
+            yield send_event("progress", {
+                "progress": 40,
+                "message": "Validando credenciales..."
+            })
+            await asyncio.sleep(0.5)
 
-    # ========================================================================
-    # PASO 4: Obtener o generar Session del usuario con esta compañía
-    # ========================================================================
+            # Ejecutar login (esto internamente hace varios pasos)
+            # Por ahora llamamos al método completo, pero podríamos refactorizar
+            # el servicio para que también emita eventos de progreso
+            result = await auth_service.login_and_setup(
+                rut=request.rut,
+                password=request.password,
+                user_id=current_user_id,
+                user_data=user
+            )
 
-    # Buscar sesión existente del usuario con esta compañía
-    stmt = select(SessionModel).where(
-        SessionModel.user_id == current_user_id,
-        SessionModel.company_id == company.id
-    )
-    result = await db.execute(stmt)
-    session = result.scalar_one_or_none()
+            # Paso 4: Datos extraídos
+            yield send_event("progress", {
+                "progress": 65,
+                "message": "Extrayendo información del contribuyente..."
+            })
+            await asyncio.sleep(0.6)
 
-    if not session:
-        # Crear nueva sesión
-        session = SessionModel(
-            user_id=current_user_id,
-            company_id=company.id,
-            is_active=True,
-            cookies={
-                'sii_cookies': sii_cookies,
-                'password': request.password,  # Guardamos password encriptado en producción
-                'last_updated': datetime.utcnow().isoformat()
-            },
-            resources={},
-            last_accessed_at=datetime.utcnow()
-        )
-        db.add(session)
-        await db.flush()
-        await db.refresh(session)
+            # Paso 5: Guardando en base de datos
+            yield send_event("progress", {
+                "progress": 85,
+                "message": "Guardando información en la base de datos..."
+            })
+            await asyncio.sleep(0.5)
 
-        session_action = "creada"
-    else:
-        # Actualizar cookies de sesión existente
-        session.cookies = {
-            'sii_cookies': sii_cookies,
-            'password': request.password,
-            'last_updated': datetime.utcnow().isoformat()
+            # Paso 6: Completado
+            yield send_event("progress", {
+                "progress": 100,
+                "message": "¡Proceso completado exitosamente!"
+            })
+            await asyncio.sleep(0.3)
+
+            # Enviar resultado final
+            yield send_event("complete", {
+                "success": True,
+                **result
+            })
+
+        except AuthenticationError as e:
+            yield send_event("error", {
+                "error": "authentication_error",
+                "message": f"Error en la autenticación: {str(e)}"
+            })
+
+        except ExtractionError as e:
+            yield send_event("error", {
+                "error": "extraction_error",
+                "message": f"Error al obtener información: {str(e)}"
+            })
+
+        except Exception as e:
+            await db.rollback()
+            yield send_event("error", {
+                "error": "unexpected_error",
+                "message": f"Error inesperado: {str(e)}"
+            })
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
         }
-        session.last_accessed_at = datetime.utcnow()
-        session.is_active = True
-
-        session_action = "actualizada"
-
-    # ========================================================================
-    # PASO 5: Commit de todos los cambios
-    # ========================================================================
-
-    try:
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al guardar en la base de datos: {str(e)}"
-        )
-
-    # Refresh para obtener datos actualizados
-    await db.refresh(company)
-    await db.refresh(company_tax_info)
-    await db.refresh(session)
-
-    # ========================================================================
-    # PASO 6: Construir respuesta
-    # ========================================================================
-
-    return SIILoginResponse(
-        success=True,
-        message=f"Login exitoso. Compañía {action}, tax info {tax_action}, sesión {session_action}.",
-        company={
-            "id": str(company.id),
-            "rut": company.rut,
-            "business_name": company.business_name,
-            "trade_name": company.trade_name,
-            "address": company.address,
-            "email": company.email,
-            "created_at": company.created_at.isoformat(),
-            "updated_at": company.updated_at.isoformat()
-        },
-        company_tax_info={
-            "id": str(company_tax_info.id),
-            "company_id": str(company_tax_info.company_id),
-            "tax_regime": company_tax_info.tax_regime,
-            "sii_activity_code": company_tax_info.sii_activity_code,
-            "sii_activity_name": company_tax_info.sii_activity_name,
-            "legal_representative_name": company_tax_info.legal_representative_name,
-            "created_at": company_tax_info.created_at.isoformat(),
-            "updated_at": company_tax_info.updated_at.isoformat()
-        },
-        session={
-            "id": str(session.id),
-            "user_id": str(session.user_id),
-            "company_id": str(session.company_id),
-            "is_active": session.is_active,
-            "has_cookies": bool(session.cookies and session.cookies.get('sii_cookies')),
-            "last_accessed_at": session.last_accessed_at.isoformat() if session.last_accessed_at else None
-        },
-        contribuyente_info=contribuyente_info
     )

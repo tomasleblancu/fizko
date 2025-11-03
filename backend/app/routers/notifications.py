@@ -138,6 +138,9 @@ class UserPreferencesRequest(BaseModel):
     muted_categories: Optional[List[str]] = Field(
         None, description='Categorías silenciadas: ["system"]'
     )
+    muted_templates: Optional[List[str]] = Field(
+        None, description='Templates silenciados: ["template_id_1", "template_id_2"]'
+    )
     max_notifications_per_day: int = 20
     min_interval_minutes: int = 30
 
@@ -437,41 +440,16 @@ async def get_user_notification_preferences(
     user_id: UUID = Depends(get_current_user_id),
     company_id: UUID = Depends(get_user_company_id),
 ):
-    """Obtiene las preferencias de notificaciones del usuario actual."""
-    from app.db.models import UserNotificationPreference
-    from sqlalchemy import select, and_
+    """
+    Obtiene las preferencias de notificaciones del usuario actual.
 
-    result = await db.execute(
-        select(UserNotificationPreference).where(
-            and_(
-                UserNotificationPreference.user_id == user_id,
-                UserNotificationPreference.company_id == company_id,
-            )
-        )
+    Delega a NotificationService.
+    """
+    return await notification_service.get_user_preferences(
+        db=db,
+        user_id=user_id,
+        company_id=company_id
     )
-    prefs = result.scalar_one_or_none()
-
-    if not prefs:
-        # Retornar valores por defecto
-        return {
-            "notifications_enabled": True,
-            "quiet_hours_start": None,
-            "quiet_hours_end": None,
-            "quiet_days": None,
-            "muted_categories": None,
-            "max_notifications_per_day": 20,
-            "min_interval_minutes": 30,
-        }
-
-    return {
-        "notifications_enabled": prefs.notifications_enabled,
-        "quiet_hours_start": str(prefs.quiet_hours_start) if prefs.quiet_hours_start else None,
-        "quiet_hours_end": str(prefs.quiet_hours_end) if prefs.quiet_hours_end else None,
-        "quiet_days": prefs.quiet_days,
-        "muted_categories": prefs.muted_categories,
-        "max_notifications_per_day": prefs.max_notifications_per_day,
-        "min_interval_minutes": prefs.min_interval_minutes,
-    }
 
 
 @router.put("/preferences")
@@ -481,57 +459,23 @@ async def update_user_notification_preferences(
     user_id: UUID = Depends(get_current_user_id),
     company_id: UUID = Depends(get_user_company_id),
 ):
-    """Actualiza las preferencias de notificaciones del usuario actual."""
-    from app.db.models import UserNotificationPreference
-    from sqlalchemy import select, and_
-    from datetime import time as dt_time
+    """
+    Actualiza las preferencias de notificaciones del usuario actual.
 
-    result = await db.execute(
-        select(UserNotificationPreference).where(
-            and_(
-                UserNotificationPreference.user_id == user_id,
-                UserNotificationPreference.company_id == company_id,
-            )
-        )
+    Delega a NotificationService.
+    """
+    await notification_service.update_user_preferences(
+        db=db,
+        user_id=user_id,
+        company_id=company_id,
+        notifications_enabled=request.notifications_enabled,
+        quiet_hours_start=request.quiet_hours_start,
+        quiet_hours_end=request.quiet_hours_end,
+        quiet_days=request.quiet_days,
+        muted_categories=request.muted_categories,
+        muted_templates=request.muted_templates,
+        max_notifications_per_day=request.max_notifications_per_day,
+        min_interval_minutes=request.min_interval_minutes,
     )
-    prefs = result.scalar_one_or_none()
-
-    # Parsear horarios si se proporcionan
-    quiet_start = None
-    quiet_end = None
-    if request.quiet_hours_start:
-        hour, minute = map(int, request.quiet_hours_start.split(":"))
-        quiet_start = dt_time(hour=hour, minute=minute)
-    if request.quiet_hours_end:
-        hour, minute = map(int, request.quiet_hours_end.split(":"))
-        quiet_end = dt_time(hour=hour, minute=minute)
-
-    if prefs:
-        # Actualizar existente
-        prefs.notifications_enabled = request.notifications_enabled
-        prefs.quiet_hours_start = quiet_start
-        prefs.quiet_hours_end = quiet_end
-        prefs.quiet_days = request.quiet_days
-        prefs.muted_categories = request.muted_categories
-        prefs.max_notifications_per_day = request.max_notifications_per_day
-        prefs.min_interval_minutes = request.min_interval_minutes
-        prefs.updated_at = datetime.utcnow()
-    else:
-        # Crear nueva
-        prefs = UserNotificationPreference(
-            user_id=user_id,
-            company_id=company_id,
-            notifications_enabled=request.notifications_enabled,
-            quiet_hours_start=quiet_start,
-            quiet_hours_end=quiet_end,
-            quiet_days=request.quiet_days,
-            muted_categories=request.muted_categories,
-            max_notifications_per_day=request.max_notifications_per_day,
-            min_interval_minutes=request.min_interval_minutes,
-        )
-        db.add(prefs)
-
-    await db.commit()
-    await db.refresh(prefs)
 
     return {"message": "Preferencias actualizadas exitosamente"}

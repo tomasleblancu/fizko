@@ -21,6 +21,7 @@ import SyncPanel from '../components/SyncPanel';
 import F29List from '../components/F29List';
 import CalendarConfig from '../../calendar/components/CalendarConfig';
 import CalendarEventsSection from '../../calendar/components/CalendarEventsSection';
+import NotificationSubscriptions from '../components/NotificationSubscriptions';
 import { apiFetch } from "@/shared/lib/api-client";
 
 export default function AdminCompanyView() {
@@ -30,7 +31,7 @@ export default function AdminCompanyView() {
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'f29' | 'calendar'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'f29' | 'calendar' | 'notifications'>('overview');
   const [sendingNotification, setSendingNotification] = useState(false);
   const [notificationResult, setNotificationResult] = useState<{
     success: boolean;
@@ -293,6 +294,16 @@ export default function AdminCompanyView() {
             >
               Eventos Tributarios
             </button>
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
+                activeTab === 'notifications'
+                  ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300'
+              }`}
+            >
+              Notificaciones
+            </button>
           </nav>
         </div>
 
@@ -546,6 +557,13 @@ export default function AdminCompanyView() {
                 <CalendarConfig companyId={companyId!} />
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Tab Content: Notifications */}
+        {activeTab === 'notifications' && (
+          <div>
+            <NotificationSubscriptions companyId={companyId!} />
           </div>
         )}
       </div>

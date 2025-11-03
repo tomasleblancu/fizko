@@ -4,49 +4,17 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.database import get_db
-from ...db.models import NotificationTemplate, NotificationSubscription
 from ...dependencies import get_current_user_id, require_auth
+from ...schemas.notifications import CreateNotificationTemplateRequest, UpdateNotificationTemplateRequest
 
 router = APIRouter(
     prefix="/api/notifications",
     tags=["notifications-admin"],
     dependencies=[Depends(require_auth)]
 )
-
-
-# ============================================================================
-# PYDANTIC MODELS
-# ============================================================================
-
-class CreateNotificationTemplateRequest(BaseModel):
-    code: str
-    name: str
-    description: Optional[str] = None
-    category: str
-    entity_type: Optional[str] = None
-    message_template: str
-    timing_config: dict
-    priority: str = "normal"
-    is_active: bool = True
-    metadata: Optional[dict] = None
-
-
-class UpdateNotificationTemplateRequest(BaseModel):
-    code: Optional[str] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    category: Optional[str] = None
-    entity_type: Optional[str] = None
-    message_template: Optional[str] = None
-    timing_config: Optional[dict] = None
-    priority: Optional[str] = None
-    is_active: Optional[bool] = None
-    metadata: Optional[dict] = None
 
 
 # ============================================================================
@@ -63,23 +31,21 @@ async def list_notification_templates(
     """
     Obtener catálogo de templates de notificaciones.
 
+    Delega a NotificationService.
+
     - **category**: Filtrar por categoría (calendar, tax_document, payroll, system, custom)
     - **entity_type**: Filtrar por tipo de entidad (calendar_event, form29, etc.)
     - **is_active**: Filtrar por activos/inactivos
     """
-    query = select(NotificationTemplate)
+    from app.services.notifications import get_notification_service
 
-    if category:
-        query = query.where(NotificationTemplate.category == category)
-    if entity_type:
-        query = query.where(NotificationTemplate.entity_type == entity_type)
-    if is_active is not None:
-        query = query.where(NotificationTemplate.is_active == is_active)
-
-    query = query.order_by(NotificationTemplate.category, NotificationTemplate.name)
-
-    result = await db.execute(query)
-    templates = result.scalars().all()
+    notification_service = get_notification_service()
+    templates = await notification_service.list_templates(
+        db=db,
+        category=category,
+        entity_type=entity_type,
+        is_active=is_active
+    )
 
     return {
         "data": [
@@ -94,6 +60,7 @@ async def list_notification_templates(
                 "timing_config": t.timing_config,
                 "priority": t.priority,
                 "is_active": t.is_active,
+                "auto_assign_to_new_companies": t.auto_assign_to_new_companies,
                 "metadata": t.extra_metadata,
             }
             for t in templates
@@ -107,11 +74,15 @@ async def get_notification_template(
     template_id: UUID,
     db: AsyncSession = Depends(get_db),
 ):
-    """Obtener detalle de un template de notificación."""
-    result = await db.execute(
-        select(NotificationTemplate).where(NotificationTemplate.id == template_id)
-    )
-    template = result.scalar_one_or_none()
+    """
+    Obtener detalle de un template de notificación.
+
+    Delega a NotificationService.
+    """
+    from app.services.notifications import get_notification_service
+
+    notification_service = get_notification_service()
+    template = await notification_service.get_template(db=db, template_id=template_id)
 
     if not template:
         raise HTTPException(status_code=404, detail="Template de notificación no encontrado")
@@ -128,6 +99,7 @@ async def get_notification_template(
             "timing_config": template.timing_config,
             "priority": template.priority,
             "is_active": template.is_active,
+            "auto_assign_to_new_companies": template.auto_assign_to_new_companies,
             "metadata": template.extra_metadata,
         }
     }
@@ -142,6 +114,8 @@ async def create_notification_template(
     """
     Crear un nuevo template de notificación.
 
+    Delega a NotificationService.
+
     - **code**: Código único del template (ej: custom_reminder)
     - **name**: Nombre descriptivo
     - **category**: Categoría (calendar, tax_document, payroll, system, custom)
@@ -152,34 +126,27 @@ async def create_notification_template(
     - **is_active**: Si está activo
     - **metadata**: Metadatos adicionales (opcional)
     """
-    # Verificar que el código no existe
-    result = await db.execute(
-        select(NotificationTemplate).where(NotificationTemplate.code == request.code)
-    )
-    existing = result.scalar_one_or_none()
+    from app.services.notifications import get_notification_service
 
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Ya existe un template con el código '{request.code}'"
+    notification_service = get_notification_service()
+
+    try:
+        new_template = await notification_service.create_template(
+            db=db,
+            code=request.code,
+            name=request.name,
+            category=request.category,
+            message_template=request.message_template,
+            timing_config=request.timing_config,
+            description=request.description,
+            entity_type=request.entity_type,
+            priority=request.priority,
+            is_active=request.is_active,
+            auto_assign_to_new_companies=request.auto_assign_to_new_companies,
+            metadata=request.metadata
         )
-
-    # Crear nuevo template
-    new_template = NotificationTemplate(
-        code=request.code,
-        name=request.name,
-        description=request.description,
-        category=request.category,
-        entity_type=request.entity_type,
-        message_template=request.message_template,
-        timing_config=request.timing_config,
-        priority=request.priority,
-        is_active=request.is_active,
-        extra_metadata=request.metadata or {},
-    )
-
-    db.add(new_template)
-    await db.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     return {
         "data": {
@@ -193,6 +160,7 @@ async def create_notification_template(
             "timing_config": new_template.timing_config,
             "priority": new_template.priority,
             "is_active": new_template.is_active,
+            "auto_assign_to_new_companies": new_template.auto_assign_to_new_companies,
             "metadata": new_template.extra_metadata,
         },
         "message": "Template de notificación creado exitosamente"
@@ -208,37 +176,24 @@ async def delete_notification_template(
     """
     Eliminar un template de notificación.
 
+    Delega a NotificationService.
+
     ADVERTENCIA: Esto eliminará todas las suscripciones asociadas.
     """
-    # Buscar el template
-    result = await db.execute(
-        select(NotificationTemplate).where(NotificationTemplate.id == template_id)
-    )
-    template = result.scalar_one_or_none()
+    from app.services.notifications import get_notification_service
 
-    if not template:
-        raise HTTPException(status_code=404, detail="Template de notificación no encontrado")
+    notification_service = get_notification_service()
 
-    # Verificar si hay suscripciones activas asociadas
-    result = await db.execute(
-        select(NotificationSubscription).where(
-            NotificationSubscription.notification_template_id == template_id
-        )
-    )
-    active_subscriptions = result.scalars().all()
-
-    if active_subscriptions:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No se puede eliminar. Hay {len(active_subscriptions)} suscripción(es) a este template. Elimina primero las suscripciones."
-        )
-
-    # Eliminar template
-    await db.delete(template)
-    await db.commit()
+    try:
+        await notification_service.delete_template(db=db, template_id=template_id)
+    except ValueError as e:
+        if "no encontrado" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        else:
+            raise HTTPException(status_code=400, detail=str(e))
 
     return {
-        "message": f"Template '{template.name}' eliminado exitosamente"
+        "message": "Template eliminado exitosamente"
     }
 
 
@@ -252,53 +207,36 @@ async def update_notification_template(
     """
     Actualizar un template de notificación.
 
+    Delega a NotificationService.
+
     - Solo se actualizan los campos proporcionados
     - Si se cambia el código, verifica que no exista otro template con ese código
     """
-    # Buscar el template
-    result = await db.execute(
-        select(NotificationTemplate).where(NotificationTemplate.id == template_id)
-    )
-    template = result.scalar_one_or_none()
+    from app.services.notifications import get_notification_service
 
-    if not template:
-        raise HTTPException(status_code=404, detail="Template de notificación no encontrado")
+    notification_service = get_notification_service()
 
-    # Si se intenta cambiar el código, verificar que no exista
-    if request.code and request.code != template.code:
-        result = await db.execute(
-            select(NotificationTemplate).where(NotificationTemplate.code == request.code)
+    try:
+        template = await notification_service.update_template(
+            db=db,
+            template_id=template_id,
+            code=request.code,
+            name=request.name,
+            description=request.description,
+            category=request.category,
+            entity_type=request.entity_type,
+            message_template=request.message_template,
+            timing_config=request.timing_config,
+            priority=request.priority,
+            is_active=request.is_active,
+            auto_assign_to_new_companies=request.auto_assign_to_new_companies,
+            metadata=request.metadata
         )
-        existing = result.scalar_one_or_none()
-        if existing:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Ya existe un template con el código '{request.code}'"
-            )
-
-    # Actualizar solo los campos proporcionados
-    if request.code is not None:
-        template.code = request.code
-    if request.name is not None:
-        template.name = request.name
-    if request.description is not None:
-        template.description = request.description
-    if request.category is not None:
-        template.category = request.category
-    if request.entity_type is not None:
-        template.entity_type = request.entity_type
-    if request.message_template is not None:
-        template.message_template = request.message_template
-    if request.timing_config is not None:
-        template.timing_config = request.timing_config
-    if request.priority is not None:
-        template.priority = request.priority
-    if request.is_active is not None:
-        template.is_active = request.is_active
-    if request.metadata is not None:
-        template.extra_metadata = request.metadata
-
-    await db.commit()
+    except ValueError as e:
+        if "no encontrado" in str(e):
+            raise HTTPException(status_code=404, detail=str(e))
+        else:
+            raise HTTPException(status_code=400, detail=str(e))
 
     return {
         "data": {
@@ -312,6 +250,7 @@ async def update_notification_template(
             "timing_config": template.timing_config,
             "priority": template.priority,
             "is_active": template.is_active,
+            "auto_assign_to_new_companies": template.auto_assign_to_new_companies,
             "metadata": template.extra_metadata,
         },
         "message": "Template de notificación actualizado exitosamente"

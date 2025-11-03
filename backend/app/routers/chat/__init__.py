@@ -1,5 +1,5 @@
-"""Chat and contact management routers."""
+"""Chat routers for conversations and chatkit AI agent."""
 
-from . import contacts, conversations
+from . import chatkit, conversations
 
-__all__ = ["conversations", "contacts"]
+__all__ = ["chatkit", "conversations"]

@@ -237,7 +237,7 @@ async def sync_recent_documents(
             try:
                 # Sincronizar compras
                 logger.info(f"📥 Syncing purchases for {year}-{month:02d}")
-                compras_result = await sync_service._sync_compras_period(
+                compras_result = await sync_service.sync_compras_period(
                     session_id=request.session_id,
                     company_id=session.company_id,
                     year=year,
@@ -252,7 +252,7 @@ async def sync_recent_documents(
 
                 # Sincronizar ventas
                 logger.info(f"📤 Syncing sales for {year}-{month:02d}")
-                ventas_result = await sync_service._sync_ventas_period(
+                ventas_result = await sync_service.sync_ventas_period(
                     session_id=request.session_id,
                     company_id=session.company_id,
                     year=year,
