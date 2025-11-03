@@ -69,38 +69,39 @@ export function OnboardingModal({ scheme, onComplete }: OnboardingModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-black/40 via-slate-900/30 to-emerald-950/20 backdrop-blur-sm animate-in fade-in duration-500 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/20 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 md:from-black/40 md:via-slate-900/30 md:to-emerald-950/20 md:backdrop-blur-sm animate-in fade-in duration-500 md:p-4">
       <div
         className={clsx(
-          'relative w-full max-w-lg rounded-3xl border overflow-hidden shadow-2xl backdrop-blur-2xl animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 max-h-[90vh]',
-          'bg-gradient-to-br from-white/95 via-white/90 to-emerald-50/50 border-emerald-200/40',
-          'dark:from-slate-900/95 dark:via-slate-900/90 dark:to-slate-800/50 dark:border-emerald-500/20'
+          'relative w-full h-full md:h-auto md:max-w-lg md:rounded-3xl md:border overflow-y-auto md:shadow-2xl md:backdrop-blur-2xl animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 md:max-h-[90vh]',
+          'bg-gradient-to-br from-white/95 via-white/90 to-emerald-50/50 md:border-emerald-200/40',
+          'dark:from-slate-900/95 dark:via-slate-900/90 dark:to-slate-800/50 md:dark:border-emerald-500/20',
+          'flex flex-col'
         )}
       >
         {/* Decorative gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-teal-500/5 pointer-events-none" />
 
-        {/* Animated background shapes */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        {/* Animated background shapes - hidden on mobile */}
+        <div className="hidden md:block absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" />
+        <div className="hidden md:block absolute -bottom-24 -left-24 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
 
-        <div className="relative p-6 md:p-10">
+        <div className="relative flex-1 flex flex-col justify-center p-6 md:p-10">
           {/* Header */}
-          <div className="mb-8 text-center">
+          <div className="mb-6 md:mb-8 text-center">
             <button
               type="button"
               onClick={handleLogoClick}
               disabled={loading}
-              className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30 animate-in zoom-in duration-500 hover:scale-105 transition-transform duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mx-auto mb-4 flex h-16 w-16 md:h-20 md:w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30 animate-in zoom-in duration-500 hover:scale-105 transition-transform duration-200 disabled:cursor-not-allowed disabled:opacity-50"
               aria-label="Volver al inicio"
             >
               <img
                 src="/encabezado.png"
                 alt="Fizko Logo"
-                className="h-12 w-12 object-contain brightness-0 invert"
+                className="h-10 w-10 md:h-12 md:w-12 object-contain brightness-0 invert"
               />
             </button>
-            <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-slate-900 via-emerald-900 to-teal-900 dark:from-white dark:via-emerald-100 dark:to-teal-100 bg-clip-text text-transparent mb-2 animate-in slide-in-from-top-4 duration-500">
+            <h2 className="text-xl md:text-3xl font-bold bg-gradient-to-r from-slate-900 via-emerald-900 to-teal-900 dark:from-white dark:via-emerald-100 dark:to-teal-100 bg-clip-text text-transparent mb-2 animate-in slide-in-from-top-4 duration-500">
               Conecta tu cuenta SII
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400 animate-in slide-in-from-top-4 duration-500" style={{ animationDelay: '100ms' }}>
@@ -109,7 +110,7 @@ export function OnboardingModal({ scheme, onComplete }: OnboardingModalProps) {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4 md:space-y-5 max-w-md mx-auto w-full">
             {error && (
               <div className="rounded-xl border border-red-200/60 bg-gradient-to-br from-red-50 to-red-100/50 p-4 shadow-sm dark:border-red-900/40 dark:from-red-900/30 dark:to-red-800/20 animate-in slide-in-from-top-2 duration-300">
                 <div className="flex items-start gap-3">
@@ -138,7 +139,7 @@ export function OnboardingModal({ scheme, onComplete }: OnboardingModalProps) {
                   placeholder="12.345.678-9"
                   disabled={loading}
                   className={clsx(
-                    'relative block w-full rounded-xl border-2 px-4 py-3 text-sm font-medium transition-all duration-200',
+                    'relative block w-full rounded-xl border-2 px-4 py-3.5 md:py-3 text-base md:text-sm font-medium transition-all duration-200',
                     'border-slate-200 bg-white/80 backdrop-blur-sm text-slate-900 placeholder-slate-400',
                     'focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10',
                     'dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder-slate-500',
@@ -166,7 +167,7 @@ export function OnboardingModal({ scheme, onComplete }: OnboardingModalProps) {
                   placeholder="••••••••"
                   disabled={loading}
                   className={clsx(
-                    'relative block w-full rounded-xl border-2 pr-12 px-4 py-3 text-sm font-medium transition-all duration-200',
+                    'relative block w-full rounded-xl border-2 pr-12 px-4 py-3.5 md:py-3 text-base md:text-sm font-medium transition-all duration-200',
                     'border-slate-200 bg-white/80 backdrop-blur-sm text-slate-900 placeholder-slate-400',
                     'focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10',
                     'dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder-slate-500',
@@ -225,7 +226,7 @@ export function OnboardingModal({ scheme, onComplete }: OnboardingModalProps) {
               type="submit"
               disabled={loading}
               className={clsx(
-                'relative w-full rounded-xl px-6 py-3.5 text-sm font-bold text-white transition-all duration-200 overflow-hidden group',
+                'relative w-full rounded-xl px-6 py-4 md:py-3.5 text-base md:text-sm font-bold text-white transition-all duration-200 overflow-hidden group',
                 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600',
                 'hover:from-emerald-700 hover:via-emerald-600 hover:to-teal-700',
                 'focus:outline-none focus:ring-4 focus:ring-emerald-500/20',

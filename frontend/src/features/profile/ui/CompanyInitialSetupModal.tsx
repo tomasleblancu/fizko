@@ -118,18 +118,19 @@ export function CompanyInitialSetupModal({ companyId, companyName, scheme, onCom
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white dark:bg-slate-900 md:bg-black/50 md:backdrop-blur-sm md:p-4">
       <div
         className={clsx(
-          'relative w-full max-w-lg rounded-xl border overflow-hidden shadow-xl',
-          'bg-white border-slate-200',
-          'dark:bg-slate-900 dark:border-slate-700'
+          'relative w-full h-full md:h-auto md:max-w-lg md:rounded-xl md:border overflow-hidden md:shadow-xl',
+          'bg-white md:border-slate-200',
+          'dark:bg-slate-900 md:dark:border-slate-700',
+          'flex flex-col'
         )}
       >
-        <div className="relative p-6">
+        <div className="relative flex-1 flex flex-col p-6 md:p-6 overflow-y-auto">
           {/* Header */}
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">
+          <div className="mb-6 md:mb-6">
+            <h2 className="text-lg md:text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">
               Configuración inicial
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -138,7 +139,7 @@ export function CompanyInitialSetupModal({ companyId, companyName, scheme, onCom
           </div>
 
           {/* Progress Bar */}
-          <div className="mb-6">
+          <div className="mb-6 md:mb-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-slate-500 dark:text-slate-400">
                 {currentStep + 1} de {questions.length}
@@ -153,23 +154,23 @@ export function CompanyInitialSetupModal({ companyId, companyName, scheme, onCom
           </div>
 
           {/* Question Card */}
-          <div className="mb-6" key={currentStep}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex-shrink-0 text-slate-400 dark:text-slate-500">
+          <div className="mb-6 md:mb-6 flex-1 flex flex-col justify-center" key={currentStep}>
+            <div className="flex items-start gap-3 mb-6">
+              <div className="flex-shrink-0 text-slate-400 dark:text-slate-500 mt-1">
                 {currentQuestion.icon}
               </div>
-              <h3 className="text-base font-medium text-slate-900 dark:text-slate-100">
+              <h3 className="text-base md:text-base font-medium text-slate-900 dark:text-slate-100 leading-relaxed">
                 {currentQuestion.title}
               </h3>
             </div>
 
             {/* Answer Options */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <button
                 onClick={() => handleAnswer(true)}
                 disabled={loading}
                 className={clsx(
-                  'w-full p-3 rounded-lg border text-left transition-all flex items-center gap-2',
+                  'w-full p-4 md:p-3 rounded-lg border text-left transition-all flex items-center gap-2',
                   answers[currentQuestion.key] === true
                     ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-900/20'
                     : 'border-slate-200 bg-white hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-600',
@@ -198,7 +199,7 @@ export function CompanyInitialSetupModal({ companyId, companyName, scheme, onCom
                 onClick={() => handleAnswer(false)}
                 disabled={loading}
                 className={clsx(
-                  'w-full p-3 rounded-lg border text-left transition-all flex items-center gap-2',
+                  'w-full p-4 md:p-3 rounded-lg border text-left transition-all flex items-center gap-2',
                   answers[currentQuestion.key] === false
                     ? 'border-slate-400 bg-slate-50 dark:border-slate-500 dark:bg-slate-800/50'
                     : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600',
@@ -227,7 +228,7 @@ export function CompanyInitialSetupModal({ companyId, companyName, scheme, onCom
                 onClick={() => handleAnswer(null)}
                 disabled={loading}
                 className={clsx(
-                  'w-full p-3 rounded-lg border text-left transition-all flex items-center gap-2',
+                  'w-full p-4 md:p-3 rounded-lg border text-left transition-all flex items-center gap-2',
                   answers[currentQuestion.key] === null
                     ? 'border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-800/30'
                     : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600',
@@ -259,8 +260,10 @@ export function CompanyInitialSetupModal({ companyId, companyName, scheme, onCom
               <p className="text-sm text-red-700 dark:text-red-200">{error}</p>
             </div>
           )}
+        </div>
 
-          {/* Navigation Buttons */}
+        {/* Navigation Buttons - Fixed at bottom on mobile */}
+        <div className="sticky bottom-0 left-0 right-0 p-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 md:border-t-0 md:static md:bg-transparent md:dark:bg-transparent">
           <div className="flex items-center justify-between gap-3">
             {currentStep > 0 && (
               <button
@@ -277,7 +280,7 @@ export function CompanyInitialSetupModal({ companyId, companyName, scheme, onCom
                 onClick={handleComplete}
                 disabled={loading}
                 className={clsx(
-                  'ml-auto px-5 py-2 text-sm font-medium text-white rounded-lg transition-all',
+                  'ml-auto px-6 py-3 md:px-5 md:py-2 text-sm font-medium text-white rounded-lg transition-all',
                   'bg-emerald-600 hover:bg-emerald-700',
                   'disabled:cursor-not-allowed disabled:opacity-50'
                 )}
