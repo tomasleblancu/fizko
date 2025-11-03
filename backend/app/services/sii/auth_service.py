@@ -122,9 +122,13 @@ class SIIAuthService:
         await self.db.refresh(company_tax_info)
         await self.db.refresh(session)
 
-        # PASO 8: Disparar tareas de sincronización en background
-        await self._trigger_sync_tasks(company.id)
-        logger.info(f"[SII Auth Service] Sync tasks triggered for company {company.id}")
+        # PASO 8: Disparar tareas de sincronización en background (solo para empresas nuevas)
+        is_new_company = company_action == "creada"
+        if is_new_company:
+            await self._trigger_sync_tasks(company.id)
+            logger.info(f"[SII Auth Service] Sync tasks triggered for new company {company.id}")
+        else:
+            logger.info(f"[SII Auth Service] Skipping sync tasks for existing company {company.id}")
 
         # PASO 9: Verificar si necesita configuración inicial
         needs_initial_setup = await self._check_needs_initial_setup(company.id)

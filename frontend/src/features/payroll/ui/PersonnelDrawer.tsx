@@ -106,12 +106,14 @@ export function PersonnelDrawer({
             ? "cubic-bezier(0.16, 1, 0.3, 1)" // Smooth ease-out when opening
             : "cubic-bezier(0.4, 0, 0.2, 1)" // Smooth when closing
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
-        {/* Handle Bar */}
-        <div className="flex items-center justify-center py-3">
+        {/* Handle Bar - Touch events only here */}
+        <div
+          className="flex items-center justify-center py-3"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
           <div className="h-1.5 w-12 rounded-full bg-slate-300 dark:bg-slate-700" />
         </div>
 

@@ -191,7 +191,7 @@ function HomeContent({
   }, []);
 
   const containerClass = clsx(
-    "h-[100dvh] overflow-hidden bg-gradient-to-br transition-colors duration-300",
+    "fixed inset-0 overflow-hidden bg-gradient-to-br transition-colors duration-300",
     scheme === "dark"
       ? "from-slate-900 via-slate-950 to-slate-850 text-slate-100"
       : "from-slate-100 via-white to-slate-200 text-slate-900"
@@ -215,7 +215,7 @@ function HomeContent({
   if (needsOnboarding) {
     return (
       <div className={containerClass}>
-        <div className="flex h-[100dvh] w-full flex-col-reverse gap-0 p-0 lg:flex-row">
+        <div className="flex h-full w-full flex-col-reverse gap-0 p-0 lg:flex-row">
           {/* Chat Panel Container - Blurred background */}
           <div className="relative flex h-full w-full flex-col lg:w-[35%] lg:flex-none lg:border-r lg:border-slate-200 dark:lg:border-slate-800">
             <div className="relative flex flex-1 items-stretch overflow-hidden bg-white/80 backdrop-blur dark:bg-slate-900/70 blur-md pointer-events-none">
@@ -257,7 +257,7 @@ function HomeContent({
   if (needsInitialSetup && setupCompanyId && company) {
     return (
       <div className={containerClass}>
-        <div className="flex h-[100dvh] w-full flex-col-reverse gap-0 p-0 lg:flex-row">
+        <div className="flex h-full w-full flex-col-reverse gap-0 p-0 lg:flex-row">
           {/* Chat Panel Container - Blurred background */}
           <div className="relative flex h-full w-full flex-col lg:w-[35%] lg:flex-none lg:border-r lg:border-slate-200 dark:lg:border-slate-800">
             <div className="relative flex flex-1 items-stretch overflow-hidden bg-white/80 backdrop-blur dark:bg-slate-900/70 blur-md pointer-events-none">
