@@ -39,14 +39,19 @@ Este documento describe las diferencias entre las versiones de payload de Kapso 
     },
     "type": "text",
     "timestamp": "1762209446",
-    "direction": "inbound",
-    "status": "delivered",
-    "has_media": false,
-    "processing_status": "pending"
+    "context": null,
+    "kapso": {
+      "direction": "inbound",
+      "status": "delivered",
+      "has_media": false,
+      "processing_status": "pending"
+    }
   },
   "conversation": {
     "id": "conv-id",
-    "contact_name": "Usuario"
+    "contact_name": "Usuario",
+    "phone_number": "56912345678",
+    "status": "active"
   }
 }
 ```
@@ -55,7 +60,9 @@ Este documento describe las diferencias entre las versiones de payload de Kapso 
 - `message.text.body` - Contenido del mensaje de texto (estructura anidada)
 - `message.from` - Teléfono del remitente
 - `message.type` - Tipo de mensaje
-- `message.direction` - Dirección (inbound/outbound)
+- **`message.kapso.direction`** - Dirección (inbound/outbound) - ⚠️ Anidado en kapso!
+- **`message.kapso.has_media`** - Flag de media - ⚠️ Anidado en kapso!
+- **`message.kapso.status`** - Estado del mensaje
 - `conversation.contact_name` - Nombre del contacto (movido a conversation)
 
 ## Principales Diferencias
@@ -66,7 +73,9 @@ Este documento describe las diferencias entre las versiones de payload de Kapso 
 | Teléfono remitente | `message.conversation_phone_number` | `message.from` |
 | Tipo de mensaje | `message.message_type` | `message.type` |
 | Nombre de contacto | `message.contact_name` | `conversation.contact_name` |
-| Dirección | `message.direction` | `message.direction` (sin cambio) |
+| Dirección | `message.direction` | **`message.kapso.direction`** ⚠️ |
+| Media flag | `message.has_media` | **`message.kapso.has_media`** ⚠️ |
+| Status | `message.status` | **`message.kapso.status`** ⚠️ |
 
 ## Compatibilidad en el Webhook
 
@@ -87,6 +96,17 @@ message_type = message_data.get("type") or message_data.get("message_type", "tex
 
 # Nombre de contacto (ambas ubicaciones)
 contact_name = message_data.get("contact_name") or conversation_data.get("contact_name", "")
+
+# Direction (v2: anidado en kapso, v1: directo)
+kapso_data = message_data.get("kapso", {})
+direction = (
+    kapso_data.get("direction") or  # V2: message.kapso.direction
+    message_data.get("direction") or  # V1: message.direction
+    conversation_data.get("direction", "")
+)
+
+# Media flag (v2: en kapso, v1: directo)
+has_media = kapso_data.get("has_media") or message_data.get("has_media", False)
 ```
 
 ## Migración

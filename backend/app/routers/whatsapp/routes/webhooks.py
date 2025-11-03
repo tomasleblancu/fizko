@@ -155,14 +155,19 @@ async def handle_webhook(
                 # Nombre del contacto (puede estar en message o conversation)
                 contact_name = message_data.get("contact_name") or conversation_data.get("contact_name", "")
 
-                # Direction (v2: en message, v1: podía estar en conversation)
-                direction = message_data.get("direction") or conversation_data.get("direction", "")
+                # Direction (v2: en message.kapso.direction, v1: message.direction o conversation.direction)
+                kapso_data = message_data.get("kapso", {})
+                direction = (
+                    kapso_data.get("direction") or  # V2: message.kapso.direction
+                    message_data.get("direction") or  # V1: message.direction
+                    conversation_data.get("direction", "")  # V1 alternativo
+                )
 
                 # Tipo de mensaje (v2: type, v1: message_type)
                 message_type = message_data.get("type") or message_data.get("message_type", "text")
 
-                # Media flag
-                has_media = message_data.get("has_media", False)
+                # Media flag (v2: kapso.has_media, v1: has_media)
+                has_media = kapso_data.get("has_media") or message_data.get("has_media", False)
 
                 # DEBUG: Log de los valores extraídos
                 logger.info(f"🔍 Direction: '{direction}' | Sender: {sender_phone} | Type: {message_type} | Content: {message_content[:50]}...")
