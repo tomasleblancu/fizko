@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Header, HTTPException, Request, status
 
 from app.config.database import AsyncSessionLocal
+from app.integrations.kapso.exceptions import KapsoNotFoundError
 from app.services.whatsapp import (
     WhatsAppService,
     authenticate_user_by_whatsapp,
@@ -390,15 +391,37 @@ async def handle_webhook(
 
                             # Enviar respuesta
                             if response_message and conversation_id:
-                                send_start = time.time()
-                                await whatsapp_service.send_text(
-                                    conversation_id=conversation_id,
-                                    message=response_message
+                                # Detectar conversaciones de prueba/sandbox
+                                is_test_conversation = (
+                                    conversation_id.startswith("test-") or
+                                    sender_phone.startswith("+1555") or
+                                    "test" in conversation_id.lower()
                                 )
-                                send_time = time.time() - send_start
-                                total_time = time.time() - processing_start
-                                logger.info(f"✅ Respuesta enviada a {contact_name} (envío: {send_time:.3f}s)")
-                                logger.info(f"⏱️  TIEMPO TOTAL (procesamiento + envío): {total_time:.3f}s")
+
+                                if is_test_conversation:
+                                    logger.info(f"🧪 Conversación de prueba detectada: {conversation_id}")
+                                    logger.info(f"📝 Respuesta generada (no enviada): {response_message[:100]}...")
+                                    # No enviar mensaje real, solo loguearlo
+                                    total_time = time.time() - processing_start
+                                    logger.info(f"✅ Webhook de prueba procesado correctamente en {total_time:.3f}s")
+                                else:
+                                    # Conversación real - enviar mensaje
+                                    try:
+                                        send_start = time.time()
+                                        await whatsapp_service.send_text(
+                                            conversation_id=conversation_id,
+                                            message=response_message
+                                        )
+                                        send_time = time.time() - send_start
+                                        total_time = time.time() - processing_start
+                                        logger.info(f"✅ Respuesta enviada a {contact_name} (envío: {send_time:.3f}s)")
+                                        logger.info(f"⏱️  TIEMPO TOTAL (procesamiento + envío): {total_time:.3f}s")
+                                    except KapsoNotFoundError:
+                                        logger.warning(f"⚠️ Conversación no encontrada en Kapso: {conversation_id}")
+                                        logger.info(f"📝 Respuesta generada (no enviada): {response_message[:100]}...")
+                                    except Exception as e:
+                                        logger.error(f"❌ Error enviando respuesta: {e}")
+                                        raise
 
                                 # Guardar mensajes (usuario + asistente) en background (no bloquear)
                                 if authenticated_user_id and db_conversation_id:
