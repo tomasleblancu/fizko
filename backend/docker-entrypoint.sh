@@ -101,7 +101,7 @@ case "$1" in
         exec gunicorn app.main:app \
             --workers 2 \
             --worker-class uvicorn.workers.UvicornWorker \
-            --bind 0.0.0.0:${PORT:-8080} \
+            --bind 0.0.0.0:${PORT:-8000} \
             --timeout 120 \
             --graceful-timeout 30 \
             --keep-alive 5 \
