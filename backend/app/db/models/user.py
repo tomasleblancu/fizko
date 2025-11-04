@@ -64,3 +64,8 @@ class Profile(Base):
     sessions: Mapped[list["Session"]] = relationship(
         "Session", back_populates="user", cascade="all, delete-orphan"
     )
+
+    # Brain (Memory) relationship
+    brain_memories: Mapped[list["UserBrain"]] = relationship(
+        "UserBrain", back_populates="user", cascade="all, delete-orphan"
+    )

@@ -658,6 +658,264 @@ class KapsoClient:
 
         return result
 
+    async def create_whatsapp_template(
+        self,
+        waba_id: str,
+        name: str,
+        category: str,
+        language: str,
+        components: List[Dict],
+    ) -> Dict[str, Any]:
+        """
+        Crea un template de WhatsApp Business en Meta via Kapso
+
+        Args:
+            waba_id: WhatsApp Business Account ID
+            name: Nombre del template (lowercase, underscores)
+            category: UTILITY, MARKETING, o AUTHENTICATION
+            language: Código de idioma (es, en_US, etc.)
+            components: Lista de componentes (HEADER, BODY, FOOTER, BUTTONS)
+                Ejemplo:
+                [
+                  {
+                    "type": "HEADER",
+                    "format": "TEXT",
+                    "text": "{{sale_name}} is here!",
+                    "example": {
+                      "header_text_named_params": [
+                        { "param_name": "sale_name", "example": "Black Friday Sale" }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "BODY",
+                    "text": "Save big with code {{discount_code}}",
+                    "example": {
+                      "body_text_named_params": [
+                        { "param_name": "discount_code", "example": "BF2024" }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "FOOTER",
+                    "text": "Terms and conditions apply"
+                  },
+                  {
+                    "type": "BUTTONS",
+                    "buttons": [
+                      { "type": "QUICK_REPLY", "text": "Yes" }
+                    ]
+                  }
+                ]
+
+        Returns:
+            Response de Meta con template creado
+
+        Raises:
+            KapsoValidationError: Si el template es inválido o ya existe
+            KapsoAPIError: Si hay error en la API
+
+        Ejemplo de uso:
+            result = await client.create_whatsapp_template(
+                waba_id="1890372408497828",
+                name="order_confirmation",
+                category="UTILITY",
+                language="es",
+                components=[
+                    {
+                        "type": "BODY",
+                        "text": "Hola {{customer_name}}, tu pedido {{order_number}} fue confirmado!",
+                        "example": {
+                            "body_text_named_params": [
+                                {"param_name": "customer_name", "example": "Juan"},
+                                {"param_name": "order_number", "example": "12345"}
+                            ]
+                        }
+                    }
+                ]
+            )
+        """
+        payload = {
+            "name": name,
+            "category": category,
+            "language": language,
+            "components": components,
+        }
+
+        logger.info(f"📤 Sending WhatsApp template creation request:")
+        logger.info(f"  - WABA ID: {waba_id}")
+        logger.info(f"  - Template name: {name}")
+        logger.info(f"  - Category: {category}")
+        logger.info(f"  - Language: {language}")
+        logger.info(f"  - Endpoint: meta/whatsapp/v21.0/{waba_id}/message_templates")
+        logger.info(f"  - Payload: {payload}")
+
+        try:
+            # Meta API uses different base URL: https://api.kapso.ai (not app.kapso.ai/api/v1)
+            meta_url = f"https://api.kapso.ai/meta/whatsapp/v21.0/{waba_id}/message_templates"
+
+            logger.info(f"  - Full URL: {meta_url}")
+
+            async with httpx.AsyncClient() as client:
+                response = await client.request(
+                    method="POST",
+                    url=meta_url,
+                    headers=self.headers,
+                    json=payload,
+                    timeout=60,
+                )
+
+                if response.status_code in [200, 201]:
+                    result = response.json()
+                elif response.status_code == 404:
+                    raise KapsoNotFoundError(
+                        "Recurso no encontrado",
+                        status_code=response.status_code,
+                        response_data=response.text,
+                    )
+                elif response.status_code == 422:
+                    raise KapsoValidationError(
+                        f"Error de validación: {response.text[:200]}",
+                        status_code=response.status_code,
+                        response_data=response.text,
+                    )
+                else:
+                    raise KapsoAPIError(
+                        f"Error {response.status_code}: {response.text[:200]}",
+                        status_code=response.status_code,
+                        response_data=response.text,
+                    )
+
+            logger.info(f"✅ WhatsApp template '{name}' creado exitosamente")
+            logger.info(f"📥 Response: {result}")
+            return result
+
+        except KapsoValidationError as e:
+            # Template duplicado o inválido
+            logger.error(f"❌ Error de validación al crear template '{name}': {e}")
+            logger.error(f"📋 Detalles del error: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ Error inesperado al crear template '{name}': {e}")
+            logger.error(f"📋 Tipo de error: {type(e).__name__}")
+            logger.error(f"📋 Detalles completos: {str(e)}")
+            raise
+
+    async def send_whatsapp_template(
+        self,
+        phone_number_id: str,
+        to: str,
+        template_name: str,
+        language_code: str = "es",
+        header_params: Optional[List[Dict[str, str]]] = None,
+        body_params: Optional[List[Dict[str, str]]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Envía un mensaje usando un template de WhatsApp existente.
+
+        Args:
+            phone_number_id: ID del número de teléfono de WhatsApp Business
+            to: Número de teléfono destino (formato internacional, ej: "56912345678")
+            template_name: Nombre del template (debe estar aprobado en Meta)
+            language_code: Código de idioma (default: "es")
+            header_params: Parámetros para el header (si tiene variables)
+                Ejemplo: [{"type": "text", "text": "Black Friday Sale"}]
+            body_params: Parámetros para el body (si tiene variables)
+                Ejemplo: [{"type": "text", "text": "BF2024"}, {"type": "text", "text": "November 30th"}]
+
+        Returns:
+            Response de Meta con el mensaje enviado
+
+        Raises:
+            KapsoAPIError: Si hay error en el envío
+
+        Ejemplo de uso:
+            result = await client.send_whatsapp_template(
+                phone_number_id="647015955153740",
+                to="56912345678",
+                template_name="daily_business_summary_v2",
+                language_code="es",
+                header_params=[{"type": "text", "text": "Lunes"}],
+                body_params=[
+                    {"type": "text", "text": "5"},
+                    {"type": "text", "text": "$1,500,000"},
+                    {"type": "text", "text": "3"},
+                    {"type": "text", "text": "$800,000"},
+                ]
+            )
+        """
+        # Build components array
+        components = []
+
+        # Add header component if params provided
+        if header_params:
+            components.append({
+                "type": "header",
+                "parameters": header_params
+            })
+
+        # Add body component if params provided
+        if body_params:
+            components.append({
+                "type": "body",
+                "parameters": body_params
+            })
+
+        # Build payload
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "template",
+            "template": {
+                "name": template_name,
+                "language": {
+                    "code": language_code
+                }
+            }
+        }
+
+        # Add components only if we have any
+        if components:
+            payload["template"]["components"] = components
+
+        # Use Meta API endpoint for sending messages
+        meta_url = f"https://api.kapso.ai/meta/whatsapp/v21.0/{phone_number_id}/messages"
+
+        logger.info(f"📤 Sending WhatsApp template message:")
+        logger.info(f"  - Phone Number ID: {phone_number_id}")
+        logger.info(f"  - To: {to}")
+        logger.info(f"  - Template: {template_name}")
+        logger.info(f"  - Language: {language_code}")
+        logger.info(f"  - Payload: {payload}")
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.request(
+                    method="POST",
+                    url=meta_url,
+                    headers=self.headers,
+                    json=payload,
+                    timeout=60,
+                )
+
+                logger.info(f"📬 Template sent successfully. Status: {response.status_code}")
+
+                if response.status_code == 200:
+                    result = response.json()
+                    logger.info(f"✅ Message ID: {result.get('messages', [{}])[0].get('id', 'N/A')}")
+                    return result
+                else:
+                    error_text = response.text
+                    logger.error(f"❌ Error sending template: {response.status_code} - {error_text}")
+                    raise KapsoAPIError(f"Error {response.status_code}: {error_text}")
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"❌ HTTP error sending template: {e}")
+            raise KapsoAPIError(f"HTTP error: {str(e)}")
+        except Exception as e:
+            logger.error(f"❌ Unexpected error sending template: {e}")
+            raise
+
     # ========== Configuración ==========
 
     async def list_whatsapp_configs(

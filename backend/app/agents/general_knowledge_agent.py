@@ -9,6 +9,10 @@ from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config.constants import SPECIALIZED_MODEL, GENERAL_KNOWLEDGE_INSTRUCTIONS
+from ..agents.tools.memory import (
+    search_user_memory,
+    search_company_memory,
+)
 
 
 def create_general_knowledge_agent(
@@ -19,12 +23,19 @@ def create_general_knowledge_agent(
     """
     Create the General Knowledge Agent.
 
-    This agent handles conceptual and educational questions about Chilean taxation.
+    This agent handles conceptual and educational questions about Chilean taxation
+    and can recall both user preferences and company-wide information from memory.
 
     Args:
         db: Database session
         openai_client: OpenAI client
         vector_store_ids: Optional list of vector store IDs for FileSearchTool
+
+    Capabilities:
+    - Answer educational questions about Chilean taxation
+    - Recall user preferences (personal memory search)
+    - Recall company information (shared memory search)
+    - Search through tax documentation (FileSearchTool)
 
     Examples of queries it handles:
     - "¿Qué es el IVA?"
@@ -33,7 +44,11 @@ def create_general_knowledge_agent(
     - "¿Cuál es la diferencia entre boleta y factura?"
     """
 
-    tools = []
+    tools = [
+        # Memory tools - dual system for user and company memory (read-only)
+        search_user_memory,    # Search personal user preferences and history
+        search_company_memory, # Search company-wide knowledge and settings
+    ]
 
     # Add FileSearchTool if there are vector stores to search
     if vector_store_ids:

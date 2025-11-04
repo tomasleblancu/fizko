@@ -63,8 +63,8 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
 
   // Documents list does NOT filter by period - always shows recent documents
   // This prevents re-fetching documents every time user changes period
-  // Fetch more when expanded to show all available documents
-  const { data: documents = [], isLoading: docsLoading, error: docsError } = useTaxDocumentsQuery(activeCompanyId, isDocumentsExpanded ? 50 : 10, undefined, shouldFetchData);
+  // Always fetch 50 documents upfront (pre-fetch) for instant expansion
+  const { data: documents = [], isLoading: docsLoading, error: docsError } = useTaxDocumentsQuery(activeCompanyId, 50, undefined, shouldFetchData);
 
   // Calendar events for tax obligations
   const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useCalendarQuery(activeCompanyId, 30, false, shouldFetchData);
@@ -179,16 +179,18 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
           />
         </div> */}
 
-        {/* Dual Period Summary - Previous & Current Month */}
-        <div className="flex-shrink-0">
-          <DualPeriodSummary
-            previousMonth={previousMonthData}
-            currentMonth={currentMonthData}
-            loading={isInitialLoading}
-            scheme={scheme}
-            isInDrawer={false}
-          />
-        </div>
+        {/* Dual Period Summary - Previous & Current Month - Hidden when documents expanded */}
+        {!isDocumentsExpanded && (
+          <div className="flex-shrink-0">
+            <DualPeriodSummary
+              previousMonth={previousMonthData}
+              currentMonth={currentMonthData}
+              loading={isInitialLoading}
+              scheme={scheme}
+              isInDrawer={false}
+            />
+          </div>
+        )}
 
         {/* Tax Calendar and Documents - Side by side or Documents expanded */}
         {isDocumentsExpanded ? (

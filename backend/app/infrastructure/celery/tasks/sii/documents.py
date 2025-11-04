@@ -26,6 +26,7 @@ def sync_documents(
     session_id: str = None,
     months: int = 1,
     company_id: str = None,
+    month_offset: int = 0,
 ) -> Dict[str, Any]:
     """
     Celery task wrapper for tax documents sync (purchases and sales).
@@ -38,6 +39,8 @@ def sync_documents(
         months: Number of months to sync (1-12)
         company_id: Optional UUID of the company (str format).
                     If provided, will find the most recent active session for this company.
+        month_offset: Number of months to skip from current month (0=current month, 1=last month, etc.)
+                     Useful for parallelizing syncs across different months.
 
     Returns:
         Dict with sync results from service layer:
@@ -63,7 +66,7 @@ def sync_documents(
 
         logger.info(
             f"🚀 [CELERY TASK] Document sync started: "
-            f"session_id={session_id}, company_id={company_id}, months={months}"
+            f"session_id={session_id}, company_id={company_id}, months={months}, offset={month_offset}"
         )
 
         # Delegate to service layer - USE SINGLE DB SESSION for entire task
@@ -113,6 +116,7 @@ def sync_documents(
                 result = await sync_service.sync_last_n_months(
                     session_id=session_id,
                     months=months,
+                    month_offset=month_offset,
                 )
                 # Commit is automatic in get_background_db()
 

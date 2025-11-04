@@ -87,6 +87,8 @@ export default function AdminNotificationTemplates() {
       service_method: summaryConfig?.service_method || 'get_daily_summary',
       lookback_days: summaryConfig?.lookback_days?.toString() || '1',
       date_offset: summaryConfig?.date_offset?.toString() || '-1',
+      // WhatsApp Template ID (manual)
+      whatsapp_template_id: template.whatsapp_template_id || '',
     });
     setShowEditModal(true);
   };

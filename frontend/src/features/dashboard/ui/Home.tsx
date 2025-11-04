@@ -211,39 +211,10 @@ function HomeContent({
     );
   }
 
-  // Authenticated but needs onboarding - show onboarding modal with dashboard background
+  // Authenticated but needs onboarding - show onboarding modal only
   if (needsOnboarding) {
     return (
       <div className={containerClass}>
-        <div className="flex h-full w-full flex-col-reverse gap-0 p-0 lg:flex-row">
-          {/* Chat Panel Container - Blurred background */}
-          <div className="relative flex h-full w-full flex-col lg:w-[35%] lg:flex-none lg:border-r lg:border-slate-200 dark:lg:border-slate-800">
-            <div className="relative flex flex-1 items-stretch overflow-hidden bg-white/80 backdrop-blur dark:bg-slate-900/70 blur-md pointer-events-none">
-              <ChatKitPanel
-                theme={scheme}
-                onResponseEnd={handleResponseEnd}
-                onThemeRequest={handleThemeChange}
-                onSendMessageReady={handleSendMessageReady}
-                currentCompanyId={activeCompanyId}
-                onCompanyIdChange={handleCompanyIdChange}
-              />
-            </div>
-          </div>
-
-          {/* Dashboard - Blurred background */}
-          <div className="hidden lg:block lg:flex-1 lg:overflow-hidden blur-md pointer-events-none">
-            <FinancialDashboard
-              scheme={scheme}
-              companyId={activeCompanyId}
-              company={company}
-              onThemeChange={handleThemeChange}
-              onNavigateToSettings={handleNavigateToSettings}
-              onNavigateToContacts={handleNavigateToContacts}
-              currentView={currentView}
-            />
-          </div>
-        </div>
-
         {/* Onboarding Modal Overlay */}
         <OnboardingModal
           scheme={scheme}
@@ -253,39 +224,10 @@ function HomeContent({
     );
   }
 
-  // Authenticated and onboarded, but needs initial setup - show setup modal
+  // Authenticated and onboarded, but needs initial setup - show setup modal only
   if (needsInitialSetup && setupCompanyId && company) {
     return (
       <div className={containerClass}>
-        <div className="flex h-full w-full flex-col-reverse gap-0 p-0 lg:flex-row">
-          {/* Chat Panel Container - Blurred background */}
-          <div className="relative flex h-full w-full flex-col lg:w-[35%] lg:flex-none lg:border-r lg:border-slate-200 dark:lg:border-slate-800">
-            <div className="relative flex flex-1 items-stretch overflow-hidden bg-white/80 backdrop-blur dark:bg-slate-900/70 blur-md pointer-events-none">
-              <ChatKitPanel
-                theme={scheme}
-                onResponseEnd={handleResponseEnd}
-                onThemeRequest={handleThemeChange}
-                onSendMessageReady={handleSendMessageReady}
-                currentCompanyId={activeCompanyId}
-                onCompanyIdChange={handleCompanyIdChange}
-              />
-            </div>
-          </div>
-
-          {/* Dashboard - Blurred background */}
-          <div className="hidden lg:block lg:flex-1 lg:overflow-hidden blur-md pointer-events-none">
-            <FinancialDashboard
-              scheme={scheme}
-              companyId={activeCompanyId}
-              company={company}
-              onThemeChange={handleThemeChange}
-              onNavigateToSettings={handleNavigateToSettings}
-              onNavigateToContacts={handleNavigateToContacts}
-              currentView={currentView}
-            />
-          </div>
-        </div>
-
         {/* Company Initial Setup Modal Overlay */}
         <CompanyInitialSetupModal
           companyId={setupCompanyId}

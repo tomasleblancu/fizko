@@ -13,6 +13,10 @@ from ..tools.tax.documentos_tributarios_tools import (
     get_documents,
     get_documents_summary,
 )
+from ..tools.memory import (
+    search_user_memory,
+    search_company_memory,
+)
 
 
 def create_tax_documents_agent(
@@ -39,10 +43,12 @@ def create_tax_documents_agent(
     """
 
     tools = [
-        # Summary tool - for monthly/yearly aggregations
-        get_documents_summary,
-        # Main search tool - flexible filtering (RUT, folio, dates, type)
-        get_documents,
+        # Tax document tools
+        get_documents_summary,  # Summary tool - for monthly/yearly aggregations
+        get_documents,          # Main search tool - flexible filtering (RUT, folio, dates, type)
+        # Memory tools - dual system for user and company memory (read-only)
+        search_user_memory,     # Search personal user preferences and history
+        search_company_memory,  # Search company-wide knowledge and settings
     ]
 
     # Add FileSearchTool if there are vector stores to search

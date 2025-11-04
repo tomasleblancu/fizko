@@ -6,7 +6,7 @@ from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +28,8 @@ router = APIRouter(
 
 class ContactResponse(BaseModel):
     """Response model for a contact."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     rut: str
     business_name: str
@@ -38,9 +40,6 @@ class ContactResponse(BaseModel):
     email: Optional[str] = None
     created_at: str
     updated_at: str
-
-    class Config:
-        from_attributes = True
 
 
 # =============================================================================

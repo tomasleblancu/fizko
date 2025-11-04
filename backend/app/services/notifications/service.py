@@ -93,7 +93,16 @@ class NotificationService:
         priority: str = "normal",
         is_active: bool = True,
         auto_assign_to_new_companies: bool = False,
-        metadata: Optional[dict] = None
+        metadata: Optional[dict] = None,
+        # WhatsApp Template Integration
+        create_whatsapp_template: bool = False,
+        whatsapp_template_name: Optional[str] = None,
+        whatsapp_template_language: str = "es",
+        whatsapp_template_category: str = "UTILITY",
+        whatsapp_header: Optional[dict] = None,
+        whatsapp_body: Optional[dict] = None,
+        whatsapp_footer: Optional[dict] = None,
+        whatsapp_buttons: Optional[dict] = None,
     ) -> NotificationTemplate:
         """
         Create a new notification template.
@@ -102,7 +111,10 @@ class NotificationService:
         return await self.templates.create_template(
             db, code, name, category, message_template, timing_config,
             description, entity_type, priority, is_active,
-            auto_assign_to_new_companies, metadata
+            auto_assign_to_new_companies, metadata,
+            create_whatsapp_template, whatsapp_template_name,
+            whatsapp_template_language, whatsapp_template_category,
+            whatsapp_header, whatsapp_body, whatsapp_footer, whatsapp_buttons
         )
 
     async def update_template(

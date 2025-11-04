@@ -1,5 +1,6 @@
 """REST API endpoints for notification template management (Admin)."""
 
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -62,6 +63,7 @@ async def list_notification_templates(
                 "is_active": t.is_active,
                 "auto_assign_to_new_companies": t.auto_assign_to_new_companies,
                 "metadata": t.extra_metadata,
+                "whatsapp_template_id": t.whatsapp_template_id,
             }
             for t in templates
         ],
@@ -101,6 +103,7 @@ async def get_notification_template(
             "is_active": template.is_active,
             "auto_assign_to_new_companies": template.auto_assign_to_new_companies,
             "metadata": template.extra_metadata,
+            "whatsapp_template_id": template.whatsapp_template_id,
         }
     }
 
@@ -125,6 +128,7 @@ async def create_notification_template(
     - **priority**: Prioridad (low, normal, high, urgent)
     - **is_active**: Si está activo
     - **metadata**: Metadatos adicionales (opcional)
+    - **whatsapp_template_id**: ID del template de WhatsApp creado manualmente en Meta Business Manager (opcional)
     """
     from app.services.notifications import get_notification_service
 
@@ -143,26 +147,33 @@ async def create_notification_template(
             priority=request.priority,
             is_active=request.is_active,
             auto_assign_to_new_companies=request.auto_assign_to_new_companies,
-            metadata=request.metadata
+            metadata=request.metadata,
+            whatsapp_template_id=request.whatsapp_template_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating template: {str(e)}")
+
+    # Build response
+    response_data = {
+        "id": str(new_template.id),
+        "code": new_template.code,
+        "name": new_template.name,
+        "description": new_template.description,
+        "category": new_template.category,
+        "entity_type": new_template.entity_type,
+        "message_template": new_template.message_template,
+        "timing_config": new_template.timing_config,
+        "priority": new_template.priority,
+        "is_active": new_template.is_active,
+        "auto_assign_to_new_companies": new_template.auto_assign_to_new_companies,
+        "metadata": new_template.extra_metadata,
+        "whatsapp_template_id": new_template.whatsapp_template_id,
+    }
 
     return {
-        "data": {
-            "id": str(new_template.id),
-            "code": new_template.code,
-            "name": new_template.name,
-            "description": new_template.description,
-            "category": new_template.category,
-            "entity_type": new_template.entity_type,
-            "message_template": new_template.message_template,
-            "timing_config": new_template.timing_config,
-            "priority": new_template.priority,
-            "is_active": new_template.is_active,
-            "auto_assign_to_new_companies": new_template.auto_assign_to_new_companies,
-            "metadata": new_template.extra_metadata,
-        },
+        "data": response_data,
         "message": "Template de notificación creado exitosamente"
     }
 
@@ -230,7 +241,8 @@ async def update_notification_template(
             priority=request.priority,
             is_active=request.is_active,
             auto_assign_to_new_companies=request.auto_assign_to_new_companies,
-            metadata=request.metadata
+            metadata=request.metadata,
+            whatsapp_template_id=request.whatsapp_template_id,
         )
     except ValueError as e:
         if "no encontrado" in str(e):
@@ -252,6 +264,7 @@ async def update_notification_template(
             "is_active": template.is_active,
             "auto_assign_to_new_companies": template.auto_assign_to_new_companies,
             "metadata": template.extra_metadata,
+            "whatsapp_template_id": template.whatsapp_template_id,
         },
         "message": "Template de notificación actualizado exitosamente"
     }

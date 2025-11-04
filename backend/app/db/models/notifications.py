@@ -88,6 +88,12 @@ class NotificationTemplate(Base):
     # Metadata (extra_metadata to avoid SQLAlchemy reserved name)
     extra_metadata: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
 
+    # WhatsApp Template Integration
+    # Template ID from Meta (created manually in Meta Business Manager)
+    whatsapp_template_id: Mapped[Optional[str]] = mapped_column(
+        VARCHAR(200), nullable=True
+    )
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=text("NOW()")

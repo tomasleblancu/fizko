@@ -4,6 +4,7 @@ Handles actual delivery of notifications via WhatsApp
 """
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -28,7 +29,66 @@ class SendingService(BaseNotificationService):
     """
     Service for sending notifications.
     Handles user preferences, message delivery, and history tracking.
+    Supports conditional WhatsApp template usage (production) vs plain text (development).
     """
+
+    def _is_production_environment(self) -> bool:
+        """
+        Check if running in production environment.
+
+        Returns:
+            True if production, False if development/local
+        """
+        env = os.getenv("ENVIRONMENT", "development")
+        return env.lower() in ["production", "prod", "railway"]
+
+    def _extract_variables_from_text(self, text: str) -> List[str]:
+        """
+        Extract {{variables}} from text.
+
+        Args:
+            text: Text with variables
+
+        Returns:
+            List of variable names
+        """
+        if not text:
+            return []
+        return re.findall(r'\{\{(\w+)\}\}', text)
+
+    def _build_template_params_from_context(
+        self,
+        message_context: dict,
+        template: NotificationTemplate
+    ) -> dict:
+        """
+        Build template_params dict from message_context matching template variables.
+
+        Args:
+            message_context: Context dict with variable values
+            template: Notification template with WhatsApp components
+
+        Returns:
+            Dict with template parameters for Kapso
+        """
+        template_params = {}
+
+        # Extract variables from body
+        if template.whatsapp_body:
+            body_text = template.whatsapp_body.get("text", "")
+            variables = self._extract_variables_from_text(body_text)
+            for var in variables:
+                # Use value from context or placeholder
+                template_params[var] = message_context.get(var, f"[{var}]")
+
+        # Extract variables from header if exists
+        if template.whatsapp_header and template.whatsapp_header.get("type") == "TEXT":
+            header_text = template.whatsapp_header.get("text", "")
+            variables = self._extract_variables_from_text(header_text)
+            for var in variables:
+                template_params[var] = message_context.get(var, f"[{var}]")
+
+        return template_params
 
     async def _check_user_preferences(
         self,
@@ -263,12 +323,52 @@ I sent you a reminder.
                 if not whatsapp_config_id:
                     raise ValueError("DEFAULT_WHATSAPP_CONFIG_ID not configured in environment")
 
-                # Send via WhatsApp
-                send_result = await self.whatsapp_service.send_text(
-                    phone_number=normalized_phone,
-                    message=scheduled.message_content,
-                    whatsapp_config_id=whatsapp_config_id,
+                # Determine if we should use WhatsApp template or plain text
+                is_production = self._is_production_environment()
+                use_whatsapp_template = (
+                    is_production and
+                    template and
+                    template.create_whatsapp_template and
+                    template.whatsapp_template_name and
+                    template.whatsapp_template_status == 'approved'
                 )
+
+                if use_whatsapp_template:
+                    # PRODUCTION: Use WhatsApp template
+                    logger.info(f"📱 Using WhatsApp template: {template.whatsapp_template_name}")
+
+                    # Build template_params from message context
+                    message_context = scheduled.extra_metadata.get("message_context", {})
+                    template_params = self._build_template_params_from_context(
+                        message_context,
+                        template
+                    )
+
+                    # Send via WhatsApp template
+                    send_result = await self.whatsapp_service.send_template(
+                        phone_number=normalized_phone,
+                        template_name=template.whatsapp_template_name,
+                        template_params=template_params,
+                        template_language=template.whatsapp_template_language,
+                        whatsapp_config_id=whatsapp_config_id,
+                    )
+
+                else:
+                    # DEVELOPMENT OR FALLBACK: Use plain text
+                    if not is_production:
+                        logger.info(f"📝 Development: Sending plain text message (not using template)")
+                    elif template and template.create_whatsapp_template:
+                        logger.warning(
+                            f"⚠️ WhatsApp template not approved ({template.whatsapp_template_status}), "
+                            "using plain text fallback"
+                        )
+
+                    # Send via WhatsApp as plain text
+                    send_result = await self.whatsapp_service.send_text(
+                        phone_number=normalized_phone,
+                        message=scheduled.message_content,
+                        whatsapp_config_id=whatsapp_config_id,
+                    )
 
                 # Record in history
                 conversation_id = send_result.get("conversation_id")

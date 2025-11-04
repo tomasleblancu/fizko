@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ScheduledTaskCreate(BaseModel):
@@ -138,6 +138,7 @@ class CrontabSchedule(BaseModel):
 
 class ScheduledTaskResponse(BaseModel):
     """Response model for scheduled task details."""
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
@@ -164,12 +165,10 @@ class ScheduledTaskResponse(BaseModel):
     last_run_at: Optional[datetime]
     total_run_count: int
 
-    class Config:
-        from_attributes = True
-
 
 class TaskExecutionResponse(BaseModel):
     """Response model for task execution history."""
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     task_id: str
@@ -180,6 +179,3 @@ class TaskExecutionResponse(BaseModel):
     traceback: Optional[str]
     date_created: datetime
     date_done: Optional[datetime]
-
-    class Config:
-        from_attributes = True

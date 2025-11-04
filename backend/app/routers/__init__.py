@@ -12,7 +12,7 @@ Routers are organized by domain:
 """
 
 # Import router modules
-from . import admin, auth, chat, companies, contacts, sii, tax, whatsapp
+from . import admin, auth, chat, companies, contacts, sii, tax, webhooks, whatsapp
 
 # Re-export individual routers for backward compatibility
 from .admin import admin as admin_router
@@ -32,6 +32,7 @@ __all__ = [
     "tax",
     "chat",
     "whatsapp",
+    "webhooks",
     "admin",
     "sii",
     "contacts",

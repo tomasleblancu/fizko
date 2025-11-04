@@ -3,7 +3,9 @@ Template management service for notifications
 Handles CRUD operations for notification templates
 """
 import logging
-from typing import List, Optional
+import re
+import os
+from typing import List, Optional, Dict, Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -20,6 +22,8 @@ class TemplateService(BaseNotificationService):
     Service for managing notification templates.
     Handles creation, reading, updating, and deletion of templates.
     """
+
+    # ========== TEMPLATE CRUD METHODS ==========
 
     async def get_template(
         self,
@@ -97,7 +101,9 @@ class TemplateService(BaseNotificationService):
         priority: str = "normal",
         is_active: bool = True,
         auto_assign_to_new_companies: bool = False,
-        metadata: Optional[dict] = None
+        metadata: Optional[dict] = None,
+        # WhatsApp Template ID (from Meta Business Manager)
+        whatsapp_template_id: Optional[str] = None,
     ) -> NotificationTemplate:
         """
         Create a new notification template.
@@ -115,6 +121,7 @@ class TemplateService(BaseNotificationService):
             is_active: Whether template is active
             auto_assign_to_new_companies: Auto-assign to new companies
             metadata: Additional metadata
+            whatsapp_template_id: WhatsApp template ID from Meta (optional)
 
         Returns:
             Created NotificationTemplate
@@ -144,6 +151,8 @@ class TemplateService(BaseNotificationService):
             is_active=is_active,
             auto_assign_to_new_companies=auto_assign_to_new_companies,
             extra_metadata=metadata or {},
+            # WhatsApp template ID (manually created in Meta)
+            whatsapp_template_id=whatsapp_template_id,
         )
 
         db.add(new_template)
@@ -151,6 +160,9 @@ class TemplateService(BaseNotificationService):
         await db.refresh(new_template)
 
         logger.info(f"Created notification template: {code}")
+        if whatsapp_template_id:
+            logger.info(f"  └─ WhatsApp template ID: {whatsapp_template_id}")
+
         return new_template
 
     async def update_template(
@@ -167,7 +179,8 @@ class TemplateService(BaseNotificationService):
         priority: Optional[str] = None,
         is_active: Optional[bool] = None,
         auto_assign_to_new_companies: Optional[bool] = None,
-        metadata: Optional[dict] = None
+        metadata: Optional[dict] = None,
+        whatsapp_template_id: Optional[str] = None
     ) -> NotificationTemplate:
         """
         Update a notification template.
@@ -224,6 +237,8 @@ class TemplateService(BaseNotificationService):
             template.auto_assign_to_new_companies = auto_assign_to_new_companies
         if metadata is not None:
             template.extra_metadata = metadata
+        if whatsapp_template_id is not None:
+            template.whatsapp_template_id = whatsapp_template_id
 
         await db.commit()
         await db.refresh(template)

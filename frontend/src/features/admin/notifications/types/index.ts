@@ -19,6 +19,8 @@ export interface NotificationTemplate {
   is_active: boolean;
   auto_assign_to_new_companies: boolean;
   metadata: any;
+  // WhatsApp Template ID (from Meta Business Manager)
+  whatsapp_template_id?: string | null;
 }
 
 export interface SummaryConfig {
@@ -47,6 +49,8 @@ export interface CreateNotificationTemplateForm {
   service_method: string;
   lookback_days: string;
   date_offset: string;
+  // WhatsApp Template ID (from Meta Business Manager)
+  whatsapp_template_id: string;
 }
 
 export const INITIAL_FORM_DATA: CreateNotificationTemplateForm = {
@@ -67,4 +71,6 @@ export const INITIAL_FORM_DATA: CreateNotificationTemplateForm = {
   service_method: 'get_daily_summary',
   lookback_days: '1',
   date_offset: '-1',
+  // WhatsApp Template ID (optional)
+  whatsapp_template_id: '',
 };

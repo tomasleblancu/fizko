@@ -1,10 +1,11 @@
 """Pydantic schemas for notification management."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Literal
 from uuid import UUID
+import re
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 
 # ============================================================================
@@ -25,6 +26,9 @@ class CreateNotificationTemplateRequest(BaseModel):
     auto_assign_to_new_companies: bool = Field(default=False, description="Auto-assign to new companies")
     metadata: Optional[dict] = Field(None, description="Additional metadata")
 
+    # WhatsApp Template Integration (manual)
+    whatsapp_template_id: Optional[str] = Field(None, description="WhatsApp template ID from Meta Business Manager")
+
 
 class UpdateNotificationTemplateRequest(BaseModel):
     """Schema for updating a notification template (all fields optional)."""
@@ -39,6 +43,9 @@ class UpdateNotificationTemplateRequest(BaseModel):
     is_active: Optional[bool] = Field(None, description="Active status")
     auto_assign_to_new_companies: Optional[bool] = Field(None, description="Auto-assign setting")
     metadata: Optional[dict] = Field(None, description="Additional metadata")
+
+    # WhatsApp Template Integration (manual)
+    whatsapp_template_id: Optional[str] = Field(None, description="WhatsApp template ID from Meta Business Manager")
 
 
 class NotificationTemplate(BaseModel):

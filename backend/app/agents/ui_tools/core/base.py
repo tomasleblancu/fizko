@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 class UIToolContext(BaseModel):
     """Context passed to UI tools for processing."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     ui_component: str
     """Name of the UI component that triggered the interaction"""
@@ -34,12 +36,11 @@ class UIToolContext(BaseModel):
     additional_data: dict[str, Any] = {}
     """Any additional context data from the request"""
 
-    class Config:
-        arbitrary_types_allowed = True
-
 
 class UIToolResult(BaseModel):
     """Result returned by a UI tool after processing."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     success: bool
     """Whether the tool successfully processed the request"""
@@ -61,9 +62,6 @@ class UIToolResult(BaseModel):
 
     widget_copy_text: str | None = None
     """Fallback text for the widget"""
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class BaseUITool(ABC):

@@ -93,6 +93,9 @@ export function useNotificationTemplates(
           };
         }
 
+        // WhatsApp template ID (optional)
+        const whatsappTemplateId = formData.whatsapp_template_id || null;
+
         const response = await apiFetch(`${API_BASE_URL}/notifications/notification-templates`, {
           method: 'POST',
           headers: {
@@ -111,6 +114,7 @@ export function useNotificationTemplates(
             is_active: formData.is_active,
             auto_assign_to_new_companies: formData.auto_assign_to_new_companies,
             metadata: Object.keys(metadata).length > 0 ? metadata : null,
+            whatsapp_template_id: whatsappTemplateId,
           }),
         });
 
@@ -163,6 +167,9 @@ export function useNotificationTemplates(
           };
         }
 
+        // WhatsApp template ID (optional)
+        const whatsappTemplateId = formData.whatsapp_template_id || null;
+
         const response = await apiFetch(
           `${API_BASE_URL}/notifications/notification-templates/${templateId}`,
           {
@@ -183,6 +190,7 @@ export function useNotificationTemplates(
               is_active: formData.is_active,
               auto_assign_to_new_companies: formData.auto_assign_to_new_companies,
               metadata: Object.keys(metadata).length > 0 ? metadata : null,
+              whatsapp_template_id: whatsappTemplateId,
             }),
           }
         );
@@ -256,6 +264,7 @@ export function useNotificationTemplates(
     },
     [accessToken]
   );
+
 
   // Clear messages
   const clearMessages = useCallback(() => {

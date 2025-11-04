@@ -10,7 +10,11 @@ from agents.model_settings import ModelSettings, Reasoning
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config.constants import SUPERVISOR_MODEL, SUPERVISOR_INSTRUCTIONS
+from app.config.constants import SUPERVISOR_MODEL, SUPERVISOR_INSTRUCTIONS
+from app.agents.tools.memory import (
+    search_user_memory,
+    search_company_memory,
+)
 
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
@@ -26,8 +30,11 @@ def create_supervisor_agent(
 
     The Supervisor Agent:
     1. Analyzes user intent (using gpt-4o-mini for speed)
-    2. Routes to General Knowledge or Tax Documents agent
-    3. Does NOT generate text responses - only function calls
+    2. Routes IMMEDIATELY to the appropriate specialized agent
+    3. Has optional access to dual memory systems:
+       - search_user_memory: Personal user preferences and history
+       - search_company_memory: Company-wide knowledge and settings
+    4. Does NOT generate text responses - only function calls (handoffs)
 
     This is a pure router agent - it delegates all actual work to specialists.
     """
@@ -37,7 +44,10 @@ def create_supervisor_agent(
         model=SUPERVISOR_MODEL,  # gpt-4o-mini (fast routing)
         instructions=f"{RECOMMENDED_PROMPT_PREFIX}\n\n{SUPERVISOR_INSTRUCTIONS}",
         # model_settings=ModelSettings(reasoning=Reasoning(effort="low")),
-        tools=[],  # Handoffs will be configured by orchestrator
+        tools=[
+            search_user_memory,    # Search personal user preferences and history
+            search_company_memory, # Search company-wide knowledge and settings
+        ],  # Only search capability - specialized agents can save memories
     )
 
     return agent

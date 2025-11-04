@@ -3,7 +3,7 @@ Modelos de datos para la integración de Kapso
 """
 from enum import Enum
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 
 
@@ -32,14 +32,13 @@ class InteractiveType(str, Enum):
 
 class WhatsAppMessage(BaseModel):
     """Modelo para mensaje de WhatsApp"""
+    model_config = ConfigDict(use_enum_values=True)
+
     message_type: MessageType
     content: Optional[str] = None
     media_url: Optional[str] = None
     caption: Optional[str] = None
     filename: Optional[str] = None
-
-    class Config:
-        use_enum_values = True
 
 
 class TemplateParameter(BaseModel):
@@ -50,6 +49,8 @@ class TemplateParameter(BaseModel):
 
 class TemplateMessage(BaseModel):
     """Mensaje de plantilla de WhatsApp Business"""
+    model_config = ConfigDict(use_enum_values=True)
+
     template_name: str
     template_language: str = "es"
     template_params: Optional[List[str]] = None
@@ -58,19 +59,15 @@ class TemplateMessage(BaseModel):
     whatsapp_config_id: str
     phone_number: str
 
-    class Config:
-        use_enum_values = True
-
 
 class MediaMessage(BaseModel):
     """Mensaje con media (imagen, video, audio, documento)"""
+    model_config = ConfigDict(use_enum_values=True)
+
     message_type: MessageType
     file_url: str
     caption: Optional[str] = None
     filename: Optional[str] = None
-
-    class Config:
-        use_enum_values = True
 
 
 class InteractiveButton(BaseModel):
@@ -87,6 +84,8 @@ class InteractiveSection(BaseModel):
 
 class InteractiveMessage(BaseModel):
     """Mensaje interactivo (botones o lista)"""
+    model_config = ConfigDict(use_enum_values=True)
+
     interactive_type: InteractiveType
     body_text: str
     header_text: Optional[str] = None
@@ -95,21 +94,17 @@ class InteractiveMessage(BaseModel):
     sections: Optional[List[InteractiveSection]] = None
     list_button_text: Optional[str] = "Ver opciones"
 
-    class Config:
-        use_enum_values = True
-
 
 class WhatsAppConversation(BaseModel):
     """Modelo para conversación de WhatsApp"""
+    model_config = ConfigDict(use_enum_values=True)
+
     id: Optional[str] = None
     phone_number: str
     whatsapp_config_id: str
     status: ConversationStatus = ConversationStatus.ACTIVE
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-
-    class Config:
-        use_enum_values = True
 
 
 class ConversationSelector(BaseModel):
@@ -127,15 +122,14 @@ class SendTextRequest(BaseModel):
 
 class SendMediaRequest(BaseModel):
     """Request para enviar mensaje con media"""
+    model_config = ConfigDict(use_enum_values=True)
+
     conversation_selector: ConversationSelector
     message_type: MessageType
     file_url: str
     caption: Optional[str] = None
     filename: Optional[str] = None
     whatsapp_config_id: Optional[str] = None
-
-    class Config:
-        use_enum_values = True
 
 
 class SendTemplateRequest(BaseModel):
@@ -151,6 +145,8 @@ class SendTemplateRequest(BaseModel):
 
 class SendInteractiveRequest(BaseModel):
     """Request para enviar mensaje interactivo"""
+    model_config = ConfigDict(use_enum_values=True)
+
     conversation_selector: ConversationSelector
     interactive_type: InteractiveType
     body_text: str
@@ -160,9 +156,6 @@ class SendInteractiveRequest(BaseModel):
     sections: Optional[List[Dict[str, Any]]] = None
     list_button_text: Optional[str] = "Ver opciones"
     whatsapp_config_id: Optional[str] = None
-
-    class Config:
-        use_enum_values = True
 
 
 class WebhookEvent(BaseModel):

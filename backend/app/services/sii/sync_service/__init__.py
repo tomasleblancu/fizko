@@ -52,7 +52,8 @@ class SIISyncService:
     async def sync_last_n_months(
         self,
         session_id: UUID,
-        months: int = 3
+        months: int = 3,
+        month_offset: int = 0
     ) -> Dict[str, Any]:
         """
         Sincroniza documentos tributarios de los últimos N meses
@@ -60,6 +61,8 @@ class SIISyncService:
         Args:
             session_id: ID de sesión con credenciales SII
             months: Cantidad de meses a sincronizar (default: 3)
+            month_offset: Cantidad de meses a saltar desde el mes actual (default: 0)
+                         0 = mes actual, 1 = mes pasado, etc.
 
         Returns:
             Dict con resumen de sincronización:
@@ -76,13 +79,13 @@ class SIISyncService:
         """
         start_time = datetime.now()
 
-        logger.info(f"🚀 Starting sync for session {session_id} - last {months} months")
+        logger.info(f"🚀 Starting sync for session {session_id} - last {months} months (offset: {month_offset})")
 
         # Obtener company_id de la sesión
         company_id = await self._get_company_id_from_session(session_id)
 
         # Calcular períodos a sincronizar
-        periods = self._calculate_periods(months)
+        periods = self._calculate_periods(months, month_offset)
         logger.info(f"📅 Periods to sync: {periods}")
 
         # Resultado acumulado
@@ -291,26 +294,30 @@ class SIISyncService:
 
         return session.company_id
 
-    def _calculate_periods(self, months: int) -> List[str]:
+    def _calculate_periods(self, months: int, month_offset: int = 0) -> List[str]:
         """
         Calcula los períodos en formato YYYYMM
 
         Args:
             months: Cantidad de meses hacia atrás
+            month_offset: Cantidad de meses a saltar desde el mes actual
 
         Returns:
             Lista de períodos en formato YYYYMM, ordenados descendente
 
         Example:
-            Si hoy es 2024-03-15 y months=3:
-            ['202403', '202402', '202401']
+            Si hoy es 2024-03-15:
+            - months=3, offset=0: ['202403', '202402', '202401']
+            - months=1, offset=0: ['202403']
+            - months=1, offset=1: ['202402']
+            - months=1, offset=2: ['202401']
         """
         periods = []
         now = datetime.now()
 
         for i in range(months):
-            # Retroceder i meses
-            target_date = now - timedelta(days=30 * i)
+            # Retroceder (offset + i) meses desde ahora
+            target_date = now - timedelta(days=30 * (month_offset + i))
             period = target_date.strftime("%Y%m")
 
             # Evitar duplicados (puede pasar si el mes tiene 31 días)

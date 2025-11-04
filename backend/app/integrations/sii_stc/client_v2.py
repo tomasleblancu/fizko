@@ -12,6 +12,7 @@ Esto es mucho más robusto y no depende de entender cómo reCAPTCHA genera el to
 import logging
 import time
 import json
+import requests
 from typing import Dict, Any, Optional
 
 from selenium.webdriver.common.by import By
@@ -54,6 +55,9 @@ class STCClientV2:
 
         # Estado
         self._initialized = False
+        self._last_retoken: Optional[str] = None
+        self._last_cookies: Optional[Dict[str, str]] = None
+        self._last_headers: Optional[Dict[str, str]] = None
 
         logger.debug("🚀 STCClientV2 initialized")
 
@@ -158,7 +162,22 @@ class STCClientV2:
 
             logger.info("✅ POST request captured!")
 
-            # 6. Extraer la respuesta del request
+            # 6. Extraer el payload para guardar el reToken
+            payload = self._extract_payload(post_request)
+            if payload and 'reToken' in payload:
+                self._last_retoken = payload['reToken']
+                logger.info(f"✅ reToken captured ({len(self._last_retoken)} chars)")
+
+            # 7. Guardar cookies y headers del request
+            if hasattr(post_request, 'headers'):
+                self._last_headers = dict(post_request.headers)
+                logger.debug(f"✅ Headers captured: {list(self._last_headers.keys())[:5]}...")
+
+            # Obtener cookies del driver
+            self._last_cookies = {c['name']: c['value'] for c in self._driver.get_cookies()}
+            logger.debug(f"✅ Cookies captured: {len(self._last_cookies)} cookies")
+
+            # 8. Extraer la respuesta del request
             result = self._extract_response(post_request)
 
             logger.info(f"✅ Query successful for RUT {rut}-{dv}")
@@ -169,6 +188,102 @@ class STCClientV2:
             raise STCTimeoutError(f"Timeout: {str(e)}")
         except Exception as e:
             logger.error(f"❌ Query failed: {e}", exc_info=True)
+            raise STCQueryError(f"Query failed: {str(e)}")
+
+    def consultar_con_retoken(
+        self,
+        rut: str,
+        dv: str,
+        retoken: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Consulta documento usando un reToken previamente capturado
+
+        Este método hace una llamada HTTP directa al API del SII usando
+        el reToken obtenido en una consulta anterior. No requiere Selenium.
+
+        Args:
+            rut: RUT del proveedor (sin puntos, sin guión)
+            dv: Dígito verificador
+            retoken: reToken de reCAPTCHA. Si es None, usa el último capturado
+
+        Returns:
+            Dict con resultado de la API del SII
+
+        Raises:
+            STCException: Si no hay reToken disponible
+            STCQueryError: Si falla la consulta
+        """
+        # Usar el reToken proporcionado o el último capturado
+        token = retoken or self._last_retoken
+
+        if not token:
+            raise STCException(
+                "No reToken available. Call consultar_documento() first or provide a retoken."
+            )
+
+        logger.info(f"🔍 Querying with reToken for RUT: {rut}-{dv}")
+
+        try:
+            # Construir payload
+            payload = {
+                "rut": rut,
+                "dv": dv.upper(),
+                "reAction": "consultaSTC",
+                "reToken": token
+            }
+
+            # Construir headers base
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/plain, */*",
+                "Origin": "https://www2.sii.cl",
+                "Referer": "https://www2.sii.cl/stc/noauthz/consulta",
+                "Sec-Fetch-Site": "same-origin",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Dest": "empty",
+            }
+
+            # Si tenemos headers capturados, copiar los importantes
+            if self._last_headers:
+                important_keys = [
+                    'User-Agent', 'Accept-Language', 'Accept-Encoding',
+                    'Cookie', 'x-dtreferer', 'x-dtpc',
+                    'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform'
+                ]
+                for key in important_keys:
+                    if key in self._last_headers:
+                        headers[key] = self._last_headers[key]
+                        logger.debug(f"   Copied header: {key}")
+
+            # Hacer POST request directo
+            logger.debug(f"📤 Sending POST to {STC_API_URL}")
+            logger.debug(f"   Headers: {list(headers.keys())}")
+
+            response = requests.post(
+                STC_API_URL,
+                json=payload,
+                headers=headers,
+                timeout=30
+            )
+
+            # Verificar status code
+            response.raise_for_status()
+
+            # Parsear respuesta
+            result = response.json()
+            logger.info(f"✅ Query with reToken successful for RUT {rut}-{dv}")
+
+            return result
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ HTTP request failed: {e}")
+            raise STCQueryError(f"HTTP request failed: {str(e)}")
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse JSON response: {e}")
+            raise STCQueryError(f"Invalid JSON response: {str(e)}")
+        except Exception as e:
+            logger.error(f"❌ Query with reToken failed: {e}", exc_info=True)
             raise STCQueryError(f"Query failed: {str(e)}")
 
     def _format_rut(self, rut: str, dv: str) -> str:
@@ -195,7 +310,7 @@ class STCClientV2:
 
     def _wait_for_post_request(self, timeout: int = 30) -> Optional[Any]:
         """
-        Espera a que aparezca el POST request a la API del SII
+        Espera a que aparezca el POST request a la API del SII con su respuesta
 
         Args:
             timeout: Segundos máximos a esperar
@@ -211,13 +326,48 @@ class STCClientV2:
 
             for req in requests:
                 if req.method == "POST" and STC_API_URL in req.url:
-                    logger.debug(f"✅ Found POST request: {req.url}")
-                    return req
+                    # Verificar que tenga respuesta
+                    if req.response:
+                        logger.debug(f"✅ Found POST request with response: {req.url}")
+                        return req
+                    else:
+                        logger.debug(f"⏳ POST request found but waiting for response...")
 
             # Esperar un poco antes de volver a buscar
             time.sleep(0.5)
 
         return None
+
+    def _extract_payload(self, request) -> Optional[Dict[str, Any]]:
+        """
+        Extrae el payload (request body) del request interceptado
+
+        Args:
+            request: Request interceptado de selenium-wire
+
+        Returns:
+            Dict con el payload o None si no se puede extraer
+        """
+        if not hasattr(request, 'body') or not request.body:
+            logger.debug("⚠️ Request has no body")
+            return None
+
+        try:
+            payload_str = request.body.decode('utf-8')
+            logger.debug(f"📦 Payload length: {len(payload_str)} chars")
+
+            # Try to parse as JSON
+            payload = json.loads(payload_str)
+            logger.debug(f"✅ Payload parsed as JSON with keys: {list(payload.keys())}")
+
+            return payload
+
+        except json.JSONDecodeError:
+            logger.debug("⚠️ Payload is not JSON")
+            return None
+        except Exception as e:
+            logger.debug(f"⚠️ Failed to extract payload: {e}")
+            return None
 
     def _extract_response(self, request) -> Dict[str, Any]:
         """

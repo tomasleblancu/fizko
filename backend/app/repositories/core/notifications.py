@@ -43,6 +43,23 @@ class NotificationTemplateRepository(BaseRepository[NotificationTemplate]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def find_auto_assign_templates(self) -> List[NotificationTemplate]:
+        """
+        Find all active templates with auto_assign_to_new_companies enabled.
+
+        Returns:
+            List of NotificationTemplate instances
+        """
+        result = await self.db.execute(
+            select(NotificationTemplate).where(
+                and_(
+                    NotificationTemplate.auto_assign_to_new_companies == True,
+                    NotificationTemplate.is_active == True
+                )
+            )
+        )
+        return list(result.scalars().all())
+
 
 class NotificationSubscriptionRepository(BaseRepository[NotificationSubscription]):
     """Repository for managing notification subscriptions."""

@@ -18,9 +18,11 @@ Structure:
     │   ├── __init__.py
     │   ├── calendar_notifications.py
     │   └── processing.py
-    └── calendar/            # Calendar synchronization tasks
-        ├── __init__.py
-        └── sync.py          # Calendar sync tasks
+    ├── calendar/            # Calendar synchronization tasks
+    │   ├── __init__.py
+    │   └── sync.py          # Calendar sync tasks
+    └── memory/              # Memory (Mem0) tasks
+        └── __init__.py      # Memory save/update tasks
 
 Import your task modules here to ensure they're discovered by Celery.
 """
@@ -31,6 +33,7 @@ from . import documents
 from . import whatsapp
 from . import calendar
 from . import notifications
+from . import memory
 
 __all__ = [
     "sii",
@@ -38,4 +41,5 @@ __all__ = [
     "whatsapp",
     "calendar",
     "notifications",
+    "memory",
 ]

@@ -1,187 +1,47 @@
 import { Bell, Check, X, AlertCircle, BellOff } from 'lucide-react';
-import { API_BASE_URL } from "@/shared/lib/config";
-import { useAuth } from "@/app/providers/AuthContext";
-import { apiFetch } from "@/shared/lib/api-client";
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-
-interface NotificationTemplate {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  category: string;
-}
-
-interface CompanySubscription {
-  template: NotificationTemplate;
-}
+import {
+  useToggleGlobalNotifications,
+  useToggleTemplateNotification,
+  type CompanySubscription,
+  type NotificationTemplate,
+  type UserNotificationPreferences as UserNotificationPreferencesType
+} from "@/shared/hooks/useNotificationPreferences";
 
 interface UserNotificationPreferencesProps {
   companyId: string;
   isInDrawer?: boolean;
+  subscriptionsData?: CompanySubscription[];
+  preferencesData?: UserNotificationPreferencesType | null;
+  loadingSubscriptions?: boolean;
+  loadingPreferences?: boolean;
+  preferencesError?: Error | null;
 }
 
-export function UserNotificationPreferences({ companyId, isInDrawer = false }: UserNotificationPreferencesProps) {
-  const { session } = useAuth();
-  const queryClient = useQueryClient();
+export function UserNotificationPreferences({
+  companyId,
+  isInDrawer = false,
+  subscriptionsData,
+  preferencesData,
+  loadingSubscriptions = false,
+  loadingPreferences = false,
+  preferencesError
+}: UserNotificationPreferencesProps) {
+  // Use mutation hooks from centralized hooks
+  const toggleGlobalMutation = useToggleGlobalNotifications(companyId);
+  const toggleTemplateMutation = useToggleTemplateNotification(companyId);
 
-  // Fetch company subscriptions with React Query
-  const { data: subscriptionsData, isLoading: loadingSubscriptions } = useQuery({
-    queryKey: ['company-subscriptions', companyId],
-    queryFn: async () => {
-      const response = await apiFetch(
-        `${API_BASE_URL}/admin/company/${companyId}/notification-subscriptions`,
-        {
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Error al cargar suscripciones de la empresa');
-      }
-
-      const data = await response.json();
-      // Filter only enabled subscriptions
-      return (data.data || []).filter((sub: any) => sub.is_enabled);
-    },
-    enabled: !!session?.access_token && !!companyId,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-  });
-
-  // Fetch user preferences with React Query
-  const { data: preferencesData, isLoading: loadingPreferences, error } = useQuery({
-    queryKey: ['user-notification-preferences', companyId],
-    queryFn: async () => {
-      const response = await apiFetch(
-        `${API_BASE_URL}/user/notification-preferences?company_id=${companyId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Error al cargar preferencias del usuario');
-      }
-
-      const data = await response.json();
-      return data.data;
-    },
-    enabled: !!session?.access_token && !!companyId,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-  });
-
+  // Derive state from props
   const companySubscriptions = subscriptionsData || [];
   const notificationsEnabled = preferencesData?.notifications_enabled ?? true;
   const mutedTemplates = preferencesData?.muted_templates || [];
   const loading = loadingSubscriptions || loadingPreferences;
-
-  // Mutation for updating global notifications
-  const toggleGlobalMutation = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      const response = await apiFetch(
-        `${API_BASE_URL}/user/notification-preferences`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            company_id: companyId,
-            notifications_enabled: enabled,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Error al actualizar preferencias');
-      }
-
-      return enabled;
-    },
-    onMutate: async (enabled) => {
-      // Cancel outgoing queries
-      await queryClient.cancelQueries({ queryKey: ['user-notification-preferences', companyId] });
-
-      // Snapshot previous value
-      const previousPrefs = queryClient.getQueryData(['user-notification-preferences', companyId]);
-
-      // Optimistically update
-      queryClient.setQueryData(['user-notification-preferences', companyId], (old: any) => ({
-        ...old,
-        notifications_enabled: enabled,
-      }));
-
-      return { previousPrefs };
-    },
-    onError: (err, _enabled, context) => {
-      // Rollback on error silently
-      queryClient.setQueryData(['user-notification-preferences', companyId], context?.previousPrefs);
-      console.error('Error updating notification preferences:', err);
-    },
-  });
-
-  // Mutation for updating muted templates
-  const toggleTemplateMutation = useMutation({
-    mutationFn: async (payload: { newMutedTemplates: string[]; templateName: string; isMuting: boolean }) => {
-      const response = await apiFetch(
-        `${API_BASE_URL}/user/notification-preferences`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            company_id: companyId,
-            muted_templates: payload.newMutedTemplates,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Error al actualizar preferencias');
-      }
-
-      return payload;
-    },
-    onMutate: async (payload) => {
-      // Cancel outgoing queries
-      await queryClient.cancelQueries({ queryKey: ['user-notification-preferences', companyId] });
-
-      // Snapshot previous value
-      const previousPrefs = queryClient.getQueryData(['user-notification-preferences', companyId]);
-
-      // Optimistically update
-      queryClient.setQueryData(['user-notification-preferences', companyId], (old: any) => ({
-        ...old,
-        muted_templates: payload.newMutedTemplates,
-      }));
-
-      return { previousPrefs };
-    },
-    onError: (err, _payload, context) => {
-      // Rollback on error silently
-      queryClient.setQueryData(['user-notification-preferences', companyId], context?.previousPrefs);
-      console.error('Error updating notification template preferences:', err);
-    },
-  });
+  const error = preferencesError;
 
   const toggleGlobalNotifications = () => {
-    if (!session?.access_token) return;
     toggleGlobalMutation.mutate(!notificationsEnabled);
   };
 
   const toggleTemplateNotification = (templateId: string, templateName: string, currentlyMuted: boolean) => {
-    if (!session?.access_token) return;
     if (!notificationsEnabled) return; // Can't change individual settings if all are disabled
 
     const newMutedTemplates = currentlyMuted

@@ -3,7 +3,7 @@ Configuración para SII STC Integration
 """
 
 # URLs del SII para consultas sin autenticación
-STC_PORTAL_URL = "https://www2.sii.cl/stc/noauthz/consulta"
+STC_PORTAL_URL = "https://www2.sii.cl/stc/noauthz/"
 STC_API_URL = "https://www2.sii.cl/app/stc/recurso/v1/consulta/getConsultaData/"
 
 # reCAPTCHA configuration

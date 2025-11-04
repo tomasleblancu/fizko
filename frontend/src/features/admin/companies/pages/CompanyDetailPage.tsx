@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Bell,
   Send,
+  Trash2,
 } from 'lucide-react';
 import { CompanyDetail } from "@/shared/types/admin";
 import { API_BASE_URL } from "@/shared/lib/config";
@@ -38,6 +39,8 @@ export default function AdminCompanyView() {
     message: string;
     details?: any[];
   } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchCompanyData = async () => {
     // Wait for auth to load
@@ -121,6 +124,52 @@ export default function AdminCompanyView() {
     }
   };
 
+  const deleteCompany = async () => {
+    if (!companyId || !session?.access_token) return;
+
+    setDeleting(true);
+
+    try {
+      const response = await apiFetch(
+        `${API_BASE_URL}/admin/company/${companyId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al eliminar compañía');
+      }
+
+      const data = await response.json();
+
+      // Show success message and redirect
+      alert(`✅ ${data.message}\n\n` +
+        `📊 Registros eliminados:\n` +
+        `• Sessions: ${data.details.sessions_deleted}\n` +
+        `• Compras: ${data.details.purchase_documents_deleted}\n` +
+        `• Ventas: ${data.details.sales_documents_deleted}\n` +
+        `• F29: ${data.details.f29_forms_deleted}\n` +
+        `• Eventos: ${data.details.calendar_events_deleted}\n` +
+        `• Notificaciones: ${data.details.notifications_deleted}\n` +
+        `🧠 Memoria eliminada: ${data.memory_deleted ? 'Sí' : 'No'}`
+      );
+
+      // Redirect to companies list
+      navigate('/admin');
+    } catch (err) {
+      alert(`❌ Error: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -199,24 +248,37 @@ export default function AdminCompanyView() {
               </div>
             </div>
 
-            {/* Send Test Notification Button */}
-            <button
-              onClick={sendTestNotification}
-              disabled={sendingNotification}
-              className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {sendingNotification ? (
-                <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  <span>Enviando...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  <span>Enviar Notificación de Prueba</span>
-                </>
-              )}
-            </button>
+            {/* Action Buttons */}
+            <div className="flex items-center space-x-3">
+              {/* Send Test Notification Button */}
+              <button
+                onClick={sendTestNotification}
+                disabled={sendingNotification}
+                className="flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {sendingNotification ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Enviando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    <span>Enviar Notificación de Prueba</span>
+                  </>
+                )}
+              </button>
+
+              {/* Delete Company Button */}
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={deleting}
+                className="flex items-center space-x-2 rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Eliminar Compañía</span>
+              </button>
+            </div>
           </div>
 
           {/* Notification Result Alert */}
@@ -567,6 +629,70 @@ export default function AdminCompanyView() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
+            <div className="mb-4 flex items-center space-x-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
+                <Trash2 className="h-6 w-6 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Eliminar Compañía
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Esta acción no se puede deshacer
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-6 space-y-3">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                ¿Estás seguro de que deseas eliminar <strong>{company?.business_name}</strong>?
+              </p>
+              <div className="rounded-lg bg-red-50 p-3 dark:bg-red-900/10">
+                <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                  ⚠️ Se eliminarán permanentemente:
+                </p>
+                <ul className="mt-2 space-y-1 text-sm text-red-700 dark:text-red-300">
+                  <li>• Todos los documentos (compras y ventas)</li>
+                  <li>• Formularios 29</li>
+                  <li>• Eventos de calendario</li>
+                  <li>• Sesiones de usuarios</li>
+                  <li>• Notificaciones e historial</li>
+                  <li>• Memoria de la compañía en el sistema de IA</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={deleteCompany}
+                disabled={deleting}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Eliminando...</span>
+                  </div>
+                ) : (
+                  'Eliminar Compañía'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

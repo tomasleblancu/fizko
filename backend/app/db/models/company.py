@@ -102,6 +102,11 @@ class Company(Base):
         "Payroll", back_populates="company", cascade="all, delete-orphan"
     )
 
+    # Brain (Memory) relationship
+    brain_memories: Mapped[list["CompanyBrain"]] = relationship(
+        "CompanyBrain", back_populates="company", cascade="all, delete-orphan"
+    )
+
     # Honorarios relationships
     honorarios_receipts: Mapped[list["HonorariosReceipt"]] = relationship(
         "HonorariosReceipt", back_populates="company", cascade="all, delete-orphan"

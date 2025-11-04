@@ -6,6 +6,7 @@ import { useUserProfile } from "@/shared/hooks/useUserProfile";
 import { ProfileSettingsSkeleton } from './ProfileSettingsSkeleton';
 import { UserNotificationPreferences } from './UserNotificationPreferences';
 import { useCompanySettings } from "@/shared/hooks/useCompanySettings";
+import { useCompanySubscriptions, useUserNotificationPreferences } from "@/shared/hooks/useNotificationPreferences";
 import { ViewContainer } from '@/shared/layouts/ViewContainer';
 import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
 import type { ViewType } from '@/shared/layouts/NavigationPills';
@@ -30,6 +31,10 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
   const { profile, loading: profileLoading } = useUserProfile();
   // Company is now passed as prop to avoid multiple fetches
   const [activeTab, setActiveTab] = useState<'account' | 'company' | 'preferences' | 'subscription'>(initialTab);
+
+  // Pre-load notification preferences data (for Preferences tab)
+  const { data: subscriptionsData, isLoading: loadingSubscriptions } = useCompanySubscriptions(company?.id);
+  const { data: preferencesData, isLoading: loadingPreferences, error: preferencesError } = useUserNotificationPreferences(company?.id);
 
   // Sync activeTab with initialTab when it changes
   useEffect(() => {
@@ -86,7 +91,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
               {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} isInDrawer={isInDrawer} />}
               {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} isInDrawer={isInDrawer} />}
               {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} isInDrawer={isInDrawer} />}
-              {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} isInDrawer={isInDrawer} company={company} />}
+              {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} isInDrawer={isInDrawer} company={company} subscriptionsData={subscriptionsData} preferencesData={preferencesData} loadingSubscriptions={loadingSubscriptions} loadingPreferences={loadingPreferences} preferencesError={preferencesError} />}
             </div>
           </div>
         </div>
@@ -133,7 +138,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
         {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} />}
         {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} />}
         {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} />}
-        {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} company={company} />}
+        {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} company={company} subscriptionsData={subscriptionsData} preferencesData={preferencesData} loadingSubscriptions={loadingSubscriptions} loadingPreferences={loadingPreferences} preferencesError={preferencesError} />}
       </div>
     </ViewContainer>
   );
@@ -681,11 +686,11 @@ function CompanySettings({ company, scheme, isInDrawer = false }: { company: any
       <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-600 to-teal-700 text-base font-bold text-white shadow-sm">
-            {company.razon_social?.charAt(0).toUpperCase() || 'E'}
+            {company.business_name?.charAt(0).toUpperCase() || 'E'}
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-              {company.razon_social || 'Empresa'}
+              {company.business_name || 'Empresa'}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               RUT: {company.rut || 'N/A'}
@@ -703,7 +708,7 @@ function CompanySettings({ company, scheme, isInDrawer = false }: { company: any
             </label>
             <input
               type="text"
-              value={company.razon_social || ''}
+              value={company.business_name || ''}
               disabled
               className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
             />
@@ -721,14 +726,14 @@ function CompanySettings({ company, scheme, isInDrawer = false }: { company: any
             />
           </div>
 
-          {company.giro && (
+          {company.trade_name && (
             <div>
               <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
-                Giro
+                Nombre de Fantasía
               </label>
               <input
                 type="text"
-                value={company.giro}
+                value={company.trade_name}
                 disabled
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
               />
@@ -826,7 +831,25 @@ function CompanySettings({ company, scheme, isInDrawer = false }: { company: any
 }
 
 // Preferences Settings Tab
-function PreferencesSettings({ scheme, isInDrawer = false, company }: { scheme: ColorScheme; isInDrawer?: boolean; company: Company | null }) {
+function PreferencesSettings({
+  scheme,
+  isInDrawer = false,
+  company,
+  subscriptionsData,
+  preferencesData,
+  loadingSubscriptions,
+  loadingPreferences,
+  preferencesError
+}: {
+  scheme: ColorScheme;
+  isInDrawer?: boolean;
+  company: Company | null;
+  subscriptionsData?: any[];
+  preferencesData?: any;
+  loadingSubscriptions?: boolean;
+  loadingPreferences?: boolean;
+  preferencesError?: Error | null;
+}) {
   return (
     <div className={isInDrawer ? "space-y-0 divide-y divide-slate-200/50 dark:divide-slate-700/50" : "space-y-3"}>
       {/* Theme Preference - Compact */}
@@ -869,7 +892,15 @@ function PreferencesSettings({ scheme, isInDrawer = false, company }: { scheme: 
 
       {/* Notifications - Real Implementation */}
       {company && company.id && (
-        <UserNotificationPreferences companyId={company.id} isInDrawer={isInDrawer} />
+        <UserNotificationPreferences
+          companyId={company.id}
+          isInDrawer={isInDrawer}
+          subscriptionsData={subscriptionsData}
+          preferencesData={preferencesData}
+          loadingSubscriptions={loadingSubscriptions}
+          loadingPreferences={loadingPreferences}
+          preferencesError={preferencesError}
+        />
       )}
     </div>
   );

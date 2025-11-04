@@ -29,6 +29,7 @@ export function TemplateForm({
   variables,
   loadingVariables,
 }: TemplateFormProps) {
+
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {/* Code and Name */}
@@ -113,8 +114,7 @@ export function TemplateForm({
       {/* Message Template */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Mensaje * (usa variables como {'{'}
-          {'{'}variable{'}'} {'}'})
+          Mensaje *
         </label>
         <textarea
           required
@@ -122,16 +122,16 @@ export function TemplateForm({
           onChange={(e) => onChange({ ...formData, message_template: e.target.value })}
           rows={4}
           placeholder="ej: Hola! Te recordamos que {{event_title}} vence el {{due_date}}."
-          className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          className="mt-1 block w-full rounded-lg border px-3 py-2 font-mono text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
         />
 
         {/* Template Variables Panel */}
         <TemplateVariablesPanel
-          templateCode={formData.is_summary_template ? undefined : formData.code}
-          serviceMethod={formData.is_summary_template ? formData.service_method : undefined}
-          variables={variables}
-          isLoading={loadingVariables}
-        />
+            templateCode={formData.is_summary_template ? undefined : formData.code}
+            serviceMethod={formData.is_summary_template ? formData.service_method : undefined}
+            variables={variables}
+            isLoading={loadingVariables}
+          />
       </div>
 
       {/* Timing Configuration */}
@@ -251,6 +251,7 @@ export function TemplateForm({
             Es template de resumen de negocio
           </label>
         </div>
+
       </div>
 
       {/* Business Summary Configuration (conditional) */}
@@ -334,6 +335,24 @@ export function TemplateForm({
           </div>
         </details>
       )}
+
+      {/* WhatsApp Template ID (simple) */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          📱 WhatsApp Template ID
+          <span className="ml-2 text-xs text-gray-500 font-normal">(opcional)</span>
+        </label>
+        <input
+          type="text"
+          value={formData.whatsapp_template_id}
+          onChange={(e) => onChange({ ...formData, whatsapp_template_id: e.target.value })}
+          placeholder="ej: daily_business_summary_v2"
+          className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+        />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          💡 Nombre del template creado manualmente en <strong>Meta Business Manager</strong>. Si se especifica, las notificaciones se enviarán usando este template de WhatsApp.
+        </p>
+      </div>
 
       {/* Action Buttons */}
       <div className="flex justify-end gap-3 pt-4">

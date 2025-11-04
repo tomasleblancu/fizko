@@ -308,32 +308,8 @@ class FizkoChatKitServer(ChatKitServer):
 
             # Load company info (from thread metadata if available, otherwise from DB)
             company_id = context.get("company_id")
-            company_info = None
-
-            if company_id:
-                # Check if company_info is already in thread metadata (from previous messages)
-                if thread.metadata and "company_info" in thread.metadata:
-                    company_info = thread.metadata["company_info"]
-                    logger.info(f"⏱️  [+{(time.time() - request_start):.3f}s] Company info loaded from thread cache (0.000s)")
-                else:
-                    # First message in thread - load from DB and cache in thread metadata
-                    from .core import load_company_info
-                    company_load_start = time.time()
-                    logger.info(f"⏱️  [+{(company_load_start - request_start):.3f}s] Company info fetch started (first message)")
-                    company_info = await load_company_info(db, company_id)
-                    company_load_end = time.time()
-                    logger.info(f"⏱️  [+{(company_load_end - request_start):.3f}s] Company info loaded from DB ({(company_load_end - company_load_start):.3f}s)")
-
-                    # Store in thread metadata for future messages
-                    if not thread.metadata:
-                        thread.metadata = {}
-                    thread.metadata["company_info"] = company_info
-
-                agent_context.company_info = company_info
-                if company_info and "company" in company_info:
-                    logger.info(f"📋 Company: {company_info['company'].get('business_name', 'Unknown')}")
-                elif company_info and "error" in company_info:
-                    logger.warning(f"⚠️ Failed to load company info: {company_info['error']}")
+            # NO LONGER LOADING company_info - agents will use search_company_memory() on-demand
+            logger.info(f"📋 Company ID: {company_id} (context loaded on-demand via memory)")
 
         item_start = time.time()
         target_item: ThreadItem | None = item
@@ -385,26 +361,10 @@ class FizkoChatKitServer(ChatKitServer):
             # Fallback to simple text
             content_parts = [{"type": "input_text", "text": user_message_text}]
 
-        # Prepend company info and UI context to the first text part
-        # IMPORTANT: Company info should only be sent on the FIRST message to save tokens
+        # Prepend UI context if available (from UI Tools system)
+        # NOTE: Company context NO LONGER PREPENDED - agents use search_company_memory() on-demand
         context_prep_start = time.time()
         context_prefix = ""
-
-        # Check if this is the first message (company context not yet sent)
-        is_first_message = thread.metadata is None or not thread.metadata.get("company_context_sent", False)
-
-        if agent_context.company_info and is_first_message:
-            from .core import format_company_context
-            company_context = format_company_context(agent_context.company_info)
-            context_prefix += company_context
-
-            # Mark company context as sent
-            if thread.metadata is None:
-                thread.metadata = {}
-            thread.metadata["company_context_sent"] = True
-            logger.info("📋 Company context added to message (first message)")
-        elif agent_context.company_info and not is_first_message:
-            logger.info("⏭️  Company context skipped (already sent in previous message)")
 
         # Prepend UI context if available (from UI Tools system)
         ui_context_text = context.get("ui_context_text", "")

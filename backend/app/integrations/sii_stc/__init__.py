@@ -18,7 +18,6 @@ Uso:
         )
 """
 
-from .client import STCClient
-from .client_v2 import STCClientV2
+from .client_v2 import STCClientV2 as STCClient
 
-__all__ = ['STCClient', 'STCClientV2']
+__all__ = ['STCClient']

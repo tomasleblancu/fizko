@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
@@ -12,8 +13,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.database import get_db
-from ...db.models import Company, CompanySettings, Session
+from ...db.models import Session
 from ...dependencies import get_current_user_id, require_auth
+from ...repositories import CompanyRepository, CompanySettingsRepository
+from ...services.company_settings import save_company_settings_memories
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/companies",
@@ -78,12 +83,9 @@ async def get_company_settings(
             detail="No tienes acceso a esta empresa"
         )
 
-    # Get settings
-    stmt = select(CompanySettings).where(
-        CompanySettings.company_id == company_id
-    )
-    result = await db.execute(stmt)
-    settings = result.scalar_one_or_none()
+    # Get settings using repository
+    settings_repo = CompanySettingsRepository(db)
+    settings = await settings_repo.get_by_company(company_id)
 
     if not settings:
         # Return default/empty settings if none exist yet
@@ -144,10 +146,9 @@ async def create_or_update_company_settings(
             detail="No tienes acceso a esta empresa"
         )
 
-    # Check if company exists
-    stmt = select(Company).where(Company.id == company_id)
-    result = await db.execute(stmt)
-    company = result.scalar_one_or_none()
+    # Get company using repository
+    company_repo = CompanyRepository(db)
+    company = await company_repo.get(company_id)
 
     if not company:
         raise HTTPException(
@@ -155,44 +156,30 @@ async def create_or_update_company_settings(
             detail="Empresa no encontrada"
         )
 
-    # Check if settings exist
-    stmt = select(CompanySettings).where(
-        CompanySettings.company_id == company_id
-    )
-    result = await db.execute(stmt)
-    settings = result.scalar_one_or_none()
+    # Get or create settings using repository
+    settings_repo = CompanySettingsRepository(db)
+    existing_settings = await settings_repo.get_by_company(company_id)
 
     update_data = data.model_dump(exclude_unset=True)
+    is_completing_initial_setup = False
 
-    if settings:
-        # Update existing settings
-        for field, value in update_data.items():
-            setattr(settings, field, value)
+    # Determine if we're completing initial setup
+    if existing_settings and not existing_settings.is_initial_setup_complete:
+        # Check if at least one setting has been configured (not None)
+        has_any_setting = any([
+            existing_settings.has_formal_employees is not None or update_data.get('has_formal_employees') is not None,
+            existing_settings.has_imports is not None or update_data.get('has_imports') is not None,
+            existing_settings.has_exports is not None or update_data.get('has_exports') is not None,
+            existing_settings.has_lease_contracts is not None or update_data.get('has_lease_contracts') is not None,
+        ])
 
-        # If all required fields are set and initial setup was not complete, mark as complete
-        if not settings.is_initial_setup_complete:
-            # Check if at least one setting has been configured (not None)
-            has_any_setting = any([
-                settings.has_formal_employees is not None,
-                settings.has_imports is not None,
-                settings.has_exports is not None,
-                settings.has_lease_contracts is not None,
-            ])
+        if has_any_setting:
+            update_data['is_initial_setup_complete'] = True
+            update_data['initial_setup_completed_at'] = datetime.utcnow()
+            is_completing_initial_setup = True
 
-            if has_any_setting:
-                settings.is_initial_setup_complete = True
-                settings.initial_setup_completed_at = datetime.utcnow()
-
-        await db.commit()
-        await db.refresh(settings)
-    else:
-        # Create new settings
-        settings = CompanySettings(
-            company_id=company_id,
-            **update_data
-        )
-
-        # Mark as complete if at least one setting is provided
+    elif not existing_settings:
+        # New settings - check if at least one setting is provided
         has_any_setting = any([
             update_data.get('has_formal_employees') is not None,
             update_data.get('has_imports') is not None,
@@ -201,12 +188,26 @@ async def create_or_update_company_settings(
         ])
 
         if has_any_setting:
-            settings.is_initial_setup_complete = True
-            settings.initial_setup_completed_at = datetime.utcnow()
+            update_data['is_initial_setup_complete'] = True
+            update_data['initial_setup_completed_at'] = datetime.utcnow()
+            is_completing_initial_setup = True
 
-        db.add(settings)
-        await db.commit()
-        await db.refresh(settings)
+    # Create or update settings using repository
+    settings = await settings_repo.create_or_update(
+        company_id=company_id,
+        **update_data
+    )
+
+    await db.commit()
+    await db.refresh(settings)
+
+    # Save settings to memory (Mem0) using Brain pattern
+    await save_company_settings_memories(
+        db=db,
+        company=company,
+        settings=settings,
+        is_initial_setup=is_completing_initial_setup
+    )
 
     return {
         "data": {

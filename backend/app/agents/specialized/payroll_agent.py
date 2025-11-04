@@ -17,6 +17,10 @@ from ..tools.payroll.payroll_tools import (
 from ..tools.widgets.payroll_widget_tools import (
     show_person_confirmation,
 )
+from ..tools.memory import (
+    search_user_memory,
+    search_company_memory,
+)
 
 
 def create_payroll_agent(
@@ -45,14 +49,14 @@ def create_payroll_agent(
     tools = [
         # Confirmation widget (MUST BE USED FIRST before create/update)
         show_person_confirmation,
-        # List all employees
-        get_people,
-        # Get specific employee details
-        get_person,
-        # Create new employee (USE ONLY AFTER show_person_confirmation + user confirmation)
-        create_person,
-        # Update employee information (USE ONLY AFTER show_person_confirmation + user confirmation)
-        update_person,
+        # Employee management tools
+        get_people,         # List all employees
+        get_person,         # Get specific employee details
+        create_person,      # Create new employee (USE ONLY AFTER show_person_confirmation + user confirmation)
+        update_person,      # Update employee information (USE ONLY AFTER show_person_confirmation + user confirmation)
+        # Memory tools - dual system for user and company memory (read-only)
+        search_user_memory,     # Search personal user preferences and history
+        search_company_memory,  # Search company-wide knowledge and settings
     ]
 
     agent = Agent(

@@ -17,9 +17,14 @@ Usage:
 """
 
 from .base import BaseRepository
+from .brain import UserBrainRepository, CompanyBrainRepository
+from .calendar import EventTemplateRepository
 from .contacts import ContactRepository
 from .core import (
     CompanyRepository,
+    CompanyTaxInfoRepository,
+    ProfileRepository,
+    CompanySettingsRepository,
     NotificationTemplateRepository,
     NotificationSubscriptionRepository,
     UserNotificationPreferenceRepository
@@ -35,10 +40,18 @@ from .tax import (
 __all__ = [
     # Base
     "BaseRepository",
+    # Brain
+    "UserBrainRepository",
+    "CompanyBrainRepository",
+    # Calendar
+    "EventTemplateRepository",
     # Contacts
     "ContactRepository",
     # Core
     "CompanyRepository",
+    "CompanyTaxInfoRepository",
+    "ProfileRepository",
+    "CompanySettingsRepository",
     "NotificationTemplateRepository",
     "NotificationSubscriptionRepository",
     "UserNotificationPreferenceRepository",

@@ -7,11 +7,12 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.db.models import Company, CompanyTaxInfo, CompanySettings, Profile, Session as SessionModel
 from app.integrations.sii import SIIClient
 from app.integrations.sii.exceptions import AuthenticationError, ExtractionError
+from app.agents.tools.memory.memory_tools import get_mem0_client
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,8 @@ class SIIAuthService:
     4. Crear/actualizar Company
     5. Crear/actualizar CompanyTaxInfo
     6. Crear/actualizar Session con cookies
-    7. Disparar tareas de sincronización en background
+    7. Guardar información en memoria (Mem0) para agentes AI
+    8. Disparar tareas de sincronización en background
 
     Este servicio separa la lógica de negocio del router HTTP.
     """
@@ -121,6 +123,17 @@ class SIIAuthService:
         await self.db.refresh(company)
         await self.db.refresh(company_tax_info)
         await self.db.refresh(session)
+
+        # PASO 7.5: Guardar información en memoria (Mem0) para uso de agentes AI
+        await self._save_onboarding_memories(
+            user_id=user_id,
+            company=company,
+            company_tax_info=company_tax_info,
+            contribuyente_info=sii_data['contribuyente_info'],
+            is_new_company=is_new_company,
+            profile=profile
+        )
+        logger.info(f"[SII Auth Service] Onboarding memories saved for user {user_id}, company {company.id}")
 
         # PASO 8: Disparar tareas de sincronización en background (solo para empresas nuevas)
         is_new_company = company_action == "creada"
@@ -615,6 +628,484 @@ class SIIAuthService:
             return True
 
         return False
+
+    async def _save_onboarding_memories(
+        self,
+        user_id: UUID,
+        company: Company,
+        company_tax_info: CompanyTaxInfo,
+        contribuyente_info: dict,
+        is_new_company: bool,
+        profile: Profile
+    ) -> None:
+        """
+        Guarda información relevante en memoria (Mem0) durante el onboarding.
+
+        Usa modelos UserBrain y CompanyBrain para rastrear memorias y hacer
+        UPDATE en lugar de CREATE cuando ya existe una memoria con el mismo slug.
+
+        Guarda información en dos espacios de memoria:
+        1. Memoria de Empresa (company memory) - Información compartida
+        2. Memoria de Usuario (user memory) - Información personal
+
+        Args:
+            user_id: UUID del usuario
+            company: Company creada/actualizada
+            company_tax_info: CompanyTaxInfo con datos tributarios
+            contribuyente_info: Información del contribuyente desde SII
+            is_new_company: True si la empresa fue creada, False si fue actualizada
+            profile: Profile del usuario
+
+        Note:
+            Si falla el guardado de memoria, solo se logea el error sin interrumpir
+            el flujo de onboarding.
+        """
+        try:
+            from ...repositories import CompanyBrainRepository, UserBrainRepository
+
+            mem0 = get_mem0_client()
+            company_brain_repo = CompanyBrainRepository(self.db)
+            user_brain_repo = UserBrainRepository(self.db)
+
+            logger.info(
+                f"[SII Auth Service] 🧠 Starting memory save for user {user_id}, "
+                f"company {company.id}"
+            )
+
+            company_entity_id = f"company_{company.id}"
+            business_name = company.business_name or "Empresa"
+
+            # ===================================================================
+            # MEMORIA DE EMPRESA (Company Memory) - Con UPDATE/CREATE y categorías
+            # ===================================================================
+            company_memories_to_save = []
+
+            # 1. Información básica de la empresa
+            trade_name = company.trade_name
+            if trade_name and trade_name != business_name:
+                company_memories_to_save.append({
+                    "slug": "company_basic_info",
+                    "category": "company_info",
+                    "content": f"La empresa {business_name} (nombre de fantasía: {trade_name}) está registrada en el SII con RUT {company.rut}"
+                })
+            else:
+                company_memories_to_save.append({
+                    "slug": "company_basic_info",
+                    "category": "company_info",
+                    "content": f"La empresa {business_name} está registrada en el SII con RUT {company.rut}"
+                })
+
+            # 2. Régimen tributario
+            if company_tax_info.tax_regime:
+                regime_names = {
+                    'regimen_general': 'Régimen General',
+                    'propyme_general': 'ProPyme General',
+                    'propyme_transparente': 'ProPyme Transparente',
+                    'semi_integrado': 'Semi Integrado',
+                    '14ter': 'Régimen 14 TER'
+                }
+                regime_display = regime_names.get(
+                    company_tax_info.tax_regime,
+                    company_tax_info.tax_regime
+                )
+                company_memories_to_save.append({
+                    "slug": "company_tax_regime",
+                    "category": "company_tax",
+                    "content": f"Régimen tributario de la empresa: {regime_display}"
+                })
+
+            # 3. Actividad económica principal
+            if company_tax_info.sii_activity_code and company_tax_info.sii_activity_name:
+                company_memories_to_save.append({
+                    "slug": "company_activity",
+                    "category": "company_tax",
+                    "content": f"Actividad económica principal: {company_tax_info.sii_activity_code} - {company_tax_info.sii_activity_name}"
+                })
+
+            # 4. Inicio de actividades
+            if company_tax_info.start_of_activities_date:
+                start_date = company_tax_info.start_of_activities_date.strftime('%d/%m/%Y')
+                company_memories_to_save.append({
+                    "slug": "company_start_date",
+                    "category": "company_tax",
+                    "content": f"Fecha de inicio de actividades: {start_date}"
+                })
+            elif contribuyente_info.get('inicio_actividades'):
+                company_memories_to_save.append({
+                    "slug": "company_start_date",
+                    "category": "company_tax",
+                    "content": f"Inicio de actividades: {contribuyente_info['inicio_actividades']}"
+                })
+
+            # 5. Información de dirección
+            if company.address:
+                company_memories_to_save.append({
+                    "slug": "company_address",
+                    "category": "company_info",
+                    "content": f"Dirección registrada: {company.address}"
+                })
+
+            # 6. Fecha de incorporación a Fizko
+            if is_new_company:
+                company_memories_to_save.append({
+                    "slug": "company_fizko_join_date",
+                    "category": "company_info",
+                    "content": f"Empresa incorporada a Fizko el {datetime.utcnow().strftime('%d/%m/%Y')}"
+                })
+
+            # 7. Cumplimiento tributario (desde opc=118)
+            cumplimiento = contribuyente_info.get('cumplimiento_tributario')
+            if cumplimiento:
+                estado = cumplimiento.get('estado', 'Desconocido')
+                atributos = cumplimiento.get('atributos', [])
+
+                # Estado general de cumplimiento
+                company_memories_to_save.append({
+                    "slug": "company_tax_compliance_status",
+                    "category": "company_tax",
+                    "content": f"Estado de cumplimiento tributario: {estado}"
+                })
+
+                # Detalle de requisitos incumplidos (si los hay)
+                requisitos_incumplidos = [
+                    attr for attr in atributos
+                    if attr.get('cumple') == 'NO'
+                ]
+
+                if requisitos_incumplidos:
+                    incumplimientos = []
+                    for req in requisitos_incumplidos:
+                        incumplimientos.append(
+                            f"[{req.get('condicion')}] {req.get('titulo')}: {req.get('descripcion')}"
+                        )
+
+                    company_memories_to_save.append({
+                        "slug": "company_tax_compliance_issues",
+                        "category": "company_tax",
+                        "content": f"Requisitos tributarios incumplidos: {'; '.join(incumplimientos)}"
+                    })
+
+            # 8. Observaciones y alertas del SII (desde opc=28)
+            observaciones = contribuyente_info.get('observaciones')
+            if observaciones and observaciones.get('tiene_observaciones'):
+                obs_list = observaciones.get('observaciones', [])
+                if obs_list:
+                    alertas_desc = []
+                    for obs in obs_list:
+                        tipo = obs.get('tipo', 'OBSERVACION')
+                        desc = obs.get('descripcion', '')
+                        alertas_desc.append(f"[{tipo}] {desc}")
+
+                    company_memories_to_save.append({
+                        "slug": "company_sii_alerts",
+                        "category": "company_tax",
+                        "content": f"Alertas/Observaciones del SII: {'; '.join(alertas_desc)}"
+                    })
+            elif observaciones and not observaciones.get('tiene_observaciones'):
+                # Registrar que NO hay observaciones (información positiva)
+                company_memories_to_save.append({
+                    "slug": "company_sii_alerts",
+                    "category": "company_tax",
+                    "content": "La empresa no tiene observaciones ni alertas vigentes del SII"
+                })
+
+            # 9. Representantes legales
+            representantes = contribuyente_info.get('representantes', [])
+            if representantes:
+                rep_vigentes = [rep for rep in representantes if rep.get('vigente')]
+                if rep_vigentes:
+                    rep_names = []
+                    for rep in rep_vigentes:
+                        nombre = rep.get('nombre_completo', 'Sin nombre')
+                        rut = rep.get('rut', 'Sin RUT')
+                        rep_names.append(f"{nombre} (RUT: {rut})")
+
+                    company_memories_to_save.append({
+                        "slug": "company_legal_representatives",
+                        "category": "company_info",
+                        "content": f"Representantes legales vigentes: {', '.join(rep_names)}"
+                    })
+
+            # 10. Socios/Accionistas
+            socios = contribuyente_info.get('socios', [])
+            if socios:
+                socios_vigentes = [socio for socio in socios if socio.get('vigente')]
+                if socios_vigentes:
+                    socios_info = []
+                    for socio in socios_vigentes:
+                        nombre = socio.get('nombre_completo', 'Sin nombre')
+                        rut = socio.get('rut', 'Sin RUT')
+                        participacion = socio.get('participacion_capital', 'N/A')
+                        socios_info.append(f"{nombre} (RUT: {rut}, {participacion}% capital)")
+
+                    company_memories_to_save.append({
+                        "slug": "company_shareholders",
+                        "category": "company_info",
+                        "content": f"Composición societaria: {'; '.join(socios_info)}"
+                    })
+
+            # 11. Direcciones registradas
+            direcciones = contribuyente_info.get('direcciones', [])
+            if direcciones:
+                for idx, dir in enumerate(direcciones):
+                    tipo = dir.get('tipo', 'Dirección')
+                    calle = dir.get('calle', '')
+                    comuna = dir.get('comuna', '')
+                    region = dir.get('region', '')
+
+                    direccion_completa = f"{calle}, {comuna}, {region}".strip(', ')
+
+                    if idx == 0:  # Primera dirección (principal)
+                        company_memories_to_save.append({
+                            "slug": "company_primary_address",
+                            "category": "company_info",
+                            "content": f"{tipo} principal: {direccion_completa}"
+                        })
+                    else:
+                        company_memories_to_save.append({
+                            "slug": f"company_secondary_address_{idx}",
+                            "category": "company_info",
+                            "content": f"{tipo} secundaria: {direccion_completa}"
+                        })
+
+            # 12. Documentos autorizados (Timbrajes)
+            timbrajes = contribuyente_info.get('timbrajes', [])
+            if timbrajes:
+                docs_info = []
+                for tim in timbrajes:
+                    desc = tim.get('descripcion', 'Documento')
+                    num_inicial = tim.get('numero_inicial', '')
+                    num_final = tim.get('numero_final', '')
+                    fecha_legal = tim.get('fecha_legalizacion', '')
+
+                    docs_info.append(
+                        f"{desc} (N° {num_inicial}-{num_final}, legalizado hasta {fecha_legal})"
+                    )
+
+                company_memories_to_save.append({
+                    "slug": "company_authorized_documents",
+                    "category": "company_tax",
+                    "content": f"Documentos tributarios autorizados: {'; '.join(docs_info)}"
+                })
+
+            # Guardar/actualizar memorias de empresa
+            for memory_data in company_memories_to_save:
+                try:
+                    slug = memory_data["slug"]
+                    category = memory_data["category"]
+                    content = memory_data["content"]
+
+                    # Buscar si ya existe una memoria con este slug
+                    existing_brain = await company_brain_repo.get_by_company_and_slug(
+                        company_id=company.id,
+                        slug=slug
+                    )
+
+                    if existing_brain:
+                        # UPDATE en Mem0
+                        logger.info(f"[SII Auth Service] 🔄 Updating company memory: {slug} (category: {category})")
+                        import asyncio
+                        await asyncio.to_thread(
+                            mem0.update,
+                            memory_id=existing_brain.memory_id,
+                            text=content
+                        )
+
+                        # Actualizar en BD usando repositorio (incluir category en metadata)
+                        await company_brain_repo.update(
+                            id=existing_brain.id,
+                            content=content,
+                            extra_metadata={"category": category}
+                        )
+                        logger.info(f"[SII Auth Service] ✅ Updated company memory: {slug}")
+                    else:
+                        # CREATE en Mem0
+                        logger.info(f"[SII Auth Service] ✨ Creating company memory: {slug} (category: {category})")
+                        result = await mem0.add(
+                            messages=[{"role": "user", "content": content}],
+                            user_id=company_entity_id,
+                            metadata={"slug": slug, "category": category}
+                        )
+
+                        # Obtener memory_id o event_id del resultado
+                        # Mem0 puede retornar procesamiento asíncrono (status: PENDING) con event_id
+                        memory_id = None
+                        if isinstance(result, dict):
+                            # Intentar diferentes estructuras de respuesta
+                            if "results" in result and isinstance(result["results"], list) and len(result["results"]) > 0:
+                                first_result = result["results"][0]
+                                # Puede tener 'id' (memoria creada) o 'event_id' (procesamiento pendiente)
+                                memory_id = first_result.get("id") or first_result.get("event_id")
+                                status = first_result.get("status", "UNKNOWN")
+                                logger.info(f"[SII Auth Service] Mem0 status: {status}, memory_id: {memory_id}")
+                            elif "id" in result:
+                                memory_id = result.get("id")
+                            elif "event_id" in result:
+                                memory_id = result.get("event_id")
+                            elif "memory_id" in result:
+                                memory_id = result.get("memory_id")
+
+                        if not memory_id:
+                            logger.error(f"[SII Auth Service] ❌ No memory_id/event_id returned from Mem0. Response: {result}")
+                            continue
+
+                        # Crear en BD usando repositorio
+                        await company_brain_repo.create(
+                            company_id=company.id,
+                            memory_id=memory_id,
+                            slug=slug,
+                            content=content,
+                            extra_metadata={"category": category}
+                        )
+                        logger.info(f"[SII Auth Service] ✅ Created company memory: {slug}")
+
+                except Exception as e:
+                    logger.error(
+                        f"[SII Auth Service] ❌ Error with company memory {memory_data.get('slug')}: {e}",
+                        exc_info=True
+                    )
+
+            # ===================================================================
+            # MEMORIA DE USUARIO (User Memory) - Con UPDATE/CREATE y categorías
+            # ===================================================================
+            user_memories_to_save = []
+
+            # 1. Vinculación con la empresa
+            today = datetime.utcnow().strftime('%d/%m/%Y')
+            user_memories_to_save.append({
+                "slug": f"user_company_join_{company.id}",
+                "category": "user_company_relationship",
+                "content": f"Se vinculó con {business_name} el {today}"
+            })
+
+            # 2. Determinar rol del usuario
+            stmt = select(func.count(SessionModel.id)).where(
+                SessionModel.company_id == company.id,
+                SessionModel.is_active == True
+            )
+            result = await self.db.execute(stmt)
+            active_sessions_count = result.scalar()
+
+            if active_sessions_count <= 1:
+                user_memories_to_save.append({
+                    "slug": f"user_role_{company.id}",
+                    "category": "user_company_relationship",
+                    "content": f"Rol en {business_name}: Propietario/Administrador"
+                })
+            else:
+                user_memories_to_save.append({
+                    "slug": f"user_role_{company.id}",
+                    "category": "user_company_relationship",
+                    "content": f"Rol en {business_name}: Miembro del equipo"
+                })
+
+            # 3. Información del perfil
+            if profile:
+                if profile.full_name:
+                    user_memories_to_save.append({
+                        "slug": "user_full_name",
+                        "category": "user_profile",
+                        "content": f"Nombre completo: {profile.full_name}"
+                    })
+                if profile.phone:
+                    user_memories_to_save.append({
+                        "slug": "user_phone",
+                        "category": "user_profile",
+                        "content": f"Teléfono de contacto: {profile.phone}"
+                    })
+
+            # Guardar/actualizar memorias de usuario
+            for memory_data in user_memories_to_save:
+                try:
+                    slug = memory_data["slug"]
+                    category = memory_data["category"]
+                    content = memory_data["content"]
+
+                    # Buscar si ya existe una memoria con este slug
+                    existing_brain = await user_brain_repo.get_by_user_and_slug(
+                        user_id=user_id,
+                        slug=slug
+                    )
+
+                    if existing_brain:
+                        # UPDATE en Mem0
+                        logger.info(f"[SII Auth Service] 🔄 Updating user memory: {slug} (category: {category})")
+                        import asyncio
+                        await asyncio.to_thread(
+                            mem0.update,
+                            memory_id=existing_brain.memory_id,
+                            text=content
+                        )
+
+                        # Actualizar en BD usando repositorio (incluir category en metadata)
+                        await user_brain_repo.update(
+                            id=existing_brain.id,
+                            content=content,
+                            extra_metadata={"category": category}
+                        )
+                        logger.info(f"[SII Auth Service] ✅ Updated user memory: {slug}")
+                    else:
+                        # CREATE en Mem0
+                        logger.info(f"[SII Auth Service] ✨ Creating user memory: {slug} (category: {category})")
+                        result = await mem0.add(
+                            messages=[{"role": "user", "content": content}],
+                            user_id=str(user_id),
+                            metadata={"slug": slug, "category": category}
+                        )
+
+                        # Obtener memory_id o event_id del resultado
+                        # Mem0 puede retornar procesamiento asíncrono (status: PENDING) con event_id
+                        memory_id = None
+                        if isinstance(result, dict):
+                            # Intentar diferentes estructuras de respuesta
+                            if "results" in result and isinstance(result["results"], list) and len(result["results"]) > 0:
+                                first_result = result["results"][0]
+                                # Puede tener 'id' (memoria creada) o 'event_id' (procesamiento pendiente)
+                                memory_id = first_result.get("id") or first_result.get("event_id")
+                                status = first_result.get("status", "UNKNOWN")
+                                logger.info(f"[SII Auth Service] Mem0 status: {status}, memory_id: {memory_id}")
+                            elif "id" in result:
+                                memory_id = result.get("id")
+                            elif "event_id" in result:
+                                memory_id = result.get("event_id")
+                            elif "memory_id" in result:
+                                memory_id = result.get("memory_id")
+
+                        if not memory_id:
+                            logger.error(f"[SII Auth Service] ❌ No memory_id/event_id returned from Mem0. Response: {result}")
+                            continue
+
+                        # Crear en BD usando repositorio
+                        await user_brain_repo.create(
+                            user_id=user_id,
+                            memory_id=memory_id,
+                            slug=slug,
+                            content=content,
+                            extra_metadata={"category": category}
+                        )
+                        logger.info(f"[SII Auth Service] ✅ Created user memory: {slug}")
+
+                except Exception as e:
+                    logger.error(
+                        f"[SII Auth Service] ❌ Error with user memory {memory_data.get('slug')}: {e}",
+                        exc_info=True
+                    )
+
+            # Commit de cambios en BD
+            await self.db.commit()
+
+            logger.info(
+                f"[SII Auth Service] 🎉 Memory save completed: "
+                f"{len(company_memories_to_save)} company memories, "
+                f"{len(user_memories_to_save)} user memories"
+            )
+
+        except Exception as e:
+            # No interrumpir el flujo de onboarding si falla la memoria
+            logger.error(
+                f"[SII Auth Service] ❌ Error in _save_onboarding_memories: {e}",
+                exc_info=True
+            )
 
     def _build_response(
         self,

@@ -14,6 +14,7 @@ Key Design Principles:
 """
 
 from .base import Base
+from .brain import CompanyBrain, UserBrain
 from .calendar import CalendarEvent, CompanyEvent, EventDependency, EventHistory, EventTask, EventTemplate
 from .chat import ChatKitAttachment, Conversation, Message
 from .company import Company, CompanyTaxInfo, CompanySettings
@@ -54,6 +55,9 @@ __all__ = [
     "Company",
     "CompanyTaxInfo",
     "CompanySettings",
+    # Brain (Memory)
+    "UserBrain",
+    "CompanyBrain",
     # Session
     "Session",
     # Contacts

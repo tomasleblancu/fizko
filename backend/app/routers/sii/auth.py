@@ -8,7 +8,7 @@ from typing import AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
 
 from ...config.database import get_db
@@ -29,16 +29,15 @@ router = APIRouter(
 
 class SIILoginRequest(BaseModel):
     """Request para login en el SII"""
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "rut": "77794858-k",
+            "password": "SiiPfufl574@#"
+        }
+    })
+
     rut: str = Field(..., description="RUT del contribuyente (ej: 77794858-k)")
     password: str = Field(..., description="Contraseña del SII")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "rut": "77794858-k",
-                "password": "SiiPfufl574@#"
-            }
-        }
 
 
 class SIILoginResponse(BaseModel):

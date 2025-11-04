@@ -1391,3 +1391,188 @@ async def delete_company_notification_subscription(
     await db.commit()
 
     return {"message": "Suscripción eliminada exitosamente"}
+
+
+# ============================================================================
+# COMPANY DELETION
+# ============================================================================
+
+class DeleteCompanyResponse(BaseModel):
+    """Response from deleting a company"""
+    success: bool
+    message: str
+    company_id: str
+    memory_deleted: bool
+    details: dict
+
+
+@router.delete("/company/{company_id}", response_model=DeleteCompanyResponse)
+async def delete_company(
+    company_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: UUID = Depends(get_current_user_id)
+):
+    """
+    Elimina una compañía y todos sus datos relacionados.
+
+    SOLO accesible para usuarios con rol admin-kaiken.
+
+    Esta operación:
+    1. Verifica permisos de admin
+    2. Elimina toda la memoria asociada (Mem0)
+    3. Elimina todos los registros en cascada:
+       - Sessions
+       - Documents (purchases, sales)
+       - F29 forms
+       - Calendar events
+       - Notifications
+       - Tax info
+       - Company settings
+    4. Elimina la compañía
+
+    Args:
+        company_id: ID de la compañía a eliminar
+        current_user_id: ID del usuario autenticado
+        db: Sesión de base de datos
+
+    Returns:
+        DeleteCompanyResponse con detalles de la eliminación
+
+    Raises:
+        403: Usuario no tiene permisos de admin
+        404: Compañía no encontrada
+        500: Error durante la eliminación
+    """
+    logger.info(f"🗑️  Solicitud de eliminación de compañía {company_id} por usuario {current_user_id}")
+
+    # 1. Verificar que el usuario sea admin-kaiken
+    user_stmt = select(Profile).where(Profile.id == current_user_id)
+    user_result = await db.execute(user_stmt)
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado"
+        )
+
+    if user.rol != "admin-kaiken":
+        logger.warning(f"⚠️  Usuario {current_user_id} intentó eliminar compañía sin permisos de admin")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo usuarios admin-kaiken pueden eliminar compañías"
+        )
+
+    # 2. Verificar que la compañía existe
+    company_stmt = select(Company).where(Company.id == company_id)
+    company_result = await db.execute(company_stmt)
+    company = company_result.scalar_one_or_none()
+
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Compañía {company_id} no encontrada"
+        )
+
+    company_name = company.business_name
+    logger.info(f"📋 Eliminando compañía: {company_name} (RUT: {company.rut})")
+
+    # 3. Eliminar memoria asociada en Mem0
+    memory_deleted = False
+    try:
+        from ...agents.tools.memory.memory_tools import get_mem0_client
+
+        mem0_client = get_mem0_client()
+        entity_id = f"company_{company_id}"
+
+        logger.info(f"🧠 Eliminando memoria de Mem0 para entity_id: {entity_id}")
+
+        # Usar método síncrono con asyncio
+        import asyncio
+        await asyncio.to_thread(
+            mem0_client.delete_all,
+            user_id=entity_id
+        )
+
+        memory_deleted = True
+        logger.info(f"✅ Memoria de compañía eliminada exitosamente de Mem0")
+
+    except Exception as e:
+        logger.error(f"❌ Error eliminando memoria de Mem0: {e}", exc_info=True)
+        # No fallar la eliminación completa si falla Mem0
+        memory_deleted = False
+
+    # 4. Contar registros antes de eliminar (para el reporte)
+    details = {}
+
+    # Contar sessions
+    sessions_count_stmt = select(func.count(SessionModel.id)).where(
+        SessionModel.company_id == company_id
+    )
+    sessions_count = (await db.execute(sessions_count_stmt)).scalar() or 0
+    details["sessions_deleted"] = sessions_count
+
+    # Contar documentos de compra
+    purchases_count_stmt = select(func.count(PurchaseDocument.id)).where(
+        PurchaseDocument.company_id == company_id
+    )
+    purchases_count = (await db.execute(purchases_count_stmt)).scalar() or 0
+    details["purchase_documents_deleted"] = purchases_count
+
+    # Contar documentos de venta
+    sales_count_stmt = select(func.count(SalesDocument.id)).where(
+        SalesDocument.company_id == company_id
+    )
+    sales_count = (await db.execute(sales_count_stmt)).scalar() or 0
+    details["sales_documents_deleted"] = sales_count
+
+    # Contar F29
+    f29_count_stmt = select(func.count(Form29SIIDownload.id)).where(
+        Form29SIIDownload.company_id == company_id
+    )
+    f29_count = (await db.execute(f29_count_stmt)).scalar() or 0
+    details["f29_forms_deleted"] = f29_count
+
+    # Contar eventos de calendario
+    calendar_count_stmt = select(func.count(CalendarEvent.id)).where(
+        CalendarEvent.company_id == company_id
+    )
+    calendar_count = (await db.execute(calendar_count_stmt)).scalar() or 0
+    details["calendar_events_deleted"] = calendar_count
+
+    # Contar notificaciones
+    notifications_count_stmt = select(func.count(NotificationHistory.id)).where(
+        NotificationHistory.company_id == company_id
+    )
+    notifications_count = (await db.execute(notifications_count_stmt)).scalar() or 0
+    details["notifications_deleted"] = notifications_count
+
+    logger.info(
+        f"📊 Registros a eliminar: {sessions_count} sessions, "
+        f"{purchases_count} compras, {sales_count} ventas, "
+        f"{f29_count} F29, {calendar_count} eventos, "
+        f"{notifications_count} notificaciones"
+    )
+
+    # 5. Eliminar la compañía (cascada se encarga del resto según las relaciones del modelo)
+    try:
+        await db.delete(company)
+        await db.commit()
+
+        logger.info(f"✅ Compañía {company_name} eliminada exitosamente")
+
+        return DeleteCompanyResponse(
+            success=True,
+            message=f"Compañía '{company_name}' eliminada exitosamente",
+            company_id=str(company_id),
+            memory_deleted=memory_deleted,
+            details=details
+        )
+
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"❌ Error eliminando compañía: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al eliminar compañía: {str(e)}"
+        )

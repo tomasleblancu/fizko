@@ -118,12 +118,19 @@ export function CompanyInitialSetupModal({ companyId, companyName, scheme, onCom
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white dark:bg-slate-900 md:bg-black/50 md:backdrop-blur-sm md:p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950 md:p-4">
+      {/* Animated background patterns */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 -left-4 w-72 h-72 bg-emerald-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob dark:bg-emerald-500 dark:opacity-10" />
+        <div className="absolute top-0 -right-4 w-72 h-72 bg-teal-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000 dark:bg-teal-500 dark:opacity-10" />
+        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-emerald-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000 dark:bg-emerald-500 dark:opacity-10" />
+      </div>
+
       <div
         className={clsx(
           'relative w-full h-full md:h-auto md:max-w-lg md:rounded-xl md:border overflow-hidden md:shadow-xl',
-          'bg-white md:border-slate-200',
-          'dark:bg-slate-900 md:dark:border-slate-700',
+          'bg-white/80 backdrop-blur-xl md:border-slate-200',
+          'dark:bg-slate-900/80 dark:backdrop-blur-xl md:dark:border-slate-700',
           'flex flex-col'
         )}
       >
