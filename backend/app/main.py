@@ -30,6 +30,7 @@ from .routers import (
     tax_documents,
     tax_summary,
     whatsapp,
+    webhooks,
 )
 from .routers.admin import notifications as admin_notifications
 from .routers.admin import template_variables as admin_template_variables
@@ -38,6 +39,7 @@ from .routers.sales_leads import admin_router as sales_leads_admin_router
 from .routers.sales_leads import public_router as sales_leads_public_router
 from .routers.scheduled_tasks import router as scheduled_tasks_router
 from .routers.sii import router as sii_router
+from .routers.sii_stc import router as sii_stc_router
 from .routers.tasks import router as tasks_router
 from .routers.user import router as user_router
 
@@ -122,8 +124,10 @@ app.include_router(conversations.router)
 app.include_router(tax_summary.router)
 app.include_router(tax_documents.router)
 app.include_router(sii_router)
+app.include_router(sii_stc_router, prefix="/api")  # SII public queries (no auth)
 app.include_router(whatsapp.router)
 app.include_router(whatsapp.webhook_router)  # Webhook sin autenticación JWT
+app.include_router(webhooks.router)  # General webhooks (Mem0, etc.) - no JWT auth
 app.include_router(personnel_router)  # Personnel management (people & payroll)
 app.include_router(sales_leads_public_router)  # Public contact form (no auth)
 app.include_router(sales_leads_admin_router)  # Admin sales lead management
