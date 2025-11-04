@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from typing import Any
 
 from chatkit.server import StreamingResult
@@ -33,6 +34,8 @@ from .routers import (
 from .routers.admin import notifications as admin_notifications
 from .routers.admin import template_variables as admin_template_variables
 from .routers.personnel import router as personnel_router
+from .routers.sales_leads import admin_router as sales_leads_admin_router
+from .routers.sales_leads import public_router as sales_leads_public_router
 from .routers.scheduled_tasks import router as scheduled_tasks_router
 from .routers.sii import router as sii_router
 from .routers.tasks import router as tasks_router
@@ -44,17 +47,11 @@ load_dotenv()
 # Setup logging
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="Fizko API",
-    description="API for Fizko tax/accounting platform with AI assistance",
-    version="1.0.0",
-    redirect_slashes=False,  # Prevent 307 redirects for trailing slashes
-)
 
-
-@app.on_event("startup")
-async def startup_event():
-    """Run startup tasks including database connection check."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    # Startup
     from .config.database import check_db_connection
 
     logger.info("Running startup checks...")
@@ -65,6 +62,20 @@ async def startup_event():
         logger.error(f"Startup check failed: {e}")
         # Don't raise - let the app start but log the error
         # The actual endpoints will fail if DB is not accessible
+
+    yield
+
+    # Shutdown (if needed in the future)
+    logger.info("Shutting down...")
+
+
+app = FastAPI(
+    title="Fizko API",
+    description="API for Fizko tax/accounting platform with AI assistance",
+    version="1.0.0",
+    redirect_slashes=False,  # Prevent 307 redirects for trailing slashes
+    lifespan=lifespan,
+)
 
 # Add CORS middleware with flexible origin checking
 from fastapi.middleware.cors import CORSMiddleware
@@ -114,6 +125,8 @@ app.include_router(sii_router)
 app.include_router(whatsapp.router)
 app.include_router(whatsapp.webhook_router)  # Webhook sin autenticación JWT
 app.include_router(personnel_router)  # Personnel management (people & payroll)
+app.include_router(sales_leads_public_router)  # Public contact form (no auth)
+app.include_router(sales_leads_admin_router)  # Admin sales lead management
 app.include_router(tasks_router)  # Celery task management
 app.include_router(scheduled_tasks_router, prefix="/api")  # Celery Beat scheduled tasks
 app.include_router(user_router)  # User-specific operations (notification preferences)

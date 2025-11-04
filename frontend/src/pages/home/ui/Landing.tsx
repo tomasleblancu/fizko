@@ -1,14 +1,32 @@
-import { TrendingUp, MessageCircle, CalendarCheck } from 'lucide-react';
+import { TrendingUp, MessageCircle, CalendarCheck, Mail } from 'lucide-react';
+import { useState } from 'react';
 import { useAuth } from "@/app/providers/AuthContext";
 import { DashboardPreview } from "@/features/dashboard/ui/DashboardPreview";
 import { DocumentsPreview } from "@/shared/ui/DocumentsPreview";
 import { LandingFooter } from "@/shared/ui/branding/LandingFooter";
+import { ContactSalesDialog } from "./ContactSalesDialog";
 
 export default function Landing() {
   const { signInWithGoogle } = useAuth();
+  const [secretClickCount, setSecretClickCount] = useState(0);
+  const [showSecretLogin, setShowSecretLogin] = useState(false);
+  const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
+
+  const handleContactSales = () => {
+    setIsContactDialogOpen(true);
+  };
+
+  const handleSecretClick = () => {
+    setSecretClickCount(prev => prev + 1);
+    if (secretClickCount >= 4) {
+      setShowSecretLogin(true);
+    }
+  };
 
   const handleGetStarted = async () => {
     await signInWithGoogle();
+    setShowSecretLogin(false);
+    setSecretClickCount(0);
   };
 
   return (
@@ -20,12 +38,18 @@ export default function Landing() {
 
         <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
           <header className="text-center">
-            {/* Logo/Brand */}
-            <div className="mb-8 flex justify-center">
+            {/* Logo/Brand - Click 5 veces para mostrar login */}
+            <div
+              className="mb-8 flex justify-center"
+              onClick={handleSecretClick}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && handleSecretClick()}
+            >
               <img
                 src="/encabezado.png"
                 alt="Fizko - Plataforma de Gestión Tributaria Inteligente"
-                className="h-16 w-auto"
+                className="h-16 w-auto cursor-pointer"
               />
             </div>
 
@@ -43,24 +67,36 @@ export default function Landing() {
             </p>
 
             {/* CTA Button */}
-            <div className="mt-10 flex justify-center">
+            <div className="mt-10 flex flex-col items-center gap-4">
               <button
-                onClick={handleGetStarted}
-                className="group inline-flex items-center space-x-3 rounded-full bg-white border-2 border-gray-200 px-8 py-4 text-lg font-semibold text-gray-700 shadow-xl transition-all hover:shadow-2xl hover:scale-105 hover:border-gray-300"
-                aria-label="Iniciar sesión con Google para comenzar a usar Fizko"
+                onClick={handleContactSales}
+                className="group inline-flex items-center space-x-3 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-4 text-lg font-semibold text-white shadow-xl transition-all hover:shadow-2xl hover:scale-105"
+                aria-label="Acceder al pre lanzamiento de Fizko"
               >
-                <svg className="h-6 w-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
-                <span>Comienza a usar Fizko</span>
+                <Mail className="h-6 w-6" />
+                <span>Accede al Pre Lanzamiento</span>
               </button>
+
+              {/* Login secreto - aparece al hacer 5 clicks en el logo */}
+              {showSecretLogin && (
+                <button
+                  onClick={handleGetStarted}
+                  className="inline-flex items-center space-x-2 rounded-lg bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:shadow-md hover:border-gray-300"
+                  aria-label="Iniciar sesión con Google"
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                  </svg>
+                  <span>Login con Google</span>
+                </button>
+              )}
             </div>
 
             <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-              Inicia sesión con tu cuenta de Google
+              Únete a los primeros usuarios y obtén acceso anticipado
             </p>
           </header>
 
@@ -168,29 +204,30 @@ export default function Landing() {
       <section className="bg-gradient-to-r from-blue-600 to-purple-600 py-16" aria-labelledby="cta-heading">
         <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
           <h2 id="cta-heading" className="text-3xl font-bold text-white sm:text-4xl">
-            ¿Listo para comenzar?
+            Sé parte del futuro de la gestión tributaria
           </h2>
           <p className="mt-4 text-xl text-blue-100">
-            Inicia sesión con tu cuenta de Google y empieza a usar Fizko.
+            Únete al pre lanzamiento y obtén acceso exclusivo a Fizko.
           </p>
           <button
-            onClick={handleGetStarted}
+            onClick={handleContactSales}
             className="mt-8 inline-flex items-center space-x-3 rounded-full bg-white px-8 py-4 text-lg font-semibold text-gray-700 shadow-xl transition-all hover:scale-105 hover:shadow-2xl"
-            aria-label="Iniciar sesión con Google"
+            aria-label="Acceder al pre lanzamiento"
           >
-            <svg className="h-6 w-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-            </svg>
-            <span>Comienza a usar Fizko</span>
+            <Mail className="h-6 w-6 text-blue-600" />
+            <span>Accede al Pre Lanzamiento</span>
           </button>
         </div>
       </section>
 
       {/* Footer */}
       <LandingFooter />
+
+      {/* Contact Sales Dialog */}
+      <ContactSalesDialog
+        isOpen={isContactDialogOpen}
+        onClose={() => setIsContactDialogOpen(false)}
+      />
     </main>
   );
 }

@@ -32,6 +32,7 @@ from .notifications import (
 )
 from .personnel import Payroll, Person
 from .phone_verification import PhoneVerification
+from .sales_lead import SalesLead
 from .scheduled_tasks import (
     CrontabSchedule,
     IntervalSchedule,
@@ -80,6 +81,8 @@ __all__ = [
     "Payroll",
     # Phone Verification
     "PhoneVerification",
+    # Sales Leads
+    "SalesLead",
     # Notifications
     "NotificationTemplate",
     "NotificationSubscription",
