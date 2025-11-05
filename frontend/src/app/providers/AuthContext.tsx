@@ -7,6 +7,8 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithWhatsApp: (phone: string, otp: string) => Promise<void>;
+  requestWhatsAppOTP: (phone: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -47,6 +49,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   };
 
+  const requestWhatsAppOTP = async (phone: string) => {
+    const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8089';
+    const response = await fetch(`${API_BASE_URL}/api/auth/whatsapp/request-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone })
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || 'Failed to send OTP');
+    }
+    return response.json();
+  };
+
+  const signInWithWhatsApp = async (phone: string, otp: string) => {
+    const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8089';
+    const response = await fetch(`${API_BASE_URL}/api/auth/whatsapp/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, otp })
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || 'Invalid OTP');
+    }
+
+    const data = await response.json();
+
+    // Establecer sesión en Supabase
+    const { error } = await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token
+    });
+
+    if (error) throw error;
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -59,6 +99,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         loading,
         signInWithGoogle,
+        requestWhatsAppOTP,
+        signInWithWhatsApp,
         signOut,
       }}
     >
