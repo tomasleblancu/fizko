@@ -75,12 +75,12 @@ export default function Landing() {
                 <div className="flex flex-col justify-between w-full max-w-2xl" style={{ minHeight: '100px' }}>
                   {/* First Line - Left Aligned - Always at top */}
                   <div className="text-left">
-                    <div className="text-2xl sm:text-4xl font-bold text-gray-900 dark:text-white">
+                    <div className="text-xl sm:text-4xl font-bold text-gray-900 dark:text-white whitespace-nowrap">
                       <TypeAnimation
                         sequence={[
-                          'Tus números, claros.',
+                          'Tus números claros.',
                           1000,
-                          'Tus números, claros.',
+                          'Tus números claros.',
                           () => setShowSecondPart(true),
                         ]}
                         wrapper="span"
@@ -94,11 +94,11 @@ export default function Landing() {
                   {/* Second Line - Right Aligned - Fixed position at bottom */}
                   <div className="text-right">
                     {showSecondPart && (
-                      <div className="text-2xl sm:text-4xl font-bold">
+                      <div className="text-xl sm:text-4xl font-bold whitespace-nowrap">
                         <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                           <TypeAnimation
                             sequence={[
-                              'Tus impuestos, bajo control.',
+                              'Tus impuestos controlados.',
                               1000,
                             ]}
                             wrapper="span"
