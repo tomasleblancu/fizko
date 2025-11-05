@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { AuthProvider } from "./providers/AuthContext";
+import { ProtectedRoute } from "./providers/ProtectedRoute";
 import { DashboardCacheProvider } from "./providers/DashboardCacheContext";
 import { HomePage } from "@/pages/home";
 import { TermsOfService, PrivacyPolicy } from "@/pages/legal";
@@ -41,11 +42,11 @@ createRoot(container).render(
               <Route path="/" element={<HomePage />} />
               <Route path="/terminos" element={<TermsOfService />} />
               <Route path="/privacidad" element={<PrivacyPolicy />} />
-              <Route path="/admin" element={<CompaniesListPage />} />
-              <Route path="/admin/company/:companyId" element={<CompanyDetailPage />} />
-              <Route path="/admin/event-templates" element={<EventTemplatesPage />} />
-              <Route path="/admin/notification-templates" element={<NotificationTemplatesPage />} />
-              <Route path="/admin/task-manager" element={<TaskManagerPage />} />
+              <Route path="/admin" element={<ProtectedRoute><CompaniesListPage /></ProtectedRoute>} />
+              <Route path="/admin/company/:companyId" element={<ProtectedRoute><CompanyDetailPage /></ProtectedRoute>} />
+              <Route path="/admin/event-templates" element={<ProtectedRoute><EventTemplatesPage /></ProtectedRoute>} />
+              <Route path="/admin/notification-templates" element={<ProtectedRoute><NotificationTemplatesPage /></ProtectedRoute>} />
+              <Route path="/admin/task-manager" element={<ProtectedRoute><TaskManagerPage /></ProtectedRoute>} />
             </Routes>
           </BrowserRouter>
         </DashboardCacheProvider>

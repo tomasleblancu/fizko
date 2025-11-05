@@ -328,14 +328,12 @@ I sent you a reminder.
                 use_whatsapp_template = (
                     is_production and
                     template and
-                    template.create_whatsapp_template and
-                    template.whatsapp_template_name and
-                    template.whatsapp_template_status == 'approved'
+                    template.whatsapp_template_id  # Use the correct field
                 )
 
                 if use_whatsapp_template:
                     # PRODUCTION: Use WhatsApp template
-                    logger.info(f"📱 Using WhatsApp template: {template.whatsapp_template_name}")
+                    logger.info(f"📱 Using WhatsApp template: {template.whatsapp_template_id}")
 
                     # Build template_params from message context
                     message_context = scheduled.extra_metadata.get("message_context", {})
@@ -347,28 +345,38 @@ I sent you a reminder.
                     # Send via WhatsApp template
                     send_result = await self.whatsapp_service.send_template(
                         phone_number=normalized_phone,
-                        template_name=template.whatsapp_template_name,
+                        template_name=template.whatsapp_template_id,
                         template_params=template_params,
-                        template_language=template.whatsapp_template_language,
+                        template_language="es",  # Default to Spanish
                         whatsapp_config_id=whatsapp_config_id,
                     )
 
                 else:
-                    # DEVELOPMENT OR FALLBACK: Use plain text
+                    # DEVELOPMENT: Skip if no active conversation
                     if not is_production:
-                        logger.info(f"📝 Development: Sending plain text message (not using template)")
-                    elif template and template.create_whatsapp_template:
-                        logger.warning(
-                            f"⚠️ WhatsApp template not approved ({template.whatsapp_template_status}), "
-                            "using plain text fallback"
-                        )
+                        logger.info(f"📝 Development: Attempting to send plain text message")
 
-                    # Send via WhatsApp as plain text
-                    send_result = await self.whatsapp_service.send_text(
-                        phone_number=normalized_phone,
-                        message=scheduled.message_content,
-                        whatsapp_config_id=whatsapp_config_id,
-                    )
+                        try:
+                            # Try to send as plain text (requires active conversation)
+                            send_result = await self.whatsapp_service.send_text(
+                                phone_number=normalized_phone,
+                                message=scheduled.message_content,
+                                whatsapp_config_id=whatsapp_config_id,
+                            )
+                        except ValueError as e:
+                            # No active conversation - skip in development
+                            if "No se encontró conversación activa" in str(e):
+                                logger.warning(f"⚠️ Skipping {phone}: No active conversation (development mode)")
+                                results["skipped"] += 1
+                                continue
+                            else:
+                                raise
+                    else:
+                        # PRODUCTION without template: Error
+                        raise ValueError(
+                            f"Template {template.code if template else 'N/A'} has no whatsapp_template_id. "
+                            "Cannot send notification in production without WhatsApp template."
+                        )
 
                 # Record in history
                 conversation_id = send_result.get("conversation_id")

@@ -1,5 +1,5 @@
 import { TrendingUp, MessageCircle, CalendarCheck, Mail } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TypeAnimation } from 'react-type-animation';
 import { useAuth } from "@/app/providers/AuthContext";
 import { LandingFooter } from "@/shared/ui/branding/LandingFooter";
@@ -29,67 +29,98 @@ export default function Landing() {
     setSecretClickCount(0);
   };
 
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Hero Section */}
-      <section className="relative overflow-hidden" aria-label="Hero">
+      {/* Sticky Logo - Only Fizko text */}
+      <div className="sticky top-0 z-40 backdrop-blur-md">
+        <div className="mx-auto max-w-7xl px-4 py-4">
+          <div
+            className="flex justify-center items-center gap-2"
+            onClick={handleSecretClick}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && handleSecretClick()}
+          >
+            <img
+              src="/encabezado_fizko.png"
+              alt="Fizko - Plataforma de Gestión Tributaria Inteligente"
+              className="h-12 w-auto cursor-pointer sm:h-14"
+            />
+          </div>
+        </div>
+      </div>
+
+      <section className="relative overflow-hidden bg-white dark:bg-gray-900" aria-label="Hero">
         {/* Decorative waves */}
         <div className="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-blue-100/50 to-transparent dark:from-blue-900/20" aria-hidden="true" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
           <header className="text-center">
-            {/* Logo/Brand - Click 5 veces para mostrar login */}
-            <div
-              className="mb-8 flex justify-center items-center gap-4"
-              onClick={handleSecretClick}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && handleSecretClick()}
-            >
-              <img
-                src="/encabezado.png"
-                alt="Fizko"
-                className="h-24 w-auto cursor-pointer sm:h-32"
-              />
-              <img
-                src="/encabezado_fizko.png"
-                alt="Fizko - Plataforma de Gestión Tributaria Inteligente"
-                className="h-24 w-auto cursor-pointer sm:h-32"
-              />
-            </div>
 
-            {/* Main Headline with Typewriter Effect */}
-            <h1 className="mx-auto max-w-4xl text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-6xl min-h-[120px] sm:min-h-[160px]">
-              <TypeAnimation
-                sequence={[
-                  'Tus números, claros.',
-                  1000, // Wait 1s after first part
-                  'Tus números, claros.', // Keep first part
-                  () => setShowSecondPart(true), // Callback to show second part
-                ]}
-                wrapper="span"
-                speed={50}
-                cursor={false}
-                repeat={0}
-              />
-              {showSecondPart && (
-                <>
-                  {' '}
-                  <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                    <TypeAnimation
-                      sequence={[
-                        'Tus impuestos, bajo control.',
-                        1000,
-                      ]}
-                      wrapper="span"
-                      speed={50}
-                      cursor={true}
-                      repeat={0}
-                    />
-                  </span>
-                </>
-              )}
-            </h1>
+            {/* Main Headline - Accounting Entry Style */}
+            <div className="mx-auto max-w-5xl min-h-[180px] sm:min-h-[220px]">
+              {/* Accounting Entry Container */}
+              <div className="flex items-center justify-center gap-2 sm:gap-4">
+                {/* Left Parenthesis */}
+                <img
+                  src="/parentesis_izq.png"
+                  alt=""
+                  className="h-32 sm:h-40 w-auto flex-shrink-0"
+                  aria-hidden="true"
+                />
+
+                {/* Accounting Entry Content - Two Lines */}
+                <div className="flex flex-col justify-between w-full max-w-2xl" style={{ minHeight: '100px' }}>
+                  {/* First Line - Left Aligned - Always at top */}
+                  <div className="text-left">
+                    <div className="text-2xl sm:text-4xl font-bold text-gray-900 dark:text-white">
+                      <TypeAnimation
+                        sequence={[
+                          'Tus números, claros.',
+                          1000,
+                          'Tus números, claros.',
+                          () => setShowSecondPart(true),
+                        ]}
+                        wrapper="span"
+                        speed={50}
+                        cursor={false}
+                        repeat={0}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Second Line - Right Aligned - Fixed position at bottom */}
+                  <div className="text-right">
+                    {showSecondPart && (
+                      <div className="text-2xl sm:text-4xl font-bold">
+                        <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                          <TypeAnimation
+                            sequence={[
+                              'Tus impuestos, bajo control.',
+                              1000,
+                            ]}
+                            wrapper="span"
+                            speed={50}
+                            cursor={true}
+                            repeat={0}
+                          />
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Parenthesis */}
+                <img
+                  src="/parentesis_der.png"
+                  alt=""
+                  className="h-32 sm:h-40 w-auto flex-shrink-0"
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
 
             {/* Subtitle */}
             <p className="mx-auto mt-8 max-w-2xl text-xl leading-relaxed text-gray-600 dark:text-gray-300">
@@ -132,26 +163,33 @@ export default function Landing() {
 
           {/* Video Preview */}
           <figure className="mt-16 flex justify-center">
-            <div className="relative w-full max-w-5xl">
-              <div className="absolute -inset-4 rounded-3xl bg-gradient-to-r from-blue-600/20 to-purple-600/20 blur-2xl" aria-hidden="true" />
-              <div className="relative overflow-hidden rounded-2xl bg-gray-900 shadow-2xl">
-                {/* Video player with cropped top */}
-                <div className="overflow-hidden" style={{ marginTop: '-125px' }}>
-                  <video
-                    className="w-full"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    preload="auto"
-                    aria-label="Video demostrativo de la plataforma Fizko mostrando cambio de empresa, agregar trabajador y chat en acción"
-                  >
-                    <source src="/video_tutorial_final.mp4" type="video/mp4" />
-                    Tu navegador no soporta la reproducción de video. Por favor actualiza tu navegador.
-                  </video>
-                </div>
-              </div>
-            </div>
+            {/* Desktop Video */}
+            <video
+              className="hidden sm:block w-full max-w-6xl"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              aria-label="Video demostrativo de la plataforma Fizko mostrando cambio de empresa, agregar trabajador y chat en acción"
+            >
+              <source src="/video_tutorial_fizko.mp4" type="video/mp4" />
+              Tu navegador no soporta la reproducción de video. Por favor actualiza tu navegador.
+            </video>
+
+            {/* Mobile Video */}
+            <video
+              className="block sm:hidden w-full max-w-sm mx-auto"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              aria-label="Video demostrativo de la plataforma Fizko mostrando cambio de empresa, agregar trabajador y chat en acción"
+            >
+              <source src="/video_tutorial_fizko_phone.mp4" type="video/mp4" />
+              Tu navegador no soporta la reproducción de video. Por favor actualiza tu navegador.
+            </video>
           </figure>
         </div>
       </section>
