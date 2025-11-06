@@ -39,17 +39,17 @@ CREATE TRIGGER sales_leads_updated_at
 -- Enable RLS (Row Level Security)
 ALTER TABLE sales_leads ENABLE ROW LEVEL SECURITY;
 
--- Admin users can do everything with sales leads
-CREATE POLICY "Admin users can manage sales leads"
+-- Authenticated users can read all leads (for admin panel)
+CREATE POLICY "Authenticated users can read sales leads"
     ON sales_leads
-    FOR ALL
-    USING (
-        EXISTS (
-            SELECT 1 FROM profiles
-            WHERE profiles.id = auth.uid()
-            AND profiles.is_admin = true
-        )
-    );
+    FOR SELECT
+    USING (auth.uid() IS NOT NULL);
+
+-- Authenticated users can update leads (for admin panel)
+CREATE POLICY "Authenticated users can update sales leads"
+    ON sales_leads
+    FOR UPDATE
+    USING (auth.uid() IS NOT NULL);
 
 -- Anyone can insert (contact form is public)
 CREATE POLICY "Anyone can submit contact form"
