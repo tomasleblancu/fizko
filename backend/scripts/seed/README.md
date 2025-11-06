@@ -40,9 +40,22 @@ uv pip install supabase python-dotenv click
 
 ### Sintaxis General
 
+**Local (sin Docker):**
 ```bash
 cd backend
 python -m scripts.seed <command> [options]
+```
+
+**Con Docker:**
+```bash
+# Opción 1: Docker run directo
+docker run --rm --env-file backend/.env <imagen-backend> seed <command> [options]
+
+# Opción 2: Docker exec (si el contenedor está corriendo)
+docker exec <container-name> python -m scripts.seed <command> [options]
+
+# Opción 3: Docker compose (si usas docker-compose)
+docker-compose run --rm backend seed <command> [options]
 ```
 
 ### Comandos Disponibles
@@ -127,10 +140,13 @@ python -m scripts.seed all --to production
 | `--filter` | Filtrar por valores de unique key | comma-separated | todos |
 | `--table` | Nombre de tabla (comando `sync`) | string | - |
 | `--unique-key` | Columna única (comando `sync`) | string | - |
+| `--full-sync` | **Sincronización completa**: elimina registros en target que no existen en source, y preserva IDs. **🔒 BLOQUEADO para production como target** | flag | `false` |
 
 ## 📊 Comportamiento
 
 ### Lógica de Sincronización
+
+**Modo Normal** (sin `--full-sync`):
 
 Para cada registro:
 
@@ -140,12 +156,27 @@ Para cada registro:
    - El contenido difiere (comparación campo por campo)
 3. **Omitir**: Si existe y es idéntico
 
+**Modo Full Sync** (con `--full-sync`):
+
+Además de crear, actualizar y omitir:
+
+4. **Eliminar**: Registros en target que NO existen en source
+5. **Preservar IDs**: Los IDs de la fuente se mantienen en el destino
+
+⚠️ **IMPORTANTE**: `--full-sync` está **BLOQUEADO** cuando el target es `production` para prevenir eliminaciones accidentales de datos críticos.
+
 ### Campos Sincronizados
 
 El sistema **automáticamente detecta** todas las columnas comunes entre origen y destino.
 
 **Campos excluidos** (auto-generados):
+
+Modo normal:
 - `id` - Se regenera en destino
+- `created_at` - Se preserva del destino
+
+Modo `--full-sync`:
+- `id` - Se **PRESERVA** del origen (no se regenera)
 - `created_at` - Se preserva del destino
 
 **Todos los demás campos** se sincronizan automáticamente.
@@ -154,8 +185,23 @@ El sistema **automáticamente detecta** todas las columnas comunes entre origen 
 
 - ⚠️ **Confirmación requerida** al sincronizar a producción (sin `--dry-run`)
 - 🔒 **No permite** sincronizar un entorno consigo mismo
+- 🛡️ **BLOQUEADO**: `--full-sync` con `production` como target está prohibido
 - 📝 **Logs detallados** de cada operación
 - ✅ **Validación de esquema** automática
+
+**Regla Crítica de Seguridad**:
+
+```
+❌ NUNCA se puede eliminar registros de producción
+✅ Solo se puede eliminar de staging o desarrollo
+```
+
+El sistema implementa esta regla mediante un bloqueo explícito:
+
+```python
+if full_sync and target_env == "production":
+    raise ValueError("❌ SAFETY BLOCK: --full-sync is not allowed when target is 'production'")
+```
 
 ## 📖 Ejemplos de Uso Común
 
@@ -215,6 +261,68 @@ python -m scripts.seed notification-templates --from staging --to production
 # Desde production a staging (rollback o testing)
 python -m scripts.seed notification-templates --from production --to staging
 ```
+
+### Full Sync - Sincronización Completa con Eliminación
+
+```bash
+# Escenario: Hacer que staging sea una copia EXACTA de producción
+# - Elimina registros en staging que no existen en producción
+# - Crea registros faltantes
+# - Actualiza registros existentes
+# - Preserva IDs de la fuente
+
+# 1. SIEMPRE dry-run primero
+python -m scripts.seed notification-templates \
+  --from production \
+  --to staging \
+  --full-sync \
+  --dry-run \
+  --verbose
+
+# 2. Revisar output cuidadosamente (especialmente las eliminaciones)
+#    ✨ Create: X records
+#    🔄 Update: Y records
+#    🗑️  Delete: Z records  ← ¡Verificar cuidadosamente!
+#    ⏭️  Skip: W records
+
+# 3. Si estás seguro, aplicar
+python -m scripts.seed notification-templates \
+  --from production \
+  --to staging \
+  --full-sync
+
+# ⚠️ SEGURIDAD: Este comando fallará (bloqueado para producción)
+python -m scripts.seed notification-templates \
+  --from staging \
+  --to production \
+  --full-sync
+# Error: ❌ SAFETY BLOCK: --full-sync is not allowed when target is 'production'
+```
+
+### Uso con Docker
+
+```bash
+# Dry run con Docker
+docker run --rm --env-file backend/.env fizko-backend seed notification-templates --to production --dry-run
+
+# Sincronizar con Docker
+docker run --rm --env-file backend/.env fizko-backend seed notification-templates --to production
+
+# Sincronizar todo con Docker
+docker run --rm --env-file backend/.env fizko-backend seed all --to production --dry-run
+
+# Comando genérico con Docker
+docker run --rm --env-file backend/.env fizko-backend seed sync \
+  --table brain_contexts \
+  --unique-key context_id \
+  --to production \
+  --dry-run
+```
+
+**⚠️ Importante con Docker:**
+- Asegúrate de que tu `.env` contenga las variables de Supabase
+- Usa `--rm` para eliminar el contenedor después de ejecutar
+- El contenedor debe tener acceso a red para conectarse a Supabase
 
 ## 🔧 Arquitectura
 

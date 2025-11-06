@@ -46,6 +46,7 @@ class GenericSupabaseSeeder:
         target_env: str,
         dry_run: bool = False,
         verbose: bool = False,
+        full_sync: bool = False,
     ):
         """
         Initialize generic seeder.
@@ -57,6 +58,8 @@ class GenericSupabaseSeeder:
             target_env: Target environment (staging, production)
             dry_run: If True, show what would be done without applying
             verbose: If True, show detailed output
+            full_sync: If True, delete records in target that don't exist in source
+                      and preserve IDs from source
         """
         self.table_name = table_name
         self.unique_key = unique_key
@@ -64,6 +67,7 @@ class GenericSupabaseSeeder:
         self.target_env = target_env
         self.dry_run = dry_run
         self.verbose = verbose
+        self.full_sync = full_sync
 
         # Validate environments
         if source_env not in self.ENVIRONMENTS:
@@ -72,6 +76,14 @@ class GenericSupabaseSeeder:
             raise ValueError(f"Invalid target environment: {target_env}")
         if source_env == target_env:
             raise ValueError(f"Source and target cannot be the same: {source_env}")
+
+        # CRITICAL SAFETY CHECK: Never allow deletions in production
+        if full_sync and target_env == "production":
+            raise ValueError(
+                "❌ SAFETY BLOCK: --full-sync is not allowed when target is 'production'. "
+                "Deleting records from production is prohibited for data safety. "
+                "You can only use --full-sync when syncing TO staging or development environments."
+            )
 
         # Initialize Supabase clients
         source_config = self.ENVIRONMENTS[source_env]
@@ -104,9 +116,11 @@ class GenericSupabaseSeeder:
             "fetched_target": 0,
             "to_create": 0,
             "to_update": 0,
+            "to_delete": 0,
             "to_skip": 0,
             "created": 0,
             "updated": 0,
+            "deleted": 0,
             "errors": 0,
         }
 
@@ -116,24 +130,21 @@ class GenericSupabaseSeeder:
 
         Uses Supabase introspection to get schema info.
         """
-        # Query information_schema to get columns
         try:
-            result = (
-                client.table("information_schema.columns")
-                .select("column_name")
-                .eq("table_name", self.table_name)
-                .execute()
-            )
-
-            if result.data:
-                return {row["column_name"] for row in result.data}
-
-            # Fallback: Get columns from first record
+            # Get columns from first record (most reliable with PostgREST)
             sample = client.table(self.table_name).select("*").limit(1).execute()
-            if sample.data:
+            if sample.data and len(sample.data) > 0:
                 return set(sample.data[0].keys())
 
-            raise ValueError(f"Table {self.table_name} appears to be empty")
+            # If table is empty, we can't introspect columns
+            # Return a minimal set and let validation fail gracefully
+            logger.warning(
+                f"Table {self.table_name} appears to be empty. Cannot introspect columns."
+            )
+            raise ValueError(
+                f"Table {self.table_name} is empty. Cannot determine schema. "
+                f"Please add at least one record to the source table first."
+            )
 
         except Exception as e:
             logger.error(f"Failed to get columns for {self.table_name}: {e}")
@@ -291,12 +302,14 @@ class GenericSupabaseSeeder:
                 f"   📌 Filtered to {len(source_records)} records matching filter"
             )
 
-        # Build lookup map
+        # Build lookup maps
+        source_map = {r[self.unique_key]: r for r in source_records}
         target_map = {r[self.unique_key]: r for r in target_records}
 
         # Determine actions
         to_create = []
         to_update = []
+        to_delete = []
         to_skip = []
 
         for source_record in source_records:
@@ -310,14 +323,24 @@ class GenericSupabaseSeeder:
             else:
                 to_skip.append(source_record)
 
+        # Determine deletions (full sync only)
+        if self.full_sync:
+            for target_record in target_records:
+                key = target_record[self.unique_key]
+                if key not in source_map:
+                    to_delete.append(target_record)
+
         self.stats["to_create"] = len(to_create)
         self.stats["to_update"] = len(to_update)
+        self.stats["to_delete"] = len(to_delete)
         self.stats["to_skip"] = len(to_skip)
 
         # Display plan
         logger.info(f"\n📊 Sync Plan:")
         logger.info(f"   ✨ Create: {len(to_create)} records")
         logger.info(f"   🔄 Update: {len(to_update)} records")
+        if self.full_sync:
+            logger.info(f"   🗑️  Delete: {len(to_delete)} records")
         logger.info(f"   ⏭️  Skip: {len(to_skip)} records")
 
         if self.verbose:
@@ -331,6 +354,11 @@ class GenericSupabaseSeeder:
                 for _, record in to_update:
                     logger.info(f"      - {record[self.unique_key]}")
 
+            if to_delete:
+                logger.info(f"\n   Records to delete:")
+                for record in to_delete:
+                    logger.info(f"      - {record[self.unique_key]}")
+
         # Execute changes
         if not self.dry_run:
             logger.info(f"\n🚀 Applying changes...")
@@ -338,12 +366,21 @@ class GenericSupabaseSeeder:
             # Create new records
             for record in to_create:
                 try:
-                    # Prepare data (exclude id, created_at)
-                    data = {
-                        k: v
-                        for k, v in record.items()
-                        if k in sync_columns and k != "id"
-                    }
+                    # Prepare data
+                    if self.full_sync:
+                        # Full sync: preserve ID from source
+                        data = {
+                            k: v
+                            for k, v in record.items()
+                            if k in sync_columns or k == "id"  # Include ID
+                        }
+                    else:
+                        # Normal sync: exclude id (let target generate it)
+                        data = {
+                            k: v
+                            for k, v in record.items()
+                            if k in sync_columns and k != "id"
+                        }
 
                     self.target_client.table(self.table_name).insert(data).execute()
 
@@ -383,6 +420,23 @@ class GenericSupabaseSeeder:
                     )
                     self.stats["errors"] += 1
 
+            # Delete records (full sync only, and already validated target != production)
+            if self.full_sync:
+                for record in to_delete:
+                    try:
+                        self.target_client.table(self.table_name).delete().eq(
+                            self.unique_key, record[self.unique_key]
+                        ).execute()
+
+                        self.stats["deleted"] += 1
+                        logger.info(f"   🗑️  Deleted: {record[self.unique_key]}")
+
+                    except Exception as e:
+                        logger.error(
+                            f"   ❌ Failed to delete {record[self.unique_key]}: {e}"
+                        )
+                        self.stats["errors"] += 1
+
             logger.info(f"\n✅ Changes applied to {self.target_env}")
         else:
             logger.info(f"\n💡 DRY RUN - No changes applied")
@@ -393,6 +447,10 @@ class GenericSupabaseSeeder:
         logger.info(f"{'='*60}")
         logger.info(f"   Created: {self.stats.get('created', self.stats['to_create'])}")
         logger.info(f"   Updated: {self.stats.get('updated', self.stats['to_update'])}")
+        if self.full_sync:
+            logger.info(
+                f"   Deleted: {self.stats.get('deleted', self.stats['to_delete'])}"
+            )
         logger.info(f"   Skipped: {self.stats['to_skip']}")
         logger.info(f"   Errors: {self.stats['errors']}")
         logger.info(f"{'='*60}\n")

@@ -58,6 +58,9 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Copy application code
 COPY app ./app
 
+# Copy scripts (including seed scripts)
+COPY scripts ./scripts
+
 # Copy entrypoint script
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh

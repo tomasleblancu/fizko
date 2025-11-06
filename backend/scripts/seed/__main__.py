@@ -78,12 +78,20 @@ def cli():
     type=str,
     help="Comma-separated list of template codes to sync (default: all)",
 )
+@click.option(
+    "--full-sync",
+    is_flag=True,
+    default=False,
+    help="Full sync: delete records in target that don't exist in source, and preserve IDs. "
+    "⚠️  BLOCKED for production targets (safety measure).",
+)
 def notification_templates(
     source_env: str,
     target_env: str,
     dry_run: bool,
     verbose: bool,
     codes: Optional[str],
+    full_sync: bool,
 ):
     """
     Sync notification templates between environments.
@@ -135,6 +143,7 @@ def notification_templates(
         target_env=target_env,
         dry_run=dry_run,
         verbose=verbose,
+        full_sync=full_sync,
     )
 
     try:
@@ -185,12 +194,20 @@ def notification_templates(
     type=str,
     help="Comma-separated list of event codes to sync (default: all)",
 )
+@click.option(
+    "--full-sync",
+    is_flag=True,
+    default=False,
+    help="Full sync: delete records in target that don't exist in source, and preserve IDs. "
+    "⚠️  BLOCKED for production targets (safety measure).",
+)
 def event_templates(
     source_env: str,
     target_env: str,
     dry_run: bool,
     verbose: bool,
     codes: Optional[str],
+    full_sync: bool,
 ):
     """
     Sync event templates between environments.
@@ -243,6 +260,7 @@ def event_templates(
         target_env=target_env,
         dry_run=dry_run,
         verbose=verbose,
+        full_sync=full_sync,
     )
 
     try:
@@ -305,6 +323,13 @@ def event_templates(
     type=str,
     help="Comma-separated list of unique key values to sync (default: all)",
 )
+@click.option(
+    "--full-sync",
+    is_flag=True,
+    default=False,
+    help="Full sync: delete records in target that don't exist in source, and preserve IDs. "
+    "⚠️  BLOCKED for production targets (safety measure).",
+)
 def sync(
     table: str,
     unique_key: str,
@@ -313,6 +338,7 @@ def sync(
     dry_run: bool,
     verbose: bool,
     filter: Optional[str],
+    full_sync: bool,
 ):
     """
     Generic sync command for any table.
@@ -359,6 +385,7 @@ def sync(
         target_env=target_env,
         dry_run=dry_run,
         verbose=verbose,
+        full_sync=full_sync,
     )
 
     try:
@@ -404,11 +431,19 @@ def sync(
     default=False,
     help="Show detailed output",
 )
+@click.option(
+    "--full-sync",
+    is_flag=True,
+    default=False,
+    help="Full sync: delete records in target that don't exist in source, and preserve IDs. "
+    "⚠️  BLOCKED for production targets (safety measure).",
+)
 def all(
     source_env: str,
     target_env: str,
     dry_run: bool,
     verbose: bool,
+    full_sync: bool,
 ):
     """
     Sync all supported data types between environments.
@@ -456,6 +491,7 @@ def all(
             target_env=target_env,
             dry_run=dry_run,
             verbose=verbose,
+            full_sync=full_sync,
         )
         stats = seeder.sync()
         if stats["errors"] > 0:
@@ -478,6 +514,7 @@ def all(
             target_env=target_env,
             dry_run=dry_run,
             verbose=verbose,
+            full_sync=full_sync,
         )
         stats = seeder.sync()
         if stats["errors"] > 0:

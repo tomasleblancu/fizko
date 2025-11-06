@@ -34,6 +34,8 @@ python -c "import os; from dotenv import load_dotenv; load_dotenv(); print('✅ 
 > **💡 Importante**: El sistema permite sincronizar en **cualquier dirección** usando `--from` y `--to`:
 > - `staging → production` (deployment normal)
 > - `production → staging` (sync back de hotfixes)
+>
+> **🔒 Seguridad**: El flag `--full-sync` está **BLOQUEADO** para producción como target. Solo puedes usar `--full-sync` cuando sincronizas HACIA staging u otros entornos de desarrollo. Esto previene eliminaciones accidentales de datos de producción.
 
 ### Caso 1: Sincronizar Notification Templates de Staging → Production
 
@@ -128,7 +130,45 @@ python -m scripts.seed notification-templates \
   --to staging
 ```
 
-### Caso 7: Ver Detalles de Cambios (Verbose)
+### Caso 7: Full Sync (Sincronización Completa con Eliminación)
+
+```bash
+# Escenario: Necesitas que staging sea una COPIA EXACTA de producción
+# - Elimina registros en staging que no existen en producción
+# - Crea registros faltantes
+# - Actualiza registros existentes
+# - PRESERVA los IDs de la fuente (producción)
+
+# 1. SIEMPRE dry-run primero para ver qué se eliminará
+python -m scripts.seed notification-templates \
+  --from production \
+  --to staging \
+  --full-sync \
+  --dry-run \
+  --verbose
+
+# 2. Revisar cuidadosamente el output:
+#    ✨ Create: X records
+#    🔄 Update: Y records
+#    🗑️  Delete: Z records  ← ¡CUIDADO CON ESTO!
+#    ⏭️  Skip: W records
+
+# 3. Si estás seguro, aplicar
+python -m scripts.seed notification-templates \
+  --from production \
+  --to staging \
+  --full-sync
+
+# ⚠️ NOTA: --full-sync está BLOQUEADO para production como target
+# Este comando fallará:
+python -m scripts.seed notification-templates \
+  --from staging \
+  --to production \
+  --full-sync
+# Error: ❌ SAFETY BLOCK: --full-sync is not allowed when target is 'production'
+```
+
+### Caso 8: Ver Detalles de Cambios (Verbose)
 
 ```bash
 # Modo verbose muestra QUÉ campos cambiaron
@@ -193,6 +233,8 @@ python -m scripts.seed notification-templates --to production --verbose --dry-ru
 
 ## Cheat Sheet de Comandos
 
+### Local (sin Docker)
+
 ```bash
 # Notification templates: staging → prod (dry run)
 python -m scripts.seed notification-templates --to production --dry-run
@@ -218,8 +260,39 @@ python -m scripts.seed all --to production
 # Sincronizar templates específicos
 python -m scripts.seed notification-templates --to production --codes template1,template2
 
+# Full sync: production → staging (elimina registros en staging que no están en prod)
+python -m scripts.seed notification-templates --from production --to staging --full-sync --dry-run
+python -m scripts.seed notification-templates --from production --to staging --full-sync
+
 # Modo verbose (ver detalles)
 python -m scripts.seed notification-templates --to production --verbose --dry-run
+```
+
+### Con Docker
+
+```bash
+# Notification templates: staging → prod (dry run)
+docker run --rm --env-file backend/.env fizko-backend seed notification-templates --to production --dry-run
+
+# Notification templates: staging → prod (live)
+docker run --rm --env-file backend/.env fizko-backend seed notification-templates --to production
+
+# Todo: staging → prod (dry run)
+docker run --rm --env-file backend/.env fizko-backend seed all --to production --dry-run
+
+# Comando genérico
+docker run --rm --env-file backend/.env fizko-backend seed sync \
+  --table brain_contexts \
+  --unique-key context_id \
+  --to production \
+  --dry-run
+
+# Full sync: production → staging
+docker run --rm --env-file backend/.env fizko-backend seed notification-templates \
+  --from production \
+  --to staging \
+  --full-sync \
+  --dry-run
 ```
 
 ## Ver Ayuda

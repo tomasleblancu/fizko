@@ -66,27 +66,30 @@ check_env_vars() {
 }
 
 # ============================================
-# Wait for Dependencies
+# Wait for Dependencies (skip for seed command)
 # ============================================
 
-# Wait for Redis (always required)
-if [ -n "$REDIS_URL" ]; then
-    # Parse Redis URL - supports both formats:
-    # redis://host:port/db
-    # redis://user:pass@host:port/db
-    REDIS_HOST=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+:[^@]+@)?([^:]+):.*|\2|')
-    REDIS_PORT=$(echo "$REDIS_URL" | sed -E 's|redis://.*:([0-9]+).*|\1|')
+# Skip dependency checks for seed command
+if [ "$1" != "seed" ]; then
+    # Wait for Redis (always required)
+    if [ -n "$REDIS_URL" ]; then
+        # Parse Redis URL - supports both formats:
+        # redis://host:port/db
+        # redis://user:pass@host:port/db
+        REDIS_HOST=$(echo "$REDIS_URL" | sed -E 's|redis://([^:]+:[^@]+@)?([^:]+):.*|\2|')
+        REDIS_PORT=$(echo "$REDIS_URL" | sed -E 's|redis://.*:([0-9]+).*|\1|')
 
-    wait_for_service "$REDIS_HOST" "$REDIS_PORT" "Redis"
-fi
+        wait_for_service "$REDIS_HOST" "$REDIS_PORT" "Redis"
+    fi
 
-# Wait for PostgreSQL (for database operations)
-if [ -n "$DATABASE_URL" ]; then
-    # Parse DATABASE_URL (postgresql+asyncpg://user:pass@host:port/db)
-    DB_HOST=$(echo "$DATABASE_URL" | sed -E 's|.*@([^:]+):.*|\1|')
-    DB_PORT=$(echo "$DATABASE_URL" | sed -E 's|.*:([0-9]+)/.*|\1|')
+    # Wait for PostgreSQL (for database operations)
+    if [ -n "$DATABASE_URL" ]; then
+        # Parse DATABASE_URL (postgresql+asyncpg://user:pass@host:port/db)
+        DB_HOST=$(echo "$DATABASE_URL" | sed -E 's|.*@([^:]+):.*|\1|')
+        DB_PORT=$(echo "$DATABASE_URL" | sed -E 's|.*:([0-9]+)/.*|\1|')
 
-    wait_for_service "$DB_HOST" "$DB_PORT" "PostgreSQL"
+        wait_for_service "$DB_HOST" "$DB_PORT" "PostgreSQL"
+    fi
 fi
 
 # ============================================
@@ -150,6 +153,15 @@ case "$1" in
             --url_prefix=flower
         ;;
 
+    seed)
+        echo -e "${GREEN}🌱 Running Seed Script${NC}"
+        check_env_vars "STAGING_SUPABASE_URL" "STAGING_SUPABASE_SERVICE_KEY" "PROD_SUPABASE_URL" "PROD_SUPABASE_SERVICE_KEY"
+
+        # Pass all remaining arguments to seed command
+        shift  # Remove 'seed' from arguments
+        exec python -m scripts.seed "$@"
+        ;;
+
     bash|sh)
         echo -e "${GREEN}🐚 Starting Interactive Shell${NC}"
         exec /bin/bash
@@ -164,10 +176,13 @@ case "$1" in
         echo "  celery-worker  - Start Celery Worker"
         echo "  celery-beat    - Start Celery Beat Scheduler"
         echo "  flower         - Start Flower monitoring"
+        echo "  seed           - Run seed scripts (sync data between environments)"
         echo "  bash           - Interactive shell"
         echo ""
-        echo "Example:"
-        echo "  docker-compose run backend bash"
+        echo "Examples:"
+        echo "  docker run backend seed notification-templates --to production --dry-run"
+        echo "  docker run backend seed all --to production --dry-run"
+        echo "  docker run backend bash"
         exit 1
         ;;
 esac
