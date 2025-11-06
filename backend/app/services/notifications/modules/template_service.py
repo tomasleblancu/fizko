@@ -254,6 +254,8 @@ class TemplateService(BaseNotificationService):
         """
         Delete a notification template.
 
+        Note: Associated subscriptions will be automatically deleted via ON DELETE CASCADE.
+
         Args:
             db: Database session
             template_id: Template ID to delete
@@ -262,7 +264,7 @@ class TemplateService(BaseNotificationService):
             True if successfully deleted
 
         Raises:
-            ValueError: If template not found or has active subscriptions
+            ValueError: If template not found
         """
         # Find template
         result = await db.execute(
@@ -273,21 +275,7 @@ class TemplateService(BaseNotificationService):
         if not template:
             raise ValueError(f"Template {template_id} not found")
 
-        # Check for active subscriptions
-        result = await db.execute(
-            select(NotificationSubscription).where(
-                NotificationSubscription.notification_template_id == template_id
-            )
-        )
-        active_subscriptions = result.scalars().all()
-
-        if active_subscriptions:
-            raise ValueError(
-                f"Cannot delete template. {len(active_subscriptions)} "
-                "subscription(s) exist. Delete subscriptions first."
-            )
-
-        # Delete template
+        # Delete template (CASCADE will handle subscriptions automatically)
         await db.delete(template)
         await db.commit()
 
