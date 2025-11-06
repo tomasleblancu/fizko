@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import clsx from 'clsx';
-import { Settings, LogOut } from 'lucide-react';
+import { Settings, LogOut, FileText } from 'lucide-react';
 import { useAuth } from "@/app/providers/AuthContext";
 import { useUserProfile } from "@/shared/hooks/useUserProfile";
 import { ProfileSettingsSkeleton } from './ProfileSettingsSkeleton';
@@ -9,6 +9,7 @@ import { useCompanySettings } from "@/shared/hooks/useCompanySettings";
 import { useCompanySubscriptions, useUserNotificationPreferences } from "@/shared/hooks/useNotificationPreferences";
 import { ViewContainer } from '@/shared/layouts/ViewContainer';
 import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
+import { ChateableWrapper } from '@/shared/ui/ChateableWrapper';
 import type { ViewType } from '@/shared/layouts/NavigationPills';
 import type { ColorScheme } from "@/shared/hooks/useColorScheme";
 import type { Company } from "@/shared/types/fizko";
@@ -745,6 +746,26 @@ function CompanySettings({ company, scheme, isInDrawer = false, preloadedSetting
               />
             </div>
           )}
+        </div>
+
+        {/* SII Details button */}
+        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+          <ChateableWrapper
+            message="Muéstrame la información detallada de mi empresa registrada en el SII, incluyendo socios, representantes, actividades económicas, direcciones, timbrajes y cumplimiento tributario"
+            contextData={{
+              companyId: company.id,
+              companyRut: company.rut,
+              companyName: company.business_name,
+            }}
+            uiComponent="company_sii_details"
+            entityId={company.id}
+            entityType="company"
+          >
+            <button className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50">
+              <FileText className="h-4 w-4" />
+              Ver Información Completa del SII
+            </button>
+          </ChateableWrapper>
         </div>
       </div>
 
