@@ -79,39 +79,62 @@ CREATE TABLE IF NOT EXISTS celery_schema.celery_periodictask (
     )
 );
 
--- Copy data from old tables to new tables
-INSERT INTO celery_schema.celery_intervalschedule (id, every, period)
-SELECT id, every, period 
-FROM public.celery_interval_schedule
-ON CONFLICT DO NOTHING;
+-- Copy data from old tables to new tables (only if old tables exist)
+DO $$
+BEGIN
+    -- Copy interval schedules if old table exists
+    IF EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'celery_interval_schedule'
+    ) THEN
+        INSERT INTO celery_schema.celery_intervalschedule (id, every, period)
+        SELECT id, every, period
+        FROM public.celery_interval_schedule
+        ON CONFLICT DO NOTHING;
+    END IF;
 
-INSERT INTO celery_schema.celery_crontabschedule (id, minute, hour, day_of_week, day_of_month, month_of_year, timezone)
-SELECT id, minute, hour, day_of_week, day_of_month, month_of_year, timezone
-FROM public.celery_crontab_schedule
-ON CONFLICT DO NOTHING;
+    -- Copy crontab schedules if old table exists
+    IF EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'celery_crontab_schedule'
+    ) THEN
+        INSERT INTO celery_schema.celery_crontabschedule (id, minute, hour, day_of_week, day_of_month, month_of_year, timezone)
+        SELECT id, minute, hour, day_of_week, day_of_month, month_of_year, timezone
+        FROM public.celery_crontab_schedule
+        ON CONFLICT DO NOTHING;
+    END IF;
 
--- Copy periodic tasks with discriminator and schedule_id fields
-INSERT INTO celery_schema.celery_periodictask (
-    id, name, task, interval_id, crontab_id, args, kwargs, queue, exchange, 
-    routing_key, priority, enabled, expires, expire_seconds, one_off, 
-    max_retries, soft_time_limit, hard_time_limit, description, date_changed,
-    last_run_at, total_run_count, company_id,
-    discriminator, schedule_id
-)
-SELECT 
-    id, name, task, interval_id, crontab_id, args, kwargs, queue, exchange,
-    routing_key, priority, enabled, expires, expire_seconds, one_off,
-    max_retries, soft_time_limit, hard_time_limit, description, date_changed,
-    last_run_at, total_run_count, company_id,
-    -- Set discriminator based on which schedule type is used
-    CASE 
-        WHEN interval_id IS NOT NULL THEN 'intervalschedule'
-        WHEN crontab_id IS NOT NULL THEN 'crontabschedule'
-    END as discriminator,
-    -- Set schedule_id to the appropriate FK value
-    COALESCE(interval_id, crontab_id) as schedule_id
-FROM public.celery_periodic_task
-ON CONFLICT (name) DO NOTHING;
+    -- Copy periodic tasks if old table exists
+    IF EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'celery_periodic_task'
+    ) THEN
+        INSERT INTO celery_schema.celery_periodictask (
+            id, name, task, interval_id, crontab_id, args, kwargs, queue, exchange,
+            routing_key, priority, enabled, expires, expire_seconds, one_off,
+            max_retries, soft_time_limit, hard_time_limit, description, date_changed,
+            last_run_at, total_run_count, company_id,
+            discriminator, schedule_id
+        )
+        SELECT
+            id, name, task, interval_id, crontab_id, args, kwargs, queue, exchange,
+            routing_key, priority, enabled, expires, expire_seconds, one_off,
+            max_retries, soft_time_limit, hard_time_limit, description, date_changed,
+            last_run_at, total_run_count, company_id,
+            -- Set discriminator based on which schedule type is used
+            CASE
+                WHEN interval_id IS NOT NULL THEN 'intervalschedule'
+                WHEN crontab_id IS NOT NULL THEN 'crontabschedule'
+            END as discriminator,
+            -- Set schedule_id to the appropriate FK value
+            COALESCE(interval_id, crontab_id) as schedule_id
+        FROM public.celery_periodic_task
+        ON CONFLICT (name) DO NOTHING;
+    END IF;
+END $$;
 
 -- Update sequence values to match
 SELECT setval('celery_schema.celery_intervalschedule_id_seq', 
