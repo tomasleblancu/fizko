@@ -28,7 +28,7 @@ export function Header({ scheme, onThemeChange, onNavigateToSettings, currentVie
         <div className="flex items-center gap-1">
           {/* Left parenthesis */}
           <img
-            src="/parentesis_izq.png"
+            src="/parentesis_izq.svg"
             alt="("
             className="h-8 w-auto object-contain"
           />
@@ -45,7 +45,7 @@ export function Header({ scheme, onThemeChange, onNavigateToSettings, currentVie
 
           {/* Right parenthesis */}
           <img
-            src="/parentesis_der.png"
+            src="/parentesis_der.svg"
             alt=")"
             className="h-8 w-auto object-contain"
           />

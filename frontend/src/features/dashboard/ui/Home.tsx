@@ -13,9 +13,7 @@ import { ContactsDrawer } from "../../contacts/ui/ContactsDrawer";
 import { Personnel } from "../../payroll/ui/Personnel";
 import { PersonnelDrawer } from "../../payroll/ui/PersonnelDrawer";
 import { LoginOverlay } from "@/shared/ui/feedback/LoginOverlay";
-import { OnboardingModal } from "@/shared/ui/feedback/OnboardingModal";
 import { FizkoLoadingScreen } from "@/shared/ui/feedback/FizkoLoadingScreen";
-import { CompanyInitialSetupModal } from "../../profile/ui/CompanyInitialSetupModal";
 import type { ViewType } from "@/shared/layouts/NavigationPills";
 import { ColorScheme } from "@/shared/hooks/useColorScheme";
 import { useAuth } from "@/app/providers/AuthContext";
@@ -46,13 +44,8 @@ function HomeContent({
 }) {
   const { session: authSession, loading: authLoading } = useAuth();
   const {
-    needsOnboarding,
-    needsInitialSetup,
-    setupCompanyId,
-    saveSIICredentials,
     loading: sessionLoading,
     isInitialized,
-    refresh: refreshSession
   } = useSession();
 
   // Lift company state to Home to avoid multiple fetches
@@ -79,29 +72,19 @@ function HomeContent({
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
 
   // Compute overall loading state - wait until session is initialized
-  // This prevents flash of onboarding form while checking session
-  const isLoading = authLoading || sessionLoading || !isInitialized;
+  // Wait for all critical data before showing UI
+  // This prevents flash of "Cargando... RUT: ---" before company data loads
+  const isLoading = authLoading || sessionLoading || !isInitialized || companyLoading;
 
   // Debug logging
   console.log('[Home] Render state:', {
     authLoading,
     sessionLoading,
     isInitialized,
-    needsOnboarding,
-    needsInitialSetup,
-    setupCompanyId,
+    companyLoading,
     isLoading,
     hasAuthSession: !!authSession,
   });
-
-  // Handler for completing initial setup
-  const handleCompleteInitialSetup = () => {
-    // Clear sessionStorage flags
-    sessionStorage.removeItem('needs_initial_setup');
-    sessionStorage.removeItem('setup_company_id');
-    // Refresh session to update state
-    refreshSession();
-  };
 
   const handleSendMessageReady = useCallback((sendFn: (text: string, metadata?: Record<string, any>) => Promise<void>) => {
     setSendMessage(() => sendFn);
@@ -203,6 +186,7 @@ function HomeContent({
   }
 
   // Not authenticated - show login overlay
+  // Note: This case should rarely happen as HomePage redirects unauthenticated users to Landing
   if (!authSession) {
     return (
       <div className={containerClass}>
@@ -211,35 +195,8 @@ function HomeContent({
     );
   }
 
-  // Authenticated but needs onboarding - show onboarding modal only
-  if (needsOnboarding) {
-    return (
-      <div className={containerClass}>
-        {/* Onboarding Modal Overlay */}
-        <OnboardingModal
-          scheme={scheme}
-          onComplete={saveSIICredentials}
-        />
-      </div>
-    );
-  }
-
-  // Authenticated and onboarded, but needs initial setup - show setup modal only
-  if (needsInitialSetup && setupCompanyId && company) {
-    return (
-      <div className={containerClass}>
-        {/* Company Initial Setup Modal Overlay */}
-        <CompanyInitialSetupModal
-          companyId={setupCompanyId}
-          companyName={company.business_name || company.rut}
-          scheme={scheme}
-          onComplete={handleCompleteInitialSetup}
-        />
-      </div>
-    );
-  }
-
   // Authenticated - show real content
+  // Note: Onboarding checks are now handled by HomePage which redirects to /onboarding/* routes
   const isAnyDrawerOpen = isDrawerOpen || isContactsDrawerOpen || isPersonnelDrawerOpen || isSettingsDrawerOpen;
 
   return (

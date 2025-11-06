@@ -52,14 +52,14 @@ export function HeartbeatLogo({ className = "h-12 w-12" }: HeartbeatLogoProps) {
       `}</style>
       {/* Left parenthesis - animates to the left */}
       <img
-        src="/parentesis_izq.png"
+        src="/parentesis_izq.svg"
         alt="("
         className="h-full w-auto animate-heartbeat-left"
         style={{ objectFit: 'contain' }}
       />
       {/* Right parenthesis - animates to the right */}
       <img
-        src="/parentesis_der.png"
+        src="/parentesis_der.svg"
         alt=")"
         className="h-full w-auto animate-heartbeat-right"
         style={{ objectFit: 'contain' }}

@@ -220,3 +220,24 @@
     scrollbar-width: none;
   }
 }
+
+/* ChatKit custom styles */
+@layer components {
+  /* Replace Fizko text with logo in ChatKit greeting */
+  openai-chatkit::part(start-screen-greeting) {
+    font-size: 0;
+    background-image: url('/encabezado_fizko.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    height: 64px;
+    width: 180px;
+    display: inline-block;
+    filter: brightness(0);
+  }
+
+  /* Dark mode: invert logo for visibility */
+  .dark openai-chatkit::part(start-screen-greeting) {
+    filter: brightness(0) invert(1);
+  }
+}

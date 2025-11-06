@@ -1,5 +1,5 @@
 import { TrendingUp, MessageCircle, CalendarCheck, Mail } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { TypeAnimation } from 'react-type-animation';
 import { useAuth } from "@/app/providers/AuthContext";
 import { LandingFooter } from "@/shared/ui/branding/LandingFooter";
@@ -33,31 +33,28 @@ export default function Landing() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Hero Section */}
-      {/* Sticky Logo - Only Fizko text */}
-      <div className="sticky top-0 z-40 backdrop-blur-md">
-        <div className="mx-auto max-w-7xl px-4 py-4">
-          <div
-            className="flex justify-center items-center gap-2"
-            onClick={handleSecretClick}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && handleSecretClick()}
-          >
-            <img
-              src="/encabezado_fizko.png"
-              alt="Fizko - Plataforma de Gestión Tributaria Inteligente"
-              className="h-12 w-auto cursor-pointer sm:h-14"
-            />
-          </div>
-        </div>
-      </div>
-
       <section className="relative overflow-hidden bg-white dark:bg-gray-900" aria-label="Hero">
         {/* Decorative waves */}
         <div className="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-blue-100/50 to-transparent dark:from-blue-900/20" aria-hidden="true" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
           <header className="text-center">
+            {/* Fizko Logo - Above accounting entry */}
+            <div className="mb-12">
+              <div
+                className="flex justify-center items-center gap-2"
+                onClick={handleSecretClick}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && handleSecretClick()}
+              >
+                <img
+                  src="/encabezado_fizko.svg"
+                  alt="Fizko - Plataforma de Gestión Tributaria Inteligente"
+                  className="h-16 w-auto cursor-pointer sm:h-20 md:h-24"
+                />
+              </div>
+            </div>
 
             {/* Main Headline - Accounting Entry Style */}
             <div className="mx-auto max-w-5xl min-h-[180px] sm:min-h-[220px]">
@@ -65,16 +62,16 @@ export default function Landing() {
               <div className="flex items-center justify-center gap-2 sm:gap-4">
                 {/* Left Parenthesis */}
                 <img
-                  src="/parentesis_izq.png"
+                  src="/parentesis_izq.svg"
                   alt=""
                   className="h-32 sm:h-40 w-auto flex-shrink-0"
                   aria-hidden="true"
                 />
 
                 {/* Accounting Entry Content - Two Lines */}
-                <div className="flex flex-col justify-between w-full max-w-2xl" style={{ minHeight: '100px' }}>
+                <div className="flex flex-col justify-center sm:justify-between w-full max-w-2xl py-4 sm:py-0" style={{ minHeight: '128px' }}>
                   {/* First Line - Left Aligned - Always at top */}
-                  <div className="text-left">
+                  <div className="text-left mb-4 sm:mb-0">
                     <div className="text-xl sm:text-4xl font-bold text-gray-900 dark:text-white whitespace-nowrap">
                       <TypeAnimation
                         sequence={[
@@ -92,7 +89,7 @@ export default function Landing() {
                   </div>
 
                   {/* Second Line - Right Aligned - Fixed position at bottom */}
-                  <div className="text-right">
+                  <div className="text-right sm:self-end">
                     {showSecondPart && (
                       <div className="text-xl sm:text-4xl font-bold whitespace-nowrap">
                         <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -114,7 +111,7 @@ export default function Landing() {
 
                 {/* Right Parenthesis */}
                 <img
-                  src="/parentesis_der.png"
+                  src="/parentesis_der.svg"
                   alt=""
                   className="h-32 sm:h-40 w-auto flex-shrink-0"
                   aria-hidden="true"

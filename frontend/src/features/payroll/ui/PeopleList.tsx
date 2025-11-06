@@ -166,17 +166,27 @@ export function PeopleList({ scheme, company }: PeopleListProps) {
               : 'No hay empleados registrados aún'}
           </p>
           {!searchTerm && statusFilter === 'all' && (
-            <button
-              className={clsx(
-                'inline-flex items-center gap-2 px-4 py-2 rounded-lg',
-                'bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600',
-                'text-white font-medium',
-                'transition-colors'
-              )}
+            <ChateableWrapper
+              message="Quiero agregar un nuevo empleado a mi nómina"
+              uiComponent="add_employee_button"
+              entityType="person"
+              contextData={{
+                companyId: company.id,
+                companyName: company.business_name || company.rut,
+              }}
             >
-              <UserPlus className="h-4 w-4" />
-              <span>Agregar Primer Empleado</span>
-            </button>
+              <button
+                className={clsx(
+                  'inline-flex items-center gap-2 px-4 py-2 rounded-lg',
+                  'bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600',
+                  'text-white font-medium',
+                  'transition-colors'
+                )}
+              >
+                <UserPlus className="h-4 w-4" />
+                <span>Agregar Primer Empleado</span>
+              </button>
+            </ChateableWrapper>
           )}
         </div>
       )}
@@ -216,6 +226,7 @@ export function PeopleList({ scheme, company }: PeopleListProps) {
                 {people.map((person) => (
                   <ChateableWrapper
                     key={person.id}
+                    as="fragment"
                     message={`Muéstrame la información completa de ${person.first_name} ${person.last_name} (RUT: ${person.rut})`}
                     uiComponent="person_detail"
                     entityId={person.id}

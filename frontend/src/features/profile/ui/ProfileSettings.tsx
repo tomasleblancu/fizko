@@ -36,6 +36,9 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
   const { data: subscriptionsData, isLoading: loadingSubscriptions } = useCompanySubscriptions(company?.id);
   const { data: preferencesData, isLoading: loadingPreferences, error: preferencesError } = useUserNotificationPreferences(company?.id);
 
+  // Pre-load company settings data (for Company tab)
+  const { settings: companySettings, loading: companySettingsLoading } = useCompanySettings(company?.id);
+
   // Sync activeTab with initialTab when it changes
   useEffect(() => {
     setActiveTab(initialTab);
@@ -48,7 +51,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
     if (view === 'personnel' && onNavigateToPersonnel) onNavigateToPersonnel();
   }, [onNavigateToDashboard, onNavigateToContacts, onNavigateToPersonnel]);
 
-  const isLoading = authLoading || profileLoading;
+  const isLoading = authLoading || profileLoading || companySettingsLoading || loadingSubscriptions || loadingPreferences;
 
   const tabs = [
     { id: 'account' as const, label: 'Cuenta' },
@@ -89,7 +92,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
             {/* Tab Content */}
             <div className="flex-1">
               {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} isInDrawer={isInDrawer} />}
-              {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} isInDrawer={isInDrawer} />}
+              {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} isInDrawer={isInDrawer} preloadedSettings={companySettings} preloadedLoading={companySettingsLoading} />}
               {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} isInDrawer={isInDrawer} />}
               {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} isInDrawer={isInDrawer} company={company} subscriptionsData={subscriptionsData} preferencesData={preferencesData} loadingSubscriptions={loadingSubscriptions} loadingPreferences={loadingPreferences} preferencesError={preferencesError} />}
             </div>
@@ -136,7 +139,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} />}
-        {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} />}
+        {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} preloadedSettings={companySettings} preloadedLoading={companySettingsLoading} />}
         {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} />}
         {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} company={company} subscriptionsData={subscriptionsData} preferencesData={preferencesData} loadingSubscriptions={loadingSubscriptions} loadingPreferences={loadingPreferences} preferencesError={preferencesError} />}
       </div>
@@ -591,8 +594,11 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp, i
 }
 
 // Company Settings Tab
-function CompanySettings({ company, scheme, isInDrawer = false }: { company: any; scheme: ColorScheme; isInDrawer?: boolean }) {
-  const { settings, updateSettings, loading: settingsLoading } = useCompanySettings(company?.id);
+function CompanySettings({ company, scheme, isInDrawer = false, preloadedSettings, preloadedLoading }: { company: any; scheme: ColorScheme; isInDrawer?: boolean; preloadedSettings?: any; preloadedLoading?: boolean }) {
+  const { settings: fetchedSettings, updateSettings, loading: fetchedLoading } = useCompanySettings(company?.id);
+  // Use preloaded data if available, otherwise use fetched data
+  const settings = preloadedSettings !== undefined ? preloadedSettings : fetchedSettings;
+  const settingsLoading = preloadedLoading !== undefined ? preloadedLoading : fetchedLoading;
   const [isEditing, setIsEditing] = useState(false);
   const [editedSettings, setEditedSettings] = useState(settings);
   const [isSaving, setIsSaving] = useState(false);

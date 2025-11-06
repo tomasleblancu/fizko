@@ -131,7 +131,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
       </div>
 
       {/* Content */}
-      <div className="flex-1 py-4 sm:py-6">
+      <div className="flex-1 min-h-0 overflow-hidden py-4 sm:py-6">
         {loading ? (
           <div className="grid w-full gap-3 sm:gap-4 md:grid-cols-2 auto-rows-fr">
             {[...Array(6)].map((_, i) => (
@@ -162,7 +162,9 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
         ) : error ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {error instanceof Error ? error.message : String(error)}
+              </p>
             </div>
           </div>
         ) : filteredContacts.length === 0 ? (
@@ -178,39 +180,41 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="border-b border-slate-200 dark:border-slate-700">
+          <div className="overflow-x-auto overflow-y-auto h-full">
+            <table className="w-full min-w-[600px]">
+              <thead className="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                  <th className="pb-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="pb-3 px-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                     Contacto
                   </th>
-                  <th className="pb-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="pb-3 px-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                     RUT
                   </th>
-                  <th className="pb-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  <th className="pb-3 px-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                     Tipo
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredContacts.map((contact) => (
-                  <ChateableWrapper
+                  <tr
                     key={contact.id}
-                    message={`Dame información sobre mi contacto ${contact.business_name} (RUT: ${contact.rut})`}
-                    contextData={{
-                      contactId: contact.id,
-                      contactName: contact.business_name,
-                      contactRut: contact.rut,
-                      contactType: contact.contact_type,
-                    }}
-                    uiComponent="contact_card"
-                    entityId={contact.rut}
-                    entityType="contact"
+                    className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700"
                   >
-                    <tr className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
-                      <td className="py-3 pr-4">
-                        <div className="flex-1 min-w-0">
+                    <td className="py-3 px-2">
+                      <ChateableWrapper
+                        message={`Dame información sobre mi contacto ${contact.business_name} (RUT: ${contact.rut})`}
+                        contextData={{
+                          contactId: contact.id,
+                          contactName: contact.business_name,
+                          contactRut: contact.rut,
+                          contactType: contact.contact_type,
+                        }}
+                        uiComponent="contact_card"
+                        entityId={contact.rut}
+                        entityType="contact"
+                      >
+                        <div className="min-w-0 max-w-xs">
                           <p className="font-medium text-slate-900 dark:text-slate-100 truncate">
                             {contact.business_name}
                           </p>
@@ -220,19 +224,19 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
                             </p>
                           )}
                         </div>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <span className="text-slate-700 dark:text-slate-300">
-                          {contact.rut}
-                        </span>
-                      </td>
-                      <td className="py-3">
-                        <span className={getContactTypeBadge(contact.contact_type)}>
-                          {getContactTypeLabel(contact.contact_type)}
-                        </span>
-                      </td>
-                    </tr>
-                  </ChateableWrapper>
+                      </ChateableWrapper>
+                    </td>
+                    <td className="py-3 px-2 whitespace-nowrap">
+                      <span className="text-slate-700 dark:text-slate-300">
+                        {contact.rut}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 whitespace-nowrap">
+                      <span className={getContactTypeBadge(contact.contact_type)}>
+                        {getContactTypeLabel(contact.contact_type)}
+                      </span>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>

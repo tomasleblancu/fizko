@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, cloneElement, isValidElement, Fragment } from 'react';
 import { useChat } from "@/app/providers/ChatContext";
 import type { ChateableWrapperProps } from "@/shared/types/chateable";
 import '@/app/styles/chateable.css';
@@ -6,6 +6,16 @@ import '@/app/styles/chateable.css';
 /**
  * Wrapper component that makes its children chateable (clickable to send a message to chat).
  * Useful for wrapping entire cards or components.
+ *
+ * For table rows, use `as="fragment"` to avoid invalid HTML structure:
+ * @example
+ * <ChateableWrapper
+ *   as="fragment"
+ *   message="Analyze this contact"
+ *   contextData={{ contactId: "123" }}
+ * >
+ *   <tr>...</tr>
+ * </ChateableWrapper>
  *
  * @example
  * <ChateableWrapper
@@ -25,6 +35,7 @@ export function ChateableWrapper({
   uiComponent,
   entityId,
   entityType,
+  as = 'div',
 }: ChateableWrapperProps) {
   const { sendUserMessage, isReady } = useChat();
 
@@ -107,10 +118,50 @@ export function ChateableWrapper({
     [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType, onChateableClick]
   );
 
+  // When using fragment mode, attach event handlers directly to the child element
+  if (as === 'fragment') {
+    if (!isValidElement(children)) {
+      console.warn('ChateableWrapper: "as=fragment" requires a single valid React element as children');
+      return <>{children}</>;
+    }
+
+    // Get original props safely
+    const originalProps = children.props as any;
+    const originalOnClick = originalProps?.onClick;
+    const originalOnKeyDown = originalProps?.onKeyDown;
+    const originalRole = originalProps?.role;
+    const originalTabIndex = originalProps?.tabIndex;
+    const originalClassName = originalProps?.className || '';
+
+    // Clone the child element and attach our handlers
+    return cloneElement(children, {
+      onClick: (e: React.MouseEvent) => {
+        handleClick();
+        // Call original onClick if it exists
+        if (originalOnClick) {
+          originalOnClick(e);
+        }
+      },
+      onKeyDown: (e: React.KeyboardEvent) => {
+        handleKeyDown(e);
+        // Call original onKeyDown if it exists
+        if (originalOnKeyDown) {
+          originalOnKeyDown(e);
+        }
+      },
+      role: originalRole || 'button',
+      tabIndex: disabled ? -1 : (originalTabIndex ?? 0),
+      'aria-disabled': disabled,
+      className: `chateable-wrapper ${originalClassName}`.trim(),
+    } as any);
+  }
+
+  // Default behavior: wrap in div
   const combinedClassName = `chateable-wrapper ${className}`.trim();
+  const Component = as as any;
 
   return (
-    <div
+    <Component
       className={combinedClassName}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
@@ -119,6 +170,6 @@ export function ChateableWrapper({
       aria-disabled={disabled}
     >
       {children}
-    </div>
+    </Component>
   );
 }

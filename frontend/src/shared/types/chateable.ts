@@ -27,6 +27,8 @@ export interface ChateableWrapperProps {
   entityId?: string;
   /** Entity type (e.g., 'sales_document', 'purchase_document', 'contact') */
   entityType?: string;
+  /** HTML element type or 'fragment' for table rows (default: 'div') */
+  as?: 'div' | 'span' | 'fragment';
 }
 
 export interface ChateableClickOptions {

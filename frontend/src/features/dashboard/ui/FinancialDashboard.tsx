@@ -4,10 +4,8 @@ import { useTaxSummaryQuery } from "@/shared/hooks/useTaxSummaryQuery";
 import { useTaxDocumentsQuery } from "@/shared/hooks/useTaxDocumentsQuery";
 import { useCalendarQuery } from "@/shared/hooks/useCalendarQuery";
 import { CompanyInfoCard } from './CompanyInfoCard';
-import { TaxSummaryCard } from './TaxSummaryCard';
 import { TaxCalendar } from './TaxCalendar';
 import { RecentDocumentsCard } from './RecentDocumentsCard';
-import { MonthCarousel } from './MonthCarousel';
 import { DualPeriodSummary } from './DualPeriodSummary';
 import { ViewContainer } from '@/shared/layouts/ViewContainer';
 import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
@@ -29,7 +27,6 @@ interface FinancialDashboardProps {
 export function FinancialDashboard({ scheme, companyId, isInDrawer = false, company, onThemeChange, onNavigateToSettings, onNavigateToContacts, onNavigateToPersonnel, currentView = 'dashboard' }: FinancialDashboardProps) {
   // Company is now passed as prop to avoid multiple fetches
   const [isDocumentsExpanded, setIsDocumentsExpanded] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState<string | undefined>(undefined);
 
   // Use companyId from props if provided, otherwise use company.id
   const activeCompanyId = companyId || company?.id || null;
@@ -54,12 +51,9 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
     };
   }, []);
 
-  // Fetch both periods
+  // Fetch both periods for DualPeriodSummary
   const { data: previousMonthData = null, isLoading: prevLoading, error: prevError } = useTaxSummaryQuery(activeCompanyId, previousMonthPeriod, shouldFetchData);
   const { data: currentMonthData = null, isLoading: currentLoading, error: currentError } = useTaxSummaryQuery(activeCompanyId, currentMonthPeriod, shouldFetchData);
-
-  // Legacy: Tax summary uses period filter to show metrics for selected month (kept for TaxSummaryCard compatibility)
-  const { data: taxSummary = null, isLoading: taxLoading, error: taxError } = useTaxSummaryQuery(activeCompanyId, selectedPeriod, shouldFetchData);
 
   // Documents list does NOT filter by period - always shows recent documents
   // This prevents re-fetching documents every time user changes period
@@ -70,14 +64,6 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
   const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useCalendarQuery(activeCompanyId, 30, false, shouldFetchData);
   const events = calendarData?.events || [];
 
-  // Handle period change from TaxSummaryCard
-  const handlePeriodChange = useCallback((period: string | undefined) => {
-    console.log('[FinancialDashboard] Period changed:', period);
-    setSelectedPeriod(period);
-  }, []);
-
-  // Note: NO manual refresh needed - React Query handles refetching automatically
-
   // Handle navigation
   const handleNavigate = useCallback((view: ViewType) => {
     if (view === 'contacts' && onNavigateToContacts) onNavigateToContacts();
@@ -85,10 +71,10 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
     if (view === 'settings' && onNavigateToSettings) onNavigateToSettings();
   }, [onNavigateToContacts, onNavigateToPersonnel, onNavigateToSettings]);
 
-  const hasError = taxError || docsError || calendarError || prevError || currentError;
+  const hasError = docsError || calendarError || prevError || currentError;
   // Synchronize loading states: wait for ALL data to be ready before showing content
   // This ensures all components load their content at the same time
-  const isInitialLoading = taxLoading || docsLoading || calendarLoading || prevLoading || currentLoading;
+  const isInitialLoading = docsLoading || calendarLoading || prevLoading || currentLoading;
 
   // When in drawer, render without outer container
   if (isInDrawer) {
@@ -100,37 +86,42 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
               <p className="text-sm text-rose-700 dark:text-rose-200">
                 Error al cargar los datos. Por favor, intenta nuevamente.
               </p>
-              {taxError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Impuestos: {taxError}</p>}
+              {prevError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Resumen anterior: {prevError}</p>}
+              {currentError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Resumen actual: {currentError}</p>}
               {docsError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Documentos: {docsError}</p>}
               {calendarError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Calendario: {calendarError}</p>}
             </div>
           </div>
         )}
 
-        <div className="py-4">
-          <CompanyInfoCard company={company} loading={isInitialLoading} scheme={scheme} isInDrawer={true} />
-        </div>
-        {/* <div className="py-4">
-          <MonthCarousel
-            onMonthSelect={handlePeriodChange}
-            selectedMonth={selectedPeriod}
-            monthsToShow={6}
-          />
-        </div> */}
-        <div className="py-4">
-          <DualPeriodSummary
-            previousMonth={previousMonthData}
-            currentMonth={currentMonthData}
-            loading={isInitialLoading}
-            scheme={scheme}
-            isInDrawer={true}
-          />
-        </div>
+        {/* Hide company info and summary when documents are expanded */}
         {!isDocumentsExpanded && (
-          <div className="py-4">
-            <TaxCalendar scheme={scheme} loading={isInitialLoading} events={events} error={calendarError} isInDrawer={true} />
-          </div>
+          <>
+            <div className="py-4">
+              <CompanyInfoCard company={company} loading={isInitialLoading} scheme={scheme} isInDrawer={true} />
+            </div>
+            {/* <div className="py-4">
+              <MonthCarousel
+                onMonthSelect={handlePeriodChange}
+                selectedMonth={selectedPeriod}
+                monthsToShow={6}
+              />
+            </div> */}
+            <div className="py-4">
+              <DualPeriodSummary
+                previousMonth={previousMonthData}
+                currentMonth={currentMonthData}
+                loading={isInitialLoading}
+                scheme={scheme}
+                isInDrawer={true}
+              />
+            </div>
+            <div className="py-4">
+              <TaxCalendar scheme={scheme} loading={isInitialLoading} events={events} error={calendarError} isInDrawer={true} />
+            </div>
+          </>
         )}
+
         <div className="py-4">
           <RecentDocumentsCard
             documents={documents}
@@ -164,7 +155,8 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
             <p className="text-sm text-rose-700 dark:text-rose-200">
               Error al cargar los datos. Por favor, intenta nuevamente.
             </p>
-            {taxError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Impuestos: {taxError}</p>}
+            {prevError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Resumen anterior: {prevError}</p>}
+            {currentError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Resumen actual: {currentError}</p>}
             {docsError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Documentos: {docsError}</p>}
             {calendarError && <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">Calendario: {calendarError}</p>}
           </div>
