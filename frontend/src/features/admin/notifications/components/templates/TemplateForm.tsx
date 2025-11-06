@@ -4,9 +4,13 @@
  * Reusable form for creating and editing notification templates
  */
 
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { CreateNotificationTemplateForm } from '../../types';
 import { TemplateVariablesPanel } from '../TemplateVariablesPanel';
+import { API_BASE_URL } from '@/shared/lib/config';
+import { apiFetch } from '@/shared/lib/api-client';
+import { useAuth } from '@/app/providers/AuthContext';
 
 interface TemplateFormProps {
   formData: CreateNotificationTemplateForm;
@@ -29,6 +33,8 @@ export function TemplateForm({
   variables,
   loadingVariables,
 }: TemplateFormProps) {
+  const { session } = useAuth();
+  const [syncing, setSyncing] = useState(false);
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
@@ -342,15 +348,81 @@ export function TemplateForm({
           📱 WhatsApp Template ID
           <span className="ml-2 text-xs text-gray-500 font-normal">(opcional)</span>
         </label>
-        <input
-          type="text"
-          value={formData.whatsapp_template_id}
-          onChange={(e) => onChange({ ...formData, whatsapp_template_id: e.target.value })}
-          placeholder="ej: daily_business_summary_v2"
-          className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-        />
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={formData.whatsapp_template_id}
+            onChange={(e) => onChange({ ...formData, whatsapp_template_id: e.target.value })}
+            placeholder="ej: daily_business_summary_v2"
+            className="flex-1 block w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          />
+          {formData.whatsapp_template_id && (
+            <button
+              type="button"
+              disabled={syncing || !session?.access_token}
+              onClick={async () => {
+                if (!session?.access_token) {
+                  alert('No hay sesión activa');
+                  return;
+                }
+
+                try {
+                  setSyncing(true);
+                  const response = await apiFetch(
+                    `${API_BASE_URL}/notifications/notification-templates/sync-whatsapp/${formData.whatsapp_template_id}`,
+                    {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'Content-Type': 'application/json',
+                      }
+                    }
+                  );
+
+                  if (!response.ok) {
+                    const error = await response.json();
+                    alert(`Error: ${error.detail || 'Failed to sync template'}`);
+                    return;
+                  }
+
+                  const result = await response.json();
+                  const structure = result.data.whatsapp_template_structure;
+
+                  // Update metadata with template structure
+                  const currentMetadata = formData.metadata || {};
+                  onChange({
+                    ...formData,
+                    metadata: {
+                      ...currentMetadata,
+                      whatsapp_template_structure: structure
+                    }
+                  });
+
+                  alert(`✅ Template sincronizado!\nHeader params: ${structure.header_params.join(', ')}\nBody params: ${structure.body_params.join(', ')}`);
+                } catch (error) {
+                  console.error('Error syncing template:', error);
+                  alert('Error al sincronizar template');
+                } finally {
+                  setSyncing(false);
+                }
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap text-sm font-medium flex items-center gap-2"
+            >
+              {syncing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Sincronizando...
+                </>
+              ) : (
+                <>
+                  🔄 Sincronizar
+                </>
+              )}
+            </button>
+          )}
+        </div>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          💡 Nombre del template creado manualmente en <strong>Meta Business Manager</strong>. Si se especifica, las notificaciones se enviarán usando este template de WhatsApp.
+          💡 Nombre del template creado manualmente en <strong>Meta Business Manager</strong>. Si se especifica, las notificaciones se enviarán usando este template de WhatsApp. Haz clic en "Sincronizar" para obtener la estructura automáticamente.
         </p>
       </div>
 

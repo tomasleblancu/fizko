@@ -72,13 +72,19 @@ class F29Methods(DTEMethods):
         Raises:
             ExtractionError: Si falla la descarga
         """
-        # Lazy loading del extractor
-        if not self._f29_extractor:
-            self._f29_extractor = F29Extractor(self._driver, self.tax_id)
+        # Obtener cookies (hace login solo si es necesario)
+        cookies = self.get_cookies()
 
-        return self._f29_extractor.get_formulario_compacto(
+        # Lazy loading del extractor (no requiere driver, solo usa requests)
+        if not self._f29_extractor:
+            # Pasar None como driver - el método de descarga solo usa requests
+            self._f29_extractor = F29Extractor(None, self.tax_id)
+
+        # Descargar PDF usando requests (no requiere Selenium)
+        return self._f29_extractor.download_formulario_compacto_pdf(
             folio=folio,
-            id_interno_sii=id_interno_sii
+            id_interno_sii=id_interno_sii,
+            cookies=cookies
         )
 
     def get_propuesta_f29(self, periodo: str) -> Dict[str, Any]:

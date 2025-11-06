@@ -52,6 +52,62 @@ DEFAULT_SUMMARY_CONFIG = {
 # FUNCIONES AUXILIARES
 # ============================================================================
 
+def _build_whatsapp_components(
+    template: Any,
+    summary_data: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    """
+    Build WhatsApp template components from template structure and summary data.
+
+    Extracts template structure from template.extra_metadata and builds
+    Meta API v21.0 components (without "name" field in parameters).
+    """
+    components = []
+
+    # Get template structure
+    template_structure = template.extra_metadata.get("whatsapp_template_structure", {})
+    header_params = template_structure.get("header_params", [])
+    body_params = template_structure.get("body_params", [])
+
+    # Build header component
+    if header_params:
+        header_parameters = []
+        for param_name in header_params:
+            if param_name in summary_data:
+                # Meta API v21.0 uses "parameter_name" for named parameters
+                header_parameters.append({
+                    "type": "text",
+                    "parameter_name": param_name,
+                    "text": str(summary_data[param_name])
+                })
+
+        if header_parameters:
+            components.append({
+                "type": "header",
+                "parameters": header_parameters
+            })
+
+    # Build body component
+    if body_params:
+        body_parameters = []
+        for param_name in body_params:
+            if param_name in summary_data:
+                # Meta API v21.0 uses "parameter_name" for named parameters
+                body_parameters.append({
+                    "type": "text",
+                    "parameter_name": param_name,
+                    "text": str(summary_data[param_name])
+                })
+
+        if body_parameters:
+            components.append({
+                "type": "body",
+                "parameters": body_parameters
+            })
+
+    return components
+
+
 async def _get_eligible_recipients(
     company: Any,
     template: Any,

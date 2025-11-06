@@ -8,7 +8,7 @@ import time
 from typing import TYPE_CHECKING
 
 from chatkit.server import StreamingResult
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 from starlette.responses import JSONResponse
 
@@ -72,39 +72,88 @@ async def chatkit_upload_attachment(
 
     Phase 1: ChatKit client -> attachment tool -> memory attachment store
               (creates metadata, returns upload URL)
-    Phase 2: ChatKit client -> this endpoint with file bytes
+    Phase 2: ChatKit client -> this endpoint with multipart/form-data
               (stores file, updates metadata)
 
     Args:
         attachment_id: The attachment ID from Phase 1
-        request: FastAPI request with file bytes in body
+        request: FastAPI request with multipart/form-data
         server: ChatKit server instance
 
     Returns:
         JSON response with success status
     """
     try:
-        from ...agents.core.memory_attachment_store import handle_file_upload
+        from ...agents.core.memory_attachment_store import store_attachment_content
 
-        # Read raw bytes from request
-        file_bytes = await request.body()
-        logger.info(
-            f"📎 Received file upload for attachment {attachment_id} ({len(file_bytes)} bytes)"
-        )
+        content_type = request.headers.get("content-type", "")
 
-        # Handle file upload
-        result = await handle_file_upload(attachment_id, file_bytes)
+        # ChatKit sends files as multipart/form-data
+        if "multipart/form-data" in content_type:
+            # Parse multipart form data manually
+            from starlette.datastructures import UploadFile as StarletteUploadFile
 
-        return JSONResponse(
-            {
-                "success": True,
-                "attachment_id": attachment_id,
-                "size": len(file_bytes),
-                "file_path": result.get("file_path"),
-            }
-        )
+            # Get form data
+            form = await request.form()
+
+            # The file should be in the form data
+            # Try common field names
+            file = None
+            for key in form.keys():
+                value = form[key]
+                if isinstance(value, StarletteUploadFile):
+                    file = value
+                    break
+
+            if file is None:
+                # If no UploadFile found, try to get the first value
+                if len(form) > 0:
+                    first_value = list(form.values())[0]
+                    if isinstance(first_value, StarletteUploadFile):
+                        file = first_value
+
+            if file is None:
+                raise ValueError("No file found in multipart/form-data")
+
+            # Read the actual file bytes
+            file_bytes = await file.read()
+
+            logger.info(f"📎 Received multipart file upload for attachment {attachment_id}")
+            logger.info(f"   File field name: {file.filename}")
+            logger.info(f"   Content-Type: {file.content_type}")
+            logger.info(f"   Size: {len(file_bytes)} bytes")
+            logger.info(f"   First 20 bytes (hex): {file_bytes[:20].hex()}")
+
+            # Store the actual file bytes
+            store_attachment_content(attachment_id, file_bytes)
+
+            return JSONResponse(
+                {
+                    "success": True,
+                    "attachment_id": attachment_id,
+                    "size": len(file_bytes),
+                }
+            )
+        else:
+            # Fallback: raw bytes (shouldn't happen with ChatKit)
+            file_bytes = await request.body()
+
+            logger.info(f"📎 Received raw file upload for attachment {attachment_id}")
+            logger.info(f"   Size: {len(file_bytes)} bytes")
+
+            store_attachment_content(attachment_id, file_bytes)
+
+            return JSONResponse(
+                {
+                    "success": True,
+                    "attachment_id": attachment_id,
+                    "size": len(file_bytes),
+                }
+            )
     except Exception as e:
         logger.error(f"❌ Failed to handle file upload for {attachment_id}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return JSONResponse(
             {"success": False, "error": str(e), "attachment_id": attachment_id},
             status_code=500,

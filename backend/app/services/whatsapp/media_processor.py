@@ -163,19 +163,61 @@ class WhatsAppMediaProcessor:
             None si no hay media o falta información
         """
         try:
-            message_type = message_data.get("message_type", "text")
-            has_media = message_data.get("has_media", False)
+            # Kapso V2 usa: message.type = "image"|"document"|"video"|"audio"
+            # y luego message.image = {id, link, mime_type, sha256}
+            message_type = message_data.get("type", "text")
 
-            if not has_media or message_type == "text":
+            # Si type = "text", no hay media
+            if message_type == "text":
                 return None
 
-            # Kapso puede enviar la URL en diferentes campos según la versión
-            # Intentamos varios campos posibles
-            media_url = (
-                message_data.get("media_url") or
-                message_data.get("media", {}).get("url") or
-                message_data.get("content_url")
-            )
+            # Intentar extraer media según el tipo
+            media_url = None
+            mime_type = None
+            filename = None
+            caption = None
+
+            # V2 format: message.image, message.document, etc.
+            if message_type == "image" and "image" in message_data:
+                media_info = message_data["image"]
+                media_url = media_info.get("link")
+                mime_type = media_info.get("mime_type") or "image/jpeg"
+                caption = media_info.get("caption")
+                filename = f"image_{media_info.get('id', 'unknown')}.jpg"
+
+            elif message_type == "document" and "document" in message_data:
+                media_info = message_data["document"]
+                media_url = media_info.get("link")
+                mime_type = media_info.get("mime_type") or "application/pdf"
+                filename = media_info.get("filename", f"document_{media_info.get('id', 'unknown')}.pdf")
+                caption = media_info.get("caption")
+
+            elif message_type == "video" and "video" in message_data:
+                media_info = message_data["video"]
+                media_url = media_info.get("link")
+                mime_type = media_info.get("mime_type") or "video/mp4"
+                caption = media_info.get("caption")
+                filename = f"video_{media_info.get('id', 'unknown')}.mp4"
+
+            elif message_type == "audio" and "audio" in message_data:
+                media_info = message_data["audio"]
+                media_url = media_info.get("link")
+                mime_type = media_info.get("mime_type") or "audio/ogg"
+                filename = f"audio_{media_info.get('id', 'unknown')}.ogg"
+
+            # Fallback: try old V1 format
+            if not media_url:
+                has_media = message_data.get("has_media", False)
+                if not has_media:
+                    return None
+
+                # Kapso puede enviar la URL en diferentes campos según la versión
+                # Intentamos varios campos posibles
+                media_url = (
+                    message_data.get("media_url") or
+                    message_data.get("media", {}).get("url") or
+                    message_data.get("content_url")
+                )
 
             # Si no encontramos URL directa, intentar extraer del campo content
             # Kapso a veces envía: "Document attached (...) URL: https://..."
@@ -190,62 +232,66 @@ class WhatsAppMediaProcessor:
                         logger.info(f"📎 URL extraída del campo content: {media_url[:100]}...")
 
             if not media_url:
-                logger.warning("⚠️ Mensaje con has_media=true pero sin media_url")
+                logger.warning("⚠️ No se encontró URL de media")
                 logger.debug(f"  message_data keys: {list(message_data.keys())}")
-                logger.debug(f"  content: {message_data.get('content', '')[:200]}")
+                logger.debug(f"  type: {message_type}")
                 return None
 
-            # Extraer mime_type (desde content si está disponible)
-            mime_type = (
-                message_data.get("media_mime_type") or
-                message_data.get("media", {}).get("mime_type") or
-                message_data.get("mime_type")
-            )
-
-            # Si no hay mime_type, intentar extraer del content
-            # Formato: "Document attached (...) [Size: ... | Type: application/pdf]"
+            # Solo intentar extraer V1 fields si no tenemos mime_type/filename del V2
             if not mime_type:
-                content = message_data.get("content", "")
-                if "Type:" in content:
-                    import re
-                    type_match = re.search(r'Type:\s*([^\]]+)', content)
-                    if type_match:
-                        mime_type = type_match.group(1).strip()
-                        logger.info(f"📎 MIME type extraído del content: {mime_type}")
+                # Extraer mime_type (desde content si está disponible)
+                mime_type = (
+                    message_data.get("media_mime_type") or
+                    message_data.get("media", {}).get("mime_type") or
+                    message_data.get("mime_type")
+                )
 
-            # Fallback: adivinar por message_type
-            if not mime_type:
-                mime_type = self._guess_mime_type(message_type)
+                # Si no hay mime_type, intentar extraer del content
+                # Formato: "Document attached (...) [Size: ... | Type: application/pdf]"
+                if not mime_type:
+                    content = message_data.get("content", "")
+                    if "Type:" in content:
+                        import re
+                        type_match = re.search(r'Type:\s*([^\]]+)', content)
+                        if type_match:
+                            mime_type = type_match.group(1).strip()
+                            logger.info(f"📎 MIME type extraído del content: {mime_type}")
 
-            # Extraer filename (desde content si está disponible)
-            filename = (
-                message_data.get("media_filename") or
-                message_data.get("media", {}).get("filename") or
-                message_data.get("filename")
-            )
+                # Fallback: adivinar por message_type
+                if not mime_type:
+                    mime_type = self._guess_mime_type(message_type)
 
-            # Si no hay filename, intentar extraer del content
-            # Formato: "Document attached (_FAE077919 (1).pdf)"
             if not filename:
-                content = message_data.get("content", "")
-                if "attached (" in content or "attached (_" in content:
-                    import re
-                    # Buscar texto entre paréntesis después de "attached"
-                    filename_match = re.search(r'attached \(_?([^)]+)\)', content)
-                    if filename_match:
-                        filename = filename_match.group(1).strip()
-                        logger.info(f"📎 Filename extraído del content: {filename}")
+                # Extraer filename (desde content si está disponible)
+                filename = (
+                    message_data.get("media_filename") or
+                    message_data.get("media", {}).get("filename") or
+                    message_data.get("filename")
+                )
 
-            # Fallback: generar filename
-            if not filename:
-                filename = f"{message_type}_{uuid4().hex[:8]}{self._get_extension(mime_type)}"
+                # Si no hay filename, intentar extraer del content
+                # Formato: "Document attached (_FAE077919 (1).pdf)"
+                if not filename:
+                    content = message_data.get("content", "")
+                    if "attached (" in content or "attached (_" in content:
+                        import re
+                        # Buscar texto entre paréntesis después de "attached"
+                        filename_match = re.search(r'attached \(_?([^)]+)\)', content)
+                        if filename_match:
+                            filename = filename_match.group(1).strip()
+                            logger.info(f"📎 Filename extraído del content: {filename}")
 
-            # Extraer caption (opcional)
-            caption = (
-                message_data.get("media_caption") or
-                message_data.get("caption") or
-                message_data.get("media", {}).get("caption")
-            )
+                # Fallback: generar filename
+                if not filename:
+                    filename = f"{message_type}_{uuid4().hex[:8]}{self._get_extension(mime_type)}"
+
+            if not caption:
+                # Extraer caption (opcional)
+                caption = (
+                    message_data.get("media_caption") or
+                    message_data.get("caption") or
+                    message_data.get("media", {}).get("caption")
+                )
 
             return {
                 "type": message_type,

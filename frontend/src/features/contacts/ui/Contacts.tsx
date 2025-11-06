@@ -205,6 +205,8 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
                       contactType: contact.contact_type,
                     }}
                     uiComponent="contact_card"
+                    entityId={contact.rut}
+                    entityType="contact"
                   >
                     <tr className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
                       <td className="py-3 pr-4">

@@ -56,39 +56,69 @@ class SendingService(BaseNotificationService):
             return []
         return re.findall(r'\{\{(\w+)\}\}', text)
 
-    def _build_template_params_from_context(
+    def _build_template_components(
         self,
         message_context: dict,
         template: NotificationTemplate
-    ) -> dict:
+    ) -> List[Dict[str, Any]]:
         """
-        Build template_params dict from message_context matching template variables.
+        Build Meta API components from message_context and template configuration.
 
-        Args:
-            message_context: Context dict with variable values
-            template: Notification template with WhatsApp components
+        Template extra_metadata should contain:
+        {
+            "whatsapp_template_structure": {
+                "header_params": ["day_name"],  # Parameters for header component
+                "body_params": ["sales_count", "sales_total_ft", "purchases_count", "purchases_total_ft"]
+            }
+        }
 
         Returns:
-            Dict with template parameters for Kapso
+            List of components in Meta API v21.0 format (without "name" field)
         """
-        template_params = {}
+        components = []
 
-        # Extract variables from body
-        if template.whatsapp_body:
-            body_text = template.whatsapp_body.get("text", "")
-            variables = self._extract_variables_from_text(body_text)
-            for var in variables:
-                # Use value from context or placeholder
-                template_params[var] = message_context.get(var, f"[{var}]")
+        # Get template structure from extra_metadata
+        template_structure = template.extra_metadata.get("whatsapp_template_structure", {})
+        header_params_names = template_structure.get("header_params", [])
+        body_params_names = template_structure.get("body_params", [])
 
-        # Extract variables from header if exists
-        if template.whatsapp_header and template.whatsapp_header.get("type") == "TEXT":
-            header_text = template.whatsapp_header.get("text", "")
-            variables = self._extract_variables_from_text(header_text)
-            for var in variables:
-                template_params[var] = message_context.get(var, f"[{var}]")
+        # Build header component if needed
+        if header_params_names:
+            header_parameters = []
+            for param_name in header_params_names:
+                if param_name in message_context:
+                    # Meta API v21.0 uses "parameter_name" for named parameters
+                    header_parameters.append({
+                        "type": "text",
+                        "parameter_name": param_name,
+                        "text": str(message_context[param_name])
+                    })
 
-        return template_params
+            if header_parameters:
+                components.append({
+                    "type": "header",
+                    "parameters": header_parameters
+                })
+
+        # Build body component if needed
+        if body_params_names:
+            body_parameters = []
+            for param_name in body_params_names:
+                if param_name in message_context:
+                    # Meta API v21.0 uses "parameter_name" for named parameters
+                    body_parameters.append({
+                        "type": "text",
+                        "parameter_name": param_name,
+                        "text": str(message_context[param_name])
+                    })
+
+            if body_parameters:
+                components.append({
+                    "type": "body",
+                    "parameters": body_parameters
+                })
+
+        return components
 
     async def _check_user_preferences(
         self,
@@ -161,8 +191,8 @@ class SendingService(BaseNotificationService):
     async def _generate_notification_context(
         self,
         db: AsyncSession,
-        entity_type: str,
-        entity_id: UUID,
+        entity_type: Optional[str],
+        entity_id: Optional[UUID],
         company_id: UUID,
         notification_content: Optional[str] = None,
     ) -> str:
@@ -172,8 +202,8 @@ class SendingService(BaseNotificationService):
 
         Args:
             db: Database session
-            entity_type: Entity type (calendar_event, tax_obligation, etc.)
-            entity_id: Entity ID
+            entity_type: Entity type (calendar_event, tax_obligation, etc.) - can be None
+            entity_id: Entity ID - can be None
             company_id: Company ID
             notification_content: Sent notification content (optional)
 
@@ -318,37 +348,39 @@ I sent you a reminder.
                 # Normalize phone number (remove '+' if exists)
                 normalized_phone = phone.lstrip('+') if phone.startswith('+') else phone
 
-                # Get whatsapp_config_id from ENV
+                # Get WhatsApp configuration from ENV
                 whatsapp_config_id = os.getenv("DEFAULT_WHATSAPP_CONFIG_ID")
+                phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+
                 if not whatsapp_config_id:
                     raise ValueError("DEFAULT_WHATSAPP_CONFIG_ID not configured in environment")
+                if not phone_number_id:
+                    raise ValueError("WHATSAPP_PHONE_NUMBER_ID not configured in environment")
 
                 # Determine if we should use WhatsApp template or plain text
                 is_production = self._is_production_environment()
                 use_whatsapp_template = (
-                    is_production and
+                    # is_production and
                     template and
                     template.whatsapp_template_id  # Use the correct field
                 )
 
                 if use_whatsapp_template:
-                    # PRODUCTION: Use WhatsApp template
+                    # Use WhatsApp template via Meta API
                     logger.info(f"📱 Using WhatsApp template: {template.whatsapp_template_id}")
 
-                    # Build template_params from message context
-                    message_context = scheduled.extra_metadata.get("message_context", {})
-                    template_params = self._build_template_params_from_context(
-                        message_context,
-                        template
-                    )
+                    # Extract components from extra_metadata (already formatted by scheduler)
+                    components = scheduled.extra_metadata.get("whatsapp_components")
+                    logger.info(f"📋 WhatsApp components: {components}")
 
-                    # Send via WhatsApp template
+                    # Send via WhatsApp template (Meta API format)
                     send_result = await self.whatsapp_service.send_template(
                         phone_number=normalized_phone,
                         template_name=template.whatsapp_template_id,
-                        template_params=template_params,
-                        template_language="es",  # Default to Spanish
-                        whatsapp_config_id=whatsapp_config_id,
+                        phone_number_id=phone_number_id,
+                        components=components,
+                        template_language="es_CL",  # Spanish (Chile) - Meta format
+                        whatsapp_config_id=whatsapp_config_id,  # Pass config ID to fetch conversation_id
                     )
 
                 else:
@@ -412,40 +444,107 @@ I sent you a reminder.
 
                 # OPTIMIZATION: Anchor notification context to conversation
                 # This eliminates the need to search notifications when user responds
-                if conversation_id and scheduled.entity_type:
+                if conversation_id and user_id:
                     try:
                         from app.services.whatsapp.conversation_manager import WhatsAppConversationManager
 
-                        # 1. Find internal conversation by Kapso ID
+                        # 1. Find or create internal conversation by Kapso ID
+                        # Since we use Kapso conversation_id as our Conversation.id, just query by ID
                         internal_conv_result = await db.execute(
-                            select(Conversation).where(
-                                Conversation.meta_data["whatsapp_conversation_id"].astext == conversation_id
-                            )
+                            select(Conversation).where(Conversation.id == UUID(conversation_id))
                         )
                         internal_conversation = internal_conv_result.scalar_one_or_none()
 
-                        if internal_conversation:
-                            # 2. Generate context based on entity_type
-                            context_text = await self._generate_notification_context(
-                                db=db,
-                                entity_type=scheduled.entity_type,
-                                entity_id=scheduled.entity_id,
-                                company_id=scheduled.company_id,
-                                notification_content=scheduled.message_content,
+                        if not internal_conversation:
+                            # Create conversation if it doesn't exist
+                            # Use Kapso conversation_id directly as our Conversation.id (both are UUIDs)
+                            logger.info(f"📝 Creating new conversation with Kapso ID: {conversation_id}")
+
+                            internal_conversation = Conversation(
+                                id=UUID(conversation_id),  # Use Kapso ID directly!
+                                user_id=UUID(user_id),
+                                meta_data={
+                                    "channel": "whatsapp",
+                                    "phone_number": phone,
+                                    "created_from": "notification_template",
+                                    "template_code": template.code if template else None,
+                                    # Cache auth for faster webhook processing
+                                    "user_id": str(user_id),
+                                    "company_id": str(scheduled.company_id),
+                                },
                             )
 
-                            # 3. Insert as assistant message
-                            await WhatsAppConversationManager.add_notification_context_message(
-                                db=db,
-                                conversation_id=internal_conversation.id,
-                                notification_context=context_text,
-                            )
+                            db.add(internal_conversation)
+                            await db.commit()
+                            await db.refresh(internal_conversation)
 
-                            logger.info(f"📌 Context anchored to conversation {internal_conversation.id}")
-                        else:
-                            logger.debug(f"ℹ️ Internal conversation not found for Kapso ID {conversation_id}")
+                            logger.info(f"✅ Conversation created with ID: {internal_conversation.id}")
+
+                        # 2. Generate context based on entity_type (if exists)
+                        # Always save context, even if entity_type is null (generic notifications)
+                        context_text = await self._generate_notification_context(
+                            db=db,
+                            entity_type=scheduled.entity_type,
+                            entity_id=scheduled.entity_id,
+                            company_id=scheduled.company_id,
+                            notification_content=scheduled.message_content,
+                        )
+
+                        # 3. Insert as assistant message in PostgreSQL
+                        await WhatsAppConversationManager.add_notification_context_message(
+                            db=db,
+                            conversation_id=internal_conversation.id,
+                            notification_context=context_text,
+                        )
+
+                        logger.info(f"📌 Context anchored to PostgreSQL conversation {internal_conversation.id}")
+
+                        # 4. ALSO save to SQLite session for agent context
+                        # This ensures the agent sees the notification context in its history
+                        try:
+                            from agents import SQLiteSession
+
+                            # Get SQLite session file path (same as WhatsAppAgentRunner)
+                            import os as os_module
+                            sessions_dir = os_module.path.join(
+                                os_module.path.dirname(__file__), "..", "..", "..", "sessions"
+                            )
+                            os_module.makedirs(sessions_dir, exist_ok=True)
+                            session_file = os_module.path.join(sessions_dir, "whatsapp_agent_sessions.db")
+
+                            # Create SQLite session
+                            sqlite_session = SQLiteSession(str(internal_conversation.id), session_file)
+
+                            # Add context as assistant message to SQLite history
+                            # Format must match ChatKit's MessageOutputItem format
+                            assistant_message = {
+                                "role": "assistant",
+                                "content": [
+                                    {
+                                        "type": "output_text",
+                                        "text": context_text
+                                    }
+                                ]
+                            }
+
+                            # Add notification context to session (correct API: add_items)
+                            await sqlite_session.add_items([assistant_message])
+
+                            # Close session to commit changes to SQLite (not async)
+                            sqlite_session.close()
+
+                            logger.info(f"📌 Context also saved to SQLite session for agent")
+
+                        except Exception as sqlite_error:
+                            logger.error(f"⚠️ Error saving context to SQLite: {sqlite_error}")
+                            import traceback
+                            logger.error(traceback.format_exc())
+                            # Don't fail the whole flow if SQLite save fails
+
                     except Exception as e:
-                        logger.error(f"⚠️ Error anchoring context: {e}")
+                        logger.error(f"⚠️ Error creating/anchoring conversation: {e}")
+                        import traceback
+                        logger.error(traceback.format_exc())
                         # Don't fail notification sending if this fails
 
             except Exception as e:

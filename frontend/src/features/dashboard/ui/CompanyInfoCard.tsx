@@ -40,21 +40,30 @@ export function CompanyInfoCard({ company, loading, scheme, isInDrawer = false }
     >
       <div className={isInDrawer ? "p-0" : "rounded-2xl border border-slate-200/70 bg-gradient-to-br from-blue-50 to-purple-50 p-3 dark:border-slate-800/70 dark:from-blue-950/30 dark:to-purple-950/30"}>
         {/* Company Info */}
-        <div className="flex items-center gap-2.5">
-          {/* Desktop: Show icon */}
-          <div className="hidden lg:flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-md">
-            <Building2 className="h-4 w-4" />
-          </div>
-          <div className="flex-1">
-            {/* Mobile: Simplified - only company name */}
+        <div className="flex items-center gap-2">
+          {/* Left parenthesis */}
+          <img
+            src="/parentesis_izq.png"
+            alt="("
+            className="h-8 w-auto object-contain flex-shrink-0"
+          />
+
+          {/* Company content */}
+          <div className="flex-1 px-1">
             <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
               {company.business_name}
             </h3>
-            {/* Desktop: Show RUT */}
-            <p className="hidden lg:block text-xs text-slate-600 dark:text-slate-400">
+            <p className="text-xs text-slate-600 dark:text-slate-400">
               RUT: {company.rut}
             </p>
           </div>
+
+          {/* Right parenthesis */}
+          <img
+            src="/parentesis_der.png"
+            alt=")"
+            className="h-8 w-auto object-contain flex-shrink-0"
+          />
         </div>
       </div>
     </ChateableWrapper>

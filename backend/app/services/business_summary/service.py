@@ -137,10 +137,10 @@ class BusinessSummaryService:
             "day_name": day_name,
             "sales_count": sales_stats["count"],
             "sales_total": sales_stats["total"],
-            "sales_total_formatted": format_currency(sales_stats["total"]),
+            "sales_total_ft": format_currency(sales_stats["total"]),  # WhatsApp template uses _ft suffix
             "purchases_count": purchases_stats["count"],
             "purchases_total": purchases_stats["total"],
-            "purchases_total_formatted": format_currency(purchases_stats["total"]),
+            "purchases_total_ft": format_currency(purchases_stats["total"]),  # WhatsApp template uses _ft suffix
             "new_suppliers_count": new_suppliers_count,
             "variation_percentage": variation,
         }

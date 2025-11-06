@@ -77,7 +77,8 @@ class WhatsAppService:
                     "Se requiere conversation_id o (phone_number + whatsapp_config_id)"
                 )
 
-            result = await self.client.send_text_message(
+            # Use modular client (client.messages.send_text)
+            result = await self.client.messages.send_text(
                 conversation_id=conversation_id,
                 message=message,
             )
@@ -116,7 +117,8 @@ class WhatsAppService:
             Resultado del envío
         """
         try:
-            result = await self.client.send_media_message(
+            # Use modular client (client.messages.send_media)
+            result = await self.client.messages.send_media(
                 conversation_id=conversation_id,
                 media_url=media_url,
                 media_type=media_type,
@@ -135,40 +137,76 @@ class WhatsAppService:
         self,
         phone_number: str,
         template_name: str,
-        whatsapp_config_id: str,
-        template_params: Optional[Any] = None,
-        template_language: str = "es",
-        header_params: Optional[str] = None,
-        button_url_params: Optional[Dict[str, str]] = None,
+        phone_number_id: str,
+        components: Optional[List[Dict[str, Any]]] = None,
+        template_language: str = "es_CL",
+        whatsapp_config_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Envía una plantilla de WhatsApp Business.
-        Útil para iniciar conversaciones o enviar notificaciones estructuradas.
+        Envía una plantilla de WhatsApp Business via Meta API directa.
 
         Args:
-            phone_number: Número de destino
-            template_name: Nombre de la plantilla
-            whatsapp_config_id: ID de configuración
-            template_params: Parámetros de la plantilla
-            template_language: Idioma
-            header_params: Parámetros del header
-            button_url_params: Parámetros de botones
+            phone_number: Número de destino (sin +, ej: 56975389973)
+            template_name: Nombre de la plantilla aprobada
+            phone_number_id: Phone Number ID de WhatsApp Business
+            components: Lista de componentes en formato Meta API (header, body, etc.)
+            template_language: Código de idioma (ej: es_CL)
+            whatsapp_config_id: ID de configuración de WhatsApp (para buscar conversación)
 
         Returns:
-            Resultado del envío
+            Resultado del envío con conversation_id agregado
         """
         try:
-            result = await self.client.send_template_message(
+            # Use modular client (client.templates.send_with_components)
+            result = await self.client.templates.send_with_components(
                 phone_number=phone_number,
                 template_name=template_name,
-                whatsapp_config_id=whatsapp_config_id,
-                template_params=template_params,
+                phone_number_id=phone_number_id,
+                components=components,
                 template_language=template_language,
-                header_params=header_params,
-                button_url_params=button_url_params,
             )
 
             logger.info(f"📋 Template '{template_name}' enviado a {phone_number}")
+
+            # IMPORTANT: Meta API doesn't return conversation_id when sending templates
+            # We need to fetch it by searching for the active conversation
+            if whatsapp_config_id:
+                try:
+                    # Normalize phone number for comparison
+                    normalized_phone = phone_number.lstrip('+') if phone_number.startswith('+') else phone_number
+
+                    # List recent conversations for this config
+                    conversations = await self.client.conversations.list(
+                        whatsapp_config_id=whatsapp_config_id,
+                        limit=50,
+                    )
+
+                    # Extract conversation list (handle different response formats)
+                    nodes = (
+                        conversations.get("data") or
+                        conversations.get("nodes") or
+                        conversations.get("conversations") or
+                        conversations.get("items") or
+                        []
+                    )
+
+                    # Find active conversation matching this phone number
+                    for conv in nodes:
+                        conv_phone = conv.get("phone_number", "").lstrip('+')
+                        conv_status = conv.get("status", "")
+
+                        if conv_phone == normalized_phone and conv_status == "active":
+                            conversation_id = conv.get("id")
+                            result["conversation_id"] = conversation_id
+                            logger.info(f"✅ Found conversation_id: {conversation_id} for {phone_number}")
+                            break
+                    else:
+                        logger.warning(f"⚠️ No active conversation found for {phone_number} after sending template")
+
+                except Exception as e:
+                    logger.warning(f"⚠️ Error fetching conversation_id after template send: {e}")
+                    # Don't fail the send operation, just log the warning
+
             return result
 
         except KapsoAPIError as e:
@@ -201,7 +239,7 @@ class WhatsAppService:
             Resultado del envío
         """
         try:
-            result = await self.client.send_interactive_message(
+            result = await self.client.messages.send_interactive(
                 conversation_id=conversation_id,
                 interactive_type=interactive_type,
                 body_text=body_text,
@@ -246,7 +284,7 @@ class WhatsAppService:
             normalized_phone = phone_number.lstrip('+') if phone_number.startswith('+') else phone_number
 
             # Buscar conversaciones activas (aumentar límite para encontrar el número)
-            conversations = await self.client.list_conversations(
+            conversations = await self.client.conversations.list(
                 whatsapp_config_id=whatsapp_config_id,
                 limit=50,  # Buscar en más conversaciones
             )
@@ -289,7 +327,7 @@ class WhatsAppService:
         Returns:
             Datos de la conversación
         """
-        return await self.client.get_conversation(conversation_id=conversation_id)
+        return await self.client.conversations.get(conversation_id=conversation_id)
 
     async def list_conversations(
         self,
@@ -308,7 +346,7 @@ class WhatsAppService:
         Returns:
             Lista de conversaciones
         """
-        return await self.client.list_conversations(
+        return await self.client.conversations.list(
             whatsapp_config_id=whatsapp_config_id,
             limit=limit,
             page=page,
@@ -329,7 +367,7 @@ class WhatsAppService:
         Returns:
             Conversación actualizada
         """
-        return await self.client.update_conversation_status(
+        return await self.client.conversations.update_status(
             conversation_id=conversation_id,
             status=ConversationStatus.ENDED,
             reason=reason,
@@ -352,7 +390,7 @@ class WhatsAppService:
         Returns:
             Lista de contactos
         """
-        return await self.client.search_contacts(query=query, limit=limit)
+        return await self.client.contacts.search(query=query, limit=limit)
 
     async def get_contact_history(
         self,
@@ -369,7 +407,7 @@ class WhatsAppService:
         Returns:
             Historial del contacto
         """
-        return await self.client.get_contact_context(
+        return await self.client.contacts.get_context(
             identifier=identifier,
             include_recent_messages=True,
             recent_message_limit=message_limit,
@@ -392,7 +430,7 @@ class WhatsAppService:
         Returns:
             Nota creada
         """
-        return await self.client.add_contact_note(
+        return await self.client.contacts.add_note(
             contact_identifier=contact_identifier,
             content=note,
             name=label,
@@ -415,7 +453,7 @@ class WhatsAppService:
         Returns:
             Resultado
         """
-        return await self.client.mark_messages_as_read(
+        return await self.client.messages.mark_as_read(
             conversation_id=conversation_id,
             message_id=message_id,
         )
@@ -437,7 +475,7 @@ class WhatsAppService:
         Returns:
             Mensajes encontrados
         """
-        return await self.client.search_messages(
+        return await self.client.messages.search(
             query=query,
             conversation_id=conversation_id,
             limit=limit,
@@ -458,7 +496,7 @@ class WhatsAppService:
         Returns:
             Lista de plantillas
         """
-        return await self.client.list_templates(
+        return await self.client.templates.list(
             whatsapp_config_id=whatsapp_config_id,
         )
 
@@ -481,7 +519,7 @@ class WhatsAppService:
         Returns:
             Conversaciones del inbox
         """
-        return await self.client.get_inbox(
+        return await self.client.config.get_inbox(
             whatsapp_config_id=whatsapp_config_id,
             limit=limit,
             status=status,
@@ -502,7 +540,9 @@ class WhatsAppService:
         Returns:
             True si válido
         """
-        return KapsoClient.validate_webhook_signature(
+        # Use modular client (WebhooksAPI has static validation method)
+        from app.integrations.kapso.api.webhooks import WebhooksAPI
+        return WebhooksAPI.validate_signature(
             payload=payload,
             signature=signature,
             secret=secret,

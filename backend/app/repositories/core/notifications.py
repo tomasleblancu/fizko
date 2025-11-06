@@ -43,6 +43,61 @@ class NotificationTemplateRepository(BaseRepository[NotificationTemplate]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def find_by_whatsapp_template_id(self, whatsapp_template_id: str) -> Optional[NotificationTemplate]:
+        """
+        Find a template by whatsapp_template_id.
+
+        Args:
+            whatsapp_template_id: WhatsApp template ID from Meta
+
+        Returns:
+            NotificationTemplate instance or None if not found
+        """
+        query = select(NotificationTemplate).where(
+            NotificationTemplate.whatsapp_template_id == whatsapp_template_id
+        )
+
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def update_whatsapp_template_structure(
+        self,
+        template_id: UUID,
+        whatsapp_template_structure: dict
+    ) -> NotificationTemplate:
+        """
+        Update the whatsapp_template_structure in extra_metadata.
+
+        Args:
+            template_id: Template UUID
+            whatsapp_template_structure: Structure with header_params and body_params
+
+        Returns:
+            Updated NotificationTemplate instance
+
+        Raises:
+            ValueError: If template not found
+        """
+        from sqlalchemy.orm.attributes import flag_modified
+
+        # Get template
+        template = await self.get(template_id)
+        if not template:
+            raise ValueError(f"Template {template_id} not found")
+
+        # Merge with existing metadata
+        current_metadata = template.extra_metadata or {}
+        current_metadata["whatsapp_template_structure"] = whatsapp_template_structure
+
+        # Update template (flag_modified needed for JSON fields)
+        template.extra_metadata = current_metadata
+        flag_modified(template, "extra_metadata")
+
+        await self.db.commit()
+        await self.db.refresh(template)
+
+        return template
+
     async def find_auto_assign_templates(self) -> List[NotificationTemplate]:
         """
         Find all active templates with auto_assign_to_new_companies enabled.

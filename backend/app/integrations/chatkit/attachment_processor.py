@@ -118,6 +118,22 @@ async def convert_attachments_to_content(
                         logger.error(f"❌ Failed to load from Supabase: {e}")
 
                 if base64_content:
+                    # IMPORTANT: Clean the base64 string (remove any whitespace/newlines)
+                    base64_content = base64_content.strip().replace('\n', '').replace('\r', '').replace(' ', '')
+
+                    # Validate that it's proper base64
+                    try:
+                        import base64 as b64
+                        decoded = b64.b64decode(base64_content)
+                        logger.info(f"✅ Base64 validation passed: {len(decoded)} bytes, magic: {decoded[:2].hex() if len(decoded) >= 2 else 'N/A'}")
+                    except Exception as e:
+                        logger.error(f"❌ Invalid base64 content for {attachment_id}: {e}")
+                        content_parts.append({
+                            "type": "input_text",
+                            "text": f"[Imagen con formato inválido: {filename}]"
+                        })
+                        continue
+
                     # Create data URL - agents framework expects this format
                     data_url = f"data:{mime_type};base64,{base64_content}"
                     content_parts.append({

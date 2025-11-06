@@ -26,6 +26,7 @@ from ..tools.memory import (
 def create_payroll_agent(
     db: AsyncSession,
     openai_client: AsyncOpenAI,
+    channel: str = "web",
 ) -> Agent:
     """
     Create the Payroll Agent.
@@ -38,6 +39,7 @@ def create_payroll_agent(
     Args:
         db: Database session
         openai_client: OpenAI client
+        channel: Communication channel ("web" or "whatsapp")
 
     Examples of queries it handles:
     - "¿Cuántos días de vacaciones corresponden por ley?"
@@ -45,19 +47,27 @@ def create_payroll_agent(
     - "Agrega un nuevo colaborador: Juan Pérez..."
     - "Actualiza el sueldo de María a $850.000"
     """
+    import logging
+    logger = logging.getLogger(__name__)
 
     tools = [
-        # Confirmation widget (MUST BE USED FIRST before create/update)
-        show_person_confirmation,
         # Employee management tools
         get_people,         # List all employees
         get_person,         # Get specific employee details
-        create_person,      # Create new employee (USE ONLY AFTER show_person_confirmation + user confirmation)
-        update_person,      # Update employee information (USE ONLY AFTER show_person_confirmation + user confirmation)
+        create_person,      # Create new employee
+        update_person,      # Update employee information
         # Memory tools - dual system for user and company memory (read-only)
         search_user_memory,     # Search personal user preferences and history
         search_company_memory,  # Search company-wide knowledge and settings
     ]
+
+    # Add widgets ONLY for web channel (not for WhatsApp)
+    if channel == "web":
+        logger.info("📊 Including payroll widget tools (web channel)")
+        # Insert confirmation widget at the beginning (MUST BE USED FIRST before create/update)
+        tools.insert(0, show_person_confirmation)
+    else:
+        logger.info("📱 Excluding payroll widget tools (WhatsApp channel)")
 
     agent = Agent(
         name="payroll_agent",

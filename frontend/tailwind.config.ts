@@ -40,10 +40,46 @@ const config: Config = {
             transform: "translate(0px, 0px) scale(1)",
           },
         },
+        "heartbeat-left": {
+          "0%, 100%": {
+            transform: "translateX(0)",
+          },
+          "15%": {
+            transform: "translateX(-8px)",
+          },
+          "30%": {
+            transform: "translateX(0)",
+          },
+          "45%": {
+            transform: "translateX(-10px)",
+          },
+          "60%": {
+            transform: "translateX(0)",
+          },
+        },
+        "heartbeat-right": {
+          "0%, 100%": {
+            transform: "translateX(0)",
+          },
+          "15%": {
+            transform: "translateX(8px)",
+          },
+          "30%": {
+            transform: "translateX(0)",
+          },
+          "45%": {
+            transform: "translateX(10px)",
+          },
+          "60%": {
+            transform: "translateX(0)",
+          },
+        },
       },
       animation: {
         "pulse-once": "pulse-once 1s ease-in-out 1",
         blob: "blob 7s infinite",
+        "heartbeat-left": "heartbeat-left 1.5s ease-in-out infinite",
+        "heartbeat-right": "heartbeat-right 1.5s ease-in-out infinite",
       },
       animationDelay: {
         "2000": "2s",

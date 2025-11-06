@@ -6,8 +6,11 @@ This module contains all Celery tasks related to WhatsApp operations:
 - Batch notifications
 - Webhook processing
 - Conversation management
+- Session cleanup
 
 TODO: Add tasks as needed.
 """
 
-__all__ = []
+from . import cleanup
+
+__all__ = ["cleanup"]

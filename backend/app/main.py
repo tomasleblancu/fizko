@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+# Configure timezone BEFORE importing anything else
+# This ensures all datetime operations use America/Santiago timezone
+import os
+import time
+os.environ['TZ'] = 'America/Santiago'
+time.tzset()
+
 import logging
 from contextlib import asynccontextmanager
 from typing import Any

@@ -25,15 +25,16 @@ export function Header({ scheme, onThemeChange, onNavigateToSettings, currentVie
     >
       <div className="mx-auto flex h-16 max-w-[1800px] items-center justify-between px-4 sm:px-6">
         {/* Logo / Brand */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center">
-            <img
-              src="/encabezado.png"
-              alt="Fizko Logo"
-              className="h-full w-full object-contain"
-            />
-          </div>
-          <div>
+        <div className="flex items-center gap-1">
+          {/* Left parenthesis */}
+          <img
+            src="/parentesis_izq.png"
+            alt="("
+            className="h-8 w-auto object-contain"
+          />
+
+          {/* Brand content */}
+          <div className="px-2">
             <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">
               Fizko
             </h1>
@@ -41,6 +42,13 @@ export function Header({ scheme, onThemeChange, onNavigateToSettings, currentVie
               Plataforma Contable Inteligente
             </p>
           </div>
+
+          {/* Right parenthesis */}
+          <img
+            src="/parentesis_der.png"
+            alt=")"
+            className="h-8 w-auto object-contain"
+          />
         </div>
 
         {/* Right side - Theme toggle & Settings */}

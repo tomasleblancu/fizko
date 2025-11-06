@@ -51,6 +51,7 @@ class HandoffsManager:
         db: AsyncSession,
         user_id: str | None = None,
         vector_store_ids: list[str] | None = None,
+        channel: str = "web",
     ) -> Any:
         """
         Get or create a multi-agent orchestrator for a thread.
@@ -63,6 +64,7 @@ class HandoffsManager:
             db: Database session (scoped to this request)
             user_id: Optional user ID for context
             vector_store_ids: Optional list of vector store IDs for FileSearchTool
+            channel: Communication channel ("web" or "whatsapp")
 
         Returns:
             MultiAgentOrchestrator instance
@@ -83,6 +85,7 @@ class HandoffsManager:
                 user_id=user_id,
                 thread_id=thread_id,
                 vector_store_ids=vector_store_ids,
+                channel=channel,
             )
 
             # Cache for future requests
@@ -103,6 +106,7 @@ class HandoffsManager:
         db: AsyncSession,
         user_id: str | None = None,
         vector_store_ids: list[str] | None = None,
+        channel: str = "web",
     ) -> Agent:
         """
         Get the Supervisor Agent for a thread (entry point for multi-agent system).
@@ -112,6 +116,7 @@ class HandoffsManager:
             db: Database session
             user_id: Optional user ID
             vector_store_ids: Optional list of vector store IDs for FileSearchTool
+            channel: Communication channel ("web" or "whatsapp")
 
         Returns:
             Supervisor Agent instance
@@ -121,6 +126,7 @@ class HandoffsManager:
             db=db,
             user_id=user_id,
             vector_store_ids=vector_store_ids,
+            channel=channel,
         )
 
         return orchestrator.get_supervisor_agent()
@@ -131,6 +137,7 @@ class HandoffsManager:
         db: AsyncSession,
         user_id: str | None = None,
         vector_store_ids: list[str] | None = None,
+        channel: str = "web",
     ) -> list[Agent]:
         """
         Get all agents for handoff support.
@@ -142,6 +149,7 @@ class HandoffsManager:
             db: Database session
             user_id: Optional user ID
             vector_store_ids: Optional list of vector store IDs for FileSearchTool
+            channel: Communication channel ("web" or "whatsapp")
 
         Returns:
             List of all agent instances
@@ -151,6 +159,7 @@ class HandoffsManager:
             db=db,
             user_id=user_id,
             vector_store_ids=vector_store_ids,
+            channel=channel,
         )
 
         return list(orchestrator.agents.values())

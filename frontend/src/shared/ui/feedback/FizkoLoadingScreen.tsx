@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
+import { HeartbeatLogo } from '@/shared/ui/branding/HeartbeatLogo';
 
 const LOADING_MESSAGES = [
   'Conectando con el SII...',
@@ -53,24 +53,8 @@ export function FizkoLoadingScreen({ message, className }: FizkoLoadingScreenPro
   return (
     <div className={`flex h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 ${className || ''}`}>
       <div className="flex flex-col items-center gap-6 text-center">
-        {/* Fizko Logo with pulse animation */}
-        <div className="relative">
-          <div className="absolute inset-0 animate-ping rounded-full bg-emerald-400/20 dark:bg-emerald-500/20" style={{ animationDuration: '2s' }} />
-          <div className="relative rounded-full bg-white p-4 shadow-lg dark:bg-slate-800">
-            <FizkoLogo className="h-12 w-12" />
-          </div>
-        </div>
-
-        {/* Rotating message with fade transition */}
-        <div className="min-h-[2rem] px-4">
-          <p
-            className={`text-sm font-medium text-slate-600 transition-opacity duration-300 dark:text-slate-400 ${
-              isVisible ? 'opacity-100' : 'opacity-0'
-            }`}
-          >
-            {currentMessage}
-          </p>
-        </div>
+        {/* Heartbeat Logo */}
+        <HeartbeatLogo className="h-32 w-32" />
       </div>
     </div>
   );

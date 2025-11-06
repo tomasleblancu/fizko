@@ -73,8 +73,8 @@ class TaxSummaryRepository:
             company_id, period_start
         )
 
-        # Get PPM from current month F29
-        ppm = await self._get_ppm(company_id, period_start)
+        # Calculate PPM as 0.125% of total revenue
+        ppm = self._calculate_ppm(total_revenue)
 
         # Get retención from honorarios receipts
         retencion = await self._get_retencion(
@@ -84,8 +84,21 @@ class TaxSummaryRepository:
         # Get impuesto trabajadores (TODO: implement when payroll system exists)
         impuesto_trabajadores = None
 
-        # Calculate monthly tax (never negative)
-        monthly_tax = max(0.0, iva_collected - iva_paid - (previous_month_credit or 0.0))
+        # Calculate monthly tax following Chilean tax formula:
+        # 1. Calculate IVA balance (can be negative if credit > debit)
+        iva_balance = iva_collected - iva_paid - (previous_month_credit or 0.0)
+
+        # 2. IVA to pay (never negative - if negative, it's a credit for next month)
+        iva_a_pagar = max(0.0, iva_balance)
+
+        # 3. Add other monthly taxes (PPM, retención, impuesto trabajadores)
+        monthly_tax = iva_a_pagar
+        if ppm is not None and ppm > 0:
+            monthly_tax += ppm
+        if retencion is not None and retencion > 0:
+            monthly_tax += retencion
+        if impuesto_trabajadores is not None and impuesto_trabajadores > 0:
+            monthly_tax += impuesto_trabajadores
 
         # TODO: Implement income tax calculation
         income_tax = 0.0
@@ -330,54 +343,22 @@ class TaxSummaryRepository:
 
         return None
 
-    async def _get_ppm(
-        self,
-        company_id: UUID,
-        period_start: datetime
-    ) -> Optional[float]:
+    def _calculate_ppm(self, total_revenue: float) -> Optional[float]:
         """
-        Get PPM (Pago Provisional Mensual) from current month's F29.
+        Calculate PPM (Pago Provisional Mensual) as 0.125% of total revenue.
 
         PPM is a monthly provisional payment towards annual income tax.
-        It's extracted from F29 code 035 (or similar code for PPM).
+        It's calculated as 0.125% of the total sales revenue for the period.
 
         Args:
-            company_id: Company UUID
-            period_start: Current period start date
+            total_revenue: Total sales revenue for the period
 
         Returns:
-            PPM amount or None if not found
+            PPM amount (0.125% of revenue) or None if revenue is 0
         """
-        try:
-            # Query for the "Vigente" F29 of current month
-            f29_stmt = select(Form29SIIDownload).where(
-                and_(
-                    Form29SIIDownload.company_id == company_id,
-                    Form29SIIDownload.period_year == period_start.year,
-                    Form29SIIDownload.period_month == period_start.month,
-                    Form29SIIDownload.status == 'Vigente'
-                )
-            ).order_by(Form29SIIDownload.created_at.desc()).limit(1)
-
-            result = await self.db.execute(f29_stmt)
-            f29 = result.scalar_one_or_none()
-
-            if f29 and f29.extra_data:
-                # Extract PPM code from extra_data
-                # TODO: Verify correct code for PPM in F29 (might be code 035, 091, or similar)
-                f29_data = f29.extra_data.get("f29_data", {})
-                codes = f29_data.get("codes", {})
-
-                # Try common PPM codes
-                for code in ["035", "091", "731"]:  # Common PPM-related codes
-                    code_data = codes.get(code, {})
-                    ppm_value = code_data.get("value")
-                    if ppm_value is not None and float(ppm_value) > 0:
-                        return float(ppm_value)
-
-        except Exception:
-            # Return None on any error
-            pass
+        # Calculate PPM as 0.125% of total revenue
+        if total_revenue > 0:
+            return total_revenue * 0.00125  # 0.125%
 
         return None
 

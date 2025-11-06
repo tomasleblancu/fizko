@@ -98,7 +98,7 @@ export default function Landing() {
                         <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                           <TypeAnimation
                             sequence={[
-                              'Tus impuestos controlados.',
+                              'Tus impuestos bajo control.',
                               1000,
                             ]}
                             wrapper="span"

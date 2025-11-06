@@ -294,10 +294,17 @@ class TaxSummaryIVATool(BaseUITool):
         sales = iva_data["sales"]
         purchases = iva_data["purchases"]
 
-        # Get previous month credit info
+        # Get tax components
         previous_credit = iva_data.get('previous_month_credit')
         iva_neto = iva_data.get('iva_neto', iva_data['iva_debito_fiscal'] - iva_data['iva_credito_fiscal'])
         monthly_tax = iva_data.get('monthly_tax', 0.0)
+        ppm = iva_data.get('ppm', 0.0)
+        retencion = iva_data.get('retencion', 0.0)
+        impuesto_trabajadores = iva_data.get('impuesto_trabajadores', 0.0)
+
+        # Calculate IVA balance and IVA a pagar
+        iva_balance = iva_data['iva_debito_fiscal'] - iva_data['iva_credito_fiscal'] - (previous_credit or 0.0)
+        iva_a_pagar = max(0.0, iva_balance)
 
         lines = [
             "## 💰 CONTEXTO: Cálculo de Impuesto Mensual",
@@ -319,34 +326,58 @@ class TaxSummaryIVATool(BaseUITool):
             "",
             "### 🧮 Cálculo del Impuesto Mensual",
             "```",
-            f"IVA Neto = IVA Cobrado - IVA Pagado",
-            f"IVA Neto = ${iva_data['iva_debito_fiscal']:,.0f} - ${iva_data['iva_credito_fiscal']:,.0f}",
-            f"IVA Neto = ${iva_neto:,.0f}",
-            "",
+            "PASO 1: Calcular IVA a pagar",
+            f"  + IVA Cobrado: ${iva_data['iva_debito_fiscal']:,.0f}",
+            f"  - IVA Pagado: ${iva_data['iva_credito_fiscal']:,.0f}",
         ]
 
         if previous_credit is not None:
+            lines.append(f"  - Crédito Mes Anterior (código 077 del F29): ${previous_credit:,.0f}")
+        else:
+            lines.append(f"  - Crédito Mes Anterior: $0 (no se encontró F29 del mes anterior)")
+
+        lines.extend([
+            "  " + "=" * 40,
+            f"  IVA a Pagar = MAX(0, resultado) = ${iva_a_pagar:,.0f}",
+            "",
+        ])
+
+        # Add other taxes if present
+        has_other_taxes = False
+        if ppm and ppm > 0:
+            if not has_other_taxes:
+                lines.append("PASO 2: Sumar otros impuestos mensuales")
+                has_other_taxes = True
+            # Note: PPM is calculated as 0.125% of total revenue
+            lines.append(f"  + PPM (Pago Provisional Mensual - 0.125% de ventas): ${ppm:,.0f}")
+
+        if retencion and retencion > 0:
+            if not has_other_taxes:
+                lines.append("PASO 2: Sumar otros impuestos mensuales")
+                has_other_taxes = True
+            lines.append(f"  + Retención (Honorarios): ${retencion:,.0f}")
+
+        if impuesto_trabajadores and impuesto_trabajadores > 0:
+            if not has_other_taxes:
+                lines.append("PASO 2: Sumar otros impuestos mensuales")
+                has_other_taxes = True
+            lines.append(f"  + Impuesto Trabajadores: ${impuesto_trabajadores:,.0f}")
+
+        if has_other_taxes:
             lines.extend([
-                f"Crédito Mes Anterior (código 077 del F29): ${previous_credit:,.0f}",
-                "",
-                f"Impuesto Mensual = MAX(0, IVA Neto - Crédito Mes Anterior)",
-                f"Impuesto Mensual = MAX(0, ${iva_neto:,.0f} - ${previous_credit:,.0f})",
-                f"Impuesto Mensual = ${monthly_tax:,.0f}",
+                "  " + "=" * 40,
+                f"  Impuesto Total a Pagar = ${monthly_tax:,.0f}",
             ])
         else:
-            lines.extend([
-                f"Crédito Mes Anterior: No disponible (no se encontró F29 del mes anterior)",
-                "",
-                f"Impuesto Mensual = MAX(0, IVA Neto - Crédito Mes Anterior)",
-                f"Impuesto Mensual = MAX(0, ${iva_neto:,.0f} - $0)",
-                f"Impuesto Mensual = ${monthly_tax:,.0f}",
-            ])
+            lines.append(f"  Impuesto Total a Pagar = ${monthly_tax:,.0f}")
 
         lines.extend([
             "```",
             "",
-            "**NOTA:** El crédito del mes anterior se obtiene del código 077 (remanente) del F29 del mes anterior.",
-            "Si el resultado es negativo, significa que hay un remanente a favor que se arrastra al próximo mes.",
+            "**NOTAS IMPORTANTES:**",
+            "- El crédito del mes anterior se obtiene del código 077 (remanente) del F29 del mes anterior.",
+            "- Si el balance de IVA es negativo, significa que hay un remanente a favor que se arrastra al próximo mes.",
+            "- El PPM se calcula automáticamente como 0.125% de las ventas totales.",
             "",
         ])
 

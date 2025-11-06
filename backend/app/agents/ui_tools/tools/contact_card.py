@@ -61,13 +61,17 @@ class ContactCardTool(BaseUITool):
             )
 
         try:
-            # Extract contact RUT from message if present
-            # Common patterns: "RUT: 12345678-9" or just "12345678-9"
-            contact_rut = self._extract_rut_from_message(context.user_message)
+            # Priority 1: Get RUT from entity_id (frontend UI component click)
+            contact_rut = context.additional_data.get("entity_id") if context.additional_data else None
 
-            # If no RUT in message, try to get from additional_data
+            # Priority 2: Extract contact RUT from message if present
+            # Common patterns: "RUT: 12345678-9" or just "12345678-9"
             if not contact_rut:
-                contact_rut = context.additional_data.get("contact_rut")
+                contact_rut = self._extract_rut_from_message(context.user_message)
+
+            # Priority 3: Fallback to contact_rut in additional_data
+            if not contact_rut:
+                contact_rut = context.additional_data.get("contact_rut") if context.additional_data else None
 
             # Get contact data
             contact_data = await self._get_contact_data(
@@ -156,7 +160,7 @@ class ContactCardTool(BaseUITool):
         """Get summary of sales documents for this contact."""
         stmt = select(
             func.count(SalesDocument.id).label("count"),
-            func.coalesce(func.sum(SalesDocument.monto_total), 0).label("total"),
+            func.coalesce(func.sum(SalesDocument.total_amount), 0).label("total"),
         ).where(SalesDocument.contact_id == contact_id)
 
         result = await db.execute(stmt)
@@ -171,7 +175,7 @@ class ContactCardTool(BaseUITool):
         """Get summary of purchase documents for this contact."""
         stmt = select(
             func.count(PurchaseDocument.id).label("count"),
-            func.coalesce(func.sum(PurchaseDocument.monto_total), 0).label("total"),
+            func.coalesce(func.sum(PurchaseDocument.total_amount), 0).label("total"),
         ).where(PurchaseDocument.contact_id == contact_id)
 
         result = await db.execute(stmt)

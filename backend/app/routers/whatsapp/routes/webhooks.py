@@ -12,6 +12,7 @@ import os
 import time
 import asyncio
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 
@@ -199,12 +200,11 @@ async def handle_webhook(
                         from sqlalchemy import select
 
                         # 1. Buscar conversación existente por Kapso conversation_id
+                        # Since we use Kapso conversation_id as our Conversation.id, just query by ID
                         if conversation_id:
                             lookup_start = time.time()
                             result = await db.execute(
-                                select(Conversation).where(
-                                    Conversation.meta_data["whatsapp_conversation_id"].astext == conversation_id
-                                )
+                                select(Conversation).where(Conversation.id == UUID(conversation_id))
                             )
                             existing_conversation = result.scalar_one_or_none()
                             lookup_time = time.time() - lookup_start
@@ -471,6 +471,54 @@ async def handle_webhook(
 
                 elif event_type in ["message.sent", "whatsapp.message.sent"]:
                     logger.info(f"✅ Mensaje enviado confirmado: {message_id}")
+
+                    # Guardar mensaje manual en contexto para que el agente tenga historial completo
+                    # Solo procesar si fue enviado manualmente (outbound) y tiene contenido
+                    if direction == "outbound" and message_content.strip():
+                        logger.info(f"📝 Guardando mensaje manual en contexto: {message_content[:50]}...")
+
+                        # Obtener auth info del usuario que envió (si existe)
+                        async with AsyncSessionLocal() as db:
+                            from app.services.whatsapp.conversation_manager import WhatsAppConversationManager
+                            from app.db.models import Conversation
+                            from sqlalchemy import select
+
+                            # Buscar conversación existente
+                            # Since we use Kapso conversation_id as our Conversation.id, just query by ID
+                            if conversation_id:
+                                result = await db.execute(
+                                    select(Conversation).where(Conversation.id == UUID(conversation_id))
+                                )
+                                existing_conversation = result.scalar_one_or_none()
+
+                                if existing_conversation:
+                                    # Obtener auth cacheada
+                                    cached_auth = WhatsAppConversationManager.get_cached_auth_from_conversation(existing_conversation)
+
+                                    if cached_auth:
+                                        authenticated_user_id = cached_auth["user_id"]
+
+                                        # Guardar mensaje con prefijo [Manual MSG]
+                                        manual_msg_content = f"[Manual MSG] {message_content}"
+
+                                        try:
+                                            await WhatsAppConversationManager.add_message(
+                                                db=db,
+                                                conversation_id=existing_conversation.id,
+                                                user_id=authenticated_user_id,
+                                                content=manual_msg_content,
+                                                role="assistant",  # Es un mensaje del asistente (outbound)
+                                                metadata={"message_id": message_id, "manual": True},
+                                            )
+                                            logger.info(f"💾 Mensaje manual guardado en contexto: {manual_msg_content[:50]}...")
+                                        except Exception as e:
+                                            logger.error(f"❌ Error guardando mensaje manual: {e}")
+                                    else:
+                                        logger.debug(f"ℹ️ No se encontró auth cacheada para guardar mensaje manual")
+                                else:
+                                    logger.debug(f"ℹ️ No se encontró conversación para guardar mensaje manual")
+                            else:
+                                logger.debug(f"ℹ️ No hay conversation_id para guardar mensaje manual")
 
                 elif event_type in ["message.delivered", "whatsapp.message.delivered"]:
                     logger.info(f"📬 Mensaje entregado: {message_id}")

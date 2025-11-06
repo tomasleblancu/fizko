@@ -26,6 +26,70 @@ class SchedulingService(BaseNotificationService):
     Handles timing calculations and creation of scheduled notifications.
     """
 
+    def _build_whatsapp_components(
+        self,
+        template: NotificationTemplate,
+        message_context: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Build WhatsApp Meta API components from template structure and message context.
+
+        Template extra_metadata should contain:
+        {
+            "whatsapp_template_structure": {
+                "header_params": ["day_name"],
+                "body_params": ["sales_count", "sales_total_ft", ...]
+            }
+        }
+
+        Returns:
+            List of components in Meta API v21.0 format (without "name" field)
+        """
+        components = []
+
+        # Get template structure from extra_metadata
+        template_structure = template.extra_metadata.get("whatsapp_template_structure", {})
+        header_params = template_structure.get("header_params", [])
+        body_params = template_structure.get("body_params", [])
+
+        # Build header component
+        if header_params:
+            header_parameters = []
+            for param_name in header_params:
+                if param_name in message_context:
+                    # Meta API v21.0 uses "parameter_name" for named parameters
+                    header_parameters.append({
+                        "type": "text",
+                        "parameter_name": param_name,
+                        "text": str(message_context[param_name])
+                    })
+
+            if header_parameters:
+                components.append({
+                    "type": "header",
+                    "parameters": header_parameters
+                })
+
+        # Build body component
+        if body_params:
+            body_parameters = []
+            for param_name in body_params:
+                if param_name in message_context:
+                    # Meta API v21.0 uses "parameter_name" for named parameters
+                    body_parameters.append({
+                        "type": "text",
+                        "parameter_name": param_name,
+                        "text": str(message_context[param_name])
+                    })
+
+            if body_parameters:
+                components.append({
+                    "type": "body",
+                    "parameters": body_parameters
+                })
+
+        return components
+
     def _render_message(self, template: str, context: Dict[str, Any]) -> str:
         """
         Render a message by replacing variables.
@@ -177,6 +241,15 @@ class SchedulingService(BaseNotificationService):
         )
         message_content = self._render_message(message_template, message_context)
 
+        # Build extra_metadata
+        extra_metadata = {"message_context": message_context}
+
+        # Add whatsapp_components if template has whatsapp_template_id
+        if template.whatsapp_template_id and template.extra_metadata:
+            whatsapp_components = self._build_whatsapp_components(template, message_context)
+            if whatsapp_components:
+                extra_metadata["whatsapp_components"] = whatsapp_components
+
         # Create scheduled notification
         scheduled = ScheduledNotification(
             company_id=company_id,
@@ -187,6 +260,7 @@ class SchedulingService(BaseNotificationService):
             message_content=message_content,
             scheduled_for=scheduled_for,
             status="pending",
+            extra_metadata=extra_metadata,
         )
 
         db.add(scheduled)

@@ -47,7 +47,20 @@ class WhatsAppConversationManager:
         """
         import time
 
-        # Query de búsqueda
+        # Si tenemos conversation_id de Kapso, buscar directamente por ID
+        if conversation_id:
+            query_start = time.time()
+            result = await db.execute(
+                select(Conversation).where(Conversation.id == UUID(conversation_id))
+            )
+            existing_conv = result.scalar_one_or_none()
+            query_time = time.time() - query_start
+
+            if existing_conv:
+                logger.debug(f"    ⏱️  Found existing conversation by ID (query: {query_time:.3f}s)")
+                return existing_conv
+
+        # Si no hay conversation_id o no existe, buscar conversación reciente del usuario
         query_start = time.time()
         result = await db.execute(
             select(Conversation)
@@ -60,38 +73,19 @@ class WhatsAppConversationManager:
                 )
             )
             .order_by(desc(Conversation.updated_at))
-            .limit(5)  # Obtener últimas 5 para buscar por Kapso ID
+            .limit(1)
         )
-        conversations = result.scalars().all()
+        recent_conv = result.scalar_one_or_none()
         query_time = time.time() - query_start
 
-        # Primero buscar por Kapso conversation_id si existe
-        if conversation_id:
-            for conv in conversations:
-                if conv.meta_data and conv.meta_data.get("whatsapp_conversation_id") == conversation_id:
-                    # No necesitamos commit aquí, solo retornar
-                    logger.debug(f"    ⏱️  Found existing conversation by Kapso ID (query: {query_time:.3f}s)")
-                    return conv
-
-        # Si no hay match por Kapso ID, usar la más reciente
-        if conversations:
-            recent = conversations[0]
-            # Actualizar Kapso ID si aplica
-            needs_commit = False
-            if conversation_id and recent.meta_data:
-                recent.meta_data = {**recent.meta_data, "whatsapp_conversation_id": conversation_id}
-                needs_commit = True
-            recent.updated_at = datetime.now(timezone.utc)
-
-            # Commit si se actualizó metadata para que esté disponible en background tasks
-            if needs_commit:
-                await db.commit()
-                logger.debug(f"    ⏱️  Using recent conversation with metadata update (query: {query_time:.3f}s)")
-            else:
-                logger.debug(f"    ⏱️  Using recent conversation (query: {query_time:.3f}s)")
-            return recent
+        if recent_conv:
+            recent_conv.updated_at = datetime.now(timezone.utc)
+            await db.commit()
+            logger.debug(f"    ⏱️  Using recent conversation (query: {query_time:.3f}s)")
+            return recent_conv
 
         # Crear nueva conversación con metadata completo (cachea auth)
+        # Use Kapso conversation_id as our Conversation.id if available
         create_start = time.time()
         metadata = {
             "channel": "whatsapp",
@@ -100,23 +94,29 @@ class WhatsAppConversationManager:
             "company_id": str(company_id),  # Cachear company_id
         }
 
-        if conversation_id:
-            metadata["whatsapp_conversation_id"] = conversation_id
-
         if phone_number:
             metadata["phone_number"] = phone_number
 
-        new_conversation = Conversation(
-            user_id=user_id,
-            meta_data=metadata,
-        )
+        # If we have conversation_id, use it as the UUID primary key
+        if conversation_id:
+            new_conversation = Conversation(
+                id=UUID(conversation_id),  # Use Kapso ID directly!
+                user_id=user_id,
+                meta_data=metadata,
+            )
+        else:
+            # No conversation_id, let PostgreSQL generate UUID
+            new_conversation = Conversation(
+                user_id=user_id,
+                meta_data=metadata,
+            )
 
         db.add(new_conversation)
         await db.flush()  # Flush para obtener el ID
         await db.commit()  # Commit para que esté disponible en otras sesiones (background tasks)
         create_time = time.time() - create_start
 
-        logger.debug(f"    ⏱️  Created new conversation (query: {query_time:.3f}s + create+flush+commit: {create_time:.3f}s)")
+        logger.debug(f"    ⏱️  Created new conversation (create+flush+commit: {create_time:.3f}s)")
         return new_conversation
 
     @staticmethod

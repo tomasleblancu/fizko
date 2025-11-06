@@ -50,8 +50,9 @@ def create_tax_calculation_widget(
     def fmt(amount: float) -> str:
         return f"${amount:,.0f}"
 
-    # Calculate IVA neto
-    iva_neto = iva_collected - iva_paid
+    # Calculate IVA balance (can be negative)
+    iva_balance = iva_collected - iva_paid - (previous_month_credit or 0.0)
+    iva_a_pagar = max(0.0, iva_balance)
 
     # Build widget rows
     rows = []
@@ -110,7 +111,7 @@ def create_tax_calculation_widget(
         )
     )
 
-    # IVA Neto
+    # IVA a Pagar (subtotal after IVA calculation)
     content_rows.append(
         Box(
             padding={"top": 2, "bottom": 2},
@@ -121,50 +122,50 @@ def create_tax_calculation_widget(
                     justify="between",
                     align="center",
                     children=[
-                        Text(value="IVA Neto", size="sm", weight="semibold"),
-                        Text(value=fmt(iva_neto), size="sm", weight="semibold"),
+                        Text(value="IVA a Pagar", size="sm", weight="semibold"),
+                        Text(value=fmt(iva_a_pagar), size="sm", weight="semibold"),
                     ],
                 )
             ],
         )
     )
 
-    # Additional taxes section
+    # Additional taxes section (these ADD to the total)
     # PPM
-    if ppm is not None:
+    if ppm is not None and ppm > 0:
         content_rows.append(
             Row(
                 justify="between",
                 align="center",
                 children=[
-                    Text(value="PPM (Adelanto Impuesto Anual)", size="sm", color="tertiary"),
-                    Text(value=fmt(ppm), size="sm", color="tertiary"),
+                    Text(value="PPM (Adelanto Impuesto Anual)", size="sm"),
+                    Text(value=f"+{fmt(ppm)}", size="sm", weight="medium"),
                 ],
             )
         )
 
     # Retención
-    if retencion is not None:
+    if retencion is not None and retencion > 0:
         content_rows.append(
             Row(
                 justify="between",
                 align="center",
                 children=[
-                    Text(value="Retención (Honorarios)", size="sm", color="tertiary"),
-                    Text(value=fmt(retencion), size="sm", color="tertiary"),
+                    Text(value="Retención (Honorarios)", size="sm"),
+                    Text(value=f"+{fmt(retencion)}", size="sm", weight="medium"),
                 ],
             )
         )
 
     # Impuesto de Trabajadores
-    if impuesto_trabajadores is not None:
+    if impuesto_trabajadores is not None and impuesto_trabajadores > 0:
         content_rows.append(
             Row(
                 justify="between",
                 align="center",
                 children=[
-                    Text(value="Impuesto Trabajadores", size="sm", color="tertiary"),
-                    Text(value=fmt(impuesto_trabajadores), size="sm", color="tertiary"),
+                    Text(value="Impuesto Trabajadores", size="sm"),
+                    Text(value=f"+{fmt(impuesto_trabajadores)}", size="sm", weight="medium"),
                 ],
             )
         )
@@ -188,9 +189,9 @@ def create_tax_calculation_widget(
         )
     )
 
-    # Add note if there's a remaining credit
-    if previous_month_credit and iva_neto < previous_month_credit:
-        remaining_credit = previous_month_credit - iva_neto
+    # Add note if there's a remaining credit (when IVA balance is negative)
+    if iva_balance < 0:
+        remaining_credit = abs(iva_balance)
         content_rows.append(
             Box(
                 padding={"top": 2},
@@ -249,7 +250,9 @@ def tax_calculation_widget_copy_text(
     def fmt(amount: float) -> str:
         return f"${amount:,.0f}"
 
-    iva_neto = iva_collected - iva_paid
+    # Calculate IVA balance and IVA a pagar
+    iva_balance = iva_collected - iva_paid - (previous_month_credit or 0.0)
+    iva_a_pagar = max(0.0, iva_balance)
 
     lines = [
         f"Cálculo de Impuesto - {period}",
@@ -257,23 +260,25 @@ def tax_calculation_widget_copy_text(
         f"IVA Cobrado: {fmt(iva_collected)}",
         f"IVA Pagado: -{fmt(iva_paid)}",
         f"IVA Crédito Mes Anterior: -{fmt(previous_month_credit or 0.0)}",
-        f"IVA Neto: {fmt(iva_neto)}",
+        "--------------------",
+        f"IVA a Pagar: {fmt(iva_a_pagar)}",
+        "",
     ]
 
-    if ppm is not None:
-        lines.append(f"PPM (Adelanto Impuesto Anual): {fmt(ppm)}")
+    if ppm is not None and ppm > 0:
+        lines.append(f"PPM (Adelanto Impuesto Anual): +{fmt(ppm)}")
 
-    if retencion is not None:
-        lines.append(f"Retención (Honorarios): {fmt(retencion)}")
+    if retencion is not None and retencion > 0:
+        lines.append(f"Retención (Honorarios): +{fmt(retencion)}")
 
-    if impuesto_trabajadores is not None:
-        lines.append(f"Impuesto Trabajadores: {fmt(impuesto_trabajadores)}")
+    if impuesto_trabajadores is not None and impuesto_trabajadores > 0:
+        lines.append(f"Impuesto Trabajadores: +{fmt(impuesto_trabajadores)}")
 
-    lines.append("")
-    lines.append(f"Impuesto a Pagar: {fmt(monthly_tax)}")
+    lines.append("--------------------")
+    lines.append(f"Impuesto a Pagar Total: {fmt(monthly_tax)}")
 
-    if previous_month_credit and iva_neto < previous_month_credit:
-        remaining_credit = previous_month_credit - iva_neto
+    if iva_balance < 0:
+        remaining_credit = abs(iva_balance)
         lines.append("")
         lines.append(f"Remanente a favor: {fmt(remaining_credit)} para el próximo mes")
 

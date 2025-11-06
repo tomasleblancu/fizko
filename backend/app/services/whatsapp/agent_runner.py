@@ -194,11 +194,11 @@ class WhatsAppAgentRunner:
             if self.mode == "multi_agent":
                 agent = await handoffs_manager.get_supervisor_agent(
                     thread_id=str(conversation.id), db=db, user_id=str(user_id),
-                    vector_store_ids=vector_store_ids
+                    vector_store_ids=vector_store_ids, channel="whatsapp"
                 )
                 all_agents = await handoffs_manager.get_all_agents(
                     thread_id=str(conversation.id), db=db, user_id=str(user_id),
-                    vector_store_ids=vector_store_ids
+                    vector_store_ids=vector_store_ids, channel="whatsapp"
                 )
 
                 if vector_store_ids:
@@ -235,6 +235,7 @@ class WhatsAppAgentRunner:
             # 5. Sesión
             # Usar conversation.id para mantener historial persistente entre mensajes
             session = SQLiteSession(str(conversation.id), self.session_file)
+
             logger.info(f"📝 Session created with conversation_id: {conversation.id}")
 
             # 6. Ejecutar agente con session_input_callback
@@ -306,6 +307,79 @@ Email: {user_info.get('email', 'N/A')}
 
             # Retornar datos adicionales para guardar mensaje del usuario en background
             return (response_text, conversation.id, message_content, message_id)
+
+    async def _cleanup_old_session_history(
+        self,
+        conversation_id: UUID,
+        session: SQLiteSession,
+    ) -> None:
+        """
+        Limpia el historial de mensajes de SQLite si han pasado más de 2 horas
+        desde la última actividad en la sesión.
+
+        Esto ayuda a:
+        1. Reducir el contexto cuando la conversación ha estado inactiva
+        2. Evitar que el agente use información muy antigua
+        3. Mantener el contexto fresco y relevante
+
+        Args:
+            conversation_id: ID de la conversación de WhatsApp
+            session: Sesión SQLite del agente
+        """
+        from datetime import datetime, timedelta, timezone
+
+        try:
+            import sqlite3
+
+            # Abrir conexión SQLite usando el db_path del session
+            conn = sqlite3.connect(session.db_path)
+            cursor = conn.cursor()
+
+            # Consultar el updated_at de la sesión
+            cursor.execute(
+                "SELECT updated_at FROM agent_sessions WHERE session_id = ?",
+                (str(conversation_id),)
+            )
+            result = cursor.fetchone()
+            conn.close()
+
+            if not result:
+                # No hay sesión previa, no hay nada que limpiar
+                logger.debug(f"📭 No previous session found for {conversation_id}")
+                return
+
+            # Parsear el timestamp (SQLite almacena como string)
+            last_activity_str = result[0]
+            last_activity_time = datetime.fromisoformat(last_activity_str.replace('Z', '+00:00'))
+
+            # Asegurar que tiene timezone
+            if last_activity_time.tzinfo is None:
+                last_activity_time = last_activity_time.replace(tzinfo=timezone.utc)
+
+            # Calcular tiempo transcurrido
+            now = datetime.now(timezone.utc)
+            time_since_last_activity = now - last_activity_time
+            threshold = timedelta(hours=2)
+
+            if time_since_last_activity > threshold:
+                # Han pasado más de 2 horas, limpiar el historial
+                hours_passed = time_since_last_activity.total_seconds() / 3600
+                logger.info(f"🧹 Cleaning session history for {conversation_id}")
+                logger.info(f"   Time since last activity: {hours_passed:.1f} hours (threshold: 2h)")
+
+                # Limpiar el historial de SQLite usando el método correcto
+                session.clear_session()
+
+                logger.info(f"✅ Session history cleared (fresh context started)")
+            else:
+                # Todavía dentro de las 2 horas, mantener el historial
+                minutes_passed = time_since_last_activity.total_seconds() / 60
+                logger.debug(f"⏱️  Time since last activity: {minutes_passed:.1f} minutes (keeping history)")
+
+        except Exception as e:
+            # Si hay error consultando SQLite, no bloquear - solo log
+            logger.warning(f"⚠️ Failed to check session history age: {e}")
+            logger.debug(f"   Continuing without cleanup")
 
     def _build_message_simple(
         self, user_info: dict, message: str

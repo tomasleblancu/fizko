@@ -1,5 +1,9 @@
 """Global constants and configuration."""
 
+# Timezone configuration
+# All datetime operations in the application use this timezone
+TIMEZONE = "America/Santiago"  # Chile (UTC-3 / UTC-4 with DST)
+
 # OpenAI models configuration
 # Legacy unified agent model (for backward compatibility)
 MODEL = "gpt-4.1-nano"

@@ -22,23 +22,23 @@ class F29Extractor:
     - Descargar formulario compacto en PDF
     """
 
-    def __init__(self, driver: SeleniumDriver, tax_id: str):
+    def __init__(self, driver: Optional[SeleniumDriver], tax_id: str):
         """
         Inicializa el extractor
 
         Args:
-            driver: Instancia de SeleniumDriver
+            driver: Instancia de SeleniumDriver (opcional, solo necesario para búsqueda)
             tax_id: RUT del contribuyente
         """
         self.driver = driver
         self.tax_id = tax_id
-        self._list_scraper = F29Scraper(driver)
+        self._list_scraper = F29Scraper(driver) if driver else None
 
         logger.info("📋 F29Extractor initialized")
 
     def search(self, anio: str, folio: Optional[str] = None) -> List[Dict]:
         """
-        Busca formularios F29
+        Busca formularios F29 (requiere Selenium driver)
 
         Args:
             anio: Año (formato YYYY, ej: "2024")
@@ -48,8 +48,14 @@ class F29Extractor:
             Lista de formularios F29 encontrados
 
         Raises:
-            ExtractionError: Si falla la búsqueda
+            ExtractionError: Si falla la búsqueda o no hay driver disponible
         """
+        if not self.driver or not self._list_scraper:
+            raise ExtractionError(
+                "Search requires a Selenium driver, but none was provided",
+                resource='f29_search'
+            )
+
         try:
             logger.info(f"🔍 Searching F29 forms - Year: {anio}, Folio: {folio}")
 
@@ -69,41 +75,48 @@ class F29Extractor:
                 resource='f29_search'
             )
 
-    def get_formulario_compacto(
+    def download_formulario_compacto_pdf(
         self,
         folio: str,
         id_interno_sii: str,
-        form_type: str = '029'
+        form_type: str = '029',
+        cookies: Optional[List[Dict]] = None
     ) -> Optional[bytes]:
         """
-        Descarga el PDF del formulario compacto usando Selenium
+        Descarga el PDF del formulario compacto usando requests (sin Selenium)
 
         Args:
             folio: Folio real del formulario (ej: "8104678626")
             id_interno_sii: ID interno del SII (codInt) (ej: "817935151")
             form_type: Tipo de formulario (default: '029' para F29)
+            cookies: Lista de cookies para autenticación (requerido)
 
         Returns:
-            Contenido del PDF en bytes, o None si hay error
+            Contenido del PDF en bytes
+
+        Raises:
+            ExtractionError: Si falla la descarga
 
         Example:
-            >>> pdf_bytes = extractor.get_formulario_compacto(
+            >>> pdf_bytes = extractor.download_formulario_compacto_pdf(
             ...     folio="8104678626",
-            ...     id_interno_sii="817935151"
+            ...     id_interno_sii="817935151",
+            ...     cookies=session_cookies
             ... )
-            >>> if pdf_bytes:
-            ...     with open('f29.pdf', 'wb') as f:
-            ...         f.write(pdf_bytes)
+            >>> with open('f29.pdf', 'wb') as f:
+            ...     f.write(pdf_bytes)
         """
-        try:
-            import base64
-            import time
+        if not cookies:
+            raise ExtractionError(
+                "Cookies are required for PDF download",
+                resource='f29_pdf'
+            )
 
-            # Extraer RUT sin dígito verificador (soporta formato con o sin guión)
+        try:
+            # Extraer RUT sin dígito verificador
             if '-' in self.tax_id:
                 rut_sin_dv = self.tax_id.split('-')[0]
             else:
-                # Formato sin guión: 12345678k
                 rut_sin_dv = self.tax_id[:-1]
 
             # Construir URL del formulario compacto
@@ -117,45 +130,43 @@ class F29Extractor:
 
             logger.info(f"📄 Downloading compact form PDF: folio={folio}, codInt={id_interno_sii}")
 
-            # Navegar a la URL del PDF
-            self.driver.navigate_to(url)
-            time.sleep(3)
+            # Convertir cookies a formato dict
+            cookies_dict = {c['name']: c['value'] for c in cookies}
 
-            # Usar Chrome DevTools Protocol para obtener el PDF
-            # Esto funciona mejor que requests porque mantiene la sesión del navegador
-            try:
-                pdf_base64 = self.driver.driver.execute_cdp_cmd("Page.printToPDF", {})
-                pdf_bytes = base64.b64decode(pdf_base64['data'])
-                logger.info(f"✅ PDF downloaded via CDP ({len(pdf_bytes)} bytes)")
-                return pdf_bytes
-            except Exception as cdp_error:
-                logger.warning(f"⚠️ CDP method failed: {cdp_error}, trying alternative method")
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://www4.sii.cl/sifmConsultaInternet/',
+                'Accept': 'application/pdf'
+            }
 
-                # Método alternativo: obtener el PDF del page source si está embebido
-                page_source = self.driver.driver.page_source
+            response = requests.get(url, cookies=cookies_dict, headers=headers, timeout=30)
 
-                # Si la página contiene un embed/object con PDF
-                if 'application/pdf' in page_source or 'embed' in page_source.lower():
-                    # Intentar con requests usando las cookies del driver
-                    current_cookies = self.driver.get_cookies()
-                    cookies_dict = {c['name']: c['value'] for c in current_cookies}
+            # Verificar respuesta exitosa
+            if response.status_code != 200:
+                raise ExtractionError(
+                    f"HTTP {response.status_code} al descargar PDF",
+                    resource='f29_pdf'
+                )
 
-                    headers = {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'Referer': 'https://www4.sii.cl/sifmConsultaInternet/'
-                    }
+            # Verificar que sea un PDF válido
+            if not response.content.startswith(b'%PDF'):
+                logger.error(f"Respuesta no es un PDF válido. Content-Type: {response.headers.get('content-type')}")
+                raise ExtractionError(
+                    "La respuesta no es un PDF válido",
+                    resource='f29_pdf'
+                )
 
-                    response = requests.get(url, cookies=cookies_dict, headers=headers, timeout=30)
+            logger.info(f"✅ PDF downloaded successfully ({len(response.content)} bytes)")
+            return response.content
 
-                    if response.status_code == 200 and 'application/pdf' in response.headers.get('content-type', ''):
-                        logger.info(f"✅ PDF downloaded via requests ({len(response.content)} bytes)")
-                        return response.content
-
-                logger.error(f"❌ Could not download PDF. Page source preview: {page_source[:500]}")
-                return None
-
+        except requests.RequestException as e:
+            logger.error(f"❌ Network error downloading PDF: {e}")
+            raise ExtractionError(
+                f"Network error: {str(e)}",
+                resource='f29_pdf'
+            )
         except Exception as e:
-            logger.error(f"❌ Error getting compact form: {str(e)}")
+            logger.error(f"❌ Error downloading compact form PDF: {e}")
             raise ExtractionError(
                 f"Failed to download compact form: {str(e)}",
                 resource='f29_pdf'
