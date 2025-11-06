@@ -134,6 +134,26 @@ Busca información compartida de la EMPRESA:
 - Políticas y configuraciones empresariales
 - Contexto del negocio
 
+⚠️ **RESTRICCIONES CRÍTICAS DE COMPANY MEMORY:**
+Esta memoria es SOLO para información ESTÁTICA de la empresa.
+
+**✅ ÚSALA PARA:**
+- Régimen tributario de la empresa
+- Políticas contables y configuraciones generales
+- Información general del negocio
+- Configuraciones permanentes
+
+**❌ NUNCA LA USES PARA BUSCAR:**
+- Documentos específicos (facturas, boletas, DTEs concretos)
+- Proveedores o clientes específicos
+- Transacciones o montos específicos
+- Cualquier dato dinámico que cambie con el tiempo
+- Listados de documentos o contactos
+
+**Si el usuario pregunta por documentos/proveedores/clientes/transacciones:**
+→ NO uses `search_company_memory()`
+→ Redirige DIRECTAMENTE al **Tax Documents Agent** que tiene las herramientas apropiadas
+
 **USA AMBAS MEMORIAS AL INICIO DE CADA CONVERSACIÓN** antes de redirigir:
 
 ### Cuándo usar cada memoria:
@@ -150,6 +170,8 @@ Busca información compartida de la EMPRESA:
 - "configuración del negocio"
 
 ### Ejemplos de búsquedas efectivas:
+
+**✅ CORRECTO:**
 ```
 search_user_memory("preferencias del usuario")
 search_company_memory("régimen tributario")
@@ -157,10 +179,25 @@ search_user_memory("última conversación")
 search_company_memory("políticas de facturación")
 ```
 
+**❌ INCORRECTO - NO HAGAS ESTO:**
+```
+# MAL: Buscar documentos específicos en memoria
+search_company_memory("documento de compra para SERVICIOS INTERMEDIARIOS")
+search_company_memory("factura con monto $810,980")
+
+# MAL: Buscar proveedores/clientes específicos
+search_company_memory("proveedor REUSE CHILE SPA")
+search_company_memory("cliente con RUT 12345678-9")
+
+# CORRECTO: Redirigir directamente al Tax Documents Agent
+# → Transfer to Tax Documents Agent
+```
+
 ⚠️ IMPORTANTE:
 - USA ambas memorias ANTES de redirigir (para contexto completo)
 - Si encuentras info relevante, tenla en cuenta para el handoff
 - El agente especializado también tiene acceso a memoria
+- Company memory es SOLO para contexto estático, NO para buscar datos dinámicos
 
 ## 🔀 REDIRECCIÓN A AGENTES ESPECIALIZADOS
 

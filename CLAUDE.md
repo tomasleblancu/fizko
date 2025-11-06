@@ -82,6 +82,29 @@ npm run lint
 
 Migrations are in `backend/supabase/migrations/`. Apply manually to Supabase using the SQL editor or Supabase CLI.
 
+### Seed Scripts (Data Sync Between Environments)
+
+```bash
+cd backend
+
+# Sync notification templates from staging to production
+python -m scripts.seed notification-templates --to production --dry-run
+python -m scripts.seed notification-templates --to production
+
+# Sync event templates
+python -m scripts.seed event-templates --to production --dry-run
+python -m scripts.seed event-templates --to production
+
+# Sync specific templates only
+python -m scripts.seed notification-templates --to production --codes f29_reminder,daily_summary
+
+# Sync everything
+python -m scripts.seed all --to production --dry-run
+python -m scripts.seed all --to production
+```
+
+See [backend/scripts/seed/README.md](backend/scripts/seed/README.md) and [QUICKSTART.md](backend/scripts/seed/QUICKSTART.md) for full documentation.
+
 ### Environment Setup
 
 **Backend** requires `.env` file with:

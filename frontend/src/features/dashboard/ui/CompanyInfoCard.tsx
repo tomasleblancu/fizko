@@ -3,6 +3,7 @@ import type { Company } from "@/shared/types/fizko";
 import type { ColorScheme } from "@/shared/hooks/useColorScheme";
 import { CompanyInfoCardSkeleton } from './CompanyInfoCardSkeleton';
 import { ChateableWrapper } from '@/shared/ui/ChateableWrapper';
+import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
 import '@/app/styles/chateable.css';
 
 interface CompanyInfoCardProps {
@@ -40,16 +41,12 @@ export function CompanyInfoCard({ company, loading, scheme, isInDrawer = false }
     >
       <div className={isInDrawer ? "p-0" : "rounded-2xl border border-slate-200/70 bg-gradient-to-br from-blue-50 to-purple-50 p-3 dark:border-slate-800/70 dark:from-blue-950/30 dark:to-purple-950/30"}>
         {/* Company Info */}
-        <div className="flex items-center gap-2">
-          {/* Left parenthesis */}
-          <img
-            src="/parentesis_izq.png"
-            alt="("
-            className="h-8 w-auto object-contain flex-shrink-0"
-          />
+        <div className="flex items-center gap-3">
+          {/* Fizko Logo */}
+          <FizkoLogo className="h-8 w-8 flex-shrink-0" />
 
           {/* Company content */}
-          <div className="flex-1 px-1">
+          <div className="flex-1">
             <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
               {company.business_name}
             </h3>
@@ -57,13 +54,6 @@ export function CompanyInfoCard({ company, loading, scheme, isInDrawer = false }
               RUT: {company.rut}
             </p>
           </div>
-
-          {/* Right parenthesis */}
-          <img
-            src="/parentesis_der.png"
-            alt=")"
-            className="h-8 w-auto object-contain flex-shrink-0"
-          />
         </div>
       </div>
     </ChateableWrapper>
