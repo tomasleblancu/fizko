@@ -84,6 +84,8 @@ Migrations are in `backend/supabase/migrations/`. Apply manually to Supabase usi
 
 ### Seed Scripts (Data Sync Between Environments)
 
+Sync configuration data between environments using Supabase SDK:
+
 ```bash
 cd backend
 
@@ -98,10 +100,17 @@ python -m scripts.seed event-templates --to production
 # Sync specific templates only
 python -m scripts.seed notification-templates --to production --codes f29_reminder,daily_summary
 
+# Sync any table generically (new brain system, etc.)
+python -m scripts.seed sync --table brain_contexts --unique-key context_id --to production --dry-run
+
 # Sync everything
 python -m scripts.seed all --to production --dry-run
 python -m scripts.seed all --to production
 ```
+
+**Required environment variables** for seed scripts:
+- `STAGING_SUPABASE_URL`, `STAGING_SUPABASE_SERVICE_KEY` - Staging environment
+- `PROD_SUPABASE_URL`, `PROD_SUPABASE_SERVICE_KEY` - Production environment
 
 See [backend/scripts/seed/README.md](backend/scripts/seed/README.md) and [QUICKSTART.md](backend/scripts/seed/QUICKSTART.md) for full documentation.
 
@@ -109,11 +118,15 @@ See [backend/scripts/seed/README.md](backend/scripts/seed/README.md) and [QUICKS
 
 **Backend** requires `.env` file with:
 - `OPENAI_API_KEY` - For AI agents
-- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_JWT_SECRET` - Database & auth
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_JWT_SECRET` - Database & auth (local/staging/prod)
 - `DATABASE_URL` - PostgreSQL connection (use port **6543** for pgbouncer pooler in production parity)
 - `KAPSO_API_KEY`, `KAPSO_PROJECT_ID` - WhatsApp integration
 - `REDIS_URL` - For Celery (format: `redis://host:port/db` or `redis://:password@host:port/db`)
 - `ENCRYPTION_KEY` - For encrypting SII credentials
+
+**For seed scripts** (data sync between environments):
+- `STAGING_SUPABASE_URL`, `STAGING_SUPABASE_SERVICE_KEY` - Staging Supabase credentials
+- `PROD_SUPABASE_URL`, `PROD_SUPABASE_SERVICE_KEY` - Production Supabase credentials
 
 **Frontend** requires `.env` file with:
 - `VITE_BACKEND_URL` - Backend API URL (default: `http://localhost:8089`)

@@ -4,15 +4,13 @@ CLI entry point for seed commands.
 Usage:
     python -m scripts.seed <command> [options]
 """
-import asyncio
 import logging
 import sys
 from typing import Optional, Set
 
 import click
 
-from .notification_templates import NotificationTemplateSeeder
-from .event_templates import EventTemplateSeeder
+from .generic import GenericSupabaseSeeder
 
 # Configure logging
 logging.basicConfig(
@@ -33,13 +31,16 @@ def cli():
     Examples:
 
         # Sync notification templates from staging to production (dry run)
-        python -m scripts.seed notification-templates --from staging --to production --dry-run
+        python -m scripts.seed notification-templates --to production --dry-run
 
         # Sync event templates (live)
-        python -m scripts.seed event-templates --from staging --to production
+        python -m scripts.seed event-templates --to production
 
         # Sync specific templates only
-        python -m scripts.seed notification-templates --from staging --to production --codes f29_reminder,calendar_event
+        python -m scripts.seed notification-templates --to production --codes f29_reminder,calendar_event
+
+        # Sync any table
+        python -m scripts.seed sync --table brain_contexts --unique-key context_id --to production --dry-run
     """
     pass
 
@@ -48,14 +49,14 @@ def cli():
 @click.option(
     "--from",
     "source_env",
-    type=click.Choice(["local", "staging", "production"], case_sensitive=False),
+    type=click.Choice(["staging", "production"], case_sensitive=False),
     default="staging",
     help="Source environment",
 )
 @click.option(
     "--to",
     "target_env",
-    type=click.Choice(["local", "staging", "production"], case_sensitive=False),
+    type=click.Choice(["staging", "production"], case_sensitive=False),
     required=True,
     help="Target environment",
 )
@@ -99,9 +100,6 @@ def notification_templates(
 
         # Sync specific templates only
         python -m scripts.seed notification-templates --to production --codes f29_reminder,daily_summary
-
-        # Sync from local to staging
-        python -m scripts.seed notification-templates --from local --to staging
     """
     # Prevent syncing to same environment
     if source_env == target_env:
@@ -125,12 +123,14 @@ def notification_templates(
         )
 
     # Parse codes filter
-    filter_keys: Optional[Set[str]] = None
+    filter_codes: Optional[Set[str]] = None
     if codes:
-        filter_keys = set(c.strip() for c in codes.split(",") if c.strip())
+        filter_codes = set(c.strip() for c in codes.split(",") if c.strip())
 
     # Run seeder
-    seeder = NotificationTemplateSeeder(
+    seeder = GenericSupabaseSeeder(
+        table_name="notification_templates",
+        unique_key="code",
         source_env=source_env,
         target_env=target_env,
         dry_run=dry_run,
@@ -138,7 +138,7 @@ def notification_templates(
     )
 
     try:
-        stats = asyncio.run(seeder.sync(filter_keys=filter_keys))
+        stats = seeder.sync(filter_codes=filter_codes)
 
         # Exit with error if there were failures
         if stats["errors"] > 0:
@@ -156,14 +156,14 @@ def notification_templates(
 @click.option(
     "--from",
     "source_env",
-    type=click.Choice(["local", "staging", "production"], case_sensitive=False),
+    type=click.Choice(["staging", "production"], case_sensitive=False),
     default="staging",
     help="Source environment",
 )
 @click.option(
     "--to",
     "target_env",
-    type=click.Choice(["local", "staging", "production"], case_sensitive=False),
+    type=click.Choice(["staging", "production"], case_sensitive=False),
     required=True,
     help="Target environment",
 )
@@ -231,12 +231,14 @@ def event_templates(
         )
 
     # Parse codes filter
-    filter_keys: Optional[Set[str]] = None
+    filter_codes: Optional[Set[str]] = None
     if codes:
-        filter_keys = set(c.strip() for c in codes.split(",") if c.strip())
+        filter_codes = set(c.strip() for c in codes.split(",") if c.strip())
 
     # Run seeder
-    seeder = EventTemplateSeeder(
+    seeder = GenericSupabaseSeeder(
+        table_name="event_templates",
+        unique_key="code",
         source_env=source_env,
         target_env=target_env,
         dry_run=dry_run,
@@ -244,7 +246,123 @@ def event_templates(
     )
 
     try:
-        stats = asyncio.run(seeder.sync(filter_keys=filter_keys))
+        stats = seeder.sync(filter_codes=filter_codes)
+
+        # Exit with error if there were failures
+        if stats["errors"] > 0:
+            sys.exit(1)
+
+    except Exception as e:
+        click.echo(click.style(f"\n❌ Sync failed: {e}", fg="red", bold=True))
+        if verbose:
+            import traceback
+            click.echo(traceback.format_exc())
+        sys.exit(1)
+
+
+@cli.command()
+@click.option(
+    "--table",
+    type=str,
+    required=True,
+    help="Table name to sync",
+)
+@click.option(
+    "--unique-key",
+    type=str,
+    required=True,
+    help="Column name to use as unique identifier (e.g., 'code', 'id')",
+)
+@click.option(
+    "--from",
+    "source_env",
+    type=click.Choice(["staging", "production"], case_sensitive=False),
+    default="staging",
+    help="Source environment",
+)
+@click.option(
+    "--to",
+    "target_env",
+    type=click.Choice(["staging", "production"], case_sensitive=False),
+    required=True,
+    help="Target environment",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Show what would be synced without applying changes",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    default=False,
+    help="Show detailed output",
+)
+@click.option(
+    "--filter",
+    type=str,
+    help="Comma-separated list of unique key values to sync (default: all)",
+)
+def sync(
+    table: str,
+    unique_key: str,
+    source_env: str,
+    target_env: str,
+    dry_run: bool,
+    verbose: bool,
+    filter: Optional[str],
+):
+    """
+    Generic sync command for any table.
+
+    Examples:
+
+        # Sync brain_contexts table
+        python -m scripts.seed sync --table brain_contexts --unique-key context_id --to production --dry-run
+
+        # Sync specific records only
+        python -m scripts.seed sync --table brain_contexts --unique-key context_id --to production --filter ctx_123,ctx_456
+    """
+    # Prevent syncing to same environment
+    if source_env == target_env:
+        click.echo(
+            click.style(
+                f"❌ Error: Source and target cannot be the same ({source_env})",
+                fg="red",
+            )
+        )
+        sys.exit(1)
+
+    # Warn if syncing to production
+    if target_env == "production" and not dry_run:
+        click.confirm(
+            click.style(
+                f"⚠️  You are about to sync table '{table}' to PRODUCTION. Continue?",
+                fg="yellow",
+                bold=True,
+            ),
+            abort=True,
+        )
+
+    # Parse filter
+    filter_codes: Optional[Set[str]] = None
+    if filter:
+        filter_codes = set(c.strip() for c in filter.split(",") if c.strip())
+
+    # Run seeder
+    seeder = GenericSupabaseSeeder(
+        table_name=table,
+        unique_key=unique_key,
+        source_env=source_env,
+        target_env=target_env,
+        dry_run=dry_run,
+        verbose=verbose,
+    )
+
+    try:
+        stats = seeder.sync(filter_codes=filter_codes)
 
         # Exit with error if there were failures
         if stats["errors"] > 0:
@@ -262,14 +380,14 @@ def event_templates(
 @click.option(
     "--from",
     "source_env",
-    type=click.Choice(["local", "staging", "production"], case_sensitive=False),
+    type=click.Choice(["staging", "production"], case_sensitive=False),
     default="staging",
     help="Source environment",
 )
 @click.option(
     "--to",
     "target_env",
-    type=click.Choice(["local", "staging", "production"], case_sensitive=False),
+    type=click.Choice(["staging", "production"], case_sensitive=False),
     required=True,
     help="Target environment",
 )
@@ -331,13 +449,15 @@ def all(
 
     # Sync notification templates
     try:
-        seeder = NotificationTemplateSeeder(
+        seeder = GenericSupabaseSeeder(
+            table_name="notification_templates",
+            unique_key="code",
             source_env=source_env,
             target_env=target_env,
             dry_run=dry_run,
             verbose=verbose,
         )
-        stats = asyncio.run(seeder.sync())
+        stats = seeder.sync()
         if stats["errors"] > 0:
             all_success = False
     except Exception as e:
@@ -351,13 +471,15 @@ def all(
 
     # Sync event templates
     try:
-        seeder = EventTemplateSeeder(
+        seeder = GenericSupabaseSeeder(
+            table_name="event_templates",
+            unique_key="code",
             source_env=source_env,
             target_env=target_env,
             dry_run=dry_run,
             verbose=verbose,
         )
-        stats = asyncio.run(seeder.sync())
+        stats = seeder.sync()
         if stats["errors"] > 0:
             all_success = False
     except Exception as e:

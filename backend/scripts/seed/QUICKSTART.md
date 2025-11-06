@@ -4,21 +4,21 @@
 
 ### 1. Configurar variables de entorno
 
-Edita tu `.env` y agrega las URLs de las bases de datos:
+Edita tu `.env` y agrega las credenciales de Supabase:
 
 ```bash
-# Backend local
-DATABASE_URL=postgresql://postgres:your_pass@localhost:6543/fizko
+# Staging
+STAGING_SUPABASE_URL=https://xxx.supabase.co
+STAGING_SUPABASE_SERVICE_KEY=eyJhbG...
 
-# Staging (Supabase)
-STAGING_DATABASE_URL=postgresql://postgres.xxxx:your_pass@aws-0-us-east-1.pooler.supabase.com:5432/postgres
-
-# Production (Supabase)
-DATABASE_URL_PRODUCTION=postgresql://postgres.yyyy:your_pass@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+# Production
+PROD_SUPABASE_URL=https://yyy.supabase.co
+PROD_SUPABASE_SERVICE_KEY=eyJhbG...
 ```
 
-💡 **Tip**: Obtén las URLs de Supabase desde:
-- Supabase Dashboard → Settings → Database → Connection string (Transaction mode)
+💡 **Tip**: Obtén las credenciales de Supabase desde:
+- Supabase Dashboard → Settings → API → Project API keys → `service_role` key (secret)
+- **⚠️ NO uses anon keys**, usa service_role key para acceso completo
 
 ### 2. Verificar conexión
 
@@ -26,7 +26,7 @@ DATABASE_URL_PRODUCTION=postgresql://postgres.yyyy:your_pass@aws-0-us-east-1.poo
 cd backend
 
 # Test que las variables estén configuradas
-python -c "import os; from dotenv import load_dotenv; load_dotenv(); print('✅ STAGING_DATABASE_URL' if os.getenv('STAGING_DATABASE_URL') else '❌ Missing STAGING_DATABASE_URL')"
+python -c "import os; from dotenv import load_dotenv; load_dotenv(); print('✅ STAGING_SUPABASE_URL' if os.getenv('STAGING_SUPABASE_URL') else '❌ Missing STAGING_SUPABASE_URL')"
 ```
 
 ## Uso Diario
@@ -34,9 +34,6 @@ python -c "import os; from dotenv import load_dotenv; load_dotenv(); print('✅ 
 > **💡 Importante**: El sistema permite sincronizar en **cualquier dirección** usando `--from` y `--to`:
 > - `staging → production` (deployment normal)
 > - `production → staging` (sync back de hotfixes)
-> - `local → staging` (test local changes)
-> - `staging → local` (get latest config)
-> - Cualquier combinación válida
 
 ### Caso 1: Sincronizar Notification Templates de Staging → Production
 
@@ -86,7 +83,24 @@ python -m scripts.seed event-templates --to production --dry-run
 python -m scripts.seed event-templates --to production
 ```
 
-### Caso 4: Sincronizar Todo
+### Caso 4: Sincronizar Cualquier Tabla (Genérico)
+
+```bash
+# Ejemplo: Sincronizar brain_contexts
+python -m scripts.seed sync \
+  --table brain_contexts \
+  --unique-key context_id \
+  --to production \
+  --dry-run
+
+# Si se ve bien:
+python -m scripts.seed sync \
+  --table brain_contexts \
+  --unique-key context_id \
+  --to production
+```
+
+### Caso 5: Sincronizar Todo
 
 ```bash
 # Sincroniza notification_templates + event_templates
@@ -96,7 +110,7 @@ python -m scripts.seed all --to production --dry-run
 python -m scripts.seed all --to production
 ```
 
-### Caso 5: Sincronizar de Production → Staging (Sync Back)
+### Caso 6: Sincronizar de Production → Staging (Sync Back)
 
 ```bash
 # Escenario: Se hizo un hotfix en producción y necesitas traerlo a staging
@@ -112,16 +126,6 @@ python -m scripts.seed notification-templates \
 python -m scripts.seed notification-templates \
   --from production \
   --to staging
-```
-
-### Caso 6: Traer Config Reciente a Local
-
-```bash
-# Traer templates de staging a tu entorno local
-python -m scripts.seed all --from staging --to local
-
-# O solo notification templates
-python -m scripts.seed notification-templates --from staging --to local
 ```
 
 ### Caso 7: Ver Detalles de Cambios (Verbose)
@@ -158,21 +162,22 @@ python -m scripts.seed notification-templates --to production
 
 ## Troubleshooting Rápido
 
-### Error: "Environment variable STAGING_DATABASE_URL not set"
+### Error: "Missing Supabase config for staging"
 
 ```bash
 # Verificar que el .env tenga las variables:
-grep STAGING_DATABASE_URL backend/.env
+grep STAGING_SUPABASE backend/.env
 
 # Si no existe, agregarla:
-echo "STAGING_DATABASE_URL=postgresql://..." >> backend/.env
+echo "STAGING_SUPABASE_URL=https://xxx.supabase.co" >> backend/.env
+echo "STAGING_SUPABASE_SERVICE_KEY=eyJhbG..." >> backend/.env
 ```
 
-### Error: "could not connect to server"
+### Error: "permission denied" o similar
 
 ```bash
-# Verificar que la URL sea correcta y accesible
-# Para Supabase, usar el pooler (port 5432 o 6543), NO direct connection
+# Verificar que estés usando SERVICE ROLE KEY, no anon key
+# Service role key empieza con: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6...
 ```
 
 ### Templates no se actualizan cuando deberían
@@ -183,7 +188,7 @@ python -m scripts.seed notification-templates --to production --verbose --dry-ru
 
 # El script compara:
 # 1. updated_at timestamp (si source > target → update)
-# 2. Contenido de campos clave (message_template, timing_config, etc.)
+# 2. Contenido de campos (si difieren → update)
 ```
 
 ## Cheat Sheet de Comandos
@@ -201,6 +206,9 @@ python -m scripts.seed event-templates --to production --dry-run
 # Event templates: staging → prod (live)
 python -m scripts.seed event-templates --to production
 
+# Cualquier tabla: staging → prod (dry run)
+python -m scripts.seed sync --table your_table --unique-key your_key --to production --dry-run
+
 # Todo: staging → prod (dry run)
 python -m scripts.seed all --to production --dry-run
 
@@ -212,9 +220,6 @@ python -m scripts.seed notification-templates --to production --codes template1,
 
 # Modo verbose (ver detalles)
 python -m scripts.seed notification-templates --to production --verbose --dry-run
-
-# Local → Staging (útil para testing)
-python -m scripts.seed notification-templates --from local --to staging
 ```
 
 ## Ver Ayuda
@@ -226,6 +231,7 @@ python -m scripts.seed --help
 # Ayuda de comando específico
 python -m scripts.seed notification-templates --help
 python -m scripts.seed event-templates --help
+python -m scripts.seed sync --help
 python -m scripts.seed all --help
 ```
 
