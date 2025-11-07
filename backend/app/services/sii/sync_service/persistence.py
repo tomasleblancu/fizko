@@ -7,7 +7,7 @@ en la base de datos usando bulk upsert.
 import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -25,7 +25,8 @@ async def get_or_create_contact(
     contact_type: str  # 'provider' or 'client'
 ) -> Optional[UUID]:
     """
-    Busca o crea un contacto basado en el RUT
+    Busca o crea un contacto basado en el RUT usando INSERT ... ON CONFLICT
+    para evitar race conditions.
 
     Args:
         db: Sesión de base de datos
@@ -43,44 +44,80 @@ async def get_or_create_contact(
     # Normalizar RUT (eliminar puntos, guiones, etc)
     rut = rut.strip().replace(".", "").replace("-", "").upper()
 
-    # Buscar contacto existente
-    stmt = select(Contact).where(
-        Contact.company_id == company_id,
-        Contact.rut == rut
-    )
-    result = await db.execute(stmt)
-    existing_contact = result.scalar_one_or_none()
-
-    if existing_contact:
-        # Verificar si necesitamos actualizar el tipo
-        if existing_contact.contact_type != 'both':
-            # Si es proveedor y ahora es cliente (o viceversa), cambiar a 'both'
-            if (existing_contact.contact_type == 'provider' and contact_type == 'client') or \
-               (existing_contact.contact_type == 'client' and contact_type == 'provider'):
-                existing_contact.contact_type = 'both'
-                existing_contact.updated_at = datetime.utcnow()
-                logger.info(f"📝 Updated contact {rut} type to 'both'")
-
-        return existing_contact.id
-
-    # Crear nuevo contacto
     try:
-        new_contact = Contact(
+        # Primero intentar buscar contacto existente
+        stmt = select(Contact).where(
+            Contact.company_id == company_id,
+            Contact.rut == rut
+        )
+        result = await db.execute(stmt)
+        existing_contact = result.scalar_one_or_none()
+
+        if existing_contact:
+            # Verificar si necesitamos actualizar el tipo
+            if existing_contact.contact_type != 'both':
+                # Si es proveedor y ahora es cliente (o viceversa), cambiar a 'both'
+                if (existing_contact.contact_type == 'provider' and contact_type == 'client') or \
+                   (existing_contact.contact_type == 'client' and contact_type == 'provider'):
+                    existing_contact.contact_type = 'both'
+                    existing_contact.updated_at = datetime.utcnow()
+                    logger.info(f"📝 Updated contact {rut} type to 'both'")
+
+            return existing_contact.id
+
+        # No existe, intentar crear usando INSERT ... ON CONFLICT
+        # para manejar race conditions a nivel de DB
+        contact_id = uuid4()
+
+        stmt = insert(Contact).values(
+            id=contact_id,
             company_id=company_id,
             rut=rut,
             business_name=name,
             contact_type=contact_type,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
-        )
-        db.add(new_contact)
-        await db.flush()  # Flush para obtener el ID sin commit
+        ).on_conflict_do_update(
+            index_elements=['company_id', 'rut'],
+            set_={
+                'contact_type': Contact.contact_type,  # Mantener el tipo original si ya existe
+                'updated_at': datetime.utcnow()
+            }
+        ).returning(Contact.id)
 
-        logger.info(f"✨ Created new {contact_type}: {name} ({rut})")
-        return new_contact.id
+        result = await db.execute(stmt)
+        returned_id = result.scalar_one()
+
+        if returned_id == contact_id:
+            logger.info(f"✨ Created new {contact_type}: {name} ({rut})")
+        else:
+            logger.debug(f"♻️ Contact {rut} already existed (concurrent creation)")
+
+        return returned_id
 
     except Exception as e:
-        logger.error(f"❌ Error creating contact {rut}: {e}")
+        logger.error(f"❌ Error in get_or_create_contact for {rut}: {e}", exc_info=True)
+
+        # Intentar rollback a savepoint si hay error
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+
+        # Último intento: buscar el contacto que debería existir
+        try:
+            stmt = select(Contact.id).where(
+                Contact.company_id == company_id,
+                Contact.rut == rut
+            )
+            result = await db.execute(stmt)
+            contact_id = result.scalar_one_or_none()
+            if contact_id:
+                logger.info(f"♻️ Found contact {rut} on retry after error")
+                return contact_id
+        except Exception:
+            pass
+
         return None
 
 

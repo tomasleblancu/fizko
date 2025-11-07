@@ -66,6 +66,12 @@ export default function Landing() {
                   alt=""
                   className="h-32 sm:h-40 w-auto flex-shrink-0"
                   aria-hidden="true"
+                  style={{
+                    imageRendering: 'crisp-edges',
+                    WebkitBackfaceVisibility: 'hidden',
+                    WebkitTransform: 'translateZ(0)',
+                    transform: 'translateZ(0)'
+                  }}
                 />
 
                 {/* Accounting Entry Content - Two Lines */}
@@ -115,6 +121,12 @@ export default function Landing() {
                   alt=""
                   className="h-32 sm:h-40 w-auto flex-shrink-0"
                   aria-hidden="true"
+                  style={{
+                    imageRendering: 'crisp-edges',
+                    WebkitBackfaceVisibility: 'hidden',
+                    WebkitTransform: 'translateZ(0)',
+                    transform: 'translateZ(0)'
+                  }}
                 />
               </div>
             </div>

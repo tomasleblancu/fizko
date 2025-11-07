@@ -5,6 +5,7 @@ Este módulo proporciona funciones reutilizables para guardar/actualizar
 memorias en Mem0 con el patrón Brain (slug + category) tanto para
 Company como para User.
 """
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -145,9 +146,7 @@ async def _save_memories(
                     f"[Memory Service] 🔄 Updating {entity_type} memory: {slug} "
                     f"(category: {category})"
                 )
-                import asyncio
-                await asyncio.to_thread(
-                    mem0_client.update,
+                await mem0_client.update(
                     memory_id=existing_brain.memory_id,
                     text=content
                 )

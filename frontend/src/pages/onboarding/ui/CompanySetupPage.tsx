@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useAuth } from "@/app/providers/AuthContext";
 import { useSession } from "@/shared/hooks/useSession";
 import { useCompanyQuery } from "@/shared/hooks/useCompanyQuery";
 import { useCompanySettings, CompanySettingsUpdate } from "@/shared/hooks/useCompanySettings";
 import { FizkoLoadingScreen } from "@/shared/ui/feedback/FizkoLoadingScreen";
+import { queryKeys } from "@/shared/lib/query-keys";
 
 type SettingValue = boolean | null;
 
@@ -61,7 +63,8 @@ const questions: Question[] = [
 
 export function CompanySetupPage() {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const queryClient = useQueryClient();
+  const { signOut, user } = useAuth();
   const { needsOnboarding, needsInitialSetup, setupCompanyId } = useSession();
   const { data: company = null } = useCompanyQuery();
   const { updateSettings } = useCompanySettings(setupCompanyId || '');
@@ -135,6 +138,12 @@ export function CompanySetupPage() {
       // Clear sessionStorage flags
       sessionStorage.removeItem('needs_initial_setup');
       sessionStorage.removeItem('setup_company_id');
+
+      // IMPORTANT: Invalidate session query to force refetch with new sessionStorage state
+      // This ensures useSession() returns needsInitialSetup: false immediately
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.sessions.byUser(user?.id),
+      });
 
       // Show full-screen loader for 5 seconds before redirecting
       setShowingFinalLoader(true);

@@ -55,14 +55,28 @@ export function HeartbeatLogo({ className = "h-12 w-12" }: HeartbeatLogoProps) {
         src="/parentesis_izq.svg"
         alt="("
         className="h-full w-auto animate-heartbeat-left"
-        style={{ objectFit: 'contain' }}
+        style={{
+          objectFit: 'contain',
+          imageRendering: 'crisp-edges',
+          WebkitBackfaceVisibility: 'hidden',
+          WebkitTransform: 'translateZ(0)',
+          transform: 'translateZ(0)',
+          willChange: 'transform'
+        }}
       />
       {/* Right parenthesis - animates to the right */}
       <img
         src="/parentesis_der.svg"
         alt=")"
         className="h-full w-auto animate-heartbeat-right"
-        style={{ objectFit: 'contain' }}
+        style={{
+          objectFit: 'contain',
+          imageRendering: 'crisp-edges',
+          WebkitBackfaceVisibility: 'hidden',
+          WebkitTransform: 'translateZ(0)',
+          transform: 'translateZ(0)',
+          willChange: 'transform'
+        }}
       />
     </div>
   );

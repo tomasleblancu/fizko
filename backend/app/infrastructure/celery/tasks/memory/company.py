@@ -45,8 +45,9 @@ def save_company_memories_task(
     import asyncio
 
     async def _save():
-        async with AsyncSessionLocal() as db:
-            try:
+        mem0 = None
+        try:
+            async with AsyncSessionLocal() as db:
                 mem0 = get_mem0_client()
                 company_uuid = UUID(company_id)
 
@@ -74,21 +75,29 @@ def save_company_memories_task(
                     "memories_count": len(memories)
                 }
 
-            except Exception as e:
-                logger.error(
-                    f"[Memory Task] ❌ Error saving company memories for {company_id}: {e}",
-                    exc_info=True
-                )
+        except Exception as e:
+            logger.error(
+                f"[Memory Task] ❌ Error saving company memories for {company_id}: {e}",
+                exc_info=True
+            )
 
-                # Retry on transient errors
-                if self.request.retries < self.max_retries:
-                    raise self.retry(exc=e, countdown=self.default_retry_delay)
+            # Retry on transient errors
+            if self.request.retries < self.max_retries:
+                raise self.retry(exc=e, countdown=self.default_retry_delay)
 
-                return {
-                    "success": False,
-                    "company_id": company_id,
-                    "memories_count": len(memories),
-                    "error": str(e)
-                }
+            return {
+                "success": False,
+                "company_id": company_id,
+                "memories_count": len(memories),
+                "error": str(e)
+            }
+        finally:
+            # Cerrar explícitamente el cliente async para evitar "Event loop is closed"
+            if mem0 is not None:
+                try:
+                    await mem0.async_client.aclose()
+                    logger.debug("[Memory Task] 🔌 Mem0 client closed")
+                except Exception as close_error:
+                    logger.warning(f"[Memory Task] ⚠️ Error closing Mem0 client: {close_error}")
 
     return asyncio.run(_save())

@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Home, Users, Settings, Building2 } from 'lucide-react';
+import { Home, Users, Settings, BookUser } from 'lucide-react';
 import type { ColorScheme } from "@/shared/hooks/useColorScheme";
 
 export type ViewType = 'dashboard' | 'contacts' | 'personnel' | 'settings';
@@ -13,7 +13,7 @@ interface NavigationPillsProps {
 export function NavigationPills({ currentView, onNavigate, scheme }: NavigationPillsProps) {
   const pills = [
     { id: 'dashboard' as const, icon: Home, label: 'Dashboard', ariaLabel: 'Dashboard' },
-    { id: 'contacts' as const, icon: Building2, label: 'Contactos', ariaLabel: 'Contactos' },
+    { id: 'contacts' as const, icon: BookUser, label: 'Contactos', ariaLabel: 'Contactos' },
     { id: 'personnel' as const, icon: Users, label: 'Colaboradores', ariaLabel: 'Colaboradores' },
     { id: 'settings' as const, icon: Settings, label: 'Configuración', ariaLabel: 'Configuración' },
   ];

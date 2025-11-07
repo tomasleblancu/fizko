@@ -18,8 +18,11 @@ export interface SubscriptionPlan {
   tagname: string | null;
   tagline: string | null;
   description: string;
+  price_monthly_uf: number | null;
+  price_yearly_uf: number | null;
   price_monthly: number;
   price_yearly: number;
+  current_uf_value: number | null;
   currency: string;
   trial_days: number;
   features: Record<string, any>;

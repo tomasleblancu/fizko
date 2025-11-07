@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import clsx from 'clsx';
 import { UserPlus, Mail, Phone, Briefcase, DollarSign } from 'lucide-react';
 import { usePeopleQuery, type Person } from "@/shared/hooks/usePeopleQuery";
@@ -15,14 +15,31 @@ export function PeopleList({ scheme, company }: PeopleListProps) {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'terminated'>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const { data, isLoading: loading, error } = usePeopleQuery(
-    company?.id || null,
-    {
-      status: statusFilter === 'all' ? undefined : statusFilter,
-      search: searchTerm || undefined,
+  // Fetch ALL people once, filter in frontend
+  const { data, isLoading: loading, error } = usePeopleQuery(company?.id || null);
+  const allPeople = data?.people || [];
+
+  // Filter people in frontend
+  const people = useMemo(() => {
+    let filtered = allPeople;
+
+    // Filter by status
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((person) => person.status === statusFilter);
     }
-  );
-  const people = data?.people || [];
+
+    // Filter by search term (name or RUT)
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter((person) => {
+        const fullName = `${person.first_name} ${person.last_name}`.toLowerCase();
+        const rut = person.rut.toLowerCase();
+        return fullName.includes(searchLower) || rut.includes(searchLower);
+      });
+    }
+
+    return filtered;
+  }, [allPeople, statusFilter, searchTerm]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CL', {
@@ -152,7 +169,7 @@ export function PeopleList({ scheme, company }: PeopleListProps) {
         {/* Error state */}
         {error && (
           <div className="m-4 rounded-lg bg-red-50 dark:bg-red-900/20 p-4">
-            <p className="text-red-800 dark:text-red-400">{error}</p>
+            <p className="text-red-800 dark:text-red-400">{error.message}</p>
           </div>
         )}
 

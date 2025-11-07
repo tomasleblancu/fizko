@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import clsx from "clsx";
-import { Home as HomeIcon, Users, Settings, Building2 } from "lucide-react";
+import { Home as HomeIcon, Users, Settings, BookUser, Sun, Moon } from "lucide-react";
 
 import { Header } from "@/widgets/navbar/Header";
 import { ChatKitPanel } from "@/widgets/chat-panel/ChatKitPanel";
@@ -22,6 +22,7 @@ import { useAuth } from "@/app/providers/AuthContext";
 import { useSession } from "@/shared/hooks/useSession";
 import { useCompanyQuery } from "@/shared/hooks/useCompanyQuery";
 import { useSubscription, useIsInTrial } from "@/shared/hooks/useSubscription";
+import { useSubscriptionPlans } from "@/shared/hooks/useSubscriptionPlans";
 import { ChatProvider, useChat } from "@/app/providers/ChatContext";
 
 export default function Home({
@@ -57,6 +58,9 @@ function HomeContent({
   // Subscription state
   const { data: subscription } = useSubscription();
   const { isInTrial, trialEndsAt } = useIsInTrial();
+
+  // Prefetch subscription plans for instant loading when user opens subscription settings
+  useSubscriptionPlans();
 
   // Chat context for chateable components
   const { setSendUserMessage, setOnChateableClick } = useChat();
@@ -252,30 +256,10 @@ function HomeContent({
             />
           </div>
 
-          {/* Mobile: Navigation Pills to open dashboard, contacts, personnel or settings */}
-          <div className="relative z-[60] flex-shrink-0 px-4 py-2 flex items-center justify-center bg-white dark:bg-slate-900 lg:hidden">
+          {/* Mobile: Navigation Pills - Left (Contacts, People) | Center (Home) | Right (Theme, Settings) */}
+          <div className="relative z-[60] flex-shrink-0 px-4 py-2 flex items-center justify-between bg-white dark:bg-slate-900 lg:hidden">
+            {/* Left group: Contacts & Personnel */}
             <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 transition-colors shadow-sm">
-              <button
-                onClick={() => {
-                  setIsDrawerOpen(!isDrawerOpen);
-                  setIsContactsDrawerOpen(false);
-                  setIsPersonnelDrawerOpen(false);
-                  setIsSettingsDrawerOpen(false);
-                }}
-                className={clsx(
-                  "flex items-center justify-center rounded-lg px-10 py-2 transition-all duration-200 ease-in-out",
-                  "transform active:scale-95",
-                  isDrawerOpen
-                    ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
-                    : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
-                )}
-                aria-label="Abrir Dashboard"
-              >
-                <HomeIcon className={clsx(
-                  "h-5 w-5 transition-transform duration-200",
-                  isDrawerOpen && "scale-110"
-                )} />
-              </button>
               <button
                 onClick={() => {
                   setIsContactsDrawerOpen(!isContactsDrawerOpen);
@@ -292,7 +276,7 @@ function HomeContent({
                 )}
                 aria-label="Abrir Contactos"
               >
-                <Building2 className={clsx(
+                <BookUser className={clsx(
                   "h-5 w-5 transition-transform duration-200",
                   isContactsDrawerOpen && "scale-110"
                 )} />
@@ -317,6 +301,50 @@ function HomeContent({
                   "h-5 w-5 transition-transform duration-200",
                   isPersonnelDrawerOpen && "scale-110"
                 )} />
+              </button>
+            </div>
+
+            {/* Center: Home/Dashboard */}
+            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 transition-colors shadow-sm">
+              <button
+                onClick={() => {
+                  setIsDrawerOpen(!isDrawerOpen);
+                  setIsContactsDrawerOpen(false);
+                  setIsPersonnelDrawerOpen(false);
+                  setIsSettingsDrawerOpen(false);
+                }}
+                className={clsx(
+                  "flex items-center justify-center rounded-lg px-8 py-2 transition-all duration-200 ease-in-out",
+                  "transform active:scale-95",
+                  isDrawerOpen
+                    ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
+                    : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
+                )}
+                aria-label="Abrir Dashboard"
+              >
+                <HomeIcon className={clsx(
+                  "h-5 w-5 transition-transform duration-200",
+                  isDrawerOpen && "scale-110"
+                )} />
+              </button>
+            </div>
+
+            {/* Right group: Theme toggle & Settings */}
+            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 transition-colors shadow-sm">
+              <button
+                onClick={() => handleThemeChange(scheme === 'dark' ? 'light' : 'dark')}
+                className={clsx(
+                  "flex items-center justify-center rounded-lg px-3 py-2 transition-all duration-200 ease-in-out",
+                  "transform active:scale-95",
+                  "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100"
+                )}
+                aria-label="Cambiar tema"
+              >
+                {scheme === 'dark' ? (
+                  <Sun className="h-5 w-5" />
+                ) : (
+                  <Moon className="h-5 w-5" />
+                )}
               </button>
               <button
                 onClick={() => {

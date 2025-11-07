@@ -827,56 +827,146 @@ class F29Scraper(BaseScraper):
                                 f"   El formulario se guardará sin id_interno_sii"
                             )
 
-                        # Volver a la tabla principal con retry mejorado
+                        # Volver a la tabla principal con retry mejorado y múltiples estrategias
                         try:
                             if self._check_session_valid():
-                                from selenium.common.exceptions import ElementClickInterceptedException
+                                from selenium.common.exceptions import ElementClickInterceptedException, TimeoutException as SeleniumTimeout
                                 from selenium.webdriver.support.ui import WebDriverWait
                                 from selenium.webdriver.support import expected_conditions as EC
 
-                                max_retries = 3
+                                max_retries = 5
                                 for attempt in range(max_retries):
                                     try:
-                                        # Esperar a que desaparezcan overlays (máximo 3 segundos)
-                                        time.sleep(1)
+                                        # ESTRATEGIA 1: Esperar más tiempo inicial para que se cargue la página
+                                        wait_time = 1.5 + (attempt * 0.5)  # Aumentar tiempo en cada reintento
+                                        logger.debug(f"   Esperando {wait_time}s antes de buscar botón 'Volver'...")
+                                        time.sleep(wait_time)
 
-                                        volver_btn = WebDriverWait(self.driver.driver, 5).until(
-                                            EC.presence_of_element_located((By.XPATH, "//button[contains(text(), 'Volver')]"))
-                                        )
+                                        # ESTRATEGIA 2: Buscar el botón con múltiples selectores
+                                        volver_selectors = [
+                                            "//button[contains(text(), 'Volver')]",
+                                            "//button[contains(@class, 'gw-button') and contains(text(), 'Volver')]",
+                                            "//*[contains(text(), 'Volver') and (name()='button' or name()='a')]"
+                                        ]
 
-                                        # Intentar scroll al elemento
+                                        volver_btn = None
+                                        for selector in volver_selectors:
+                                            try:
+                                                volver_btn = WebDriverWait(self.driver.driver, 3).until(
+                                                    EC.presence_of_element_located((By.XPATH, selector))
+                                                )
+                                                if volver_btn:
+                                                    logger.debug(f"   Botón 'Volver' encontrado con selector: {selector}")
+                                                    break
+                                            except:
+                                                continue
+
+                                        if not volver_btn:
+                                            raise Exception("No se encontró el botón 'Volver' con ningún selector")
+
+                                        # ESTRATEGIA 3: Detectar y cerrar overlays explícitamente
                                         try:
-                                            self.driver.driver.execute_script("arguments[0].scrollIntoView(true);", volver_btn)
-                                            time.sleep(0.5)
-                                        except:
-                                            pass
+                                            # Buscar overlays comunes del SII
+                                            overlay_selectors = [
+                                                "//div[contains(@class, 'gw-par-negrita')]",  # El div específico del error
+                                                "//div[contains(@class, 'modal')]",
+                                                "//div[contains(@class, 'overlay')]",
+                                                "//div[contains(@class, 'loading')]"
+                                            ]
 
-                                        # Intentar click normal
-                                        volver_btn.click()
-                                        logger.debug(f"🔙 Click exitoso en 'Volver' (intento {attempt + 1})")
+                                            for overlay_selector in overlay_selectors:
+                                                try:
+                                                    overlays = self.driver.driver.find_elements(By.XPATH, overlay_selector)
+                                                    for overlay in overlays:
+                                                        if overlay.is_displayed():
+                                                            logger.debug(f"   ⚠️ Overlay detectado, intentando ocultar: {overlay_selector}")
+                                                            # Ocultar con JavaScript
+                                                            self.driver.driver.execute_script(
+                                                                "arguments[0].style.display = 'none';",
+                                                                overlay
+                                                            )
+                                                            time.sleep(0.3)
+                                                except:
+                                                    pass
+                                        except Exception as overlay_error:
+                                            logger.debug(f"   No se pudo detectar/cerrar overlays: {overlay_error}")
+
+                                        # ESTRATEGIA 4: Scroll y esperar que el elemento sea clickable
+                                        try:
+                                            self.driver.driver.execute_script(
+                                                "arguments[0].scrollIntoView({block: 'center', inline: 'center'});",
+                                                volver_btn
+                                            )
+                                            time.sleep(0.5)
+
+                                            # Esperar a que sea clickable
+                                            volver_btn = WebDriverWait(self.driver.driver, 3).until(
+                                                EC.element_to_be_clickable(volver_btn)
+                                            )
+                                        except SeleniumTimeout:
+                                            logger.debug(f"   ⚠️ Timeout esperando elemento clickable, intentando de todas formas")
+
+                                        # ESTRATEGIA 5: Intentar click según el intento
+                                        if attempt < 3:
+                                            # Primeros 3 intentos: click normal
+                                            volver_btn.click()
+                                            logger.debug(f"🔙 Click normal exitoso en 'Volver' (intento {attempt + 1})")
+                                        else:
+                                            # Últimos 2 intentos: JavaScript click directo
+                                            logger.debug(f"   Usando JavaScript click directo (intento {attempt + 1})")
+                                            self.driver.driver.execute_script("arguments[0].click();", volver_btn)
+                                            logger.debug(f"🔙 JavaScript click exitoso en 'Volver' (intento {attempt + 1})")
+
+                                        # Si llegamos aquí, el click fue exitoso
+                                        time.sleep(0.5)
                                         break
 
-                                    except ElementClickInterceptedException:
+                                    except ElementClickInterceptedException as click_error:
                                         if attempt < max_retries - 1:
-                                            logger.debug(f"⚠️ Click bloqueado, reintentando... ({attempt + 1}/{max_retries})")
-                                            time.sleep(1)
+                                            logger.debug(
+                                                f"⚠️ Click bloqueado (intento {attempt + 1}/{max_retries}): {str(click_error)[:100]}"
+                                            )
                                         else:
-                                            # Último intento: usar JavaScript click
-                                            logger.warning(f"⚠️ Click bloqueado después de {max_retries} intentos, usando JavaScript")
+                                            # ESTRATEGIA 6: Último recurso - navegar directamente
+                                            logger.warning(
+                                                f"⚠️ Click bloqueado después de {max_retries} intentos, "
+                                                f"usando estrategia de navegación directa"
+                                            )
                                             try:
-                                                self.driver.driver.execute_script("arguments[0].click();", volver_btn)
-                                                logger.debug("✅ JavaScript click exitoso")
-                                            except Exception as js_error:
-                                                logger.warning(f"⚠️ JavaScript click también falló: {js_error}")
-                                                raise
+                                                # Usar history.back() de JavaScript
+                                                self.driver.driver.execute_script("window.history.back();")
+                                                time.sleep(1)
+                                                logger.debug("✅ Navegación con history.back() exitosa")
+                                                break
+                                            except Exception as nav_error:
+                                                logger.warning(f"⚠️ Navegación también falló: {nav_error}")
+                                                # Última alternativa: navegar a la URL de búsqueda
+                                                try:
+                                                    self.driver.navigate_to(self.SEARCH_URL)
+                                                    time.sleep(2)
+                                                    logger.debug("✅ Navegación directa a SEARCH_URL exitosa")
+                                                    break
+                                                except Exception as url_error:
+                                                    logger.error(f"❌ Todas las estrategias de navegación fallaron: {url_error}")
+                                                    raise
 
-                                time.sleep(1)
+                                    except Exception as e:
+                                        if attempt < max_retries - 1:
+                                            logger.debug(f"⚠️ Error en intento {attempt + 1}: {type(e).__name__}: {str(e)[:100]}")
+                                        else:
+                                            logger.warning(f"⚠️ Error final después de {max_retries} intentos: {e}")
+                                            raise
+
                                 logger.debug(f"🔙 Volviendo a tabla principal")
                             else:
                                 logger.error("❌ Sesión inválida, no se puede hacer click en 'Volver'")
                         except Exception as e:
-                            logger.warning(f"⚠️ Error al volver a tabla principal: {type(e).__name__}: {e}")
+                            logger.warning(
+                                f"⚠️ Error al volver a tabla principal: {type(e).__name__}: {e}\n"
+                                f"   No es crítico - el formulario ya fue procesado. Continuando..."
+                            )
                             # No es crítico - continuar procesando
+                            # El formulario ya fue guardado con su codInt
 
                 except InvalidSessionIdException as e:
                     logger.error(

@@ -160,7 +160,16 @@ class GenericSupabaseSeeder:
         logger.info(f"🔍 Validating columns for {self.table_name}...")
 
         source_cols = self._get_table_columns(self.source_client)
-        target_cols = self._get_table_columns(self.target_client)
+
+        # Try to get target columns, but if empty, assume same as source
+        try:
+            target_cols = self._get_table_columns(self.target_client)
+        except ValueError as e:
+            if "is empty" in str(e):
+                logger.warning(f"   ⚠️  Target table is empty, assuming same schema as source")
+                target_cols = source_cols
+            else:
+                raise
 
         if self.verbose:
             logger.info(f"   Source columns ({len(source_cols)}): {sorted(source_cols)}")
