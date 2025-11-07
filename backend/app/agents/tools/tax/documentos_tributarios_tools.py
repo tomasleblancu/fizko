@@ -17,11 +17,13 @@ from sqlalchemy import select, and_, desc
 
 from ....config.database import AsyncSessionLocal
 from ...core import FizkoContext
+from ..decorators import require_subscription_tool
 
 logger = logging.getLogger(__name__)
 
 
 @function_tool(strict_mode=False)
+@require_subscription_tool("get_documents")
 async def get_documents(
     ctx: RunContextWrapper[FizkoContext],
     document_type: str = "both",
@@ -197,6 +199,7 @@ async def get_documents(
 
 
 @function_tool(strict_mode=False)
+@require_subscription_tool("get_documents_summary")
 async def get_documents_summary(
     ctx: RunContextWrapper[FizkoContext],
     month: int | None = None,

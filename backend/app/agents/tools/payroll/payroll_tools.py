@@ -21,11 +21,13 @@ from sqlalchemy.orm import selectinload
 from ....config.database import AsyncSessionLocal
 from ...core import FizkoContext
 from ....utils.rut import normalize_rut, validate_rut
+from ..decorators import require_subscription_tool
 
 logger = logging.getLogger(__name__)
 
 
 @function_tool(strict_mode=False)
+@require_subscription_tool("get_people")
 async def get_people(
     ctx: RunContextWrapper[FizkoContext],
     limit: int = 50,
@@ -191,6 +193,7 @@ async def get_person(
 
 
 @function_tool(strict_mode=False)
+@require_subscription_tool("create_person")
 async def create_person(
     ctx: RunContextWrapper[FizkoContext],
     # Personal Information (REQUIRED)
@@ -341,6 +344,7 @@ async def create_person(
 
 
 @function_tool(strict_mode=False)
+@require_subscription_tool("update_person")
 async def update_person(
     ctx: RunContextWrapper[FizkoContext],
     person_id: str,

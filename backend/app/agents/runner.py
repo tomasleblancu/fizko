@@ -183,10 +183,20 @@ class AgentRunner:
             logger.info("🔀 Creating multi-agent system...")
 
             # Get supervisor agent
+            # Parse company_id (may be string from request)
+            from uuid import UUID
+            company_id_uuid = None
+            if request.company_id:
+                try:
+                    company_id_uuid = UUID(request.company_id) if isinstance(request.company_id, str) else request.company_id
+                except (ValueError, AttributeError):
+                    logger.warning(f"⚠️  Invalid company_id format: {request.company_id}")
+
             agent = await handoffs_manager.get_supervisor_agent(
                 thread_id=request.thread_id,
                 db=db,
                 user_id=request.user_id,
+                company_id=company_id_uuid,  # ⭐ Pass company_id for subscription validation
                 vector_store_ids=vector_store_ids if vector_store_ids else None,
             )
 
@@ -195,6 +205,7 @@ class AgentRunner:
                 thread_id=request.thread_id,
                 db=db,
                 user_id=request.user_id,
+                company_id=company_id_uuid,  # ⭐ Pass company_id
                 vector_store_ids=vector_store_ids if vector_store_ids else None,
             )
 

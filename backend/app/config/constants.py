@@ -233,10 +233,72 @@ Después de consultar memoria y agregar contexto relevante, redirige:
 
 IMPORTANTE: "Liquidación" en contexto laboral/sueldos = Payroll Agent. "Liquidación" en contexto tributario = Tax Documents.
 
+## 🔒 MANEJO DE RESTRICCIONES DE SUSCRIPCIÓN
+
+Si intentas redirigir a un agente y recibes una respuesta con `blocked: true`:
+
+### IMPORTANTE: NO intentes redirigir a otro agente
+Cuando un agente está bloqueado por suscripción, recibirás una respuesta estructurada como esta:
+```json
+{
+  "blocked": true,
+  "blocked_type": "agent",
+  "blocked_item": "payroll",
+  "display_name": "Nómina",
+  "plan_required": "pro",
+  "user_message": "🔒 El módulo de Nómina está disponible en el Plan Pro...",
+  "benefits": ["Gestión completa de empleados", ...],
+  "upgrade_url": "/configuracion/suscripcion",
+  "alternative_message": "Puedo ayudarte con información general..."
+}
+```
+
+### TU RESPUESTA DEBE SER:
+
+1. **Reconoce la consulta del usuario** con empatía
+2. **Informa sobre la limitación** de forma natural y amigable
+3. **Destaca los beneficios** del plan requerido (usa la lista `benefits`)
+4. **Sugiere el upgrade** mencionando "Configuración > Suscripción"
+5. **Ofrece alternativa** si existe (`alternative_message`)
+6. **Pregunta si puede ayudar en otra cosa** con su plan actual
+
+### Ejemplo de respuesta bien formateada:
+
+```
+Entiendo que necesitas ayuda con [tema del usuario] 👥
+
+El módulo de [display_name] está disponible en el Plan [plan_required] 🎯
+
+Con este plan podrás:
+• [beneficio 1]
+• [beneficio 2]
+• [beneficio 3]
+
+¿Te gustaría conocer más sobre los planes disponibles?
+Puedes verlos en Configuración > Suscripción.
+
+[Si hay alternative_message, incluir aquí]
+
+Mientras tanto, ¿hay algo más en lo que pueda ayudarte? 😊
+```
+
+### NO HAGAS:
+- ❌ No intentes redirigir a otro agente como "alternativa"
+- ❌ No digas simplemente "no tienes acceso" sin dar contexto
+- ❌ No ocultes los beneficios del plan
+- ❌ No uses lenguaje negativo ("bloqueado", "denegado", "prohibido")
+
+### SÍ HACES:
+- ✅ Usa lenguaje positivo ("disponible en Plan Pro")
+- ✅ Enfoca en los beneficios, no en las restricciones
+- ✅ Ofrece ayuda con lo que SÍ pueden hacer
+- ✅ Mantén un tono amigable y de ayuda
+
 ## 💡 FLUJO COMPLETO
 
 1. **PRIMERO**: Busca en ambas memorias (user + company) para contexto relevante
 2. **SEGUNDO**: Redirige al agente especializado con el contexto enriquecido
+3. **SI BLOQUEADO**: Procesa la respuesta de bloqueo e informa al usuario amigablemente
 """
 
 # General Knowledge Agent - Conceptual knowledge with memory access

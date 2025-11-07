@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any
+from uuid import UUID
+
 from agents import Agent
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,6 +52,7 @@ class HandoffsManager:
         thread_id: str,
         db: AsyncSession,
         user_id: str | None = None,
+        company_id: UUID | None = None,
         vector_store_ids: list[str] | None = None,
         channel: str = "web",
     ) -> Any:
@@ -63,6 +66,7 @@ class HandoffsManager:
             thread_id: ChatKit thread ID
             db: Database session (scoped to this request)
             user_id: Optional user ID for context
+            company_id: Optional company ID (for subscription validation)
             vector_store_ids: Optional list of vector store IDs for FileSearchTool
             channel: Communication channel ("web" or "whatsapp")
 
@@ -79,11 +83,12 @@ class HandoffsManager:
 
         try:
             openai_client = self._get_openai_client()
-            orchestrator = create_multi_agent_orchestrator(
+            orchestrator = await create_multi_agent_orchestrator(
                 db=db,
                 openai_client=openai_client,
                 user_id=user_id,
                 thread_id=thread_id,
+                company_id=company_id,
                 vector_store_ids=vector_store_ids,
                 channel=channel,
             )
@@ -92,7 +97,10 @@ class HandoffsManager:
             self._orchestrator_cache[thread_id] = orchestrator
 
             total_time = time.time() - create_start
-            logger.info(f"🔀 New orchestrator cached: {total_time:.3f}s | thread={thread_id[:8]}")
+            logger.info(
+                f"🔀 New orchestrator cached: {total_time:.3f}s | "
+                f"thread={thread_id[:8]} | company={company_id}"
+            )
 
             return orchestrator
 
@@ -105,6 +113,7 @@ class HandoffsManager:
         thread_id: str,
         db: AsyncSession,
         user_id: str | None = None,
+        company_id: UUID | None = None,
         vector_store_ids: list[str] | None = None,
         channel: str = "web",
     ) -> Agent:
@@ -115,6 +124,7 @@ class HandoffsManager:
             thread_id: ChatKit thread ID
             db: Database session
             user_id: Optional user ID
+            company_id: Optional company ID (for subscription validation)
             vector_store_ids: Optional list of vector store IDs for FileSearchTool
             channel: Communication channel ("web" or "whatsapp")
 
@@ -125,6 +135,7 @@ class HandoffsManager:
             thread_id=thread_id,
             db=db,
             user_id=user_id,
+            company_id=company_id,
             vector_store_ids=vector_store_ids,
             channel=channel,
         )
@@ -136,6 +147,7 @@ class HandoffsManager:
         thread_id: str,
         db: AsyncSession,
         user_id: str | None = None,
+        company_id: UUID | None = None,
         vector_store_ids: list[str] | None = None,
         channel: str = "web",
     ) -> list[Agent]:
@@ -148,6 +160,7 @@ class HandoffsManager:
             thread_id: ChatKit thread ID
             db: Database session
             user_id: Optional user ID
+            company_id: Optional company ID (for subscription validation)
             vector_store_ids: Optional list of vector store IDs for FileSearchTool
             channel: Communication channel ("web" or "whatsapp")
 
@@ -158,6 +171,7 @@ class HandoffsManager:
             thread_id=thread_id,
             db=db,
             user_id=user_id,
+            company_id=company_id,
             vector_store_ids=vector_store_ids,
             channel=channel,
         )
