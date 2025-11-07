@@ -7,12 +7,18 @@
   display: contents;
 }
 
+/* For table rows, we can't use display: contents as it breaks the table layout */
+tr.chateable-wrapper {
+  display: table-row;
+}
+
 /* Apply hover effects to the child element */
 .chateable-wrapper > * {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.chateable-wrapper:hover > * {
+/* Don't apply transform/shadow to table rows */
+.chateable-wrapper:hover > *:not(tr) {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
@@ -22,7 +28,7 @@
   outline-offset: 2px;
 }
 
-.chateable-wrapper:active > * {
+.chateable-wrapper:active > *:not(tr) {
   transform: translateY(0);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }

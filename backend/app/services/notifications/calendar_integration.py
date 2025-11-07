@@ -97,6 +97,17 @@ class CalendarNotificationIntegration:
         Returns:
             ID de la notificación programada o None si no se pudo programar
         """
+        # Check if company has active subscription
+        from app.infrastructure.celery.subscription_helper import check_company_subscription
+
+        has_subscription = await check_company_subscription(db, calendar_event.company_id)
+        if not has_subscription:
+            logger.debug(
+                f"⏭️  Skipping calendar notification for event {calendar_event.id}: "
+                f"Company {calendar_event.company_id} has no active subscription"
+            )
+            return None
+
         # Obtener template
         template = await self.notification_service.get_template(db=db, code=template_code)
         if not template:

@@ -240,16 +240,148 @@ async def get_subscription_info(
 
 
 # =============================================================================
+# Global Subscription Check (any active subscription required)
+# =============================================================================
+
+
+async def get_subscription_or_none(
+    company_id: UUID = Depends(get_user_company_id),
+    service = Depends(get_subscription_service)
+):
+    """
+    Get subscription for company without blocking request.
+
+    Returns subscription if exists, None if not. Does NOT raise exceptions.
+    Useful for endpoints that want to check subscription but not block access.
+
+    Args:
+        company_id: Company ID from active session
+        service: Subscription service
+
+    Returns:
+        Subscription instance if exists, None otherwise
+
+    Example:
+        ```python
+        @router.get("/endpoint")
+        async def my_endpoint(
+            subscription: Optional[Subscription] = Depends(get_subscription_or_none)
+        ):
+            if subscription:
+                # User has subscription, provide full features
+                ...
+            else:
+                # User doesn't have subscription, provide limited features
+                ...
+        ```
+    """
+    from ..db.models import Subscription
+
+    try:
+        subscription = await service.get_company_subscription(company_id)
+        # Only return if subscription is active
+        if subscription and subscription.status in ['trialing', 'active']:
+            return subscription
+        return None
+    except Exception:
+        # If any error occurs, return None (don't block request)
+        return None
+
+
+async def require_active_subscription(
+    company_id: UUID = Depends(get_user_company_id),
+    service = Depends(get_subscription_service)
+):
+    """
+    Require company to have an active subscription.
+
+    This is a global check that blocks access if the company doesn't have
+    any active subscription. It doesn't check features or limits - just
+    verifies that a subscription exists and is active.
+
+    Blocks access if:
+    - No subscription exists
+    - Subscription status is 'canceled', 'past_due', or 'incomplete'
+
+    Allows access if:
+    - Subscription status is 'trialing' or 'active'
+    - Any plan (basic, pro, etc.)
+
+    Args:
+        company_id: Company ID from active session
+        service: Subscription service
+
+    Returns:
+        Subscription instance if active
+
+    Raises:
+        402 Payment Required if no active subscription
+
+    Example:
+        ```python
+        @router.get("/endpoint")
+        async def my_endpoint(
+            subscription: Subscription = Depends(require_active_subscription)
+        ):
+            # User has active subscription, proceed
+            ...
+        ```
+
+        Or as router dependency:
+        ```python
+        router = APIRouter(
+            dependencies=[
+                Depends(require_auth),
+                Depends(require_active_subscription)
+            ]
+        )
+        ```
+    """
+    from ..db.models import Subscription
+
+    subscription = await service.get_company_subscription(company_id)
+
+    if not subscription:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "subscription_required",
+                "message": "Se requiere una suscripción activa para acceder a esta funcionalidad.",
+                "action": "create_subscription"
+            }
+        )
+
+    # Check if subscription is active
+    if subscription.status not in ['trialing', 'active']:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "subscription_inactive",
+                "message": f"Tu suscripción está {subscription.status}. Reactiva tu suscripción para continuar.",
+                "status": subscription.status,
+                "action": "reactivate_subscription"
+            }
+        )
+
+    return subscription
+
+
+# =============================================================================
 # Type Aliases for Convenience
 # =============================================================================
 
 SubscriptionServiceDep = Annotated[object, Depends(get_subscription_service)]
+ActiveSubscriptionDep = Annotated[object, Depends(require_active_subscription)]
 
 
 __all__ = [
     # Service
     "get_subscription_service",
     "SubscriptionServiceDep",
+    # Global subscription check
+    "get_subscription_or_none",
+    "require_active_subscription",
+    "ActiveSubscriptionDep",
     # Factories
     "require_feature",
     "check_usage_limit",

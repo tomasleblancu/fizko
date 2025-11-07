@@ -12,13 +12,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.database import get_db
 from ...db.models import Session
-from ...dependencies import get_current_user_id, require_auth, Form29RepositoryDep
+from ...dependencies import (
+    get_current_user_id,
+    require_auth,
+    Form29RepositoryDep,
+)
 from ...schemas.tax import Form29Create, Form29Submit, Form29Update
 
 router = APIRouter(
     prefix="/api/form29",
     tags=["form29"],
-    dependencies=[Depends(require_auth)]
+    dependencies=[
+        Depends(require_auth)
+    ]
 )
 
 

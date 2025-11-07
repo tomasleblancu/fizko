@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useChat } from "@/app/providers/ChatContext";
+import { useHasActiveSubscription } from "@/shared/hooks/useSubscription";
 import type { ChateableClickOptions, ChateableClickReturn } from "@/shared/types/chateable";
 
 /**
@@ -17,6 +18,7 @@ import type { ChateableClickOptions, ChateableClickReturn } from "@/shared/types
 export function useChateableClick(options: ChateableClickOptions): ChateableClickReturn {
   const { message, contextData, onClick: additionalOnClick, disabled = false, uiComponent, entityId, entityType } = options;
   const { sendUserMessage, isReady } = useChat();
+  const { hasActiveSubscription } = useHasActiveSubscription();
 
   const generateMessage = useCallback((): string => {
     if (typeof message === 'function') {
@@ -46,6 +48,13 @@ export function useChateableClick(options: ChateableClickOptions): ChateableClic
         additionalOnClick();
       }
 
+      // Check if user has active subscription
+      if (!hasActiveSubscription) {
+        // Send a message to the chat indicating user tried to use the feature
+        sendUserMessage("Acabo de clickear algo pensando que me iba a dar más información!");
+        return;
+      }
+
       // Generate and send the message with ui_component, entity_id, and entity_type metadata
       const messageText = generateMessage();
       const metadata: Record<string, string> = {};
@@ -54,7 +63,7 @@ export function useChateableClick(options: ChateableClickOptions): ChateableClic
       if (entityType) metadata.entity_type = entityType;
       sendUserMessage(messageText, Object.keys(metadata).length > 0 ? metadata : undefined);
     },
-    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType, onChateableClick]
+    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType, onChateableClick, hasActiveSubscription]
   );
 
   const handleKeyDown = useCallback(
@@ -77,6 +86,12 @@ export function useChateableClick(options: ChateableClickOptions): ChateableClic
           additionalOnClick();
         }
 
+        // Check if user has active subscription
+        if (!hasActiveSubscription) {
+          sendUserMessage("Acabo de clickear algo pensando que me iba a dar más información!");
+          return;
+        }
+
         const messageText = generateMessage();
         const metadata: Record<string, string> = {};
         if (uiComponent) metadata.ui_component = uiComponent;
@@ -85,7 +100,7 @@ export function useChateableClick(options: ChateableClickOptions): ChateableClic
         sendUserMessage(messageText, Object.keys(metadata).length > 0 ? metadata : undefined);
       }
     },
-    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType, onChateableClick]
+    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType, onChateableClick, hasActiveSubscription]
   );
 
   return {

@@ -14,11 +14,14 @@ import { Personnel } from "../../payroll/ui/Personnel";
 import { PersonnelDrawer } from "../../payroll/ui/PersonnelDrawer";
 import { LoginOverlay } from "@/shared/ui/feedback/LoginOverlay";
 import { FizkoLoadingScreen } from "@/shared/ui/feedback/FizkoLoadingScreen";
+import { SubscriptionBanner } from "@/shared/components/SubscriptionBanner";
+import { TrialBanner } from "@/shared/components/TrialBanner";
 import type { ViewType } from "@/shared/layouts/NavigationPills";
 import { ColorScheme } from "@/shared/hooks/useColorScheme";
 import { useAuth } from "@/app/providers/AuthContext";
 import { useSession } from "@/shared/hooks/useSession";
 import { useCompanyQuery } from "@/shared/hooks/useCompanyQuery";
+import { useSubscription, useIsInTrial } from "@/shared/hooks/useSubscription";
 import { ChatProvider, useChat } from "@/app/providers/ChatContext";
 
 export default function Home({
@@ -50,6 +53,10 @@ function HomeContent({
 
   // Lift company state to Home to avoid multiple fetches
   const { data: company = null, isLoading: companyLoading, error: companyError } = useCompanyQuery();
+
+  // Subscription state
+  const { data: subscription } = useSubscription();
+  const { isInTrial, trialEndsAt } = useIsInTrial();
 
   // Chat context for chateable components
   const { setSendUserMessage, setOnChateableClick } = useChat();
@@ -173,8 +180,19 @@ function HomeContent({
     setCurrentView('dashboard');
   }, []);
 
+  // Handler to open subscription settings
+  const handleOpenSubscription = useCallback(() => {
+    setSettingsInitialTab('subscription');
+    setCurrentView('settings');
+    setIsSettingsDrawerOpen(true);
+    setIsDrawerOpen(false);
+    setIsContactsDrawerOpen(false);
+    setIsPersonnelDrawerOpen(false);
+    setIsContactsDrawerOpen(false);
+  }, []);
+
   const containerClass = clsx(
-    "fixed inset-0 overflow-hidden bg-gradient-to-br transition-colors duration-300",
+    "fixed inset-0 overflow-hidden bg-gradient-to-br transition-colors duration-300 flex flex-col",
     scheme === "dark"
       ? "from-slate-900 via-slate-950 to-slate-850 text-slate-100"
       : "from-slate-100 via-white to-slate-200 text-slate-900"
@@ -201,33 +219,23 @@ function HomeContent({
 
   return (
     <div className={containerClass}>
-      {/* Free Trial Banner */}
-      <div className="relative z-50 flex items-center justify-between gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-white lg:px-4">
-        <div className="flex flex-1 items-center gap-2">
-          <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p className="text-xs font-medium lg:text-sm">
-            <span className="hidden sm:inline">Estás en prueba gratuita. </span>
-            <span className="font-bold">¡50% OFF</span> en los primeros 3 meses del plan básico
-          </p>
+      {/* Subscription Banners */}
+      {!subscription && (
+        <div className="relative z-50 px-3 py-2 lg:px-4 flex-shrink-0">
+          <SubscriptionBanner onUpgradeClick={handleOpenSubscription} />
         </div>
-        <button
-          onClick={() => {
-            setSettingsInitialTab('subscription');
-            setCurrentView('settings');
-            setIsSettingsDrawerOpen(true);
-            setIsDrawerOpen(false);
-            setIsContactsDrawerOpen(false);
-          }}
-          className="flex-shrink-0 rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-50 lg:px-3 lg:py-1.5"
-        >
-          Suscribirse
-        </button>
-      </div>
+      )}
+      {isInTrial && trialEndsAt && (
+        <div className="relative z-50 px-3 py-2 lg:px-4 flex-shrink-0">
+          <TrialBanner
+            trialEndsAt={trialEndsAt}
+            onViewPlansClick={handleOpenSubscription}
+          />
+        </div>
+      )}
 
       <div className={clsx(
-        "flex h-[calc(100dvh-2.5rem)] w-full flex-col-reverse gap-0 p-0 lg:h-[calc(100dvh-2.75rem)] lg:flex-row",
+        "flex flex-1 w-full flex-col-reverse gap-0 p-0 lg:flex-row min-h-0",
         isAnyDrawerOpen && "overflow-hidden lg:overflow-visible"
       )}>
         {/* Chat Panel Container */}

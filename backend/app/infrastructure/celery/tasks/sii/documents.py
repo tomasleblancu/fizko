@@ -206,73 +206,67 @@ def sync_documents_all_companies(
             f"🚀 [CELERY TASK] Starting batch sync for all companies: {months} months"
         )
 
-        # Use sync session for Celery tasks (Celery workers are synchronous)
-        from app.config.database import SyncSessionLocal
-        from app.db.models.company import Company
+        # Get companies with active subscriptions using async helper
+        import asyncio as async_lib
+        from app.config.database import AsyncSessionLocal
+        from app.infrastructure.celery.subscription_helper import get_subscribed_companies
         from app.db.models.session import Session
         from sqlalchemy import select
 
-        # Get all companies with their most recent active session
-        with SyncSessionLocal() as db:
-            # Get all companies
-            companies_result = db.execute(
-                select(Company.id, Company.business_name)
-            )
-            # Keep UUID objects for queries, convert to string only for display
-            companies = [(company_id, name) for (company_id, name) in companies_result.all()]
+        # Get subscribed companies
+        async def _get_companies_and_sessions():
+            async with AsyncSessionLocal() as db:
+                # Get only companies with active subscriptions
+                companies = await get_subscribed_companies(db, only_active=True)
 
-            if not companies:
-                logger.warning("⚠️ [CELERY TASK] No companies found")
-                return {
-                    "success": True,
-                    "total_companies": 0,
-                    "synced": 0,
-                    "failed": 0,
-                    "skipped": 0,
-                    "message": "No companies to sync"
-                }
+                if not companies:
+                    return []
 
-            logger.info(f"📋 [CELERY TASK] Found {len(companies)} companies")
+                logger.info(f"📋 [CELERY TASK] Found {len(companies)} companies with active subscriptions")
 
-            # For each company, get the most recent active session
-            company_sessions = []
-            for company_id_uuid, company_name in companies:
-                session_result = db.execute(
-                    select(Session.id)
-                    .where(Session.company_id == company_id_uuid)  # Use UUID for query
-                    .where(Session.is_active == True)
-                    .order_by(Session.last_accessed_at.desc())
-                    .limit(1)
-                )
-                session_row = session_result.first()
+                # For each company, get the most recent active session
+                company_sessions = []
+                for company_id_uuid, company_name in companies:
+                    session_result = await db.execute(
+                        select(Session.id)
+                        .where(Session.company_id == company_id_uuid)
+                        .where(Session.is_active == True)
+                        .order_by(Session.last_accessed_at.desc())
+                        .limit(1)
+                    )
+                    session_row = session_result.first()
 
-                if session_row:
-                    company_sessions.append({
-                        "company_id": str(company_id_uuid),  # Convert to string for display
-                        "company_name": company_name,
-                        "session_id": str(session_row[0])
-                    })
-                else:
-                    logger.warning(f"⚠️ [CELERY TASK] No active session found for company {company_name} ({company_id_uuid})")
+                    if session_row:
+                        company_sessions.append({
+                            "company_id": str(company_id_uuid),
+                            "company_name": company_name,
+                            "session_id": str(session_row[0])
+                        })
+                    else:
+                        logger.warning(f"⚠️ [CELERY TASK] No active session found for company {company_name} ({company_id_uuid})")
+
+                return company_sessions
+
+        company_sessions = async_lib.run(_get_companies_and_sessions())
 
         if not company_sessions:
-            logger.warning("⚠️ [CELERY TASK] No companies with active sessions found")
+            logger.warning("⚠️ [CELERY TASK] No subscribed companies with active sessions found")
             return {
                 "success": True,
-                "total_companies": len(companies),
+                "total_companies": 0,
                 "synced": 0,
                 "failed": 0,
-                "skipped": len(companies),
-                "message": "No companies with active sessions to sync"
+                "skipped": 0,
+                "message": "No subscribed companies with active sessions to sync"
             }
 
-        logger.info(f"📋 [CELERY TASK] Found {len(company_sessions)} companies with active sessions")
+        logger.info(f"📋 [CELERY TASK] Found {len(company_sessions)} subscribed companies with active sessions")
 
         # Trigger sync_documents for each company's session
         results = []
         synced = 0
         failed = 0
-        skipped = len(companies) - len(company_sessions)
+        skipped = 0  # All non-subscribed companies are already filtered out
 
         for company_session in company_sessions:
             company_id = company_session["company_id"]
@@ -321,12 +315,12 @@ def sync_documents_all_companies(
 
         logger.info(
             f"✅ [CELERY TASK] Batch sync completed: "
-            f"total_companies={len(companies)}, synced={synced}, failed={failed}, skipped={skipped}"
+            f"total_companies={len(company_sessions)}, synced={synced}, failed={failed}, skipped={skipped}"
         )
 
         return {
             "success": True,
-            "total_companies": len(companies),
+            "total_companies": len(company_sessions),
             "synced": synced,
             "failed": failed,
             "skipped": skipped,

@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -306,25 +306,72 @@ class SubscriptionService:
         )
         return result.scalar_one_or_none()
 
-    async def list_available_plans(self, include_private: bool = False) -> list[SubscriptionPlan]:
+    async def list_available_plans(self, include_private: bool = False) -> list[dict]:
         """
-        List all available subscription plans.
+        List all available subscription plans with UF-calculated prices.
 
         Args:
             include_private: Include private plans (default False)
 
         Returns:
-            List of subscription plans ordered by display_order
+            List of subscription plans with real-time CLP prices calculated from UF
         """
-        query = select(SubscriptionPlan).where(SubscriptionPlan.is_active == True)
+        # Use the view that calculates prices from UF dynamically
+        query_text = """
+            SELECT
+                id,
+                code,
+                name,
+                tagname,
+                tagline,
+                description,
+                price_monthly_uf,
+                price_yearly_uf,
+                price_monthly,
+                price_yearly,
+                current_uf_value,
+                currency,
+                trial_days,
+                features,
+                display_order,
+                is_active,
+                is_public,
+                created_at,
+                updated_at
+            FROM subscription_plans_with_clp
+            WHERE is_active = true
+        """
 
         if not include_private:
-            query = query.where(SubscriptionPlan.is_public == True)
+            query_text += " AND is_public = true"
 
-        query = query.order_by(SubscriptionPlan.display_order)
+        query_text += " ORDER BY display_order"
 
-        result = await self.db.execute(query)
-        return list(result.scalars().all())
+        result = await self.db.execute(text(query_text))
+        rows = result.fetchall()
+
+        # Convert to dict list for easier serialization
+        plans = []
+        for row in rows:
+            plans.append({
+                "id": str(row.id),
+                "code": row.code,
+                "name": row.name,
+                "tagname": row.tagname,
+                "tagline": row.tagline,
+                "description": row.description,
+                "price_monthly_uf": float(row.price_monthly_uf) if row.price_monthly_uf else None,
+                "price_yearly_uf": float(row.price_yearly_uf) if row.price_yearly_uf else None,
+                "price_monthly": float(row.price_monthly) if row.price_monthly else 0,
+                "price_yearly": float(row.price_yearly) if row.price_yearly else 0,
+                "current_uf_value": float(row.current_uf_value) if row.current_uf_value else None,
+                "currency": row.currency,
+                "trial_days": row.trial_days,
+                "features": row.features,
+                "display_order": row.display_order
+            })
+
+        return plans
 
     async def upgrade_plan(
         self,

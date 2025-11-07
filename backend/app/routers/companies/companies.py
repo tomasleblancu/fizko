@@ -258,11 +258,28 @@ async def create_company(
     )
 
     db.add(session)
+    await db.flush()  # Flush to get session ID
+
+    # Create automatic subscription to basic plan with trial
+    from app.services.subscriptions import SubscriptionService
+    subscription_service = SubscriptionService(db)
+    try:
+        subscription = await subscription_service.create_subscription(
+            company_id=company.id,
+            plan_code="basic",  # Default to basic plan
+            interval="monthly"
+        )
+    except Exception as e:
+        # Log error but don't block company creation
+        # In production, this should be logged properly
+        print(f"Warning: Failed to create subscription for company {company.id}: {e}")
+        subscription = None
+
     await db.commit()
     await db.refresh(company)
     await db.refresh(session)
 
-    return {
+    response_data = {
         "data": {
             "id": str(company.id),
             "rut": company.rut,
@@ -271,6 +288,17 @@ async def create_company(
         },
         "message": "Company created successfully"
     }
+
+    # Add subscription info if created
+    if subscription:
+        response_data["data"]["subscription"] = {
+            "plan": subscription.plan.name,
+            "status": subscription.status,
+            "trial_days": subscription.plan.trial_days,
+            "trial_end": subscription.trial_end.isoformat() if subscription.trial_end else None
+        }
+
+    return response_data
 
 
 @router.put("/{company_id}")

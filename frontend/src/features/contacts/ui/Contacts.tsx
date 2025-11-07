@@ -199,6 +199,7 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
                 {filteredContacts.map((contact) => (
                   <ChateableWrapper
                     key={contact.id}
+                    as="fragment"
                     message={`Dame información sobre mi contacto ${contact.business_name} (RUT: ${contact.rut})`}
                     contextData={{
                       contactId: contact.id,

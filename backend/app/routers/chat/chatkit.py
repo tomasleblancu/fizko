@@ -13,20 +13,27 @@ from fastapi.responses import Response, StreamingResponse
 from starlette.responses import JSONResponse
 
 from ...agents import FizkoServer, create_chatkit_server
+from ...agents.config.scopes import get_scope_for_plan
 from ...agents.ui_tools import UIToolDispatcher
 from ...config.database import AsyncSessionLocal
 from ...core import get_optional_user
+from ...dependencies import require_auth, get_subscription_or_none
 from ...utils.ui_component_context import (
     extract_ui_component_context,
     format_ui_context_for_agent,
 )
 
 if TYPE_CHECKING:
-    pass
+    from ...db.models import Subscription
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["chatkit"])
+router = APIRouter(
+    tags=["chatkit"],
+    dependencies=[
+        Depends(require_auth)
+    ]
+)
 
 # Lazy initialization of ChatKit server (only when first requested)
 _chatkit_server: FizkoServer | None = None
@@ -179,6 +186,7 @@ async def chatkit_endpoint(
     entity_type: str | None = Query(
         None, description="Entity type (contact, document, etc) for UI context"
     ),
+    subscription: "Subscription | None" = Depends(get_subscription_or_none),
     server: FizkoServer = Depends(get_chatkit_server),
 ) -> Response:
     """ChatKit conversational endpoint."""
@@ -186,6 +194,11 @@ async def chatkit_endpoint(
     request_start_time = time.time()
     logger.info("=" * 80)
     logger.info(f"🚀 [REQUEST START] {request.method} {request.url.path}")
+
+    # Determine agent scope based on subscription
+    plan_code = subscription.plan.code if subscription else None
+    agent_scope = get_scope_for_plan(plan_code)
+    logger.info(f"🔐 Agent scope: {agent_scope} (plan: {plan_code or 'none'})")
 
     # Get optional user from JWT token
     auth_start = time.time()
@@ -284,6 +297,7 @@ async def chatkit_endpoint(
         "ui_tool_result": ui_tool_result,
         "ui_context_text": ui_context_text,
         "agent_type": agent_type,
+        "agent_scope": agent_scope,  # Pass scope to agent system
         "request_start_time": request_start_time,  # Pass timing to agent
     }
     logger.info(

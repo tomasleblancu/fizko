@@ -12,14 +12,20 @@ from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
 
 from ...config.database import get_db
-from ...dependencies import get_current_user_id, require_auth, get_current_user
+from ...dependencies import (
+    get_current_user_id,
+    require_auth,
+    get_current_user,
+)
 from ...services.sii.auth_service import SIIAuthService
 from ...integrations.sii.exceptions import AuthenticationError, ExtractionError
 
 router = APIRouter(
     prefix="/auth",
     tags=["SII Auth"],
-    dependencies=[Depends(require_auth)]
+    dependencies=[
+        Depends(require_auth)
+    ]
 )
 
 

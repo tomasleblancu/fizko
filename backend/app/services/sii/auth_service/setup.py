@@ -3,12 +3,13 @@ Módulo de setup de Company, CompanyTaxInfo y Session
 """
 import logging
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.db.models import Company, CompanyTaxInfo, CompanySettings, Profile, Session as SessionModel
+from app.db.models.subscriptions import Subscription, SubscriptionPlan
 
 logger = logging.getLogger(__name__)
 
@@ -276,3 +277,75 @@ async def check_needs_initial_setup(db: AsyncSession, company_id: UUID) -> bool:
         return True
 
     return False
+
+
+async def create_trial_subscription(
+    db: AsyncSession,
+    company_id: UUID,
+    trial_days: int = 14
+) -> tuple[Subscription, str]:
+    """
+    Crea una suscripción de prueba (trial) para una nueva empresa.
+
+    Args:
+        db: Sesión async de base de datos
+        company_id: UUID de la empresa
+        trial_days: Días de prueba (default: 14)
+
+    Returns:
+        Tuple[Subscription, str]: (Subscription, action) donde action es "creada" o "ya_existia"
+    """
+    # Verificar si ya existe una suscripción para esta empresa
+    stmt = select(Subscription).where(Subscription.company_id == company_id)
+    result = await db.execute(stmt)
+    existing_subscription = result.scalar_one_or_none()
+
+    if existing_subscription:
+        logger.info(f"[Setup] Subscription already exists for company {company_id}")
+        return existing_subscription, "ya_existia"
+
+    # Buscar el plan "basic" (código del plan)
+    stmt = select(SubscriptionPlan).where(SubscriptionPlan.code == "basic")
+    result = await db.execute(stmt)
+    basic_plan = result.scalar_one_or_none()
+
+    if not basic_plan:
+        logger.error("[Setup] Basic plan not found! Creating default trial subscription without plan reference")
+        # Si no existe el plan, no podemos crear la suscripción
+        # Esto sería un error de configuración del sistema
+        raise ValueError("Plan 'basic' not found in database. Please seed subscription plans first.")
+
+    # Crear suscripción en período de prueba
+    now = datetime.utcnow()
+    trial_end_date = now + timedelta(days=trial_days)
+
+    subscription = Subscription(
+        company_id=company_id,
+        plan_id=basic_plan.id,
+        status="trialing",
+        interval="monthly",
+        current_period_start=now,
+        current_period_end=trial_end_date,
+        trial_start=now,
+        trial_end=trial_end_date,
+        cancel_at_period_end=False,
+        payment_provider=None,
+        external_subscription_id=None,
+        payment_method_id=None,
+        extra_metadata={
+            "auto_created": True,
+            "created_via": "sii_auth",
+            "trial_days": trial_days
+        }
+    )
+
+    db.add(subscription)
+    await db.flush()
+    await db.refresh(subscription)
+
+    logger.info(
+        f"[Setup] Created trial subscription for company {company_id}: "
+        f"Plan={basic_plan.code}, Trial ends={trial_end_date.isoformat()}"
+    )
+
+    return subscription, "creada"

@@ -290,17 +290,19 @@ def process_template_notification(self, template_code: str):
         from app.config.database import AsyncSessionLocal
         from app.services.business_summary import get_business_summary_service
         from app.services.notifications import get_notification_service
+        from app.infrastructure.celery.subscription_helper import get_subscribed_companies
         from app.repositories import (
-            CompanyRepository,
             NotificationTemplateRepository,
             NotificationSubscriptionRepository,
             UserNotificationPreferenceRepository
         )
+        from app.db.models import Company
+        from uuid import UUID
+        from sqlalchemy import select
 
         async with AsyncSessionLocal() as db:
             # Inicializar repositories
             template_repo = NotificationTemplateRepository(db)
-            company_repo = CompanyRepository(db)
             subscription_repo = NotificationSubscriptionRepository(db)
             user_pref_repo = UserNotificationPreferenceRepository(db)
 
@@ -340,9 +342,29 @@ def process_template_notification(self, template_code: str):
                 f"📅 Date range: {start_date.isoformat()} to {end_date.isoformat()}"
             )
 
-            # 5. Obtener todas las empresas
-            companies = await company_repo.find_all()
-            logger.info(f"📋 Found {len(companies)} companies")
+            # 5. Get only companies with active subscription
+            subscribed_companies_data = await get_subscribed_companies(db, only_active=True)
+
+            if not subscribed_companies_data:
+                logger.info("⏭️  No subscribed companies found")
+                return {
+                    "success": True,
+                    "template_code": template_code,
+                    "companies_processed": 0,
+                    "notifications_created": 0,
+                    "total_companies": 0,
+                    "errors": [],
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat()
+                }
+
+            # Get full Company objects
+            company_ids = [UUID(company_id) for company_id, _ in subscribed_companies_data]
+            stmt = select(Company).where(Company.id.in_(company_ids))
+            result = await db.execute(stmt)
+            companies = result.scalars().all()
+
+            logger.info(f"📋 Found {len(companies)} subscribed companies")
 
             # 6. Inicializar servicios
             business_service = await get_business_summary_service(db)

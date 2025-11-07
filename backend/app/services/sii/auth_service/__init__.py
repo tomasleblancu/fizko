@@ -20,7 +20,8 @@ from .setup import (
     setup_company,
     setup_tax_info,
     setup_session,
-    check_needs_initial_setup
+    check_needs_initial_setup,
+    create_trial_subscription
 )
 from .memories import save_onboarding_memories
 from .events import (
@@ -103,6 +104,19 @@ class SIIAuthService:
         company, company_action = await setup_company(self.db, rut, password, sii_data)
         logger.info(f"[SII Auth Service] Company {company_action}: {company.business_name}")
 
+        # PASO 3.5: Create trial subscription for new companies
+        is_new_company = company_action == "creada"
+        if is_new_company:
+            subscription, subscription_action = await create_trial_subscription(
+                self.db,
+                company.id,
+                trial_days=14  # 14 días de prueba gratis
+            )
+            logger.info(
+                f"[SII Auth Service] Trial subscription {subscription_action} for company {company.id}: "
+                f"14 days trial with Basic plan"
+            )
+
         # PASO 4: Setup de CompanyTaxInfo
         company_tax_info, tax_action = await setup_tax_info(self.db, company.id, sii_data)
         logger.info(f"[SII Auth Service] CompanyTaxInfo {tax_action}")
@@ -125,7 +139,6 @@ class SIIAuthService:
         )
 
         # PASO 6.5: Disparar asignación de notificaciones automáticas (async)
-        is_new_company = company_action == "creada"
         await assign_auto_notifications(
             company.id,
             is_new_company

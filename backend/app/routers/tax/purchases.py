@@ -12,13 +12,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.database import get_db
 from ...db.models import Session
-from ...dependencies import get_current_user_id, require_auth, PurchaseDocumentRepositoryDep
+from ...dependencies import (
+    get_current_user_id,
+    require_auth,
+    PurchaseDocumentRepositoryDep,
+)
 from ...schemas.tax import PurchaseDocumentCreate, PurchaseDocumentUpdate
 
 router = APIRouter(
     prefix="/api/purchase-documents",
     tags=["purchase-documents"],
-    dependencies=[Depends(require_auth)]
+    dependencies=[
+        Depends(require_auth)
+    ]
 )
 
 

@@ -14,7 +14,10 @@ from ...schemas.personnel import (
     PersonUpdate,
 )
 from ...utils.company_resolver import get_user_primary_company_id
-from ...dependencies import get_current_user_id, PersonRepositoryDep
+from ...dependencies import (
+    get_current_user_id,
+    PersonRepositoryDep,
+)
 
 router = APIRouter()
 

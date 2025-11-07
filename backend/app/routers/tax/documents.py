@@ -9,13 +9,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.database import get_db
-from ...dependencies import get_current_user_id, require_auth, TaxDocumentRepositoryDep
+from ...dependencies import (
+    get_current_user_id,
+    require_auth,
+    TaxDocumentRepositoryDep,
+)
 from ...utils.company_resolver import get_user_primary_company_id
 
 router = APIRouter(
     prefix="/api/tax-documents",
     tags=["tax-documents"],
-    dependencies=[Depends(require_auth)]
+    dependencies=[
+        Depends(require_auth)
+    ]
 )
 
 

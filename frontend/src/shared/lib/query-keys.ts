@@ -106,4 +106,11 @@ export const queryKeys = {
     all: ['company-settings'] as const,
     byId: (companyId: string) => [...queryKeys.companySettings.all, companyId] as const,
   },
+
+  // Subscription
+  subscription: {
+    all: ['subscription'] as const,
+    current: ['subscription', 'current'] as const,
+    plans: ['subscription', 'plans'] as const,
+  },
 } as const;

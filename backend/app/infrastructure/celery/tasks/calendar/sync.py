@@ -125,16 +125,32 @@ def sync_all_companies_calendar(self) -> Dict[str, Any]:
 
     async def _sync_all():
         from app.config.database import AsyncSessionLocal
+        from app.infrastructure.celery.subscription_helper import get_subscribed_companies
         from app.db.models import Company
         from app.services.calendar import CalendarService
+        from uuid import UUID
 
         async with AsyncSessionLocal() as db:
-            # Obtener todas las empresas activas
-            stmt = select(Company).where(Company.is_active == True)
+            # Obtener empresas con suscripción activa
+            subscribed_companies_data = await get_subscribed_companies(db, only_active=True)
+
+            if not subscribed_companies_data:
+                logger.info("⏭️  No subscribed companies found")
+                return {
+                    "total_companies": 0,
+                    "synced": 0,
+                    "failed": 0,
+                    "skipped": 0,
+                    "results": []
+                }
+
+            # Get full Company objects
+            company_ids = [UUID(company_id) for company_id, _ in subscribed_companies_data]
+            stmt = select(Company).where(Company.id.in_(company_ids))
             result = await db.execute(stmt)
             companies = result.scalars().all()
 
-            logger.info(f"📊 Found {len(companies)} active companies")
+            logger.info(f"📊 Found {len(companies)} subscribed companies")
 
             synced = 0
             failed = 0

@@ -10,6 +10,7 @@ import { useCompanySubscriptions, useUserNotificationPreferences } from "@/share
 import { ViewContainer } from '@/shared/layouts/ViewContainer';
 import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
 import { ChateableWrapper } from '@/shared/ui/ChateableWrapper';
+import { SubscriptionSettings as SubscriptionPage } from '@/features/subscription/ui/SubscriptionSettings';
 import type { ViewType } from '@/shared/layouts/NavigationPills';
 import type { ColorScheme } from "@/shared/hooks/useColorScheme";
 import type { Company } from "@/shared/types/fizko";
@@ -94,7 +95,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
             <div className="flex-1">
               {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} isInDrawer={isInDrawer} />}
               {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} isInDrawer={isInDrawer} preloadedSettings={companySettings} preloadedLoading={companySettingsLoading} />}
-              {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} isInDrawer={isInDrawer} />}
+              {activeTab === 'subscription' && <SubscriptionPage />}
               {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} isInDrawer={isInDrawer} company={company} subscriptionsData={subscriptionsData} preferencesData={preferencesData} loadingSubscriptions={loadingSubscriptions} loadingPreferences={loadingPreferences} preferencesError={preferencesError} />}
             </div>
           </div>
@@ -141,7 +142,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {activeTab === 'account' && <AccountSettings user={user} scheme={scheme} profileLoading={profileLoading} profile={profile} />}
         {activeTab === 'company' && <CompanySettings company={company} scheme={scheme} preloadedSettings={companySettings} preloadedLoading={companySettingsLoading} />}
-        {activeTab === 'subscription' && <SubscriptionSettings scheme={scheme} />}
+        {activeTab === 'subscription' && <SubscriptionPage />}
         {activeTab === 'preferences' && <PreferencesSettings scheme={scheme} company={company} subscriptionsData={subscriptionsData} preferencesData={preferencesData} loadingSubscriptions={loadingSubscriptions} loadingPreferences={loadingPreferences} preferencesError={preferencesError} />}
       </div>
     </ViewContainer>

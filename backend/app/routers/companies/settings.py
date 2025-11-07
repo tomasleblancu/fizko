@@ -14,7 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.database import get_db
 from ...db.models import Session
-from ...dependencies import get_current_user_id, require_auth
+from ...dependencies import (
+    get_current_user_id,
+    require_auth,
+)
 from ...repositories import CompanyRepository, CompanySettingsRepository
 from ...services.company_settings import save_company_settings_memories
 
@@ -23,7 +26,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/api/companies",
     tags=["company-settings"],
-    dependencies=[Depends(require_auth)]
+    dependencies=[
+        Depends(require_auth)
+    ]
 )
 
 

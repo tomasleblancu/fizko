@@ -8,7 +8,10 @@ from fastapi import APIRouter
 from .sync_documents import router as documents_router
 from .sync_f29 import router as f29_router
 
-router = APIRouter(prefix="/sync", tags=["sii-sync"])
+router = APIRouter(
+    prefix="/sync",
+    tags=["sii-sync"]
+)
 
 # Incluir sub-routers
 router.include_router(documents_router, prefix="")

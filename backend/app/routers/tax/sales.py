@@ -12,13 +12,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.database import get_db
 from ...db.models import Session
-from ...dependencies import get_current_user_id, require_auth, SalesDocumentRepositoryDep
+from ...dependencies import (
+    get_current_user_id,
+    require_auth,
+    SalesDocumentRepositoryDep,
+)
 from ...schemas.tax import SalesDocumentCreate, SalesDocumentUpdate
 
 router = APIRouter(
     prefix="/api/sales-documents",
     tags=["sales-documents"],
-    dependencies=[Depends(require_auth)]
+    dependencies=[
+        Depends(require_auth)
+    ]
 )
 
 

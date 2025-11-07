@@ -77,6 +77,10 @@ from .subscription import (
     # Service
     get_subscription_service,
     SubscriptionServiceDep,
+    # Global subscription check
+    get_subscription_or_none,
+    require_active_subscription,
+    ActiveSubscriptionDep,
     # Factories
     require_feature,
     check_usage_limit,
@@ -127,6 +131,9 @@ __all__ = [
     # Subscription
     "get_subscription_service",
     "SubscriptionServiceDep",
+    "get_subscription_or_none",
+    "require_active_subscription",
+    "ActiveSubscriptionDep",
     "require_feature",
     "check_usage_limit",
     "require_whatsapp",

@@ -26,24 +26,8 @@ async def list_plans(
     """
     plans = await service.list_available_plans(include_private=False)
 
-    return {
-        "plans": [
-            {
-                "code": plan.code,
-                "name": plan.name,
-                "tagname": plan.tagname,
-                "tagline": plan.tagline,
-                "description": plan.description,
-                "price_monthly": float(plan.price_monthly),
-                "price_yearly": float(plan.price_yearly),
-                "currency": plan.currency,
-                "trial_days": plan.trial_days,
-                "features": plan.features,
-                "display_order": plan.display_order,
-            }
-            for plan in plans
-        ]
-    }
+    # Plans are already dicts with calculated CLP prices from UF
+    return {"plans": plans}
 
 
 @router.get("/{plan_code}")

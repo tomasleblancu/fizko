@@ -41,25 +41,29 @@ async def get_current_subscription(
     subscription = await service.get_company_subscription(company_id)
 
     if not subscription:
-        return {
-            "subscription": None,
-            "message": "No active subscription. Create one to get started."
-        }
+        # Return null for no subscription (frontend expects null, not an object with subscription: None)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No subscription found"
+        )
+
+    # Check if subscription is in trial
+    is_trial = (
+        subscription.status == "trialing" and
+        subscription.trial_end is not None
+    )
 
     return {
-        "id": str(subscription.id),
         "status": subscription.status,
-        "interval": subscription.interval,
-        "current_period_start": subscription.current_period_start.isoformat(),
-        "current_period_end": subscription.current_period_end.isoformat(),
-        "trial_end": subscription.trial_end.isoformat() if subscription.trial_end else None,
-        "cancel_at_period_end": subscription.cancel_at_period_end,
-        "canceled_at": subscription.canceled_at.isoformat() if subscription.canceled_at else None,
         "plan": {
             "code": subscription.plan.code,
             "name": subscription.plan.name,
-            "features": subscription.plan.features
-        }
+            "tagname": subscription.plan.tagname
+        },
+        "features": subscription.plan.features,
+        "current_period_end": subscription.current_period_end.isoformat(),
+        "trial_end": subscription.trial_end.isoformat() if subscription.trial_end else None,
+        "is_trial": is_trial
     }
 
 

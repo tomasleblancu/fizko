@@ -1,5 +1,6 @@
 import { useCallback, cloneElement, isValidElement, Fragment } from 'react';
 import { useChat } from "@/app/providers/ChatContext";
+import { useHasActiveSubscription } from "@/shared/hooks/useSubscription";
 import type { ChateableWrapperProps } from "@/shared/types/chateable";
 import '@/app/styles/chateable.css';
 
@@ -38,6 +39,14 @@ export function ChateableWrapper({
   as = 'div',
 }: ChateableWrapperProps) {
   const { sendUserMessage, isReady } = useChat();
+  const { hasActiveSubscription, subscription } = useHasActiveSubscription();
+
+  // Debug logging
+  console.log('[ChateableWrapper] Subscription check:', {
+    hasActiveSubscription,
+    subscription,
+    status: subscription?.status
+  });
 
   const generateMessage = useCallback((): string => {
     if (typeof message === 'function') {
@@ -63,6 +72,13 @@ export function ChateableWrapper({
       additionalOnClick();
     }
 
+    // Check if user has active subscription
+    if (!hasActiveSubscription) {
+      // Send a message to the chat indicating user tried to use the feature
+      sendUserMessage("Acabo de clickear algo pensando que me iba a dar más información!");
+      return;
+    }
+
     // Generate and send the message with metadata
     const messageText = generateMessage();
     const metadata: Record<string, any> = {};
@@ -78,7 +94,7 @@ export function ChateableWrapper({
     }
 
     sendUserMessage(messageText, Object.keys(metadata).length > 0 ? metadata : undefined);
-  }, [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType, onChateableClick]);
+  }, [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType, onChateableClick, hasActiveSubscription]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -99,6 +115,13 @@ export function ChateableWrapper({
           additionalOnClick();
         }
 
+        // Check if user has active subscription
+        if (!hasActiveSubscription) {
+          // Send a message to the chat indicating user tried to use the feature
+          sendUserMessage("Acabo de clickear algo pensando que me iba a dar más información!");
+          return;
+        }
+
         const messageText = generateMessage();
         const metadata: Record<string, any> = {};
 
@@ -115,7 +138,7 @@ export function ChateableWrapper({
         sendUserMessage(messageText, Object.keys(metadata).length > 0 ? metadata : undefined);
       }
     },
-    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType, onChateableClick]
+    [disabled, isReady, sendUserMessage, additionalOnClick, generateMessage, uiComponent, entityId, entityType, onChateableClick, hasActiveSubscription]
   );
 
   // When using fragment mode, attach event handlers directly to the child element
