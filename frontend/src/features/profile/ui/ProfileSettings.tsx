@@ -299,7 +299,7 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp, i
         </div>
       </div>
 
-      {/* Contact Information Section - Compact */}
+      {/* Contact Information Section - Compact - Solo nombre y apellido */}
       <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
         <div className="mb-3 flex items-center justify-between">
           <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -332,9 +332,8 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp, i
           )}
         </div>
 
-        <div className="space-y-3">
-          {/* Nombre y Apellido en una fila */}
-          <div className="grid grid-cols-2 gap-3">
+        {/* Nombre y Apellido en una fila */}
+        <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
                 Nombre
@@ -381,67 +380,143 @@ function AccountSettings({ user, scheme, profileLoading, profile: profileProp, i
               )}
             </div>
           </div>
+      </div>
 
-          {/* Celular */}
-          <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
-              Celular
-            </label>
-            {!profile && profileLoading ? (
-              <div className="mt-1 h-8 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
-            ) : (
-              <input
-                type="tel"
-                value={celular}
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                disabled={!isEditing}
-                placeholder="+56 912345678"
-                inputMode="numeric"
-                className={clsx(
-                  "mt-1 w-full rounded-lg border px-2.5 py-1.5 text-sm transition-colors",
-                  isEditing
-                    ? "border-slate-300 bg-white text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                    : "border-slate-200 bg-slate-50 text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
-                )}
-              />
-            )}
-          </div>
-
-          {/* Phone Verification Status - More compact */}
-          {celular && celular !== '+' && (
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-slate-800/50">
-              <div className="flex items-center gap-2">
-                {profile?.phone_verified ? (
-                  <>
-                    <svg className="h-4 w-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                      Verificado
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-4 w-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
-                      No verificado
-                    </span>
-                  </>
-                )}
-              </div>
-              {!profile?.phone_verified && !isEditing && (
-                <button
-                  onClick={handleRequestVerification}
-                  className="text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-                >
-                  Verificar
-                </button>
-              )}
+      {/* Phone Number Section - Separate and prominent */}
+      <div className={isInDrawer ? "py-4" : "rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"}>
+        <div className="mb-3 flex items-center justify-between">
+          <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            Número de Celular
+          </h4>
+          {celular && celular !== '+' && !isEditing && (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="text-sm font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+            >
+              Editar
+            </button>
+          )}
+          {isEditing && (
+            <div className="flex gap-2">
+              <button
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="text-xs font-medium text-slate-600 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-300"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="text-xs font-medium text-emerald-600 hover:text-emerald-700 disabled:opacity-50 dark:text-emerald-400 dark:hover:text-emerald-300"
+              >
+                {isSaving ? 'Guardando...' : 'Guardar'}
+              </button>
             </div>
           )}
         </div>
+
+        {/* No phone - Show prominent CTA */}
+        {(!celular || celular === '+') && !isEditing ? (
+          <div className="flex flex-col items-center justify-center py-6 px-4 text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+              <svg className="h-8 w-8 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <button
+              onClick={() => setIsEditing(true)}
+              className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-base font-semibold text-white shadow-lg transition-all hover:shadow-xl hover:from-emerald-700 hover:to-teal-700 dark:from-emerald-500 dark:to-teal-500 dark:hover:from-emerald-600 dark:hover:to-teal-600"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Agregar y Verificar Número
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Celular */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                Ingresa tu número de celular
+              </label>
+              {!profile && profileLoading ? (
+                <div className="h-12 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+              ) : (
+                <>
+                  <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <svg className="h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <input
+                      type="tel"
+                      value={celular}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
+                      disabled={!isEditing}
+                      placeholder="+56 912345678"
+                      inputMode="numeric"
+                      autoFocus={isEditing && (!celular || celular === '+')}
+                      className={clsx(
+                        "w-full rounded-lg transition-all",
+                        isEditing
+                          ? "border-2 border-emerald-500 bg-white pl-12 pr-4 py-3.5 text-base font-medium text-slate-900 shadow-lg placeholder-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-500/20 dark:border-emerald-400 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
+                          : "border border-slate-200 bg-slate-50 pl-12 pr-4 py-2 text-sm text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100"
+                      )}
+                    />
+                  </div>
+
+                  {/* Verification badge inline with phone - only when NOT editing */}
+                  {celular && celular !== '+' && !isEditing && (
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {profile?.phone_verified ? (
+                          <>
+                            <svg className="h-4 w-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                              Verificado
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-4 w-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
+                              No verificado
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      {!profile?.phone_verified && (
+                        <button
+                          onClick={handleRequestVerification}
+                          className="text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                        >
+                          Verificar
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Info message when editing */}
+                  {isEditing && (
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Recibirás un código de verificación por WhatsApp
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Verification Modal */}
@@ -935,6 +1010,8 @@ function PreferencesSettings({
 
 // Subscription Settings Tab
 function SubscriptionSettings({ scheme, isInDrawer = false }: { scheme: ColorScheme; isInDrawer?: boolean }) {
+  const [showPlanComparison, setShowPlanComparison] = useState(false);
+
   return (
     <div className={isInDrawer ? "space-y-0 divide-y divide-slate-200/50 dark:divide-slate-700/50" : "space-y-4"}>
       {/* Current Plan Badge */}
@@ -957,7 +1034,7 @@ function SubscriptionSettings({ scheme, isInDrawer = false }: { scheme: ColorSch
           Planes Disponibles
         </h4>
 
-        <div className={isInDrawer ? "space-y-3" : "grid gap-3 sm:grid-cols-2 lg:grid-cols-3"}>
+        <div className={isInDrawer ? "space-y-3" : "grid gap-3 sm:grid-cols-2 max-w-2xl mx-auto"}>
           {/* Basic Plan */}
           <div className="rounded-lg border-2 border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-start justify-between">
@@ -974,38 +1051,12 @@ function SubscriptionSettings({ scheme, isInDrawer = false }: { scheme: ColorSch
               </div>
             </div>
             <div className="mt-3 flex items-baseline gap-1">
-              <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">$9.990</span>
+              <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">0.25 UF</span>
               <span className="text-xs text-slate-600 dark:text-slate-400">/mes</span>
             </div>
-            <ul className="mt-3 space-y-2">
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Sincronización básica con SII
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Hasta 100 documentos/mes
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Asistente IA básico
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Calendario tributario
-              </li>
-            </ul>
           </div>
 
-          {/* Professional Plan - 50% OFF */}
+          {/* Professional Plan */}
           <div className="rounded-lg border-2 border-emerald-500 bg-white p-3 shadow-md dark:border-emerald-600 dark:bg-slate-900">
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -1016,56 +1067,11 @@ function SubscriptionSettings({ scheme, isInDrawer = false }: { scheme: ColorSch
                   Para pequeñas empresas
                 </p>
               </div>
-              <div className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
-                50% OFF
-              </div>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-xs text-slate-500 line-through dark:text-slate-400">$39.990</span>
-              <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">$19.990</span>
+              <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">1 UF</span>
               <span className="text-xs text-slate-600 dark:text-slate-400">/mes</span>
             </div>
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-              Primeros 3 meses con descuento
-            </p>
-            <ul className="mt-3 space-y-2">
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Resolución de F29
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Todo lo del plan Básico
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Documentos ilimitados
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Asistente IA avanzado
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Reportes personalizados
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Soporte por email
-              </li>
-            </ul>
             <button
               disabled
               className="mt-3 w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white opacity-50 transition-colors dark:bg-emerald-700"
@@ -1073,63 +1079,157 @@ function SubscriptionSettings({ scheme, isInDrawer = false }: { scheme: ColorSch
               Próximamente
             </button>
           </div>
-
-          {/* Premium Plan */}
-          <div className="rounded-lg border-2 border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h5 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                  Premium
-                </h5>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                  Para empresas en crecimiento
-                </p>
-              </div>
-            </div>
-            <div className="mt-3 flex items-baseline gap-1">
-              <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">$79.990</span>
-              <span className="text-xs text-slate-600 dark:text-slate-400">/mes</span>
-            </div>
-            <ul className="mt-3 space-y-2">
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Todo lo del plan Básico
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Múltiples empresas
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                API de integración
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Soporte prioritario
-              </li>
-              <li className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                <svg className="h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Asesoría contable mensual
-              </li>
-            </ul>
-            <button
-              disabled
-              className="mt-3 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 opacity-50 transition-colors dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
-            >
-              Próximamente
-            </button>
-          </div>
         </div>
+
+        {/* Plan Comparison Toggle */}
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={() => setShowPlanComparison(!showPlanComparison)}
+            className="flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+          >
+            <span>Comparar planes</span>
+            <svg
+              className={clsx(
+                "h-4 w-4 transition-transform",
+                showPlanComparison && "rotate-180"
+              )}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Plan Comparison Table */}
+        {showPlanComparison && (
+          <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[500px]">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Característica
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Básico
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      Profesional
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
+                      Precio mensual
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs font-medium text-slate-900 dark:text-slate-100">
+                      0.25 UF
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      1 UF
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
+                      Sincronización con el SII
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <svg className="mx-auto h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <svg className="mx-auto h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
+                      Documentos
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs text-slate-700 dark:text-slate-300">
+                      Ilimitados
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs text-slate-700 dark:text-slate-300">
+                      Ilimitados
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
+                      Asistente IA
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs text-slate-700 dark:text-slate-300">
+                      Básico
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs text-slate-700 dark:text-slate-300">
+                      Avanzado
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
+                      Calendario tributario
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <svg className="mx-auto h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <svg className="mx-auto h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
+                      Resolución de F29
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <svg className="mx-auto h-5 w-5 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <svg className="mx-auto h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
+                      Reportes personalizados
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <svg className="mx-auto h-5 w-5 text-slate-300 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <svg className="mx-auto h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </td>
+                  </tr>
+                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
+                      Soporte
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs text-slate-700 dark:text-slate-300">
+                      Chat
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs text-slate-700 dark:text-slate-300">
+                      Chat + Email
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Billing History */}

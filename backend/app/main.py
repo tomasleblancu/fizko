@@ -47,6 +47,7 @@ from .routers.sales_leads import public_router as sales_leads_public_router
 from .routers.scheduled_tasks import router as scheduled_tasks_router
 from .routers.sii import router as sii_router
 from .routers.sii_stc import router as sii_stc_router
+from .routers.subscriptions import router as subscriptions_router
 from .routers.tasks import router as tasks_router
 from .routers.user import router as user_router
 from .routers.auth import whatsapp as auth_whatsapp_router
@@ -141,6 +142,7 @@ app.include_router(sales_leads_public_router)  # Public contact form (no auth)
 app.include_router(sales_leads_admin_router)  # Admin sales lead management
 app.include_router(tasks_router)  # Celery task management
 app.include_router(scheduled_tasks_router, prefix="/api")  # Celery Beat scheduled tasks
+app.include_router(subscriptions_router)  # Subscription billing and plans
 app.include_router(user_router)  # User-specific operations (notification preferences)
 app.include_router(auth_whatsapp_router.router, prefix="/api")  # WhatsApp OTP authentication (no JWT required)
 

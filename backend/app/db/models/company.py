@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from .personnel import Payroll, Person
     from .session import Session
     from .honorarios import HonorariosReceipt
+    from .subscriptions import Subscription
 
 
 class Company(Base):
@@ -111,6 +112,36 @@ class Company(Base):
     honorarios_receipts: Mapped[list["HonorariosReceipt"]] = relationship(
         "HonorariosReceipt", back_populates="company", cascade="all, delete-orphan"
     )
+
+    # Subscription relationship (1:1)
+    subscription: Mapped[Optional["Subscription"]] = relationship(
+        "Subscription",
+        back_populates="company",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
+
+    # Helper methods for subscription access
+    def has_active_subscription(self) -> bool:
+        """Check if company has an active subscription."""
+        return (
+            self.subscription is not None and
+            self.subscription.status in ['trialing', 'active']
+        )
+
+    def can_use_feature(self, feature_key: str) -> bool:
+        """
+        Check if subscription allows a specific feature.
+
+        Args:
+            feature_key: Feature to check (e.g., "has_whatsapp")
+
+        Returns:
+            bool: True if feature is available, False otherwise
+        """
+        if not self.subscription:
+            return False
+        return self.subscription.plan.features.get(feature_key, False)
 
     @hybrid_property
     def sii_password(self) -> Optional[str]:

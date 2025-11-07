@@ -44,6 +44,7 @@ from .scheduled_tasks import (
     create_interval_schedule,
 )
 from .session import Session
+from .subscriptions import Invoice, Subscription, SubscriptionPlan, SubscriptionUsage
 from .user import Profile
 
 __all__ = [
@@ -102,4 +103,9 @@ __all__ = [
     "TaskResult",
     "create_interval_schedule",
     "create_crontab_schedule",
+    # Subscriptions
+    "SubscriptionPlan",
+    "Subscription",
+    "SubscriptionUsage",
+    "Invoice",
 ]

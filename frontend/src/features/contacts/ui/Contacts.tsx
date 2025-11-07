@@ -197,23 +197,21 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
               </thead>
               <tbody>
                 {filteredContacts.map((contact) => (
-                  <tr
+                  <ChateableWrapper
                     key={contact.id}
-                    className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700"
+                    message={`Dame información sobre mi contacto ${contact.business_name} (RUT: ${contact.rut})`}
+                    contextData={{
+                      contactId: contact.id,
+                      contactName: contact.business_name,
+                      contactRut: contact.rut,
+                      contactType: contact.contact_type,
+                    }}
+                    uiComponent="contact_card"
+                    entityId={contact.rut}
+                    entityType="contact"
                   >
-                    <td className="py-3 px-2">
-                      <ChateableWrapper
-                        message={`Dame información sobre mi contacto ${contact.business_name} (RUT: ${contact.rut})`}
-                        contextData={{
-                          contactId: contact.id,
-                          contactName: contact.business_name,
-                          contactRut: contact.rut,
-                          contactType: contact.contact_type,
-                        }}
-                        uiComponent="contact_card"
-                        entityId={contact.rut}
-                        entityType="contact"
-                      >
+                    <tr className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                      <td className="py-3 px-2">
                         <div className="min-w-0 max-w-xs">
                           <p className="font-medium text-slate-900 dark:text-slate-100 truncate">
                             {contact.business_name}
@@ -224,19 +222,19 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
                             </p>
                           )}
                         </div>
-                      </ChateableWrapper>
-                    </td>
-                    <td className="py-3 px-2 whitespace-nowrap">
-                      <span className="text-slate-700 dark:text-slate-300">
-                        {contact.rut}
-                      </span>
-                    </td>
-                    <td className="py-3 px-2 whitespace-nowrap">
-                      <span className={getContactTypeBadge(contact.contact_type)}>
-                        {getContactTypeLabel(contact.contact_type)}
-                      </span>
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="py-3 px-2 whitespace-nowrap">
+                        <span className="text-slate-700 dark:text-slate-300">
+                          {contact.rut}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2 whitespace-nowrap">
+                        <span className={getContactTypeBadge(contact.contact_type)}>
+                          {getContactTypeLabel(contact.contact_type)}
+                        </span>
+                      </td>
+                    </tr>
+                  </ChateableWrapper>
                 ))}
               </tbody>
             </table>
