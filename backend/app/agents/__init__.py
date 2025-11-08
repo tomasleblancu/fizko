@@ -4,13 +4,11 @@
 from .chat import FizkoChatKitServer
 
 
-def create_chatkit_server(mode: str = "multi_agent", use_new_adapter: bool = True):
+def create_chatkit_server(use_new_adapter: bool = True):
     """
     Create the ChatKit server instance.
 
     Args:
-        mode: "unified" (single agent) or "multi_agent" (handoffs system)
-              Default: "multi_agent"
         use_new_adapter: Use new ChatKitServerAdapter (default: True)
                         Set to False to use legacy FizkoChatKitServer
 
@@ -20,9 +18,9 @@ def create_chatkit_server(mode: str = "multi_agent", use_new_adapter: bool = Tru
     if use_new_adapter:
         # Import here to avoid circular dependency
         from app.integrations.chatkit import ChatKitServerAdapter
-        return ChatKitServerAdapter(mode=mode)
+        return ChatKitServerAdapter()
     else:
-        return FizkoChatKitServer(mode=mode)
+        return FizkoChatKitServer()
 
 
 # For backward compatibility, FizkoServer is an alias to FizkoChatKitServer

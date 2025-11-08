@@ -8,11 +8,8 @@ from agents.model_settings import ModelSettings, Reasoning
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config.constants import SPECIALIZED_MODEL, GENERAL_KNOWLEDGE_INSTRUCTIONS
-from ..agents.tools.memory import (
-    search_user_memory,
-    search_company_memory,
-)
+from app.config.constants import SPECIALIZED_MODEL
+from app.agents.instructions import GENERAL_KNOWLEDGE_INSTRUCTIONS
 
 
 def create_general_knowledge_agent(
@@ -23,8 +20,7 @@ def create_general_knowledge_agent(
     """
     Create the General Knowledge Agent.
 
-    This agent handles conceptual and educational questions about Chilean taxation
-    and can recall both user preferences and company-wide information from memory.
+    This agent handles conceptual and educational questions about Chilean taxation.
 
     Args:
         db: Database session
@@ -33,8 +29,6 @@ def create_general_knowledge_agent(
 
     Capabilities:
     - Answer educational questions about Chilean taxation
-    - Recall user preferences (personal memory search)
-    - Recall company information (shared memory search)
     - Search through tax documentation (FileSearchTool)
 
     Examples of queries it handles:
@@ -44,11 +38,7 @@ def create_general_knowledge_agent(
     - "¿Cuál es la diferencia entre boleta y factura?"
     """
 
-    tools = [
-        # Memory tools - dual system for user and company memory (read-only)
-        search_user_memory,    # Search personal user preferences and history
-        search_company_memory, # Search company-wide knowledge and settings
-    ]
+    tools = []
 
     # Add FileSearchTool if there are vector stores to search
     if vector_store_ids:

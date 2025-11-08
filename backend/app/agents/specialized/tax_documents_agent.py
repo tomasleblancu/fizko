@@ -8,7 +8,8 @@ from agents.model_settings import ModelSettings, Reasoning
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...config.constants import SPECIALIZED_MODEL, TAX_DOCUMENTS_INSTRUCTIONS
+from app.config.constants import SPECIALIZED_MODEL
+from app.agents.instructions import TAX_DOCUMENTS_INSTRUCTIONS
 from ..tools.tax.documentos_tributarios_tools import (
     get_documents,
     get_documents_summary,

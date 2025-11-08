@@ -76,3 +76,21 @@ export function useIsInTrial() {
     subscription,
   };
 }
+
+/**
+ * Hook to check if user is on free plan (no paid subscription)
+ */
+export function useIsFreePlan() {
+  const { data: subscription } = useSubscription();
+
+  // User is on free plan if:
+  // 1. Subscription exists AND plan code is "free"
+  // 2. OR subscription doesn't exist (legacy behavior)
+  const isFreePlan =
+    !subscription || subscription.plan.code === "free";
+
+  return {
+    isFreePlan,
+    subscription,
+  };
+}

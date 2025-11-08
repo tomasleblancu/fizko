@@ -7,7 +7,8 @@ from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...config.constants import SPECIALIZED_MODEL, PAYROLL_INSTRUCTIONS
+from app.config.constants import SPECIALIZED_MODEL
+from app.agents.instructions import PAYROLL_INSTRUCTIONS
 from ..tools.payroll.payroll_tools import (
     get_people,
     get_person,

@@ -55,15 +55,9 @@ class ChatKitServerAdapter(ChatKitServer):
     - Know about Agents SDK internals
     """
 
-    def __init__(self, mode: str = "multi_agent"):
-        """
-        Initialize ChatKit server adapter.
-
-        Args:
-            mode: "multi_agent" (default) or "unified"
-        """
-        self.mode = mode
-        self.agent_service = AgentService(mode=mode)
+    def __init__(self):
+        """Initialize ChatKit server adapter with multi-agent system."""
+        self.agent_service = AgentService()
 
         # Initialize attachment store
         self.attachment_store = MemoryAttachmentStore()
@@ -72,7 +66,7 @@ class ChatKitServerAdapter(ChatKitServer):
         store = self.agent_service.get_store()
         super().__init__(store, attachment_store=self.attachment_store)
 
-        logger.info(f"🤖 ChatKitServerAdapter initialized (mode: {mode})")
+        logger.info("🤖 ChatKitServerAdapter initialized (multi-agent mode)")
 
     async def respond(
         self,

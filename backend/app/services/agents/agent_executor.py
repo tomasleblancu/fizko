@@ -33,16 +33,11 @@ class AgentService:
     This is the main entry point for executing agents from any channel.
     """
 
-    def __init__(self, mode: str = "multi_agent"):
-        """
-        Initialize agent service.
-
-        Args:
-            mode: "multi_agent" (default) or "unified"
-        """
-        self.runner = AgentRunner(mode=mode)
+    def __init__(self):
+        """Initialize agent service with multi-agent system."""
+        self.runner = AgentRunner()
         self.context_builder = ContextBuilder()
-        logger.info(f"🎯 AgentService initialized (mode: {mode})")
+        logger.info("🎯 AgentService initialized (multi-agent mode)")
 
     async def execute_from_chatkit(
         self,
@@ -118,7 +113,6 @@ class AgentService:
             ui_context=ui_context,
             company_info=company_info,
             metadata=metadata or {},
-            mode=self.runner.mode,
             channel="web",
         )
 
@@ -205,7 +199,6 @@ class AgentService:
             ui_context=ui_context,  # Already loaded by WhatsApp webhook
             company_info=company_info,
             metadata=metadata or {},
-            mode=self.runner.mode,
             channel="whatsapp",
         )
 

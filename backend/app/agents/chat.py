@@ -1,4 +1,4 @@
-"""ChatKit server integration for Fizko backend - Unified Agent System."""
+"""ChatKit server integration for Fizko backend - Multi-Agent System."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from chatkit.types import HiddenContextItem, ThreadItem, ThreadMetadata, ThreadS
 from ..config.database import AsyncSessionLocal
 from app.stores import MemoryStore, HybridStore
 from .core import FizkoContext
-from .orchestration import create_unified_agent, handoffs_manager
+from .orchestration import handoffs_manager
 
 try:
     from app.stores import SupabaseStore
@@ -180,20 +180,12 @@ class FizkoChatKitServer(ChatKitServer):
     """
     ChatKit server for Fizko platform.
 
-    Supports two modes:
-    - unified: Single agent with all tools (legacy)
-    - multi_agent: Supervisor with handoffs to specialized agents (new)
+    Uses multi-agent system with supervisor and specialized agents.
     """
 
-    def __init__(self, mode: str = "multi_agent"):
-        """
-        Initialize ChatKit server.
-
-        Args:
-            mode: "unified" (single agent) or "multi_agent" (handoffs system)
-        """
-        self.mode = mode
-        logger.info(f"🤖 FizkoChatKitServer initialized in '{mode}' mode")
+    def __init__(self):
+        """Initialize ChatKit server with multi-agent system."""
+        logger.info("🤖 FizkoChatKitServer initialized (multi-agent mode)")
 
         # Use HybridStore: Fast in-memory reads + background Supabase sync
         # This eliminates network latency (3s per query) while keeping persistence
@@ -226,7 +218,7 @@ class FizkoChatKitServer(ChatKitServer):
         respond_start = time.time()
         logger.info(f"⏱️  [+{(respond_start - request_start):.3f}s] respond() started")
 
-        # Create OpenAI client (required by create_unified_agent)
+        # Create OpenAI client
         from openai import AsyncOpenAI
         import os
 
@@ -249,51 +241,36 @@ class FizkoChatKitServer(ChatKitServer):
                         vector_store_ids.append(openai_metadata['vector_store_id'])
                         logger.info(f"📄 Found PDF attachment with vector_store_id: {openai_metadata['vector_store_id']}")
 
-            # Create agent according to mode (unified or multi_agent)
+            # Create multi-agent system
             agent_start = time.time()
+            logger.info("=" * 60)
+            logger.info("🔀 [MULTI-AGENT MODE]")
 
-            if self.mode == "multi_agent":
-                # Multi-agent system with handoffs
-                logger.info("=" * 60)
-                logger.info("🔀 [MULTI-AGENT MODE]")
+            # Get supervisor agent from handoffs_manager
+            supervisor_fetch_start = time.time()
+            agent = await handoffs_manager.get_supervisor_agent(
+                thread_id=thread.id,
+                db=db,
+                user_id=context.get("user_id"),
+            )
+            supervisor_fetch_time = time.time() - supervisor_fetch_start
+            logger.info(f"⏱️  Supervisor agent fetch: {supervisor_fetch_time:.3f}s")
 
-                # Get supervisor agent from handoffs_manager
-                supervisor_fetch_start = time.time()
-                agent = await handoffs_manager.get_supervisor_agent(
-                    thread_id=thread.id,
-                    db=db,
-                    user_id=context.get("user_id"),
-                )
-                supervisor_fetch_time = time.time() - supervisor_fetch_start
-                logger.info(f"⏱️  Supervisor agent fetch: {supervisor_fetch_time:.3f}s")
+            # Get all agents for handoffs
+            agents_fetch_start = time.time()
+            all_agents = await handoffs_manager.get_all_agents(
+                thread_id=thread.id,
+                db=db,
+                user_id=context.get("user_id"),
+            )
+            agents_fetch_time = time.time() - agents_fetch_start
+            logger.info(f"⏱️  All agents fetch: {agents_fetch_time:.3f}s")
 
-                # Get all agents for handoffs
-                agents_fetch_start = time.time()
-                all_agents = await handoffs_manager.get_all_agents(
-                    thread_id=thread.id,
-                    db=db,
-                    user_id=context.get("user_id"),
-                )
-                agents_fetch_time = time.time() - agents_fetch_start
-                logger.info(f"⏱️  All agents fetch: {agents_fetch_time:.3f}s")
+            logger.info(f"✅ Multi-agent system ready: {len(all_agents)} agents available")
+            logger.info("=" * 60)
 
-                logger.info(f"✅ Multi-agent system ready: {len(all_agents)} agents available")
-                logger.info("=" * 60)
-
-                if vector_store_ids:
-                    logger.warning(f"⚠️  PDFs detected but multi-agent mode doesn't support FileSearch yet")
-
-            else:
-                # Unified agent (legacy) with all tools
-                logger.info("📦 Using unified agent (legacy mode)")
-
-                agent = create_unified_agent(
-                    db=db,
-                    openai_client=openai_client,
-                    vector_store_ids=vector_store_ids if vector_store_ids else None
-                )
-
-                all_agents = None  # Unified mode doesn't use multiple agents
+            if vector_store_ids:
+                logger.warning(f"⚠️  PDFs detected but multi-agent mode doesn't support FileSearch yet")
 
             logger.info(f"⏱️  [+{(time.time() - request_start):.3f}s] Agent created ({(time.time() - agent_start):.3f}s)")
 

@@ -6,7 +6,7 @@ from agents import Agent
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...config.constants import SPECIALIZED_MODEL
+from app.config.constants import SPECIALIZED_MODEL
 from ..tools.settings import list_notifications, edit_notification
 
 

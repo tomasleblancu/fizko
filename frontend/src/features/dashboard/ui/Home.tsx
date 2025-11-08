@@ -21,7 +21,7 @@ import { ColorScheme } from "@/shared/hooks/useColorScheme";
 import { useAuth } from "@/app/providers/AuthContext";
 import { useSession } from "@/shared/hooks/useSession";
 import { useCompanyQuery } from "@/shared/hooks/useCompanyQuery";
-import { useSubscription, useIsInTrial } from "@/shared/hooks/useSubscription";
+import { useSubscription, useIsInTrial, useIsFreePlan } from "@/shared/hooks/useSubscription";
 import { useSubscriptionPlans } from "@/shared/hooks/useSubscriptionPlans";
 import { ChatProvider, useChat } from "@/app/providers/ChatContext";
 
@@ -58,6 +58,7 @@ function HomeContent({
   // Subscription state
   const { data: subscription } = useSubscription();
   const { isInTrial, trialEndsAt } = useIsInTrial();
+  const { isFreePlan } = useIsFreePlan();
 
   // Prefetch subscription plans for instant loading when user opens subscription settings
   useSubscriptionPlans();
@@ -224,7 +225,7 @@ function HomeContent({
   return (
     <div className={containerClass}>
       {/* Subscription Banners */}
-      {!subscription && (
+      {isFreePlan && (
         <div className="relative z-50 px-3 py-2 lg:px-4 flex-shrink-0">
           <SubscriptionBanner onUpgradeClick={handleOpenSubscription} />
         </div>

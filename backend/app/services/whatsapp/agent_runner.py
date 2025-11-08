@@ -1,6 +1,5 @@
 """
-Runner del agente de IA para WhatsApp
-Soporta tanto el agente unificado (legacy) como el nuevo sistema multi-agente
+Runner del agente de IA para WhatsApp con sistema multi-agente.
 """
 import logging
 import os
@@ -11,7 +10,7 @@ from datetime import datetime
 from agents import Runner, SQLiteSession
 from openai import AsyncOpenAI
 
-from app.agents.orchestration import create_unified_agent, handoffs_manager
+from app.agents.orchestration import handoffs_manager
 from app.config.database import AsyncSessionLocal
 from .conversation_manager import WhatsAppConversationManager
 
@@ -72,22 +71,12 @@ async def load_user_info_cached(db, user_id: UUID, use_cache: bool = True) -> Di
 
 class WhatsAppAgentRunner:
     """
-    Ejecuta agentes de Fizko para mensajes de WhatsApp.
-
-    Soporta dos modos:
-    - unified: Agente único con todas las tools (legacy)
-    - multi_agent: Sistema de handoffs con supervisor + agentes especializados (nuevo)
+    Ejecuta agentes de Fizko para mensajes de WhatsApp con sistema multi-agente.
     """
 
-    def __init__(self, mode: str = "multi_agent"):
-        """
-        Inicializa el runner.
-
-        Args:
-            mode: "unified" (agente único) o "multi_agent" (sistema con handoffs)
-        """
-        self.mode = mode
-        logger.info(f"🤖 WhatsAppAgentRunner initialized in '{mode}' mode")
+    def __init__(self):
+        """Inicializa el runner con sistema multi-agente."""
+        logger.info("🤖 WhatsAppAgentRunner initialized (multi-agent mode)")
 
         # Directorio para sesiones del agente
         sessions_dir = os.path.join(
@@ -135,7 +124,7 @@ class WhatsAppAgentRunner:
         import time
         process_start = time.time()
         logger.info("=" * 80)
-        logger.info(f"🚀 WhatsApp Agent | user={user_id} | mode={self.mode}")
+        logger.info(f"🚀 WhatsApp Agent | user={user_id}")
 
         async with AsyncSessionLocal() as db:
             # 1. Setup: conversation + messages + context (con timing detallado)
@@ -187,29 +176,20 @@ class WhatsAppAgentRunner:
                 user_message = self._build_message_simple(user_info, message_content)
                 agent_input = user_message
 
-            # 3. Crear agente
+            # 3. Crear agente (multi-agent system)
             agent_start = time.time()
-            openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-            if self.mode == "multi_agent":
-                agent = await handoffs_manager.get_supervisor_agent(
-                    thread_id=str(conversation.id), db=db, user_id=str(user_id),
-                    vector_store_ids=vector_store_ids, channel="whatsapp"
-                )
-                all_agents = await handoffs_manager.get_all_agents(
-                    thread_id=str(conversation.id), db=db, user_id=str(user_id),
-                    vector_store_ids=vector_store_ids, channel="whatsapp"
-                )
+            agent = await handoffs_manager.get_supervisor_agent(
+                thread_id=str(conversation.id), db=db, user_id=str(user_id),
+                vector_store_ids=vector_store_ids, channel="whatsapp"
+            )
+            all_agents = await handoffs_manager.get_all_agents(
+                thread_id=str(conversation.id), db=db, user_id=str(user_id),
+                vector_store_ids=vector_store_ids, channel="whatsapp"
+            )
 
-                if vector_store_ids:
-                    logger.info(f"📄 Multi-agent with {len(vector_store_ids)} PDF(s)")
-            else:
-                agent = create_unified_agent(
-                    db=db, openai_client=openai_client,
-                    vector_store_ids=vector_store_ids if vector_store_ids else None,
-                    channel="whatsapp"
-                )
-                all_agents = None
+            if vector_store_ids:
+                logger.info(f"📄 Multi-agent with {len(vector_store_ids)} PDF(s)")
 
             agent_time = time.time() - agent_start
             logger.info(f"⏱️  Agent init: {agent_time:.3f}s")

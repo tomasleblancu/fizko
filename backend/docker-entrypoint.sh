@@ -129,7 +129,29 @@ case "$1" in
         echo -e "${GREEN}🔨 Starting Celery Worker${NC}"
         check_env_vars "DATABASE_URL" "REDIS_URL"
 
+        # Support queue-specific workers via CELERY_QUEUES env var
+        # Default: all queues (backward compatible)
+        # Examples:
+        #   CELERY_QUEUES="high,default" - Fast worker
+        #   CELERY_QUEUES="low" - Slow worker
+        QUEUE_ARG=""
+        if [ -n "$CELERY_QUEUES" ]; then
+            QUEUE_ARG="-Q ${CELERY_QUEUES}"
+            echo -e "${BLUE}ℹ${NC}  Processing queues: ${CELERY_QUEUES}"
+        else
+            echo -e "${BLUE}ℹ${NC}  Processing all queues (default)"
+        fi
+
+        # Support custom worker name via CELERY_WORKER_NAME env var
+        NAME_ARG=""
+        if [ -n "$CELERY_WORKER_NAME" ]; then
+            NAME_ARG="-n ${CELERY_WORKER_NAME}@%h"
+            echo -e "${BLUE}ℹ${NC}  Worker name: ${CELERY_WORKER_NAME}"
+        fi
+
         exec celery -A app.infrastructure.celery.worker worker \
+            $QUEUE_ARG \
+            $NAME_ARG \
             --loglevel=${CELERY_LOG_LEVEL:-info} \
             --concurrency=${CELERY_CONCURRENCY:-2} \
             --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD:-1000}

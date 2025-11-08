@@ -81,8 +81,84 @@ services:
       - fizko-network
 
   # ==========================================
-  # Celery Worker - Tareas asíncronas
+  # Celery Workers - Separación por prioridad
   # ==========================================
+  # Por defecto: 2 workers (FAST + SLOW)
+  # Para rollback a worker único: docker-compose --profile single-worker up
+
+  # ==========================================
+  # Celery Worker FAST - High + Default priority
+  # ==========================================
+  # Procesa notificaciones críticas y tareas normales
+  # Concurrency: 3 (puede manejar varias tareas simultáneas)
+  celery-worker-fast:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_DEV: "true"
+    container_name: fizko-celery-worker-fast
+    command: ["celery-worker"]
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_QUEUES=high,default  # Solo colas rápidas
+      - CELERY_WORKER_NAME=fast     # Nombre identificable
+      - CELERY_CONCURRENCY=3        # Mayor concurrencia
+      - CELERY_MAX_TASKS_PER_CHILD=100
+    volumes:
+      - ./app:/app/app
+      - ./sessions:/app/sessions
+      - ./chrome-data:/app/chrome-data
+      - ./screenshots:/app/screenshots
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - fizko-network
+    # NO PROFILE: Se inicia por defecto
+
+  # ==========================================
+  # Celery Worker SLOW - Low priority
+  # ==========================================
+  # Procesa scraping pesado de SII (Selenium)
+  # Concurrency: 1 (tareas largas y resource-intensive)
+  celery-worker-slow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_DEV: "true"
+    container_name: fizko-celery-worker-slow
+    command: ["celery-worker"]
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_QUEUES=low           # Solo cola lenta (SII)
+      - CELERY_WORKER_NAME=slow     # Nombre identificable
+      - CELERY_CONCURRENCY=1        # Una tarea a la vez
+      - CELERY_MAX_TASKS_PER_CHILD=10  # Reiniciar frecuente (memory leaks de Selenium)
+    volumes:
+      - ./app:/app/app
+      - ./sessions:/app/sessions
+      - ./chrome-data:/app/chrome-data
+      - ./screenshots:/app/screenshots
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - fizko-network
+    # NO PROFILE: Se inicia por defecto
+
+  # ==========================================
+  # Celery Worker ÚNICO - Todas las colas (ROLLBACK)
+  # ==========================================
+  # Worker único para rollback si hay problemas
+  # Solo se inicia con: docker-compose --profile single-worker up
   celery-worker:
     build:
       context: .
@@ -95,6 +171,7 @@ services:
       - .env
     environment:
       - REDIS_URL=redis://redis:6379/0
+      # Procesa todas las colas (default)
     volumes:
       - ./app:/app/app
       - ./sessions:/app/sessions
@@ -106,6 +183,8 @@ services:
     restart: unless-stopped
     networks:
       - fizko-network
+    profiles:
+      - single-worker  # Solo para rollback
 
   # ==========================================
   # Celery Beat - Scheduler para tareas programadas
@@ -128,7 +207,9 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      celery-worker:
+      celery-worker-fast:
+        condition: service_started
+      celery-worker-slow:
         condition: service_started
     restart: unless-stopped
     networks:
@@ -153,7 +234,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - redis
-      - celery-worker
+      - celery-worker-fast
+      - celery-worker-slow
     restart: unless-stopped
     networks:
       - fizko-network

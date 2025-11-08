@@ -17,7 +17,7 @@ from agents import Runner, SQLiteSession
 from openai import AsyncOpenAI
 
 from .core import FizkoContext
-from .orchestration import handoffs_manager, create_unified_agent
+from .orchestration import handoffs_manager
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,6 @@ class AgentExecutionRequest:
     metadata: Optional[Dict[str, Any]] = field(default_factory=dict)
 
     # Execution options
-    mode: str = "multi_agent"  # "multi_agent" or "unified"
     max_turns: int = 10
     channel: str = "unknown"  # "web", "whatsapp", etc.
 
@@ -64,7 +63,7 @@ class AgentRunner:
 
     This class provides a unified interface for executing agents regardless
     of the channel (ChatKit web, WhatsApp, etc.). It handles:
-    - Agent selection (supervisor vs unified)
+    - Multi-agent orchestration with supervisor and specialized agents
     - Session management
     - Context building
     - Execution (streaming and non-streaming)
@@ -77,18 +76,14 @@ class AgentRunner:
 
     def __init__(
         self,
-        mode: str = "multi_agent",
         sessions_dir: Optional[str] = None
     ):
         """
         Initialize agent runner.
 
         Args:
-            mode: "multi_agent" (default) or "unified"
             sessions_dir: Directory for SQLite session storage
         """
-        self.mode = mode
-
         # Setup sessions directory
         if sessions_dir is None:
             sessions_dir = os.path.join(
@@ -99,7 +94,7 @@ class AgentRunner:
 
         self.session_file = os.path.join(self.sessions_dir, "agent_sessions.db")
 
-        logger.info(f"🤖 AgentRunner initialized (mode: {mode})")
+        logger.info("🤖 AgentRunner initialized (multi-agent mode)")
 
     async def execute(
         self,
@@ -120,7 +115,7 @@ class AgentRunner:
         Returns:
             AgentExecutionResult (if stream=False) or AsyncIterator of events
         """
-        logger.info(f"🚀 AgentRunner.execute() | mode={self.mode} | stream={stream}")
+        logger.info(f"🚀 AgentRunner.execute() | multi-agent mode | stream={stream}")
         logger.info(f"   thread_id={request.thread_id} | channel={request.channel}")
 
         # 1. Get agent based on mode
@@ -168,9 +163,7 @@ class AgentRunner:
         Get agent(s) based on execution mode.
 
         Returns:
-            (agent, all_agents) tuple
-            - For multi_agent: (supervisor, [all_agents])
-            - For unified: (unified_agent, None)
+            (agent, all_agents) tuple with supervisor and all specialized agents
         """
         # Extract vector_store_ids from attachments (for PDF FileSearch)
         vector_store_ids = []
@@ -179,54 +172,37 @@ class AgentRunner:
                 if "vector_store_id" in att:
                     vector_store_ids.append(att["vector_store_id"])
 
-        if self.mode == "multi_agent":
-            logger.info("🔀 Creating multi-agent system...")
+        logger.info("🔀 Creating multi-agent system...")
 
-            # Get supervisor agent
-            # Parse company_id (may be string from request)
-            from uuid import UUID
-            company_id_uuid = None
-            if request.company_id:
-                try:
-                    company_id_uuid = UUID(request.company_id) if isinstance(request.company_id, str) else request.company_id
-                except (ValueError, AttributeError):
-                    logger.warning(f"⚠️  Invalid company_id format: {request.company_id}")
+        # Get supervisor agent
+        # Parse company_id (may be string from request)
+        from uuid import UUID
+        company_id_uuid = None
+        if request.company_id:
+            try:
+                company_id_uuid = UUID(request.company_id) if isinstance(request.company_id, str) else request.company_id
+            except (ValueError, AttributeError):
+                logger.warning(f"⚠️  Invalid company_id format: {request.company_id}")
 
-            agent = await handoffs_manager.get_supervisor_agent(
-                thread_id=request.thread_id,
-                db=db,
-                user_id=request.user_id,
-                company_id=company_id_uuid,  # ⭐ Pass company_id for subscription validation
-                vector_store_ids=vector_store_ids if vector_store_ids else None,
-            )
+        agent = await handoffs_manager.get_supervisor_agent(
+            thread_id=request.thread_id,
+            db=db,
+            user_id=request.user_id,
+            company_id=company_id_uuid,  # ⭐ Pass company_id for subscription validation
+            vector_store_ids=vector_store_ids if vector_store_ids else None,
+        )
 
-            # Get all agents for handoffs
-            all_agents = await handoffs_manager.get_all_agents(
-                thread_id=request.thread_id,
-                db=db,
-                user_id=request.user_id,
-                company_id=company_id_uuid,  # ⭐ Pass company_id
-                vector_store_ids=vector_store_ids if vector_store_ids else None,
-            )
+        # Get all agents for handoffs
+        all_agents = await handoffs_manager.get_all_agents(
+            thread_id=request.thread_id,
+            db=db,
+            user_id=request.user_id,
+            company_id=company_id_uuid,  # ⭐ Pass company_id
+            vector_store_ids=vector_store_ids if vector_store_ids else None,
+        )
 
-            logger.info(f"✅ Multi-agent system ready: {len(all_agents)} agents")
-            return (agent, all_agents)
-
-        else:  # unified mode
-            logger.info("📦 Creating unified agent...")
-
-            # Create OpenAI client
-            openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-            agent = create_unified_agent(
-                db=db,
-                openai_client=openai_client,
-                vector_store_ids=vector_store_ids if vector_store_ids else None,
-                channel=request.channel,
-            )
-
-            logger.info("✅ Unified agent ready")
-            return (agent, None)
+        logger.info(f"✅ Multi-agent system ready: {len(all_agents)} agents")
+        return (agent, all_agents)
 
     async def _build_context(
         self,

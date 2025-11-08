@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.dependencies import CompanyIdDep, require_auth, SubscriptionServiceDep
+from app.services.subscriptions.memories import save_subscription_memories
 
 router = APIRouter(
     prefix="/api/subscriptions",
@@ -35,17 +34,54 @@ async def get_current_subscription(
     """
     Get current subscription for the user's company.
 
+    If no active subscription exists, returns the free plan by default.
+
     Returns:
-        Current subscription with plan details and usage
+        Current subscription with plan details and usage (or free plan if no subscription)
     """
     subscription = await service.get_company_subscription(company_id)
 
     if not subscription:
-        # Return null for no subscription (frontend expects null, not an object with subscription: None)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No subscription found"
-        )
+        # No active subscription - get free plan from database
+        free_plan = await service.get_plan_by_code("free")
+
+        # Only sync memory if subscription changed to free plan
+        plan_code = free_plan.code if free_plan else "free"
+        if await service.subscription_has_changed(company_id, plan_code, "active"):
+            save_subscription_memories(str(company_id), subscription=None, free_plan=free_plan)
+
+        # Return free plan as current subscription
+        if free_plan:
+            return {
+                "status": "active",
+                "plan": {
+                    "code": free_plan.code,
+                    "name": free_plan.name,
+                    "tagname": free_plan.tagname
+                },
+                "features": free_plan.features or {},
+                "current_period_end": None,
+                "trial_end": None,
+                "is_trial": False
+            }
+        else:
+            # Fallback if free plan doesn't exist in DB
+            return {
+                "status": "active",
+                "plan": {
+                    "code": "free",
+                    "name": "Gratuito",
+                    "tagname": "Free"
+                },
+                "features": {},
+                "current_period_end": None,
+                "trial_end": None,
+                "is_trial": False
+            }
+
+    # Active subscription exists - only sync memory if changed
+    if await service.subscription_has_changed(company_id, subscription.plan.code, subscription.status):
+        save_subscription_memories(str(company_id), subscription=subscription)
 
     # Check if subscription is in trial
     is_trial = (
@@ -92,6 +128,9 @@ async def create_subscription(
             plan_code=request.plan_code,
             interval=request.interval
         )
+
+        # Sync subscription data to company memory
+        save_subscription_memories(str(company_id), subscription)
 
         return {
             "id": str(subscription.id),
@@ -181,6 +220,9 @@ async def upgrade_subscription(
             new_plan_code=request.new_plan_code
         )
 
+        # Sync subscription data to company memory
+        save_subscription_memories(str(company_id), subscription)
+
         return {
             "message": f"Subscription upgraded to {subscription.plan.name}",
             "plan": {
@@ -220,6 +262,9 @@ async def cancel_subscription(
             immediate=immediate
         )
 
+        # Sync subscription data to company memory (status changed to canceled)
+        save_subscription_memories(str(company_id), subscription=subscription)
+
         return {
             "message": "Subscription canceled" + (" immediately" if immediate else " at period end"),
             "canceled_at": subscription.canceled_at.isoformat(),
@@ -250,6 +295,9 @@ async def reactivate_subscription(
     """
     try:
         subscription = await service.reactivate_subscription(company_id=company_id)
+
+        # Sync subscription data to company memory
+        save_subscription_memories(str(company_id), subscription)
 
         return {
             "message": "Subscription reactivated successfully",

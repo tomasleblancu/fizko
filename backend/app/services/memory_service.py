@@ -141,25 +141,69 @@ async def _save_memories(
                 )
 
             if existing_brain:
-                # UPDATE en Mem0
+                # Try UPDATE en Mem0
                 logger.info(
                     f"[Memory Service] 🔄 Updating {entity_type} memory: {slug} "
                     f"(category: {category})"
                 )
-                await mem0_client.update(
-                    memory_id=existing_brain.memory_id,
-                    text=content
-                )
 
-                # Actualizar en BD usando repositorio
-                await brain_repo.update(
-                    id=existing_brain.id,
-                    content=content,
-                    extra_metadata={"category": category}
-                )
-                logger.info(
-                    f"[Memory Service] ✅ Updated {entity_type} memory: {slug}"
-                )
+                try:
+                    await mem0_client.update(
+                        memory_id=existing_brain.memory_id,
+                        text=content
+                    )
+
+                    # Actualizar en BD usando repositorio
+                    await brain_repo.update(
+                        id=existing_brain.id,
+                        content=content,
+                        extra_metadata={"category": category}
+                    )
+                    logger.info(
+                        f"[Memory Service] ✅ Updated {entity_type} memory: {slug}"
+                    )
+
+                except Exception as update_error:
+                    # Check if memory doesn't exist in Mem0 (404)
+                    error_str = str(update_error).lower()
+                    is_not_found = "404" in error_str or "not found" in error_str
+
+                    if is_not_found:
+                        logger.warning(
+                            f"[Memory Service] ⚠️  Memory {slug} not found in Mem0, "
+                            f"recreating..."
+                        )
+
+                        # CREATE new memory in Mem0
+                        result = await mem0_client.add(
+                            messages=[{"role": "user", "content": content}],
+                            user_id=entity_id,
+                            metadata={"slug": slug, "category": category}
+                        )
+
+                        # Extract new memory_id
+                        new_memory_id = _extract_memory_id(result)
+
+                        if new_memory_id:
+                            # Update DB with new memory_id
+                            await brain_repo.update(
+                                id=existing_brain.id,
+                                memory_id=new_memory_id,
+                                content=content,
+                                extra_metadata={"category": category}
+                            )
+                            logger.info(
+                                f"[Memory Service] ✅ Recreated {entity_type} memory: "
+                                f"{slug} (new ID: {new_memory_id})"
+                            )
+                        else:
+                            logger.error(
+                                f"[Memory Service] ❌ Failed to get memory_id after "
+                                f"recreating {slug}"
+                            )
+                    else:
+                        # Other error, re-raise
+                        raise
             else:
                 # CREATE en Mem0
                 logger.info(

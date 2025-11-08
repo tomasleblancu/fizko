@@ -45,7 +45,6 @@ def save_company_memories_task(
     import asyncio
 
     async def _save():
-        mem0 = None
         try:
             async with AsyncSessionLocal() as db:
                 mem0 = get_mem0_client()
@@ -91,13 +90,5 @@ def save_company_memories_task(
                 "memories_count": len(memories),
                 "error": str(e)
             }
-        finally:
-            # Cerrar explícitamente el cliente async para evitar "Event loop is closed"
-            if mem0 is not None:
-                try:
-                    await mem0.async_client.aclose()
-                    logger.debug("[Memory Task] 🔌 Mem0 client closed")
-                except Exception as close_error:
-                    logger.warning(f"[Memory Task] ⚠️ Error closing Mem0 client: {close_error}")
 
     return asyncio.run(_save())

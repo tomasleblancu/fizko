@@ -5,9 +5,10 @@ This module now serves as a compatibility layer, re-exporting all widgets
 from the modular builders/ subdirectory. All widget implementations have
 been moved to their respective domain-focused modules:
 
-- builders/tax_calculation.py     - Tax calculation breakdown widget
-- builders/document_detail.py     - Document detail widget
-- builders/person_confirmation.py - Person confirmation widget
+- builders/tax_calculation.py       - Tax calculation breakdown widget
+- builders/document_detail.py       - Document detail widget
+- builders/person_confirmation.py   - Person confirmation widget
+- builders/subscription_upgrade.py  - Subscription upgrade widget
 
 For new code, prefer importing directly from the builders modules.
 This file maintains backward compatibility for existing imports.
@@ -28,6 +29,10 @@ from .builders.person_confirmation import (
     create_person_confirmation_widget,
     person_confirmation_widget_copy_text,
 )
+from .builders.subscription_upgrade import (
+    create_subscription_upgrade_widget,
+    subscription_upgrade_widget_copy_text,
+)
 
 __all__ = [
     # Tax calculation widget
@@ -39,4 +44,7 @@ __all__ = [
     # Person confirmation widget
     "create_person_confirmation_widget",
     "person_confirmation_widget_copy_text",
+    # Subscription upgrade widget
+    "create_subscription_upgrade_widget",
+    "subscription_upgrade_widget_copy_text",
 ]

@@ -7,6 +7,7 @@ This module provides dual memory systems:
 Each memory type is stored separately in Mem0 using different entity IDs.
 """
 
+import asyncio
 import logging
 import os
 from typing import Optional, Literal
@@ -20,23 +21,41 @@ logger = logging.getLogger(__name__)
 
 # Global Mem0 async client (initialized lazily)
 _mem0_client: Optional[AsyncMemoryClient] = None
+_mem0_client_loop: Optional[asyncio.AbstractEventLoop] = None
 
 # Memory entity types
 MemoryEntityType = Literal["user", "company"]
 
 
 def get_mem0_client() -> AsyncMemoryClient:
-    """Get or create async Mem0 client (singleton pattern)."""
-    global _mem0_client
+    """
+    Get or create async Mem0 client.
 
-    if _mem0_client is None:
+    Detects if event loop has changed (e.g., in Celery tasks) and recreates
+    the client if needed to avoid "Event loop is closed" errors.
+    """
+    global _mem0_client, _mem0_client_loop
+
+    try:
+        current_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop - will be created when needed
+        current_loop = None
+
+    # Recreate client if loop changed or client doesn't exist
+    if _mem0_client is None or _mem0_client_loop != current_loop:
         api_key = os.getenv("MEM0_API_KEY")
         if not api_key:
             raise ValueError("MEM0_API_KEY environment variable not set")
 
         # Initialize Mem0 async client with API key
         _mem0_client = AsyncMemoryClient(api_key=api_key)
-        logger.info("✨ Mem0 async client initialized")
+        _mem0_client_loop = current_loop
+
+        if current_loop:
+            logger.info(f"✨ Mem0 async client initialized for event loop {id(current_loop)}")
+        else:
+            logger.info("✨ Mem0 async client initialized")
 
     return _mem0_client
 

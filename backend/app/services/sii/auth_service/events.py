@@ -118,49 +118,58 @@ async def trigger_sync_tasks(company_id: UUID) -> None:
     # - Mes más reciente (offset=0): ejecutar inmediatamente (más importante)
     # - Mes -1 (offset=1): ejecutar con delay de 5 minutos
     # - Mes -2 (offset=2): ejecutar con delay de 5 minutos
+    # NOTA: Durante onboarding, estos syncs van a la cola 'default' (worker FAST)
+    # para mejorar la experiencia del usuario. Los syncs periódicos posteriores
+    # van a la cola 'low' (worker SLOW) según task_routes en config.py
     try:
-        # Mes más reciente (offset=0) - ejecutar inmediatamente
-        sync_documents.delay(
-            company_id=str(company_id),
-            months=1,
-            month_offset=0
+        # Mes más reciente (offset=0) - ejecutar inmediatamente en cola 'default'
+        sync_documents.apply_async(
+            kwargs={
+                "company_id": str(company_id),
+                "months": 1,
+                "month_offset": 0
+            },
+            queue="default"  # Cola rápida para onboarding
         )
         logger.info(
             f"[Events] sync_documents task triggered (offset=0, most recent month) "
-            f"for company {company_id} - immediate execution"
+            f"for company {company_id} - immediate execution on 'default' queue"
         )
 
-        # Mes -1 (offset=1) - ejecutar en 5 minutos (300 segundos)
+        # Mes -1 (offset=1) - ejecutar en 20 segundos en cola 'default'
         sync_documents.apply_async(
             kwargs={
                 "company_id": str(company_id),
                 "months": 1,
                 "month_offset": 1
             },
-            countdown=20
+            countdown=20,
+            queue="default"  # Cola rápida para onboarding
         )
         logger.info(
             f"[Events] sync_documents task triggered (offset=1) "
-            f"for company {company_id} - delayed 5 minutes"
+            f"for company {company_id} - delayed 20s on 'default' queue"
         )
 
-        # Mes -2 (offset=2) - ejecutar en 5 minutos (300 segundos)
+        # Mes -2 (offset=2) - ejecutar en 40 segundos en cola 'default'
         sync_documents.apply_async(
             kwargs={
                 "company_id": str(company_id),
                 "months": 1,
                 "month_offset": 2
             },
-            countdown=40
+            countdown=40,
+            queue="default"  # Cola rápida para onboarding
         )
         logger.info(
             f"[Events] sync_documents task triggered (offset=2) "
-            f"for company {company_id} - delayed 5 minutes"
+            f"for company {company_id} - delayed 40s on 'default' queue"
         )
     except Exception as e:
         logger.error(f"[Events] Error triggering sync_documents: {e}")
 
     # 3. Disparar sincronización de formularios F29 (año actual)
+    # NOTA: F29 se mantiene en cola 'low' (worker SLOW) según task_routes en config.py
     try:
         current_year = datetime.utcnow().year
         sync_f29.delay(

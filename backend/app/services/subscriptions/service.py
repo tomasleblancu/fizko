@@ -11,7 +11,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.models import Company, Subscription, SubscriptionPlan, SubscriptionUsage
+from app.db.models import Company, CompanyBrain, Subscription, SubscriptionPlan, SubscriptionUsage
 
 
 class SubscriptionLimitExceeded(Exception):
@@ -492,3 +492,67 @@ class SubscriptionService:
         self._cache.pop(company_id, None)
 
         return subscription
+
+    async def subscription_has_changed(
+        self,
+        company_id: UUID,
+        current_plan_code: str,
+        current_status: str
+    ) -> bool:
+        """
+        Check if subscription has changed compared to stored memory.
+
+        Returns True if:
+        - No memory exists (first time)
+        - Plan code changed
+        - Status changed
+
+        Args:
+            company_id: Company UUID
+            current_plan_code: Current subscription plan code (e.g., "free", "pro")
+            current_status: Current subscription status (e.g., "active", "trialing")
+
+        Returns:
+            True if subscription changed or no memory exists, False otherwise
+        """
+        # Query existing subscription memory
+        result = await self.db.execute(
+            select(CompanyBrain).where(
+                CompanyBrain.company_id == company_id,
+                CompanyBrain.slug == "company_subscription_plan"
+            )
+        )
+        memory = result.scalar_one_or_none()
+
+        # No memory exists - first time
+        if not memory:
+            return True
+
+        # Parse stored memory content to extract plan code and status
+        content = memory.content.lower()
+
+        # Check if plan code or status changed
+        # Memory format: "Plan de suscripción actual: {name} ({code}). Estado: {status}."
+        plan_code_changed = f"({current_plan_code.lower()})" not in content
+
+        # Map status to Spanish for comparison
+        status_map = {
+            "trialing": "en período de prueba",
+            "active": "activo",
+            "past_due": "con pago pendiente",
+            "canceled": "cancelado",
+            "incomplete": "incompleto",
+        }
+        status_spanish = status_map.get(current_status.lower(), current_status.lower())
+        status_changed = status_spanish not in content
+
+        # Special case: free plan check
+        if current_plan_code == "free":
+            # Check if "sin suscripción activa" is in content
+            is_free_in_memory = "sin suscripción activa" in content
+            if not is_free_in_memory:
+                return True  # Changed to free plan
+            # If already free, no change
+            return False
+
+        return plan_code_changed or status_changed

@@ -11,8 +11,12 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..general_knowledge_agent import create_general_knowledge_agent
-from ..specialized import create_tax_documents_agent, create_payroll_agent, create_settings_agent
+from ..specialized import (
+    create_general_knowledge_agent,
+    create_tax_documents_agent,
+    create_payroll_agent,
+    create_settings_agent,
+)
 from ..supervisor_agent import create_supervisor_agent
 from ..core.subscription_guard import SubscriptionGuard
 from ..core.subscription_responses import create_agent_block_response

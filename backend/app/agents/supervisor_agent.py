@@ -10,10 +10,14 @@ from agents.model_settings import ModelSettings, Reasoning
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config.constants import SUPERVISOR_MODEL, SUPERVISOR_INSTRUCTIONS
+from app.config.constants import SUPERVISOR_MODEL
+from app.agents.instructions import SUPERVISOR_INSTRUCTIONS
 from app.agents.tools.memory import (
     search_user_memory,
     search_company_memory,
+)
+from app.agents.tools.widgets.subscription_widget_tools import (
+    show_subscription_upgrade,
 )
 
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
@@ -45,9 +49,10 @@ def create_supervisor_agent(
         instructions=f"{RECOMMENDED_PROMPT_PREFIX}\n\n{SUPERVISOR_INSTRUCTIONS}",
         # model_settings=ModelSettings(reasoning=Reasoning(effort="low")),
         tools=[
-            search_user_memory,    # Search personal user preferences and history
-            search_company_memory, # Search company-wide knowledge and settings
-        ],  # Only search capability - specialized agents can save memories
+            search_user_memory,         # Search personal user preferences and history
+            search_company_memory,      # Search company-wide knowledge and settings
+            show_subscription_upgrade,  # Show subscription upgrade widget when agent is blocked
+        ],
     )
 
     return agent

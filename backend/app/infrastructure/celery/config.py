@@ -41,16 +41,45 @@ result_expires = 3600  # Results expire after 1 hour
 result_extended = True  # Store extended task metadata
 
 # Task routing - different queues for different priorities
+# NOTE: Task names are the 'name' parameter from @celery_app.task decorator
+# Pattern matching: "exact.name" or "prefix.*" for wildcards
 task_routes = {
-    # High priority - Critical operations
-    "app.infrastructure.celery.tasks.whatsapp.whatsapp_tasks.*": {"queue": "high"},
+    # ========== HIGH PRIORITY ==========
+    # Critical, time-sensitive notifications (< 10s execution)
+    # User-facing: delays directly impact UX
+    "notifications.process_pending": {"queue": "high"},
+    "notifications.sync_calendar": {"queue": "high"},
 
-    # Default priority - Normal operations
-    "app.infrastructure.celery.tasks.documents.document_tasks.*": {"queue": "default"},
+    # ========== DEFAULT PRIORITY (MEDIUM) ==========
+    # Background operations that tolerate moderate delays (< 5min execution)
+    # Important but not latency-critical
+    "notifications.process_template_notification": {"queue": "default"},
+    "calendar.sync_company": {"queue": "default"},
+    "calendar.sync_all_companies": {"queue": "default"},
+    "calendar.activate_mandatory_events": {"queue": "default"},
+    "calendar.assign_auto_notifications": {"queue": "default"},
+    "memory.save_user_memories": {"queue": "default"},
+    "memory.save_company_memories": {"queue": "default"},
+    "memory.save_onboarding_memories": {"queue": "default"},
+    "whatsapp.cleanup_old_sessions": {"queue": "default"},
 
-    # Low priority - Heavy/slow operations
-    "app.infrastructure.celery.tasks.sii.sii_tasks.*": {"queue": "low"},
-    "app.infrastructure.celery.tasks.sii.sync_tasks.*": {"queue": "low"},
+    # ========== LOW PRIORITY ==========
+    # Heavy, long-running operations (5-30+ min execution)
+    # Selenium-based scraping: resource-intensive, can tolerate delays
+    #
+    # NOTA IMPORTANTE: Durante el onboarding de SII, sync_documents inicial
+    # es despachado explícitamente a la cola 'default' usando
+    # apply_async(queue="default") para mejorar la experiencia del usuario.
+    # Ver: app/services/sii/auth_service/events.py:trigger_sync_tasks()
+    #
+    # Las rutas aquí definidas se aplican SOLO cuando las tareas son despachadas
+    # sin especificar una cola explícita (ej: syncs periódicos programados por Beat).
+    "sii.sync_documents": {"queue": "low"},
+    "sii.sync_documents_all_companies": {"queue": "low"},
+    "sii.sync_f29": {"queue": "low"},
+    "sii.sync_f29_all_companies": {"queue": "low"},
+    "sii.sync_f29_pdfs_missing": {"queue": "low"},
+    "sii.sync_f29_pdfs_missing_all_companies": {"queue": "low"},
 }
 
 # Define queues with priorities
