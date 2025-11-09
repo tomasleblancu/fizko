@@ -37,7 +37,7 @@ export function useSubscription() {
       }
     },
     enabled: !!session?.access_token,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always fetch fresh - subscription can change frequently
     retry: false, // Don't retry on error - just return null
   });
 }
