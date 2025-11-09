@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 
 from app.dependencies import CompanyIdDep, require_auth, SubscriptionServiceDep
@@ -29,7 +29,8 @@ class SubscriptionUpgradeRequest(BaseModel):
 @router.get("/current")
 async def get_current_subscription(
     company_id: CompanyIdDep,
-    service: SubscriptionServiceDep
+    service: SubscriptionServiceDep,
+    response: Response
 ):
     """
     Get current subscription for the user's company.
@@ -39,6 +40,11 @@ async def get_current_subscription(
     Returns:
         Current subscription with plan details and usage (or free plan if no subscription)
     """
+    # Disable HTTP caching - subscription data must always be fresh
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+
     subscription = await service.get_company_subscription(company_id)
 
     if not subscription:
