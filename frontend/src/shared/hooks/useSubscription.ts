@@ -5,6 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/app/providers/AuthContext";
 import { apiFetch } from "@/shared/lib/api-client";
+import { API_BASE_URL } from "@/shared/lib/config";
 import { queryKeys } from "@/shared/lib/query-keys";
 import type { SubscriptionInfo } from "@/shared/types/subscription";
 
@@ -19,11 +20,10 @@ export function useSubscription() {
       }
 
       try {
-        const response = await apiFetch("/api/subscriptions/current", {
+        const response = await apiFetch(`${API_BASE_URL}/subscriptions/current`, {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
-          cache: "no-store", // Disable browser HTTP cache
         });
 
         if (!response.ok) {
