@@ -23,6 +23,7 @@ export function useSubscription() {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
+          cache: "no-store", // Disable browser HTTP cache
         });
 
         if (!response.ok) {
@@ -37,7 +38,7 @@ export function useSubscription() {
       }
     },
     enabled: !!session?.access_token,
-    staleTime: 0, // Always fetch fresh - subscription can change frequently
+    staleTime: 5 * 60 * 1000, // 5 minutes - consistent with other hooks
     retry: false, // Don't retry on error - just return null
   });
 }
