@@ -5,7 +5,7 @@ from typing import Optional, List, Literal
 from uuid import UUID
 import re
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, validator
 
 
 # ============================================================================
@@ -50,6 +50,8 @@ class UpdateNotificationTemplateRequest(BaseModel):
 
 class NotificationTemplate(BaseModel):
     """Schema for reading a notification template."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     code: str
     name: str
@@ -64,9 +66,6 @@ class NotificationTemplate(BaseModel):
     metadata: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================
@@ -93,6 +92,8 @@ class UpdateNotificationSubscriptionRequest(BaseModel):
 
 class NotificationSubscription(BaseModel):
     """Schema for reading a notification subscription."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     template_id: UUID
     company_id: UUID
@@ -103,9 +104,6 @@ class NotificationSubscription(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 # ============================================================================
 # SCHEDULED NOTIFICATION SCHEMAS
@@ -113,6 +111,8 @@ class NotificationSubscription(BaseModel):
 
 class ScheduledNotification(BaseModel):
     """Schema for reading a scheduled notification."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     subscription_id: UUID
     company_id: UUID
@@ -127,9 +127,6 @@ class ScheduledNotification(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 # ============================================================================
 # NOTIFICATION HISTORY SCHEMAS
@@ -137,6 +134,8 @@ class ScheduledNotification(BaseModel):
 
 class NotificationHistory(BaseModel):
     """Schema for reading notification history."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     subscription_id: UUID
     company_id: UUID
@@ -150,9 +149,6 @@ class NotificationHistory(BaseModel):
     error_message: Optional[str] = None
     metadata: Optional[dict] = None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================
@@ -177,6 +173,8 @@ class UpdateUserNotificationPreferenceRequest(BaseModel):
 
 class UserNotificationPreference(BaseModel):
     """Schema for reading user notification preferences."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     user_id: UUID
     template_id: UUID
@@ -185,9 +183,6 @@ class UserNotificationPreference(BaseModel):
     custom_settings: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================
@@ -215,6 +210,8 @@ class UpdateNotificationEventTriggerRequest(BaseModel):
 
 class NotificationEventTrigger(BaseModel):
     """Schema for reading a notification event trigger."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     template_id: UUID
     event_type: str
@@ -224,9 +221,6 @@ class NotificationEventTrigger(BaseModel):
     metadata: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================

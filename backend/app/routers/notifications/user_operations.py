@@ -1,24 +1,20 @@
-"""
-API endpoints para gestión de notificaciones por WhatsApp
-"""
-import logging
+"""User-facing notification operations (scheduling, history, preferences)."""
+
+import os
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config.database import get_db
-from app.dependencies import get_current_user_id, get_user_company_id
-from app.services.notifications import NotificationService
-from app.services.whatsapp.service import WhatsAppService
-import os
+from ...config.database import get_db
+from ...dependencies import get_current_user_id, get_user_company_id
+from ...services.notifications import NotificationService
+from ...services.whatsapp.service import WhatsAppService
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/api/notifications", tags=["notifications"])
+router = APIRouter()
 
 # Inicializar servicios
 KAPSO_API_TOKEN = os.getenv("KAPSO_API_TOKEN", "")
@@ -33,43 +29,6 @@ notification_service = NotificationService(whatsapp_service=whatsapp_service)
 
 
 # ========== Request/Response Models ==========
-
-class NotificationTemplateResponse(BaseModel):
-    id: str
-    code: str
-    name: str
-    description: Optional[str]
-    category: str
-    entity_type: Optional[str]
-    message_template: str
-    timing_config: dict
-    priority: str
-    is_active: bool
-
-    class Config:
-        from_attributes = True
-
-
-class SubscriptionRequest(BaseModel):
-    template_id: str
-    custom_timing: Optional[dict] = None
-    custom_message: Optional[str] = None
-    is_enabled: bool = True
-
-
-class SubscriptionResponse(BaseModel):
-    id: str
-    company_id: str
-    notification_template_id: str
-    is_enabled: bool
-    custom_timing_config: Optional[dict]
-    custom_message_template: Optional[str]
-    created_at: datetime
-    updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class ScheduleNotificationRequest(BaseModel):
     template_code: str = Field(..., description="Código del template a usar")
@@ -89,6 +48,8 @@ class ScheduleNotificationRequest(BaseModel):
 
 
 class ScheduledNotificationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     company_id: str
     notification_template_id: str
@@ -100,11 +61,10 @@ class ScheduledNotificationResponse(BaseModel):
     status: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class NotificationHistoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     company_id: str
     notification_template_id: Optional[str]
@@ -116,9 +76,6 @@ class NotificationHistoryResponse(BaseModel):
     status: str
     sent_at: datetime
     whatsapp_message_id: Optional[str]
-
-    class Config:
-        from_attributes = True
 
 
 class ProcessStatsResponse(BaseModel):
@@ -145,158 +102,6 @@ class UserPreferencesRequest(BaseModel):
     min_interval_minutes: int = 30
 
 
-# ========== Templates Endpoints ==========
-
-@router.get("/templates", response_model=List[NotificationTemplateResponse])
-async def list_notification_templates(
-    category: Optional[str] = None,
-    entity_type: Optional[str] = None,
-    is_active: Optional[bool] = True,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
-):
-    """
-    Lista todos los templates de notificaciones disponibles.
-
-    Filtros opcionales:
-    - category: 'calendar', 'tax_document', 'payroll', 'system', 'custom'
-    - entity_type: 'calendar_event', 'form29', etc.
-    - is_active: true/false
-    """
-    templates = await notification_service.list_templates(
-        db=db,
-        category=category,
-        entity_type=entity_type,
-        is_active=is_active,
-    )
-
-    return [
-        NotificationTemplateResponse(
-            id=str(t.id),
-            code=t.code,
-            name=t.name,
-            description=t.description,
-            category=t.category,
-            entity_type=t.entity_type,
-            message_template=t.message_template,
-            timing_config=t.timing_config,
-            priority=t.priority,
-            is_active=t.is_active,
-        )
-        for t in templates
-    ]
-
-
-@router.get("/templates/{template_id}", response_model=NotificationTemplateResponse)
-async def get_notification_template(
-    template_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
-):
-    """Obtiene detalles de un template específico."""
-    template = await notification_service.get_template(db=db, template_id=template_id)
-
-    if not template:
-        raise HTTPException(status_code=404, detail="Template no encontrado")
-
-    return NotificationTemplateResponse(
-        id=str(template.id),
-        code=template.code,
-        name=template.name,
-        description=template.description,
-        category=template.category,
-        entity_type=template.entity_type,
-        message_template=template.message_template,
-        timing_config=template.timing_config,
-        priority=template.priority,
-        is_active=template.is_active,
-    )
-
-
-# ========== Subscriptions Endpoints ==========
-
-@router.get("/subscriptions", response_model=List[SubscriptionResponse])
-async def list_company_subscriptions(
-    is_enabled: Optional[bool] = None,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
-    company_id: UUID = Depends(get_user_company_id),
-):
-    """Lista las suscripciones de notificaciones de la empresa actual."""
-    subscriptions = await notification_service.get_company_subscriptions(
-        db=db,
-        company_id=company_id,
-        is_enabled=is_enabled,
-    )
-
-    return [
-        SubscriptionResponse(
-            id=str(s.id),
-            company_id=str(s.company_id),
-            notification_template_id=str(s.notification_template_id),
-            is_enabled=s.is_enabled,
-            custom_timing_config=s.custom_timing_config,
-            custom_message_template=s.custom_message_template,
-            created_at=s.created_at,
-            updated_at=s.updated_at,
-        )
-        for s in subscriptions
-    ]
-
-
-@router.post("/subscriptions", response_model=SubscriptionResponse)
-async def subscribe_to_notification(
-    request: SubscriptionRequest,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
-    company_id: UUID = Depends(get_user_company_id),
-):
-    """
-    Suscribe la empresa a una notificación específica.
-
-    Permite personalizar el timing y el mensaje.
-    """
-    subscription = await notification_service.subscribe_company(
-        db=db,
-        company_id=company_id,
-        template_id=UUID(request.template_id),
-        custom_timing=request.custom_timing,
-        custom_message=request.custom_message,
-        is_enabled=request.is_enabled,
-    )
-
-    return SubscriptionResponse(
-        id=str(subscription.id),
-        company_id=str(subscription.company_id),
-        notification_template_id=str(subscription.notification_template_id),
-        is_enabled=subscription.is_enabled,
-        custom_timing_config=subscription.custom_timing_config,
-        custom_message_template=subscription.custom_message_template,
-        created_at=subscription.created_at,
-        updated_at=subscription.updated_at,
-    )
-
-
-@router.delete("/subscriptions/{template_id}")
-async def unsubscribe_from_notification(
-    template_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
-    company_id: UUID = Depends(get_user_company_id),
-):
-    """Desuscribe la empresa de una notificación."""
-    success = await notification_service.unsubscribe_company(
-        db=db,
-        company_id=company_id,
-        template_id=template_id,
-    )
-
-    if not success:
-        raise HTTPException(status_code=404, detail="Suscripción no encontrada")
-
-    return {"message": "Desuscripción exitosa"}
-
-
 # ========== Scheduling Endpoints ==========
 
 @router.post("/schedule", response_model=ScheduledNotificationResponse)
@@ -308,6 +113,8 @@ async def schedule_notification(
 ):
     """
     Programa una notificación para envío futuro.
+
+    Scoped to current user's company.
 
     Ejemplo de uso:
     ```json
@@ -398,6 +205,8 @@ async def get_notification_history(
 ):
     """
     Obtiene el historial de notificaciones enviadas.
+
+    Scoped to current user's company.
 
     Filtros opcionales:
     - entity_type: 'calendar_event', 'form29', etc.

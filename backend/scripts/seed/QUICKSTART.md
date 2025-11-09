@@ -270,30 +270,75 @@ python -m scripts.seed notification-templates --to production --verbose --dry-ru
 
 ### Con Docker
 
+**Opción A: Docker Exec** (recomendado si el contenedor ya está corriendo):
+
 ```bash
 # Notification templates: staging → prod (dry run)
-docker run --rm --env-file backend/.env fizko-backend seed notification-templates --to production --dry-run
+docker exec fizko-backend python -m scripts.seed notification-templates --to production --dry-run
 
 # Notification templates: staging → prod (live)
-docker run --rm --env-file backend/.env fizko-backend seed notification-templates --to production
+docker exec fizko-backend python -m scripts.seed notification-templates --to production
 
-# Todo: staging → prod (dry run)
-docker run --rm --env-file backend/.env fizko-backend seed all --to production --dry-run
+# Comando genérico para cualquier tabla
+docker exec fizko-backend python -m scripts.seed sync \
+  --table brain_contexts \
+  --unique-key context_id \
+  --to production \
+  --dry-run \
+  --verbose
 
-# Comando genérico
-docker run --rm --env-file backend/.env fizko-backend seed sync \
+# Full sync: production → staging
+docker exec fizko-backend python -m scripts.seed notification-templates \
+  --from production \
+  --to staging \
+  --full-sync \
+  --dry-run
+```
+
+**Opción B: Docker Compose Run** (crea un nuevo contenedor temporal):
+
+```bash
+# Notification templates: staging → prod (dry run)
+docker compose run --rm backend seed notification-templates --to production --dry-run
+
+# Comando genérico para cualquier tabla
+docker compose run --rm backend seed sync \
   --table brain_contexts \
   --unique-key context_id \
   --to production \
   --dry-run
 
 # Full sync: production → staging
-docker run --rm --env-file backend/.env fizko-backend seed notification-templates \
+docker compose run --rm backend seed notification-templates \
   --from production \
   --to staging \
   --full-sync \
   --dry-run
 ```
+
+**Opción C: Docker Run** (desde imagen, requiere rebuild):
+
+```bash
+# Notification templates: staging → prod (dry run)
+docker run --rm --env-file backend/.env fizko-backend seed notification-templates --to production --dry-run
+
+# Comando genérico para cualquier tabla
+docker run --rm --env-file backend/.env fizko-backend seed sync \
+  --table brain_contexts \
+  --unique-key context_id \
+  --to production \
+  --dry-run
+
+# Ejemplo real: subscription_plans
+docker run --rm --env-file backend/.env fizko-backend seed sync \
+  --table subscription_plans \
+  --unique-key code \
+  --to production \
+  --dry-run \
+  --verbose
+```
+
+**💡 Tip**: Usa `docker exec` si tus contenedores ya están corriendo (más rápido). Usa `docker compose run` si necesitas asegurar que tienes las últimas variables de entorno.
 
 ## Ver Ayuda
 

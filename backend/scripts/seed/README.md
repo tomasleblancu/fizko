@@ -48,14 +48,38 @@ python -m scripts.seed <command> [options]
 
 **Con Docker:**
 ```bash
-# Opción 1: Docker run directo
-docker run --rm --env-file backend/.env <imagen-backend> seed <command> [options]
+# Opción 1: Docker exec (recomendado si el contenedor está corriendo)
+docker exec fizko-backend python -m scripts.seed <command> [options]
 
-# Opción 2: Docker exec (si el contenedor está corriendo)
-docker exec <container-name> python -m scripts.seed <command> [options]
+# Opción 2: Docker compose run (crea nuevo contenedor temporal)
+docker compose run --rm backend seed <command> [options]
 
-# Opción 3: Docker compose (si usas docker-compose)
-docker-compose run --rm backend seed <command> [options]
+# Opción 3: Docker run directo (desde imagen)
+docker run --rm --env-file backend/.env fizko-backend seed <command> [options]
+```
+
+**Ejemplos concretos:**
+```bash
+# Con docker exec (más rápido)
+docker exec fizko-backend python -m scripts.seed sync \
+  --table brain_contexts \
+  --unique-key context_id \
+  --to production \
+  --dry-run
+
+# Con docker compose run
+docker compose run --rm backend seed sync \
+  --table brain_contexts \
+  --unique-key context_id \
+  --to production \
+  --dry-run
+
+# Con docker run (especifica .env)
+docker run --rm --env-file backend/.env fizko-backend seed sync \
+  --table subscription_plans \
+  --unique-key code \
+  --to production \
+  --dry-run
 ```
 
 ### Comandos Disponibles
@@ -301,27 +325,62 @@ python -m scripts.seed notification-templates \
 
 ### Uso con Docker
 
+**Método 1: Docker Exec** (recomendado - usa contenedor existente):
+
 ```bash
-# Dry run con Docker
-docker run --rm --env-file backend/.env fizko-backend seed notification-templates --to production --dry-run
+# Dry run
+docker exec fizko-backend python -m scripts.seed notification-templates --to production --dry-run
 
-# Sincronizar con Docker
-docker run --rm --env-file backend/.env fizko-backend seed notification-templates --to production
+# Sincronizar
+docker exec fizko-backend python -m scripts.seed notification-templates --to production
 
-# Sincronizar todo con Docker
-docker run --rm --env-file backend/.env fizko-backend seed all --to production --dry-run
+# Sincronizar todo
+docker exec fizko-backend python -m scripts.seed all --to production --dry-run
 
-# Comando genérico con Docker
-docker run --rm --env-file backend/.env fizko-backend seed sync \
+# Comando genérico para cualquier tabla
+docker exec fizko-backend python -m scripts.seed sync \
+  --table brain_contexts \
+  --unique-key context_id \
+  --to production \
+  --dry-run \
+  --verbose
+```
+
+**Método 2: Docker Compose Run** (crea nuevo contenedor temporal):
+
+```bash
+# Dry run
+docker compose run --rm backend seed notification-templates --to production --dry-run
+
+# Sincronizar
+docker compose run --rm backend seed notification-templates --to production
+
+# Comando genérico
+docker compose run --rm backend seed sync \
   --table brain_contexts \
   --unique-key context_id \
   --to production \
   --dry-run
 ```
 
-**⚠️ Importante con Docker:**
-- Asegúrate de que tu `.env` contenga las variables de Supabase
-- Usa `--rm` para eliminar el contenedor después de ejecutar
+**Método 3: Docker Run** (desde imagen, menos común):
+
+```bash
+# Requiere especificar el .env
+docker run --rm --env-file backend/.env fizko-backend seed notification-templates --to production --dry-run
+
+# Comando genérico
+docker run --rm --env-file backend/.env fizko-backend seed sync \
+  --table subscription_plans \
+  --unique-key code \
+  --to production \
+  --dry-run
+```
+
+**⚠️ Importante:**
+- **Usa `docker exec`** si tu contenedor ya está corriendo (más rápido, usa .env existente)
+- **Usa `docker compose run`** si necesitas crear un contenedor temporal con variables actualizadas
+- Las variables de Supabase (`STAGING_SUPABASE_URL`, `PROD_SUPABASE_URL`, etc.) deben estar en tu `.env`
 - El contenedor debe tener acceso a red para conectarse a Supabase
 
 ## 🔧 Arquitectura

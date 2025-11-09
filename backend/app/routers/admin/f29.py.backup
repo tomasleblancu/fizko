@@ -1,0 +1,159 @@
+"""
+F29 form management endpoints for admin
+"""
+import logging
+from uuid import UUID
+from typing import List, Optional
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
+
+from ...config.database import get_db
+from ...dependencies import get_current_user_id
+from ...db.models import (
+    Company,
+    Session as SessionModel,
+    Profile,
+    Form29SIIDownload,
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+class F29DownloadInfo(BaseModel):
+    """F29 download information"""
+    id: str
+    sii_folio: str
+    sii_id_interno: Optional[str]
+    period_year: int
+    period_month: int
+    period_display: str
+    contributor_rut: str
+    submission_date: Optional[datetime]
+    status: str
+    amount_cents: int
+    pdf_storage_url: Optional[str]
+    pdf_download_status: str
+    pdf_download_error: Optional[str]
+    pdf_downloaded_at: Optional[datetime]
+    has_pdf: bool
+    can_download_pdf: bool
+    extra_data: Optional[dict]
+    created_at: datetime
+    updated_at: datetime
+
+
+@router.get("/company/{company_id}/f29", response_model=List[F29DownloadInfo])
+async def get_company_f29_list(
+    company_id: UUID,
+    current_user_id: UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    year: Optional[int] = None,
+    status_filter: Optional[str] = None
+):
+    """
+    Get F29 forms for a company
+
+    Returns all Form29SIIDownload records for the specified company.
+    Can be filtered by year and status.
+
+    Args:
+        company_id: Company UUID
+        current_user_id: Authenticated user ID
+        db: Database session
+        year: Optional year filter
+        status_filter: Optional status filter (Vigente, Rectificado, Anulado)
+
+    Returns:
+        List of F29DownloadInfo
+
+    Raises:
+        404: Company not found
+        403: User doesn't have access to this company
+    """
+    logger.info(f"F29 list requested for company {company_id} by user {current_user_id}")
+
+    # Check user role and access permissions
+    user_stmt = select(Profile).where(Profile.id == current_user_id)
+    user_result = await db.execute(user_stmt)
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User profile not found"
+        )
+
+    is_admin = user.rol == "admin-kaiken"
+
+    # If not admin, check if user has access to this company
+    if not is_admin:
+        session_check_stmt = select(SessionModel).where(
+            SessionModel.user_id == current_user_id,
+            SessionModel.company_id == company_id
+        )
+        session_check = await db.execute(session_check_stmt)
+        if not session_check.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this company"
+            )
+
+    # Verify company exists
+    company_stmt = select(Company).where(Company.id == company_id)
+    company_result = await db.execute(company_stmt)
+    company = company_result.scalar_one_or_none()
+
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Company {company_id} not found"
+        )
+
+    # Build F29 query
+    f29_stmt = select(Form29SIIDownload).where(
+        Form29SIIDownload.company_id == company_id
+    ).order_by(
+        desc(Form29SIIDownload.period_year),
+        desc(Form29SIIDownload.period_month)
+    )
+
+    # Apply filters
+    if year:
+        f29_stmt = f29_stmt.where(Form29SIIDownload.period_year == year)
+
+    if status_filter:
+        f29_stmt = f29_stmt.where(Form29SIIDownload.status == status_filter)
+
+    result = await db.execute(f29_stmt)
+    f29_downloads = result.scalars().all()
+
+    return [
+        F29DownloadInfo(
+            id=str(download.id),
+            sii_folio=download.sii_folio,
+            sii_id_interno=download.sii_id_interno,
+            period_year=download.period_year,
+            period_month=download.period_month,
+            period_display=download.period_display,
+            contributor_rut=download.contributor_rut,
+            submission_date=download.submission_date,
+            status=download.status,
+            amount_cents=download.amount_cents,
+            pdf_storage_url=download.pdf_storage_url,
+            pdf_download_status=download.pdf_download_status,
+            pdf_download_error=download.pdf_download_error,
+            pdf_downloaded_at=download.pdf_downloaded_at,
+            has_pdf=download.has_pdf,
+            can_download_pdf=download.can_download_pdf,
+            extra_data=download.extra_data,
+            created_at=download.created_at,
+            updated_at=download.updated_at
+        )
+        for download in f29_downloads
+    ]

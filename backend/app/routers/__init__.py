@@ -15,8 +15,8 @@ Routers are organized by domain:
 from . import admin, auth, chat, companies, contacts, sii, tax, webhooks, whatsapp
 
 # Re-export individual routers for backward compatibility
-from .admin import admin as admin_router
-from .admin import calendar
+from .admin import router as admin_router
+from . import calendar
 from .auth import profile, sessions
 from .chat import chatkit, conversations
 from .companies import companies as companies_router, settings as company_settings

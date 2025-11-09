@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ============================================================================
@@ -39,6 +39,8 @@ class UpdateEventTemplateRequest(BaseModel):
 
 class EventTemplate(BaseModel):
     """Schema for reading an event template."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     code: str
     name: str
@@ -51,9 +53,6 @@ class EventTemplate(BaseModel):
     metadata: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================
@@ -78,6 +77,8 @@ class UpdateCompanyEventRequest(BaseModel):
 
 class CompanyEvent(BaseModel):
     """Schema for reading a company event configuration."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     event_template_id: UUID
     company_id: UUID
@@ -86,9 +87,6 @@ class CompanyEvent(BaseModel):
     custom_metadata: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================
@@ -117,6 +115,8 @@ class UpdateCalendarEventRequest(BaseModel):
 
 class CalendarEvent(BaseModel):
     """Schema for reading a calendar event."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     company_event_id: UUID
     company_id: UUID
@@ -128,9 +128,6 @@ class CalendarEvent(BaseModel):
     completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================
@@ -147,6 +144,8 @@ class CreateEventHistoryRequest(BaseModel):
 
 class EventHistory(BaseModel):
     """Schema for reading an event history entry."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     calendar_event_id: UUID
     event_type: str
@@ -154,9 +153,6 @@ class EventHistory(BaseModel):
     description: Optional[str] = None
     metadata: Optional[dict] = None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================
@@ -185,6 +181,8 @@ class UpdateEventTaskRequest(BaseModel):
 
 class EventTask(BaseModel):
     """Schema for reading an event task."""
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     calendar_event_id: UUID
     title: str
@@ -196,9 +194,6 @@ class EventTask(BaseModel):
     completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================

@@ -58,7 +58,7 @@ export function useCompanySubscriptions(companyId: string | null | undefined) {
       }
 
       const response = await apiFetch(
-        `${API_BASE_URL}/admin/company/${companyId}/notification-subscriptions`,
+        `${API_BASE_URL}/notifications/company/${companyId}/notification-subscriptions`,
         {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,

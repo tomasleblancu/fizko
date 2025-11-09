@@ -39,7 +39,7 @@ from .routers import (
     whatsapp,
     webhooks,
 )
-from .routers.admin import notifications as admin_notifications
+from .routers.notifications import router as notifications_router
 from .routers.admin import template_variables as admin_template_variables
 from .routers.personnel import router as personnel_router
 from .routers.sales_leads import admin_router as sales_leads_admin_router
@@ -116,9 +116,9 @@ app.add_middleware(
 )
 
 # Include API routers
-app.include_router(admin_router.router)
+app.include_router(admin_router)
 app.include_router(calendar.router)
-app.include_router(admin_notifications.router)  # Admin notification templates
+app.include_router(notifications_router)  # All notification endpoints (admin + user)
 app.include_router(admin_template_variables.router, prefix="/api")  # Template variables metadata
 app.include_router(chatkit.router)  # ChatKit AI agent endpoints
 app.include_router(companies_router.router)

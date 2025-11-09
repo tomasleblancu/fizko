@@ -152,6 +152,54 @@ class NotificationSubscriptionRepository(BaseRepository[NotificationSubscription
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def find_by_company_with_templates(
+        self,
+        company_id: UUID
+    ) -> List[tuple[NotificationSubscription, NotificationTemplate]]:
+        """
+        Find all subscriptions for a company with their templates.
+
+        Args:
+            company_id: Company UUID
+
+        Returns:
+            List of (NotificationSubscription, NotificationTemplate) tuples
+        """
+        result = await self.db.execute(
+            select(NotificationSubscription, NotificationTemplate)
+            .join(
+                NotificationTemplate,
+                NotificationSubscription.notification_template_id == NotificationTemplate.id
+            )
+            .where(NotificationSubscription.company_id == company_id)
+        )
+        return list(result.all())
+
+    async def find_by_company_and_subscription_id(
+        self,
+        company_id: UUID,
+        subscription_id: UUID
+    ) -> Optional[NotificationSubscription]:
+        """
+        Find a subscription by company and subscription ID.
+
+        Args:
+            company_id: Company UUID
+            subscription_id: Subscription UUID
+
+        Returns:
+            NotificationSubscription instance or None if not found
+        """
+        result = await self.db.execute(
+            select(NotificationSubscription).where(
+                and_(
+                    NotificationSubscription.id == subscription_id,
+                    NotificationSubscription.company_id == company_id
+                )
+            )
+        )
+        return result.scalar_one_or_none()
+
 
 class UserNotificationPreferenceRepository(BaseRepository[UserNotificationPreference]):
     """Repository for managing user notification preferences."""

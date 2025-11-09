@@ -62,7 +62,7 @@ export default function NotificationSubscriptions({ companyId }: NotificationSub
 
       // Fetch company subscriptions
       const subscriptionsResponse = await apiFetch(
-        `${API_BASE_URL}/admin/company/${companyId}/notification-subscriptions`,
+        `${API_BASE_URL}/notifications/company/${companyId}/notification-subscriptions`,
         {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -98,7 +98,7 @@ export default function NotificationSubscriptions({ companyId }: NotificationSub
       if (subscription) {
         // Update existing subscription
         const response = await apiFetch(
-          `${API_BASE_URL}/admin/company/${companyId}/notification-subscriptions/${subscription.id}`,
+          `${API_BASE_URL}/notifications/company/${companyId}/notification-subscriptions/${subscription.id}`,
           {
             method: 'PUT',
             headers: {
@@ -117,7 +117,7 @@ export default function NotificationSubscriptions({ companyId }: NotificationSub
       } else {
         // Create new subscription
         const response = await apiFetch(
-          `${API_BASE_URL}/admin/company/${companyId}/notification-subscriptions`,
+          `${API_BASE_URL}/notifications/company/${companyId}/notification-subscriptions`,
           {
             method: 'POST',
             headers: {

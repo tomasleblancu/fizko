@@ -3,15 +3,14 @@ Template management service for notifications
 Handles CRUD operations for notification templates
 """
 import logging
-import re
-import os
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import NotificationTemplate, NotificationSubscription
+from app.db.models import NotificationTemplate
+from app.repositories import NotificationTemplateRepository
 from .base_service import BaseNotificationService
 
 logger = logging.getLogger(__name__)
@@ -21,6 +20,7 @@ class TemplateService(BaseNotificationService):
     """
     Service for managing notification templates.
     Handles creation, reading, updating, and deletion of templates.
+    Delegates all database operations to NotificationTemplateRepository.
     """
 
     # ========== TEMPLATE CRUD METHODS ==========
@@ -42,18 +42,14 @@ class TemplateService(BaseNotificationService):
         Returns:
             NotificationTemplate or None if not found
         """
+        repo = NotificationTemplateRepository(db)
+
         if template_id:
-            result = await db.execute(
-                select(NotificationTemplate).where(NotificationTemplate.id == template_id)
-            )
+            return await repo.get(template_id)
         elif code:
-            result = await db.execute(
-                select(NotificationTemplate).where(NotificationTemplate.code == code)
-            )
+            return await repo.find_by_code(code, active_only=False)
         else:
             raise ValueError("template_id or code is required")
-
-        return result.scalar_one_or_none()
 
     async def list_templates(
         self,
@@ -74,6 +70,7 @@ class TemplateService(BaseNotificationService):
         Returns:
             List of notification templates
         """
+        # Build query with filters
         query = select(NotificationTemplate)
 
         if category:
@@ -102,7 +99,6 @@ class TemplateService(BaseNotificationService):
         is_active: bool = True,
         auto_assign_to_new_companies: bool = False,
         metadata: Optional[dict] = None,
-        # WhatsApp Template ID (from Meta Business Manager)
         whatsapp_template_id: Optional[str] = None,
     ) -> NotificationTemplate:
         """
@@ -129,12 +125,10 @@ class TemplateService(BaseNotificationService):
         Raises:
             ValueError: If template with code already exists
         """
-        # Check if code already exists
-        result = await db.execute(
-            select(NotificationTemplate).where(NotificationTemplate.code == code)
-        )
-        existing = result.scalar_one_or_none()
+        repo = NotificationTemplateRepository(db)
 
+        # Check if code already exists
+        existing = await repo.find_by_code(code, active_only=False)
         if existing:
             raise ValueError(f"Template with code '{code}' already exists")
 
@@ -151,19 +145,16 @@ class TemplateService(BaseNotificationService):
             is_active=is_active,
             auto_assign_to_new_companies=auto_assign_to_new_companies,
             extra_metadata=metadata or {},
-            # WhatsApp template ID (manually created in Meta)
             whatsapp_template_id=whatsapp_template_id,
         )
 
-        db.add(new_template)
-        await db.commit()
-        await db.refresh(new_template)
+        created = await repo.create(new_template)
 
         logger.info(f"Created notification template: {code}")
         if whatsapp_template_id:
             logger.info(f"  └─ WhatsApp template ID: {whatsapp_template_id}")
 
-        return new_template
+        return created
 
     async def update_template(
         self,
@@ -196,21 +187,16 @@ class TemplateService(BaseNotificationService):
         Raises:
             ValueError: If template not found or code already in use
         """
-        # Find template
-        result = await db.execute(
-            select(NotificationTemplate).where(NotificationTemplate.id == template_id)
-        )
-        template = result.scalar_one_or_none()
+        repo = NotificationTemplateRepository(db)
 
+        # Find template
+        template = await repo.get(template_id)
         if not template:
             raise ValueError(f"Template {template_id} not found")
 
         # If changing code, check it doesn't exist
         if code and code != template.code:
-            result = await db.execute(
-                select(NotificationTemplate).where(NotificationTemplate.code == code)
-            )
-            existing = result.scalar_one_or_none()
+            existing = await repo.find_by_code(code, active_only=False)
             if existing:
                 raise ValueError(f"Template with code '{code}' already exists")
 
@@ -240,11 +226,10 @@ class TemplateService(BaseNotificationService):
         if whatsapp_template_id is not None:
             template.whatsapp_template_id = whatsapp_template_id
 
-        await db.commit()
-        await db.refresh(template)
+        updated = await repo.update(template)
 
-        logger.info(f"Updated notification template: {template.code}")
-        return template
+        logger.info(f"Updated notification template: {updated.code}")
+        return updated
 
     async def delete_template(
         self,
@@ -266,18 +251,15 @@ class TemplateService(BaseNotificationService):
         Raises:
             ValueError: If template not found
         """
-        # Find template
-        result = await db.execute(
-            select(NotificationTemplate).where(NotificationTemplate.id == template_id)
-        )
-        template = result.scalar_one_or_none()
+        repo = NotificationTemplateRepository(db)
 
+        # Find template
+        template = await repo.get(template_id)
         if not template:
             raise ValueError(f"Template {template_id} not found")
 
         # Delete template (CASCADE will handle subscriptions automatically)
-        await db.delete(template)
-        await db.commit()
+        await repo.delete(template_id)
 
         logger.info(f"Deleted notification template: {template.code}")
         return True

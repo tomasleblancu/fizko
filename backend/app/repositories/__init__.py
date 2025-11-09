@@ -18,12 +18,14 @@ Usage:
 
 from .base import BaseRepository
 from .brain import UserBrainRepository, CompanyBrainRepository
-from .calendar import EventTemplateRepository
+from .calendar import CalendarRepository, EventTemplateRepository
 from .contacts import ContactRepository
 from .core import (
+    AdminStatsRepository,
     CompanyRepository,
     CompanyTaxInfoRepository,
     ProfileRepository,
+    SessionRepository,
     CompanySettingsRepository,
     NotificationTemplateRepository,
     NotificationSubscriptionRepository,
@@ -34,6 +36,7 @@ from .tax import (
     PurchaseDocumentRepository,
     SalesDocumentRepository,
     Form29Repository,
+    Form29SIIDownloadRepository,
     TaxDocumentRepository
 )
 
@@ -45,12 +48,15 @@ __all__ = [
     "CompanyBrainRepository",
     # Calendar
     "EventTemplateRepository",
+    "CalendarRepository",
     # Contacts
     "ContactRepository",
     # Core
+    "AdminStatsRepository",
     "CompanyRepository",
     "CompanyTaxInfoRepository",
     "ProfileRepository",
+    "SessionRepository",
     "CompanySettingsRepository",
     "NotificationTemplateRepository",
     "NotificationSubscriptionRepository",
@@ -62,5 +68,6 @@ __all__ = [
     "PurchaseDocumentRepository",
     "SalesDocumentRepository",
     "Form29Repository",
+    "Form29SIIDownloadRepository",
     "TaxDocumentRepository",
 ]
