@@ -25,10 +25,9 @@ async def list_plans(
     Returns:
         List of plans with pricing and features
     """
-    # Disable HTTP caching - always fetch fresh data
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
+    # Allow caching for public plan data (5 minutes)
+    # Plans don't change frequently, so caching is beneficial
+    response.headers["Cache-Control"] = "public, max-age=300"
 
     plans = await service.list_available_plans(include_private=False)
 
