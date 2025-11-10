@@ -120,17 +120,14 @@ class AgentService:
         # IMPORTANT: We need to call the async parts first, then return the sync streaming result
         logger.info("🚀 Starting agent execution (streaming)...")
 
-        # Get agent (async)
-        agent, _ = await self.runner._get_agent(request, db)
+        # Get agent (async) - also creates/returns session for active agent detection
+        agent, _, session = await self.runner._get_agent(request, db)
 
         # Build context (async) - pass store for widget streaming in tools
         context = await self.runner._build_context(request, db, store=store)
 
         # Prepare input (sync)
         agent_input = self.runner._prepare_input(request)
-
-        # Create session (sync)
-        session = self.runner._create_session(request.thread_id)
 
         # Execute agent (sync - returns StreamedRunResult immediately)
         from agents import Runner

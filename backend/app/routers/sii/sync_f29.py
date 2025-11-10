@@ -234,6 +234,8 @@ async def download_f29_pdfs(
     Este endpoint descarga los PDFs reales del SII para formularios que ya están
     sincronizados en la base de datos pero que no tienen el PDF descargado.
 
+    Usa la misma lógica que el task de Celery `sync_f29_pdfs_missing`.
+
     Args:
         request: Parámetros de descarga (session_id, year opcional, download_ids opcional)
         current_user_id: ID del usuario autenticado
@@ -252,11 +254,17 @@ async def download_f29_pdfs(
         Response:
         {
             "success": true,
-            "pdfs_downloaded": 10,
-            "pdfs_failed": 2,
-            "failed_folios": ["7904207766", "7913670076"],
-            "message": "10 PDFs descargados exitosamente, 2 fallaron"
+            "company_id": "...",
+            "session_id": "...",
+            "total_pending": 12,
+            "downloaded": 10,
+            "failed": 2,
+            "errors": [...]
         }
+
+    Note:
+        Los parámetros `year` y `download_ids` actualmente se ignoran.
+        Para implementarlos, deben agregarse al servicio FormService.download_f29_pdfs_for_session()
     """
     logger.info(
         f"📥 F29 PDF download requested by user {current_user_id}: "
@@ -269,77 +277,29 @@ async def download_f29_pdfs(
     try:
         service = SIIService(db)
 
-        # Construir query base para formularios sin PDF
-        query = select(Form29SIIDownload).where(
-            Form29SIIDownload.company_id == session.company_id,
-            Form29SIIDownload.pdf_storage_url.is_(None)
+        # Delegar toda la lógica al servicio (igual que el task de Celery)
+        result = await service.download_f29_pdfs_for_session(
+            session_id=request.session_id,
+            company_id=session.company_id,
+            max_per_company=999  # Sin límite para requests manuales del usuario
         )
 
-        # Filtrar por año si se especifica
-        if request.year:
-            query = query.where(Form29SIIDownload.period_year == request.year)
-
-        # Filtrar por IDs específicos si se especifica
-        if request.download_ids:
-            query = query.where(Form29SIIDownload.id.in_(request.download_ids))
-
-        # Ejecutar query
-        result = await db.execute(query)
-        downloads_to_process = result.scalars().all()
-
-        if not downloads_to_process:
-            logger.info("No F29 downloads found pending PDF download")
-            return {
-                "success": True,
-                "pdfs_downloaded": 0,
-                "pdfs_failed": 0,
-                "failed_folios": [],
-                "message": "No hay formularios F29 pendientes de descarga de PDF"
-            }
-
-        logger.info(f"📥 Found {len(downloads_to_process)} F29s to download PDFs")
-
-        # Descargar PDFs
-        pdfs_downloaded = 0
-        pdfs_failed = 0
-        failed_folios = []
-
-        for download in downloads_to_process:
-            try:
-                result = await service.download_and_save_f29_pdf(
-                    download_id=str(download.id),
-                    session_id=request.session_id
-                )
-
-                if result["success"]:
-                    pdfs_downloaded += 1
-                    logger.info(f"✅ PDF downloaded for folio {download.sii_folio}")
-                else:
-                    pdfs_failed += 1
-                    failed_folios.append(download.sii_folio)
-                    logger.error(f"❌ PDF download failed for folio {download.sii_folio}: {result.get('error')}")
-
-            except Exception as e:
-                pdfs_failed += 1
-                failed_folios.append(download.sii_folio)
-                logger.error(f"❌ Unexpected error downloading PDF for folio {download.sii_folio}: {e}")
-
-        # Commit cambios
-        await db.commit()
+        if not result.get("success"):
+            logger.error(f"❌ F29 PDF download failed: {result.get('error')}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.get("error", "Error al descargar PDFs de F29")
+            )
 
         logger.info(
-            f"✅ F29 PDF download completed: {pdfs_downloaded} downloaded, {pdfs_failed} failed"
+            f"✅ F29 PDF download completed: {result['downloaded']} downloaded, "
+            f"{result['failed']} failed"
         )
 
-        return {
-            "success": True,
-            "pdfs_downloaded": pdfs_downloaded,
-            "pdfs_failed": pdfs_failed,
-            "failed_folios": failed_folios,
-            "message": f"{pdfs_downloaded} PDFs descargados exitosamente" +
-                      (f", {pdfs_failed} fallaron" if pdfs_failed > 0 else "")
-        }
+        return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         logger.error(f"❌ F29 PDF download failed: {e}", exc_info=True)

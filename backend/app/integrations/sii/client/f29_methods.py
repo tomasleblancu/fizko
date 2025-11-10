@@ -20,14 +20,18 @@ class F29Methods(DTEMethods):
     def get_f29_lista(
         self,
         anio: str,
-        folio: Optional[str] = None
+        folio: Optional[str] = None,
+        save_callback: Optional[callable] = None
     ) -> List[Dict]:
         """
-        Busca formularios F29
+        Busca formularios F29 con guardado incremental opcional
 
         Args:
             anio: Año (formato YYYY, ej: "2024")
             folio: Folio específico (opcional)
+            save_callback: Callback (síncrono) para guardar cada formulario inmediatamente
+                          después de extraer su id_interno_sii.
+                          Firma: def callback(formulario: Dict) -> None
 
         Returns:
             Lista de formularios F29 encontrados
@@ -45,7 +49,7 @@ class F29Methods(DTEMethods):
         if not self._f29_extractor:
             self._f29_extractor = F29Extractor(self._driver, self.tax_id)
 
-        return self._f29_extractor.search(anio, folio)
+        return self._f29_extractor.search(anio, folio, save_callback=save_callback)
 
     def get_f29_compacto(
         self,
@@ -112,7 +116,10 @@ class F29Methods(DTEMethods):
         if not self._f29_extractor:
             self._f29_extractor = F29Extractor(self._driver, self.tax_id)
 
-        # Obtener cookies (hacer login si es necesario)
+        # Verificar y refrescar sesión si es necesario
+        self.verify_session()
+
+        # Obtener cookies validadas
         cookies = self.get_cookies()
 
         return self._f29_extractor.get_declaracion_propuesta(
@@ -148,7 +155,10 @@ class F29Methods(DTEMethods):
         if not self._f29_extractor:
             self._f29_extractor = F29Extractor(self._driver, self.tax_id)
 
-        # Obtener cookies (hacer login si es necesario)
+        # Verificar y refrescar sesión si es necesario
+        self.verify_session()
+
+        # Obtener cookies validadas
         cookies = self.get_cookies()
 
         return self._f29_extractor.get_tasa_ppmo(
@@ -195,9 +205,9 @@ class F29Methods(DTEMethods):
 
         self._ensure_initialized()
 
-        # Asegurar autenticación
+        # Verificar y refrescar sesión si es necesario
         logger.info("🔐 Declaraciones con estados require authentication...")
-        self.login()
+        self.verify_session()
 
         try:
             # Obtener datos del RUT
@@ -325,9 +335,9 @@ class F29Methods(DTEMethods):
 
         self._ensure_initialized()
 
-        # Asegurar autenticación
+        # Verificar y refrescar sesión si es necesario
         logger.info("🔐 Mensajes contribuyente require authentication...")
-        self.login()
+        self.verify_session()
 
         try:
             # Obtener datos del RUT
@@ -475,9 +485,9 @@ class F29Methods(DTEMethods):
 
         self._ensure_initialized()
 
-        # Asegurar autenticación
+        # Verificar y refrescar sesión si es necesario
         logger.info("🔐 Guardar propuesta F29 require authentication...")
-        self.login()
+        self.verify_session()
 
         try:
             # Obtener datos del RUT
@@ -624,6 +634,9 @@ class F29Methods(DTEMethods):
             anio_int = int(anio)
             if anio_int < 2000 or anio_int > 2100:
                 raise ValueError("anio debe estar entre 2000 y 2100")
+
+            # Verificar y refrescar sesión si es necesario
+            self.verify_session()
 
             # Obtener RUT y DV automáticamente
             from app.integrations.sii.scrapers.boletas_honorario_scraper import BoletasHonorarioScraper

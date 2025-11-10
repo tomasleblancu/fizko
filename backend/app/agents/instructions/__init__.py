@@ -43,11 +43,15 @@ def _load_modular_instruction(agent_name: str) -> str:
 SUPERVISOR_INSTRUCTIONS = _load_modular_instruction("supervisor")
 GENERAL_KNOWLEDGE_INSTRUCTIONS = _load_modular_instruction("general_knowledge")
 TAX_DOCUMENTS_INSTRUCTIONS = _load_modular_instruction("tax_documents")
+MONTHLY_TAXES_INSTRUCTIONS = _load_modular_instruction("monthly_taxes")
 PAYROLL_INSTRUCTIONS = _load_modular_instruction("payroll")
+EXPENSE_INSTRUCTIONS = _load_modular_instruction("expense")
 
 __all__ = [
     "SUPERVISOR_INSTRUCTIONS",
     "GENERAL_KNOWLEDGE_INSTRUCTIONS",
     "TAX_DOCUMENTS_INSTRUCTIONS",
+    "MONTHLY_TAXES_INSTRUCTIONS",
     "PAYROLL_INSTRUCTIONS",
+    "EXPENSE_INSTRUCTIONS",
 ]

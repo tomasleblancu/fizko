@@ -51,7 +51,7 @@ def extract_ui_component_context(
         "tax_summary_card": {
             "domain": "financial_overview",
             "relevant_data": ["tax_summary", "period_data", "iva_calculation"],
-            "suggested_agents": ["f29_agent", "documentos_tributarios_agent"],
+            "suggested_agents": ["monthly_taxes_agent", "documentos_tributarios_agent"],
             "context_hint": "Usuario está viendo el resumen de impuestos en el dashboard",
         },
         "revenue_chart": {
@@ -75,7 +75,7 @@ def extract_ui_component_context(
         "f29_form": {
             "domain": "tax_declaration",
             "relevant_data": ["f29_data", "tax_obligations", "payment_status"],
-            "suggested_agents": ["f29_agent"],
+            "suggested_agents": ["monthly_taxes_agent"],
             "context_hint": "Usuario está trabajando con declaración F29",
         },
         "operacion_renta": {
@@ -93,7 +93,7 @@ def extract_ui_component_context(
         "tax_calendar_event": {
             "domain": "tax_calendar",
             "relevant_data": ["calendar_event", "event_template", "event_tasks", "compliance_status"],
-            "suggested_agents": ["f29_agent", "operacion_renta_agent"],
+            "suggested_agents": ["monthly_taxes_agent", "operacion_renta_agent"],
             "context_hint": "Usuario está consultando sobre una obligación tributaria específica del calendario",
         },
         "person_detail": {
@@ -123,7 +123,7 @@ def extract_ui_component_context(
             "explain_iva_calculation": {
                 "focus": "Explicación detallada del cálculo de IVA (débito - crédito fiscal)",
                 "requires": ["sales_documents", "purchase_documents"],
-                "suggested_agent": "f29_agent",
+                "suggested_agent": "monthly_taxes_agent",
             },
             "analyze_revenue": {
                 "focus": "Análisis de ingresos por tipo de documento y clientes",

@@ -46,6 +46,29 @@ class PersonDetailTool(BaseUITool):
     def domain(self) -> str:
         return "payroll"
 
+    @property
+    def agent_instructions(self) -> str:
+        """Instrucciones específicas cuando el usuario ve detalles de un colaborador."""
+        return """
+## 💡 INSTRUCCIONES: Ficha de Colaborador
+
+El usuario está viendo la información completa de un colaborador/empleado.
+
+**Tu objetivo:**
+- Responde preguntas sobre ESTE colaborador (sueldo, AFP, contrato, datos personales)
+- Usa la información que ya está cargada arriba - **NO llames herramientas adicionales**
+- Sé breve y directo (máximo 3-4 líneas)
+
+**Formato de respuesta:**
+- Inicia con un resumen clave del colaborador (cargo, estado, sueldo)
+- Termina preguntando qué le gustaría hacer o saber sobre este colaborador
+
+**Evita:**
+- Temas generales sobre remuneraciones que no son específicos de este colaborador
+- Buscar información que ya está en el contexto
+- Explicaciones largas sobre conceptos de nómina
+""".strip()
+
     async def process(self, context: UIToolContext) -> UIToolResult:
         """Process person detail interaction and load relevant data."""
 
@@ -308,14 +331,5 @@ class PersonDetailTool(BaseUITool):
             lines.append("")
             lines.append("### 📝 Notas")
             lines.append(person_data["notes"])
-
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-        lines.append("💡 **INSTRUCCIONES PARA EL AGENTE:**")
-        lines.append("- Responde de forma **breve y directa** con la información clave del colaborador")
-        lines.append("- **NO llames a herramientas adicionales** - toda la información necesaria ya está arriba")
-        lines.append("- Termina tu respuesta preguntando al usuario qué le gustaría hacer con este colaborador")
-        lines.append("")
 
         return "\n".join(lines)

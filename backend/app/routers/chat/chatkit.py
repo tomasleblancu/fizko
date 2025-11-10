@@ -12,7 +12,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import Response, StreamingResponse
 from starlette.responses import JSONResponse
 
-from ...agents import FizkoServer, create_chatkit_server
+from ...agents import create_chatkit_server
+from app.integrations.chatkit import ChatKitServerAdapter
 from ...agents.config.scopes import get_scope_for_plan
 from ...agents.ui_tools import UIToolDispatcher
 from ...config.database import AsyncSessionLocal
@@ -36,10 +37,10 @@ router = APIRouter(
 )
 
 # Lazy initialization of ChatKit server (only when first requested)
-_chatkit_server: FizkoServer | None = None
+_chatkit_server: ChatKitServerAdapter | None = None
 
 
-def get_chatkit_server() -> FizkoServer:
+def get_chatkit_server() -> ChatKitServerAdapter:
     """Get or initialize the ChatKit server instance."""
     global _chatkit_server
     if _chatkit_server is None:
@@ -65,7 +66,7 @@ def get_chatkit_server() -> FizkoServer:
 async def chatkit_upload_attachment(
     attachment_id: str,
     request: Request,
-    server: FizkoServer = Depends(get_chatkit_server),
+    server: ChatKitServerAdapter = Depends(get_chatkit_server),
 ) -> Response:
     """
     ChatKit attachment upload endpoint (Phase 2 of two-phase upload).
@@ -183,7 +184,7 @@ async def chatkit_endpoint(
         None, description="Entity type (contact, document, etc) for UI context"
     ),
     subscription: "Subscription | None" = Depends(get_subscription_or_none),
-    server: FizkoServer = Depends(get_chatkit_server),
+    server: ChatKitServerAdapter = Depends(get_chatkit_server),
 ) -> Response:
     """ChatKit conversational endpoint."""
     # 🕐 START: Log request start time

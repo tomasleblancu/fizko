@@ -35,21 +35,94 @@ class FormService(BaseSIIService):
     async def extract_f29_lista(
         self,
         session_id: Union[str, UUID],
-        anio: str
+        anio: str,
+        company_id: Optional[Union[str, UUID]] = None
     ) -> List[Dict[str, Any]]:
         """
-        Extrae lista de formularios F29 del SII
+        Extrae lista de formularios F29 del SII con guardado incremental
 
         Args:
             session_id: ID de la sesión en la DB
             anio: Año (ej: "2024")
+            company_id: ID de la compañía (opcional, se obtiene de session si no se provee)
 
         Returns:
             Lista de formularios F29
         """
+        from uuid import UUID as UUIDType
+
         creds = await self.get_stored_credentials(session_id)
         if not creds:
             raise ValueError(f"Session {session_id} not found")
+
+        # Obtener company_id si no se proveyó
+        if not company_id:
+            company_id = await self.get_company_id_from_session(session_id)
+            if not company_id:
+                raise ValueError(f"Session {session_id} has no associated company")
+
+        # Convertir a UUID si es string
+        if isinstance(company_id, str):
+            company_id = UUIDType(company_id)
+
+        # Crear cola thread-safe para comunicación entre Selenium (síncrono) y async DB
+        from queue import Queue
+        from threading import Thread
+        formularios_queue: Queue = Queue()
+
+        # Worker async que consume formularios de la cola y los guarda
+        async def save_worker():
+            """Worker que guarda formularios conforme llegan a la cola"""
+            while True:
+                try:
+                    # Non-blocking check
+                    if formularios_queue.empty():
+                        await asyncio.sleep(0.1)
+                        continue
+
+                    formulario = formularios_queue.get(block=False)
+
+                    # Sentinel para terminar
+                    if formulario is None:
+                        logger.info("💾 Worker de guardado terminando...")
+                        break
+
+                    logger.info(f"💾 Guardando formulario {formulario['folio']} en BD...")
+                    saved = await self.save_f29_downloads(
+                        company_id=company_id,
+                        formularios=[formulario]
+                    )
+                    logger.info(f"✅ Formulario {formulario['folio']} guardado: {len(saved)} registros")
+
+                    # 📥 DESCARGA AUTOMÁTICA DE PDF: Si tiene id_interno_sii, disparar tarea Celery
+                    if formulario.get('id_interno_sii') and len(saved) > 0:
+                        try:
+                            from app.infrastructure.celery.tasks.sii.forms import download_single_f29_pdf
+
+                            download_id = str(saved[0].id)
+                            download_single_f29_pdf.apply_async(
+                                args=[download_id, str(session_id)],
+                                countdown=2  # Esperar 2s para evitar sobrecarga del SII
+                            )
+                            logger.info(
+                                f"📥 Tarea de descarga PDF encolada para folio {formulario['folio']} "
+                                f"(download_id={download_id})"
+                            )
+                        except Exception as pdf_error:
+                            logger.warning(
+                                f"⚠️ Error encolando descarga de PDF para {formulario['folio']}: {pdf_error}\n"
+                                f"   El formulario está guardado, pero el PDF se puede descargar manualmente"
+                            )
+
+                except Exception as e:
+                    logger.error(f"❌ Error en save_worker: {e}")
+                    await asyncio.sleep(0.1)
+
+        # Callback síncrono que deposita en la cola
+        def sync_save_callback(formulario: Dict[str, Any]) -> None:
+            """Callback síncrono que deposita formulario en cola para guardado async"""
+            logger.debug(f"📤 Encolando formulario {formulario['folio']} para guardado...")
+            formularios_queue.put(formulario)
 
         # Función sincrónica que ejecuta Selenium
         def _run_extraction():
@@ -60,9 +133,11 @@ class FormService(BaseSIIService):
                 headless=True
             ) as client:
 
-                # get_f29_lista hace force_new=True internamente
-                # porque requiere navegación Selenium con sesión fresca
-                result = client.get_f29_lista(anio=anio)
+                # get_f29_lista con callback síncrono que encola
+                result = client.get_f29_lista(
+                    anio=anio,
+                    save_callback=sync_save_callback
+                )
 
                 # Obtener cookies actualizadas después del scraping
                 updated_cookies = client.get_cookies()
@@ -70,8 +145,17 @@ class FormService(BaseSIIService):
                 return result, None, updated_cookies
 
         try:
-            # Ejecutar en thread separado para no bloquear el event loop
+            # Iniciar worker de guardado en background
+            save_task = asyncio.create_task(save_worker())
+
+            # Ejecutar extracción en thread separado para no bloquear el event loop
             result, new_cookies, updated_cookies = await asyncio.to_thread(_run_extraction)
+
+            # Enviar sentinel para terminar worker
+            formularios_queue.put(None)
+
+            # Esperar a que worker termine de guardar todos los formularios
+            await save_task
 
             # Ahora SÍ podemos hacer operaciones async de DB
             if new_cookies:
@@ -83,7 +167,7 @@ class FormService(BaseSIIService):
             return result
 
         except AuthenticationError:
-            return await self.extract_f29_lista(session_id, anio)
+            return await self.extract_f29_lista(session_id, anio, company_id)
 
     # =============================================================================
     # GUARDADO DE REGISTROS F29
@@ -335,16 +419,34 @@ class FormService(BaseSIIService):
                         if not creds:
                             raise ValueError(f"Session {session_id} not found")
 
+                        # Usar cookies solo si existen en BD
+                        cookies = creds.get("cookies")
+
+                        # Log para debugging
+                        if cookies:
+                            logger.info(f"📊 Found {len(cookies)} cookies in DB: {[c.get('name') for c in cookies]}")
+                        else:
+                            logger.info("📊 No cookies found in DB")
+
                         with SIIClient(
                             tax_id=creds["rut"],
                             password=creds["password"],
-                            cookies=creds.get("cookies"),
+                            cookies=cookies,
                             headless=True
                         ) as client:
-                            # Login solo si no hay cookies válidas
-                            # (las cookies deberían estar frescas del sync de lista)
-                            if not creds.get("cookies"):
+                            # Login si no hay cookies o si solo hay cookies de infraestructura
+                            # IMPORTANTE: Verificar que haya cookies REALES de sesión, no solo las 2 de infraestructura
+                            needs_login = not cookies or len(cookies) <= 2
+
+                            if needs_login:
+                                logger.info(f"🔐 Performing login for {creds['rut']} (cookies: {len(cookies) if cookies else 0})")
                                 client.login()
+                                new_cookies = client.get_cookies()
+                                logger.info(f"✅ Login successful, got {len(new_cookies)} cookies: {[c.get('name') for c in new_cookies]}")
+                                # Guardar cookies de forma síncrona
+                                self._save_cookies_sync(session_id, new_cookies)
+                            else:
+                                logger.debug(f"🍪 Reusing stored cookies for {creds['rut']}")
 
                             # Descargar PDF
                             pdf = client.get_f29_compacto(
@@ -352,7 +454,7 @@ class FormService(BaseSIIService):
                                 id_interno_sii=download.sii_id_interno
                             )
 
-                            # Actualizar cookies
+                            # SIEMPRE actualizar cookies al final (mismo patrón que sync de documentos)
                             updated_cookies = client.get_cookies()
                             self._save_cookies_sync(session_id, updated_cookies)
 
@@ -486,7 +588,7 @@ class FormService(BaseSIIService):
 
     async def download_f29_pdfs_for_session(
         self,
-        session_id: Union[str, UUID],
+        session_id: Optional[Union[str, UUID]] = None,
         company_id: Optional[Union[str, UUID]] = None,
         max_per_company: int = 10
     ) -> Dict[str, Any]:
@@ -494,20 +596,23 @@ class FormService(BaseSIIService):
         Descarga PDFs de F29 para una sesión específica.
 
         Este método encapsula toda la lógica de negocio:
+        - Buscar sesión activa por company_id si no se proporciona session_id
         - Obtener company_id desde session si no se proporciona
         - Obtener lista de PDFs pendientes
         - Descargar cada PDF
         - Manejar errores y contadores
 
         Args:
-            session_id: UUID de la sesión SII
-            company_id: UUID de la compañía (opcional, se obtiene de session si no se proporciona)
+            session_id: UUID de la sesión SII (opcional si se proporciona company_id)
+            company_id: UUID de la compañía (opcional si se proporciona session_id)
             max_per_company: Máximo número de PDFs a descargar
 
         Returns:
             Dict con resultados de la operación:
             {
+                "success": bool,
                 "company_id": str,
+                "session_id": str,
                 "total_pending": int,
                 "downloaded": int,
                 "failed": int,
@@ -516,19 +621,81 @@ class FormService(BaseSIIService):
             }
         """
         from uuid import UUID as UUIDType
+        from sqlalchemy import select
+        from ...db.models.session import Session
 
-        # Convertir IDs a UUID si son strings
+        # 1. Si se proporciona company_id pero no session_id, buscar la sesión activa más reciente
+        if company_id and not session_id:
+            logger.info(f"🔍 Finding most recent active session for company {company_id}")
+
+            # Convertir company_id a UUID si es string
+            if isinstance(company_id, str):
+                company_id = UUIDType(company_id)
+
+            result = await self.db.execute(
+                select(Session.id)
+                .where(Session.company_id == company_id)
+                .where(Session.is_active == True)
+                .order_by(Session.last_accessed_at.desc())
+                .limit(1)
+            )
+            session_row = result.first()
+
+            if session_row:
+                session_id = session_row[0]
+                logger.info(f"✅ Found session {session_id} for company {company_id}")
+            else:
+                error_msg = f"No active session found for company {company_id}"
+                logger.error(f"❌ {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "company_id": str(company_id),
+                    "session_id": None,
+                    "total_pending": 0,
+                    "downloaded": 0,
+                    "failed": 0,
+                    "errors": []
+                }
+
+        # 2. Validar que se tenga session_id en este punto
+        if not session_id:
+            error_msg = "Either session_id or company_id must be provided"
+            logger.error(f"❌ {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+                "company_id": str(company_id) if company_id else None,
+                "session_id": None,
+                "total_pending": 0,
+                "downloaded": 0,
+                "failed": 0,
+                "errors": []
+            }
+
+        # Convertir session_id a UUID si es string
         if isinstance(session_id, str):
             session_id = UUIDType(session_id)
 
         if company_id and isinstance(company_id, str):
             company_id = UUIDType(company_id)
 
-        # 1. Obtener company_id desde session si no se proporciona
+        # 3. Obtener company_id desde session si no se proporciona
         if not company_id:
             company_id = await self.get_company_id_from_session(session_id)
             if not company_id:
-                raise ValueError(f"Session {session_id} not found")
+                error_msg = f"Session {session_id} not found"
+                logger.error(f"❌ {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "company_id": None,
+                    "session_id": str(session_id),
+                    "total_pending": 0,
+                    "downloaded": 0,
+                    "failed": 0,
+                    "errors": []
+                }
 
         logger.info(f"📥 Starting F29 PDF download for company {company_id} (max: {max_per_company})")
 
@@ -541,7 +708,9 @@ class FormService(BaseSIIService):
         if not pending_downloads:
             logger.info(f"ℹ️ No pending F29 PDFs for company {company_id}")
             return {
+                "success": True,
                 "company_id": str(company_id),
+                "session_id": str(session_id),
                 "total_pending": 0,
                 "downloaded": 0,
                 "failed": 0,
@@ -600,7 +769,9 @@ class FormService(BaseSIIService):
         )
 
         return {
+            "success": True,
             "company_id": str(company_id),
+            "session_id": str(session_id),
             "total_pending": len(pending_downloads),
             "downloaded": downloaded,
             "failed": failed,
@@ -742,3 +913,109 @@ class FormService(BaseSIIService):
         except Exception as e:
             logger.error(f"❌ Error fetching PPMO tasa: {e}", exc_info=True)
             raise
+
+    # =============================================================================
+    # LISTADO DE FORMULARIOS
+    # =============================================================================
+
+    async def list_f29_forms(
+        self,
+        company_id: Union[str, UUID],
+        form_type: Optional[str] = None,
+        year: Optional[int] = None,
+        status: Optional[str] = None,
+        pdf_status: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Lista formularios F29 de una empresa con filtros opcionales
+
+        Args:
+            company_id: ID de la empresa
+            form_type: Tipo de formulario ('monthly' para mensuales, 'annual' para anuales)
+            year: Filtrar por año
+            status: Filtrar por estado del formulario ('Vigente', 'Rectificado', 'Anulado')
+            pdf_status: Filtrar por estado de descarga del PDF ('pending', 'downloaded', 'error')
+
+        Returns:
+            Dict con lista de formularios y totales:
+            {
+                "forms": [...],
+                "total": int,
+                "filtered": int
+            }
+        """
+        from uuid import UUID as UUIDType
+        from sqlalchemy import and_, desc
+
+        # Convertir a UUID si es string
+        if isinstance(company_id, str):
+            company_id = UUIDType(company_id)
+
+        logger.info(
+            f"📋 Listing F29 forms for company {company_id}: "
+            f"form_type={form_type}, year={year}, status={status}, pdf_status={pdf_status}"
+        )
+
+        # 1. Construir query base
+        query = select(Form29SIIDownload).where(
+            Form29SIIDownload.company_id == company_id
+        )
+
+        # 2. Aplicar filtros
+        filters = []
+
+        # Filtro por tipo de formulario
+        if form_type == 'monthly':
+            # Mensuales: period_month entre 1 y 12
+            filters.append(
+                and_(
+                    Form29SIIDownload.period_month >= 1,
+                    Form29SIIDownload.period_month <= 12
+                )
+            )
+        elif form_type == 'annual':
+            # Anuales: period_month = 13 (si existe en el sistema)
+            # Por ahora todos son mensuales, pero dejamos la lógica preparada
+            filters.append(Form29SIIDownload.period_month == 13)
+
+        # Filtro por año
+        if year:
+            filters.append(Form29SIIDownload.period_year == year)
+
+        # Filtro por estado
+        if status:
+            filters.append(Form29SIIDownload.status == status)
+
+        # Filtro por estado de PDF
+        if pdf_status:
+            filters.append(Form29SIIDownload.pdf_download_status == pdf_status)
+
+        if filters:
+            query = query.where(and_(*filters))
+
+        # 3. Ordenar por periodo (más reciente primero)
+        query = query.order_by(
+            desc(Form29SIIDownload.period_year),
+            desc(Form29SIIDownload.period_month)
+        )
+
+        # 4. Ejecutar query
+        result = await self.db.execute(query)
+        forms = result.scalars().all()
+
+        # 5. Obtener total sin filtros (para estadísticas)
+        total_query = select(Form29SIIDownload).where(
+            Form29SIIDownload.company_id == company_id
+        )
+        total_result = await self.db.execute(total_query)
+        total_forms = len(total_result.scalars().all())
+
+        logger.info(
+            f"✅ Found {len(forms)} F29 forms (total: {total_forms})"
+        )
+
+        return {
+            "forms": forms,
+            "total": total_forms,
+            "filtered": len(forms)
+        }

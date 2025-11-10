@@ -39,6 +39,7 @@ from .routers import (
     whatsapp,
     webhooks,
 )
+from .routers.expenses import router as expenses_router
 from .routers.notifications import router as notifications_router
 from .routers.admin import template_variables as admin_template_variables
 from .routers.personnel import router as personnel_router
@@ -124,6 +125,7 @@ app.include_router(chatkit.router)  # ChatKit AI agent endpoints
 app.include_router(companies_router.router)
 app.include_router(company_settings.router)  # Company settings configuration
 app.include_router(contacts.router)
+app.include_router(expenses_router)  # Expense management
 app.include_router(profile.router)
 app.include_router(sessions.router)
 app.include_router(purchase_documents.router)

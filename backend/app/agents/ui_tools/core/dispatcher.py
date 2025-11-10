@@ -95,6 +95,20 @@ class UIToolDispatcher:
                 logger.warning(
                     f"⚠️ UI tool failed: {ui_component} - {result.error}"
                 )
+            else:
+                # Inject agent instructions if tool succeeded and has instructions
+                if tool.agent_instructions:
+                    instructions_text = tool.agent_instructions.strip()
+                    if instructions_text:
+                        # Prepend instructions to context_text with clear separator
+                        result.context_text = (
+                            f"{instructions_text}\n\n"
+                            f"---\n\n"
+                            f"{result.context_text}"
+                        )
+                        logger.debug(
+                            f"  📝 Injected agent instructions ({len(instructions_text)} chars)"
+                        )
 
             total_time = time.time() - dispatch_start
             logger.debug(f"  ✅ Total dispatch: {total_time:.3f}s")

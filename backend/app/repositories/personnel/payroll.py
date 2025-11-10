@@ -23,6 +23,7 @@ class PayrollRepository(BaseRepository[Payroll]):
         period_month: Optional[int] = None,
         person_id: Optional[UUID] = None,
         status: Optional[str] = None,
+        payment_status: Optional[str] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[Payroll]:
@@ -35,6 +36,7 @@ class PayrollRepository(BaseRepository[Payroll]):
             period_month: Filter by month
             person_id: Filter by person
             status: Filter by status (draft, approved, paid, closed)
+            payment_status: Filter by payment status (pending, paid, failed)
             skip: Pagination offset
             limit: Max results
 
@@ -54,6 +56,9 @@ class PayrollRepository(BaseRepository[Payroll]):
 
         if status:
             query = query.where(Payroll.status == status)
+
+        if payment_status:
+            query = query.where(Payroll.payment_status == payment_status)
 
         # Order by most recent first
         query = query.order_by(

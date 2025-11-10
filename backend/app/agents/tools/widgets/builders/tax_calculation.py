@@ -130,45 +130,45 @@ def create_tax_calculation_widget(
         )
     )
 
-    # Additional taxes section (these ADD to the total)
+    # Additional taxes section (these ADD to the total) - always show even if 0
     # PPM
-    if ppm is not None and ppm > 0:
-        content_rows.append(
-            Row(
-                justify="between",
-                align="center",
-                children=[
-                    Text(value="PPM (Adelanto Impuesto Anual)", size="sm"),
-                    Text(value=f"+{fmt(ppm)}", size="sm", weight="medium"),
-                ],
-            )
+    ppm_value = ppm if ppm is not None else 0.0
+    content_rows.append(
+        Row(
+            justify="between",
+            align="center",
+            children=[
+                Text(value="PPM (Adelanto Impuesto Anual)", size="sm"),
+                Text(value=f"+{fmt(ppm_value)}", size="sm", weight="medium"),
+            ],
         )
+    )
 
     # Retención
-    if retencion is not None and retencion > 0:
-        content_rows.append(
-            Row(
-                justify="between",
-                align="center",
-                children=[
-                    Text(value="Retención (Honorarios)", size="sm"),
-                    Text(value=f"+{fmt(retencion)}", size="sm", weight="medium"),
-                ],
-            )
+    retencion_value = retencion if retencion is not None else 0.0
+    content_rows.append(
+        Row(
+            justify="between",
+            align="center",
+            children=[
+                Text(value="Retención (Honorarios)", size="sm"),
+                Text(value=f"+{fmt(retencion_value)}", size="sm", weight="medium"),
+            ],
         )
+    )
 
     # Impuesto de Trabajadores
-    if impuesto_trabajadores is not None and impuesto_trabajadores > 0:
-        content_rows.append(
-            Row(
-                justify="between",
-                align="center",
-                children=[
-                    Text(value="Impuesto Trabajadores", size="sm"),
-                    Text(value=f"+{fmt(impuesto_trabajadores)}", size="sm", weight="medium"),
-                ],
-            )
+    impuesto_trabajadores_value = impuesto_trabajadores if impuesto_trabajadores is not None else 0.0
+    content_rows.append(
+        Row(
+            justify="between",
+            align="center",
+            children=[
+                Text(value="Impuesto Trabajadores", size="sm"),
+                Text(value=f"+{fmt(impuesto_trabajadores_value)}", size="sm", weight="medium"),
+            ],
         )
+    )
 
     # Final result
     content_rows.append(
@@ -265,14 +265,15 @@ def tax_calculation_widget_copy_text(
         "",
     ]
 
-    if ppm is not None and ppm > 0:
-        lines.append(f"PPM (Adelanto Impuesto Anual): +{fmt(ppm)}")
+    # Always show additional taxes, even if 0
+    ppm_value = ppm if ppm is not None else 0.0
+    lines.append(f"PPM (Adelanto Impuesto Anual): +{fmt(ppm_value)}")
 
-    if retencion is not None and retencion > 0:
-        lines.append(f"Retención (Honorarios): +{fmt(retencion)}")
+    retencion_value = retencion if retencion is not None else 0.0
+    lines.append(f"Retención (Honorarios): +{fmt(retencion_value)}")
 
-    if impuesto_trabajadores is not None and impuesto_trabajadores > 0:
-        lines.append(f"Impuesto Trabajadores: +{fmt(impuesto_trabajadores)}")
+    impuesto_trabajadores_value = impuesto_trabajadores if impuesto_trabajadores is not None else 0.0
+    lines.append(f"Impuesto Trabajadores: +{fmt(impuesto_trabajadores_value)}")
 
     lines.append("--------------------")
     lines.append(f"Impuesto a Pagar Total: {fmt(monthly_tax)}")

@@ -142,6 +142,101 @@ class HandoffsManager:
 
         return orchestrator.get_supervisor_agent()
 
+    async def get_active_agent_for_thread(
+        self,
+        thread_id: str,
+        session: Any,  # SQLiteSession
+        db: AsyncSession,
+        user_id: str | None = None,
+        company_id: UUID | None = None,
+        vector_store_ids: list[str] | None = None,
+        channel: str = "web",
+    ) -> Agent:
+        """
+        Get the currently active agent for a thread based on session history.
+
+        Inspects session history to find the last handoff and returns that agent.
+        Falls back to supervisor for new threads or if no handoff detected.
+
+        Args:
+            thread_id: ChatKit thread ID
+            session: SQLiteSession instance with conversation history
+            db: Database session
+            user_id: Optional user ID
+            company_id: Optional company ID
+            vector_store_ids: Optional vector store IDs
+            channel: Communication channel
+
+        Returns:
+            The currently active agent (specialist or supervisor)
+        """
+        # Get orchestrator for this thread
+        orchestrator = await self.get_orchestrator(
+            thread_id=thread_id,
+            db=db,
+            user_id=user_id,
+            company_id=company_id,
+            vector_store_ids=vector_store_ids,
+            channel=channel,
+        )
+
+        # Check session history for handoffs
+        try:
+            import json
+
+            items = await session.get_items()
+            logger.info(f"🔍 Checking session history: {len(items)} items found")
+
+            # Traverse history in reverse to find most recent handoff
+            for idx, item in enumerate(reversed(items)):
+                # Look for function_call_output indicating a handoff
+                if isinstance(item, dict):
+                    item_type = item.get("type")
+
+                    # Log function calls for debugging
+                    if item_type == "function_call":
+                        func_name = item.get("name", "")
+                        if "transfer" in func_name.lower():
+                            logger.info(f"  [{idx}] Found handoff function_call: {func_name}")
+
+                    # Check for handoff function call output
+                    if item_type == "function_call_output":
+                        output_str = item.get("output", "")
+                        try:
+                            output = json.loads(output_str) if isinstance(output_str, str) else output_str
+                            if isinstance(output, dict) and "assistant" in output:
+                                agent_name = output["assistant"]
+                                logger.info(f"🔄 Detected active agent from history: {agent_name} (at position {idx})")
+
+                                # Map agent name to orchestrator agent key
+                                agent_key_map = {
+                                    "expense_agent": "expense_agent",
+                                    "general_knowledge_agent": "general_knowledge_agent",
+                                    "tax_documents_agent": "tax_documents_agent",
+                                    "monthly_taxes_agent": "monthly_taxes_agent",
+                                    "payroll_agent": "payroll_agent",
+                                    "settings_agent": "settings_agent",
+                                }
+
+                                agent_key = agent_key_map.get(agent_name)
+                                if agent_key and agent_key in orchestrator.agents:
+                                    logger.info(f"✅ Returning {agent_key} agent")
+                                    return orchestrator.agents[agent_key]
+                                else:
+                                    logger.warning(f"⚠️  Agent {agent_name} not found in orchestrator or not available")
+                        except (json.JSONDecodeError, ValueError) as e:
+                            logger.debug(f"  Failed to parse output: {e}")
+                            continue
+
+            # No handoff found - return supervisor
+            logger.info(f"✨ No handoff detected in {len(items)} items, using supervisor agent")
+            return orchestrator.get_supervisor_agent()
+
+        except Exception as e:
+            logger.error(f"❌ Failed to detect active agent from history: {e}", exc_info=True)
+            logger.warning(f"⚠️  Falling back to supervisor agent")
+            return orchestrator.get_supervisor_agent()
+
     async def get_all_agents(
         self,
         thread_id: str,

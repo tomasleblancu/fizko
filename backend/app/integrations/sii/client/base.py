@@ -60,7 +60,7 @@ class SIIClientBase:
 
         # Estado
         self._initialized = False
-        self._authenticated = False
+        self._authenticated = bool(cookies)  # Si pasamos cookies, asumimos autenticado hasta validar
         self._current_cookies: Optional[List[Dict]] = cookies  # Cookies actuales en memoria
 
         logger.debug(f"🚀 SIIClient initialized for {tax_id}")
@@ -214,3 +214,87 @@ class SIIClientBase:
             True si está autenticado
         """
         return self._authenticated
+
+    def verify_session(self, force_refresh: bool = False) -> dict:
+        """
+        Verifica que la sesión sea válida y refresca cookies si es necesario.
+
+        Este método hace un request ligero al SII para validar que las cookies
+        actuales siguen siendo válidas. Si están expiradas, hace re-login
+        automáticamente.
+
+        Args:
+            force_refresh: Si True, fuerza re-login sin importar el estado
+
+        Returns:
+            Dict con:
+                - valid: bool - Si la sesión es válida
+                - refreshed: bool - Si se hizo re-login (cookies nuevas)
+                - cookies: List[Dict] - Cookies actuales (potencialmente refrescadas)
+
+        Raises:
+            ExtractionError: Si no puede establecer sesión válida
+
+        Example:
+            >>> with SIIClient(tax_id="12345678-9", password="secret", cookies=old_cookies) as client:
+            ...     result = client.verify_session()
+            ...     if result['refreshed']:
+            ...         # Guardar nuevas cookies en BD
+            ...         save_cookies(result['cookies'])
+        """
+        from ..exceptions import ExtractionError
+
+        self._ensure_initialized()
+
+        # Si se fuerza refresh, hacer login directo
+        if force_refresh:
+            logger.info("🔄 Forcing session refresh...")
+            self.login(force_new=True)
+            return {
+                'valid': True,
+                'refreshed': True,
+                'cookies': self.get_cookies()
+            }
+
+        # Si ya está autenticado y tiene cookies, validar
+        if self._authenticated and self._current_cookies:
+            try:
+                logger.info("🔍 Verifying session validity...")
+                # Request ligero para validar cookies (~2KB)
+                # get_contribuyente() usa las cookies actuales y falla si están expiradas
+                self.get_contribuyente()
+                logger.info("✅ Session is valid")
+                return {
+                    'valid': True,
+                    'refreshed': False,
+                    'cookies': self.get_cookies()
+                }
+            except ExtractionError as e:
+                logger.warning(f"⚠️ Session validation failed: {e}")
+                logger.info("🔄 Refreshing session with new login...")
+                # Cookies expiradas, hacer re-login
+                self.login(force_new=True)
+                return {
+                    'valid': True,
+                    'refreshed': True,
+                    'cookies': self.get_cookies()
+                }
+            except Exception as e:
+                logger.error(f"❌ Unexpected error during session validation: {e}")
+                # En caso de error inesperado, intentar re-login
+                logger.info("🔄 Attempting session refresh due to error...")
+                self.login(force_new=True)
+                return {
+                    'valid': True,
+                    'refreshed': True,
+                    'cookies': self.get_cookies()
+                }
+
+        # Si no hay cookies o no está autenticado, hacer login forzado
+        logger.info("🔐 No active session found, forcing new login...")
+        self.login(force_new=True)
+        return {
+            'valid': True,
+            'refreshed': True,
+            'cookies': self.get_cookies()
+        }

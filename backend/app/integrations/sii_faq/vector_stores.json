@@ -1,0 +1,41 @@
+{
+  "vector_stores": [
+    {
+      "version": "20251110_125419",
+      "vector_store_id": "vs_6911e093fdd88191a113cc5c392776db",
+      "name": "SII FAQs - 20251110_125419",
+      "created_at": "2025-11-10T12:54:44",
+      "topic_count": 1,
+      "file_count": 7,
+      "status": "active"
+    },
+    {
+      "version": "20251110_140328",
+      "vector_store_id": "vs_6911f67ef05c81918d81f8910042fe57",
+      "name": "SII FAQs - 20251110_140328",
+      "created_at": "2025-11-10T14:28:15",
+      "topic_count": 78,
+      "file_count": 418,
+      "status": "active"
+    }
+  ],
+  "description": "Mapping between FAQ extraction versions and OpenAI vector store IDs",
+  "schema": {
+    "version": "Timestamp version (e.g., 20251110_115900)",
+    "vector_store_id": "OpenAI vector store ID (e.g., vs_abc123)",
+    "name": "Human-readable name for the vector store",
+    "created_at": "ISO 8601 timestamp",
+    "topic_count": "Number of topics extracted",
+    "file_count": "Number of files uploaded",
+    "status": "active or deprecated"
+  },
+  "example": {
+    "version": "20251110_115900",
+    "vector_store_id": "vs_abc123xyz",
+    "name": "SII FAQs - Test Extraction",
+    "created_at": "2025-11-10T11:59:00Z",
+    "topic_count": 1,
+    "file_count": 7,
+    "status": "active"
+  }
+}

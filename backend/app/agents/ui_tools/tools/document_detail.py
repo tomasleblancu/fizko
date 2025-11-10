@@ -48,6 +48,34 @@ class DocumentDetailTool(BaseUITool):
     def domain(self) -> str:
         return "documents"
 
+    @property
+    def agent_instructions(self) -> str:
+        """Instrucciones específicas cuando el usuario ve detalles de un documento."""
+        return """
+## 💡 INSTRUCCIONES: Detalle de Documento
+
+El usuario está viendo los detalles completos de un documento tributario (factura, boleta, nota de crédito, etc.).
+
+**Contexto:**
+- Ya se mostró un widget interactivo con toda la información del documento
+- Los montos, fechas, y datos del contacto ya están visibles
+
+**Tu objetivo:**
+- Responde en máximo 2 líneas con un resumen o insight breve
+- **NO repitas** la información que ya está en el widget
+- **NO llames herramientas adicionales** - toda la info está arriba
+- Si el usuario pregunta algo específico, usa solo la información cargada
+
+**Formato de respuesta:**
+- 1-2 líneas con contexto o insight útil
+- Pregunta si necesita más información o ayuda con este documento
+
+**Evita:**
+- Repetir montos, fechas, o datos que ya están en el widget
+- Buscar documentos relacionados sin que el usuario lo pida
+- Explicaciones largas sobre tipos de documentos
+""".strip()
+
     async def process(self, context: UIToolContext) -> UIToolResult:
         """Process document detail interaction and load relevant data."""
 
@@ -420,18 +448,5 @@ class DocumentDetailTool(BaseUITool):
         else:
             contact_name = doc.get("sender_name")
             contact_rut = doc.get("sender_rut")
-
-        lines.extend([
-            "",
-            "---",
-            "",
-            "💡 **INSTRUCCIONES PARA EL AGENTE:**",
-            "- Ya se mostró el widget con los detalles del documento arriba",
-            "- Responde en máximo 2 líneas con un resumen breve del documento",
-            "- NO repitas la información que ya está en el widget",
-            "- Termina preguntando si necesita más información sobre el documento",
-            "- **NO llames a herramientas adicionales**",
-            "",
-        ])
 
         return "\n".join(lines)

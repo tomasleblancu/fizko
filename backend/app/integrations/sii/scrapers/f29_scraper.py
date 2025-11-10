@@ -64,7 +64,8 @@ class F29Scraper(BaseScraper):
         self,
         anio: Optional[str] = None,
         folio: Optional[str] = None,
-        max_retries: int = 3
+        max_retries: int = 3,
+        save_callback: Optional[callable] = None
     ) -> List[FormularioF29]:
         """
         Busca formularios F29 en el SII
@@ -73,6 +74,9 @@ class F29Scraper(BaseScraper):
             anio: Ano a consultar (YYYY) - obligatorio si no se busca por folio
             folio: Folio especifico - opcional
             max_retries: Numero maximo de reintentos para navegacion
+            save_callback: Callback opcional (síncrono) para guardar cada formulario
+                          inmediatamente después de extraer su id_interno_sii.
+                          Firma: def callback(formulario: Dict) -> None
 
         Returns:
             Lista de formularios F29 encontrados
@@ -109,7 +113,7 @@ class F29Scraper(BaseScraper):
             # Extraer resultados de la tabla HTML con codInt incluido
             # El codInt se extrae haciendo click en "Ver" → "Formulario Compacto"
             # y capturando la URL que se abre en la nueva ventana
-            resultados = self._extraer_resultados()
+            resultados = self._extraer_resultados(save_callback=save_callback)
 
             # Resumen final
             total = len(resultados)
@@ -726,8 +730,13 @@ class F29Scraper(BaseScraper):
         except Exception as e:
             logger.debug(f"No se pudo cerrar modal: {e}")
 
-    def _extraer_resultados(self) -> List[FormularioF29]:
-        """Extrae los resultados de la tabla"""
+    def _extraer_resultados(self, save_callback: Optional[callable] = None) -> List[FormularioF29]:
+        """
+        Extrae los resultados de la tabla
+
+        Args:
+            save_callback: Callback opcional para guardar cada formulario inmediatamente
+        """
         resultados: List[FormularioF29] = []
 
         try:
@@ -826,6 +835,18 @@ class F29Scraper(BaseScraper):
                                 f"⚠️ No se pudo extraer codInt para folio {datos['folio']}\n"
                                 f"   El formulario se guardará sin id_interno_sii"
                             )
+
+                        # 💾 GUARDADO INCREMENTAL: Llamar callback si existe
+                        # El callback es síncrono y deposita el formulario en una cola
+                        # para guardado async en paralelo
+                        if save_callback:
+                            try:
+                                save_callback(formulario)
+                            except Exception as save_error:
+                                logger.error(
+                                    f"❌ Error en callback para formulario {datos['folio']}: {save_error}\n"
+                                    f"   Continuando con siguiente formulario..."
+                                )
 
                         # Volver a la tabla principal con retry mejorado y múltiples estrategias
                         try:

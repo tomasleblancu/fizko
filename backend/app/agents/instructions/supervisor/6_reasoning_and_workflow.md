@@ -20,8 +20,11 @@ Search Memory (user + company)
 Analyze Query Type
     ↓
     ├─ Theoretical/Conceptual? → General Knowledge Agent
-    ├─ Document Data? → Tax Documents Agent
-    └─ Payroll/Employees? → Payroll Agent
+    ├─ DTE Data (electronic docs from SII)? → Tax Documents Agent
+    ├─ F29 / Monthly Taxes? → Monthly Taxes Agent
+    ├─ Manual Expense Registration? → Expense Agent
+    ├─ Payroll/Employees? → Payroll Agent
+    └─ Settings/Configuration? → Settings Agent
     ↓
 Agent Blocked?
     ├─ YES → Handle subscription restriction

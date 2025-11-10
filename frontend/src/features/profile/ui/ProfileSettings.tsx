@@ -24,12 +24,13 @@ interface ProfileSettingsProps {
   onThemeChange?: (scheme: ColorScheme) => void;
   onNavigateToContacts?: () => void;
   onNavigateToDashboard?: () => void;
+  onNavigateToForms?: () => void;
   onNavigateToPersonnel?: () => void;
   currentView?: ViewType;
   initialTab?: 'account' | 'company' | 'preferences' | 'subscription' | 'danger';
 }
 
-export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToContacts, onNavigateToDashboard, onNavigateToPersonnel, currentView = 'settings', initialTab = 'account' }: ProfileSettingsProps) {
+export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToContacts, onNavigateToDashboard, onNavigateToForms, onNavigateToPersonnel, currentView = 'settings', initialTab = 'account' }: ProfileSettingsProps) {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading } = useUserProfile();
   // Company is now passed as prop to avoid multiple fetches
@@ -51,8 +52,9 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
   const handleNavigate = useCallback((view: ViewType) => {
     if (view === 'dashboard' && onNavigateToDashboard) onNavigateToDashboard();
     if (view === 'contacts' && onNavigateToContacts) onNavigateToContacts();
+    if (view === 'forms' && onNavigateToForms) onNavigateToForms();
     if (view === 'personnel' && onNavigateToPersonnel) onNavigateToPersonnel();
-  }, [onNavigateToDashboard, onNavigateToContacts, onNavigateToPersonnel]);
+  }, [onNavigateToDashboard, onNavigateToContacts, onNavigateToForms, onNavigateToPersonnel]);
 
   const isLoading = authLoading || profileLoading || companySettingsLoading || loadingSubscriptions || loadingPreferences;
 

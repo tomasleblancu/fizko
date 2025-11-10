@@ -33,6 +33,14 @@ from .builders.subscription_upgrade import (
     create_subscription_upgrade_widget,
     subscription_upgrade_widget_copy_text,
 )
+from .builders.f29_detail import (
+    create_f29_detail_widget,
+    f29_detail_widget_copy_text,
+)
+from .builders.f29_summary import (
+    create_f29_summary_widget,
+    f29_summary_widget_copy_text,
+)
 
 __all__ = [
     # Tax calculation widget
@@ -47,4 +55,10 @@ __all__ = [
     # Subscription upgrade widget
     "create_subscription_upgrade_widget",
     "subscription_upgrade_widget_copy_text",
+    # F29 detail widget
+    "create_f29_detail_widget",
+    "f29_detail_widget_copy_text",
+    # F29 summary widget
+    "create_f29_summary_widget",
+    "f29_summary_widget_copy_text",
 ]

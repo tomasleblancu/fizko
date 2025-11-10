@@ -15,6 +15,7 @@ from .base import Base
 if TYPE_CHECKING:
     from .company import Company
     from .documents import PurchaseDocument, SalesDocument
+    from .expenses import Expense
 
 
 class Contact(Base):
@@ -84,4 +85,7 @@ class Contact(Base):
     )
     honorarios_receipts: Mapped[list["HonorariosReceipt"]] = relationship(
         "HonorariosReceipt", back_populates="contact"
+    )
+    expenses: Mapped[list["Expense"]] = relationship(
+        "Expense", back_populates="contact"
     )

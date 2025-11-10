@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import BaseRepository
-from ..db.models import UserBrain, CompanyBrain
+from app.db.models import UserBrain, CompanyBrain
 
 
 class UserBrainRepository(BaseRepository[UserBrain]):

@@ -12,6 +12,7 @@ import { Contacts } from "../../contacts/ui/Contacts";
 import { ContactsDrawer } from "../../contacts/ui/ContactsDrawer";
 import { Personnel } from "../../payroll/ui/Personnel";
 import { PersonnelDrawer } from "../../payroll/ui/PersonnelDrawer";
+import { Forms } from "../../tax/ui/Forms";
 import { LoginOverlay } from "@/shared/ui/feedback/LoginOverlay";
 import { FizkoLoadingScreen } from "@/shared/ui/feedback/FizkoLoadingScreen";
 import { SubscriptionBanner } from "@/shared/components/SubscriptionBanner";
@@ -74,6 +75,7 @@ function HomeContent({
   // Mobile drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isContactsDrawerOpen, setIsContactsDrawerOpen] = useState(false);
+  const [isFormsDrawerOpen, setIsFormsDrawerOpen] = useState(false);
   const [isPersonnelDrawerOpen, setIsPersonnelDrawerOpen] = useState(false);
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
 
@@ -109,6 +111,7 @@ function HomeContent({
     const closeAllDrawers = () => {
       setIsDrawerOpen(false);
       setIsContactsDrawerOpen(false);
+      setIsFormsDrawerOpen(false);
       setIsPersonnelDrawerOpen(false);
       setIsSettingsDrawerOpen(false);
     };
@@ -117,7 +120,7 @@ function HomeContent({
 
   // Prevent body scroll when any drawer is open on mobile
   useEffect(() => {
-    const isAnyDrawerOpen = isDrawerOpen || isContactsDrawerOpen || isPersonnelDrawerOpen || isSettingsDrawerOpen;
+    const isAnyDrawerOpen = isDrawerOpen || isContactsDrawerOpen || isFormsDrawerOpen || isPersonnelDrawerOpen || isSettingsDrawerOpen;
     if (isAnyDrawerOpen) {
       // Prevent scroll on body (only on mobile)
       const html = document.documentElement;
@@ -144,7 +147,7 @@ function HomeContent({
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
     };
-  }, [isDrawerOpen, isContactsDrawerOpen, isPersonnelDrawerOpen, isSettingsDrawerOpen]);
+  }, [isDrawerOpen, isContactsDrawerOpen, isFormsDrawerOpen, isPersonnelDrawerOpen, isSettingsDrawerOpen]);
 
   // Refresh dashboard data after each agent response
   const handleResponseEnd = useCallback(() => {
@@ -171,6 +174,10 @@ function HomeContent({
   // Handle navigation between views
   const handleNavigateToContacts = useCallback(() => {
     setCurrentView('contacts');
+  }, []);
+
+  const handleNavigateToForms = useCallback(() => {
+    setCurrentView('forms');
   }, []);
 
   const handleNavigateToPersonnel = useCallback(() => {
@@ -315,7 +322,7 @@ function HomeContent({
                   setIsSettingsDrawerOpen(false);
                 }}
                 className={clsx(
-                  "flex items-center justify-center rounded-lg px-8 py-2 transition-all duration-200 ease-in-out",
+                  "flex items-center justify-center rounded-lg px-14 py-2 transition-all duration-200 ease-in-out",
                   "transform active:scale-95",
                   isDrawerOpen
                     ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
@@ -383,6 +390,7 @@ function HomeContent({
                 onThemeChange={handleThemeChange}
                 onNavigateToSettings={handleNavigateToSettings}
                 onNavigateToContacts={handleNavigateToContacts}
+                onNavigateToForms={handleNavigateToForms}
                 onNavigateToPersonnel={handleNavigateToPersonnel}
                 currentView={currentView}
               />
@@ -393,6 +401,19 @@ function HomeContent({
                 onNavigateBack={handleNavigateToDashboard}
                 onThemeChange={handleThemeChange}
                 onNavigateToDashboard={handleNavigateToDashboard}
+                onNavigateToForms={handleNavigateToForms}
+                onNavigateToSettings={handleNavigateToSettings}
+                onNavigateToPersonnel={handleNavigateToPersonnel}
+                currentView={currentView}
+              />
+            ) : currentView === 'forms' ? (
+              <Forms
+                scheme={scheme}
+                company={company}
+                onNavigateBack={handleNavigateToDashboard}
+                onThemeChange={handleThemeChange}
+                onNavigateToDashboard={handleNavigateToDashboard}
+                onNavigateToContacts={handleNavigateToContacts}
                 onNavigateToSettings={handleNavigateToSettings}
                 onNavigateToPersonnel={handleNavigateToPersonnel}
                 currentView={currentView}
@@ -405,6 +426,7 @@ function HomeContent({
                 onThemeChange={handleThemeChange}
                 onNavigateToDashboard={handleNavigateToDashboard}
                 onNavigateToContacts={handleNavigateToContacts}
+                onNavigateToForms={handleNavigateToForms}
                 onNavigateToSettings={handleNavigateToSettings}
                 currentView={currentView}
               />
@@ -416,6 +438,7 @@ function HomeContent({
                 onThemeChange={handleThemeChange}
                 onNavigateToDashboard={handleNavigateToDashboard}
                 onNavigateToContacts={handleNavigateToContacts}
+                onNavigateToForms={handleNavigateToForms}
                 onNavigateToPersonnel={handleNavigateToPersonnel}
                 currentView={currentView}
                 initialTab={settingsInitialTab}

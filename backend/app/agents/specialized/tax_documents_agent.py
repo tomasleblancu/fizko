@@ -14,6 +14,10 @@ from ..tools.tax.documentos_tributarios_tools import (
     get_documents,
     get_documents_summary,
 )
+from ..tools.widgets import (
+    show_f29_detail_widget,
+    show_f29_summary_widget,
+)
 from ..tools.memory import (
     search_user_memory,
     search_company_memory,
@@ -47,6 +51,9 @@ def create_tax_documents_agent(
         # Tax document tools
         get_documents_summary,  # Summary tool - for monthly/yearly aggregations
         get_documents,          # Main search tool - flexible filtering (RUT, folio, dates, type)
+        # F29 widget tools
+        show_f29_detail_widget,  # Show detailed F29 breakdown widget
+        show_f29_summary_widget,  # Show F29 summary widget
         # Memory tools - dual system for user and company memory (read-only)
         search_user_memory,     # Search personal user preferences and history
         search_company_memory,  # Search company-wide knowledge and settings

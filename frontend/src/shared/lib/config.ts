@@ -34,6 +34,11 @@ export const STARTER_PROMPTS: StartScreenPrompt[] = [
     icon: "chart",
   },
   {
+    label: "Quiero agregar un gasto",
+    prompt: "Quiero registrar un gasto manual",
+    icon: "notebook-pencil",
+  },
+  {
     label: "Revisa mi planilla de sueldos",
     prompt: "Revisa la planilla de sueldos del último mes y muéstrame un resumen",
     icon: "user",

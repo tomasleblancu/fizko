@@ -36,13 +36,21 @@ class F29Extractor:
 
         logger.info("📋 F29Extractor initialized")
 
-    def search(self, anio: str, folio: Optional[str] = None) -> List[Dict]:
+    def search(
+        self,
+        anio: str,
+        folio: Optional[str] = None,
+        save_callback: Optional[callable] = None
+    ) -> List[Dict]:
         """
         Busca formularios F29 (requiere Selenium driver)
 
         Args:
             anio: Año (formato YYYY, ej: "2024")
             folio: Folio específico (opcional)
+            save_callback: Callback opcional para guardar formularios incrementalmente.
+                          Recibe un formulario dict y lo encola para guardado.
+                          Firma: def callback(formulario: Dict) -> None (síncrono)
 
         Returns:
             Lista de formularios F29 encontrados
@@ -59,10 +67,11 @@ class F29Extractor:
         try:
             logger.info(f"🔍 Searching F29 forms - Year: {anio}, Folio: {folio}")
 
-            # Delegar a scraper de v2
+            # Delegar a scraper de v2 con callback de guardado
             formularios = self._list_scraper.buscar_formularios(
                 anio=anio,
-                folio=folio
+                folio=folio,
+                save_callback=save_callback
             )
 
             logger.info(f"✅ Found {len(formularios)} F29 forms")
@@ -151,6 +160,9 @@ class F29Extractor:
             # Verificar que sea un PDF válido
             if not response.content.startswith(b'%PDF'):
                 logger.error(f"Respuesta no es un PDF válido. Content-Type: {response.headers.get('content-type')}")
+                logger.error(f"URL: {url}")
+                logger.error(f"Cookies usadas: {list(cookies_dict.keys())}")
+                logger.error(f"Primeros 500 chars de respuesta: {response.text[:500]}")
                 raise ExtractionError(
                     "La respuesta no es un PDF válido",
                     resource='f29_pdf'

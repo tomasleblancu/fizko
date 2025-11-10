@@ -3,14 +3,18 @@ Template management service for notifications
 Handles CRUD operations for notification templates
 """
 import logging
-from typing import List, Optional
+import os
+from typing import List, Optional, Dict, Any
 from uuid import UUID
 
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import NotificationTemplate
 from app.repositories import NotificationTemplateRepository
+from app.integrations.kapso import KapsoClient
+from app.integrations.kapso.exceptions import KapsoNotFoundError, KapsoAPIError
 from .base_service import BaseNotificationService
 
 logger = logging.getLogger(__name__)
@@ -263,3 +267,104 @@ class TemplateService(BaseNotificationService):
 
         logger.info(f"Deleted notification template: {template.code}")
         return True
+
+    # ========== WHATSAPP TEMPLATE SYNCHRONIZATION ==========
+
+    async def sync_whatsapp_template_structure(
+        self,
+        db: AsyncSession,
+        template_name: str,
+    ) -> Dict[str, Any]:
+        """
+        Synchronize WhatsApp template structure from Meta API via Kapso.
+
+        Gets the template structure (named_parameters) from Meta and updates
+        the local template's extra_metadata with the WhatsApp template structure.
+
+        Args:
+            db: Database session
+            template_name: WhatsApp template name (e.g., daily_business_summary)
+
+        Returns:
+            Dict with updated template info and structure
+
+        Raises:
+            HTTPException: If credentials missing, template not found, or API errors
+        """
+        # Get credentials from environment
+        kapso_api_token = os.getenv("KAPSO_API_TOKEN", "")
+        business_account_id = os.getenv("WHATSAPP_BUSINESS_ACCOUNT_ID", "")
+
+        if not kapso_api_token:
+            raise HTTPException(
+                status_code=500,
+                detail="KAPSO_API_TOKEN not configured"
+            )
+
+        if not business_account_id:
+            raise HTTPException(
+                status_code=500,
+                detail="WHATSAPP_BUSINESS_ACCOUNT_ID not configured"
+            )
+
+        try:
+            # 1. Get template structure from Kapso/Meta API
+            kapso_client = KapsoClient(api_token=kapso_api_token)
+            result = await kapso_client.templates.get_structure(
+                template_name=template_name,
+                business_account_id=business_account_id
+            )
+
+            # 2. Find local template with this whatsapp_template_id
+            repo = NotificationTemplateRepository(db)
+            local_template = await repo.find_by_whatsapp_template_id(template_name)
+
+            if not local_template:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No local template found with whatsapp_template_id='{template_name}'. Create the template first."
+                )
+
+            # 3. Update extra_metadata with whatsapp_template_structure
+            template_structure = result["whatsapp_template_structure"]
+            updated_template = await repo.update_whatsapp_template_structure(
+                template_id=local_template.id,
+                whatsapp_template_structure=template_structure
+            )
+
+            logger.info(f"✅ Synced WhatsApp structure for template '{updated_template.code}'")
+
+            return {
+                "template_id": str(updated_template.id),
+                "template_code": updated_template.code,
+                "template_name": updated_template.name,
+                "whatsapp_template_id": template_name,
+                "whatsapp_template_structure": template_structure,
+                "named_parameters": result["named_parameters"]
+            }
+
+        except KapsoNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Template '{template_name}' not found in Meta API"
+            )
+        except KapsoAPIError as e:
+            raise HTTPException(
+                status_code=e.status_code if hasattr(e, 'status_code') else 500,
+                detail=f"Error fetching template from Meta API: {str(e)}"
+            )
+        except ValueError as e:
+            # Repository errors (template not found, etc.)
+            raise HTTPException(
+                status_code=404,
+                detail=str(e)
+            )
+        except HTTPException:
+            # Re-raise HTTP exceptions
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error syncing WhatsApp template: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Unexpected error: {str(e)}"
+            )

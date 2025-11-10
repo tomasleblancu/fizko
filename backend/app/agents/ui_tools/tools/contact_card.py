@@ -43,6 +43,29 @@ class ContactCardTool(BaseUITool):
     def domain(self) -> str:
         return "contacts"
 
+    @property
+    def agent_instructions(self) -> str:
+        """Instrucciones específicas cuando el usuario ve una tarjeta de contacto."""
+        return """
+## 💡 INSTRUCCIONES: Tarjeta de Contacto
+
+El usuario está viendo la ficha de un contacto específico.
+
+**Tu objetivo:**
+- Responde preguntas sobre ESTE contacto (historial, transacciones, datos)
+- Usa la información que ya está cargada arriba - **NO llames herramientas adicionales**
+- Sé breve y directo (máximo 3-4 líneas)
+
+**Formato de respuesta:**
+- Inicia con un resumen clave del contacto
+- Termina preguntando qué le gustaría saber o hacer con este contacto
+
+**Evita:**
+- Temas generales no relacionados con este contacto
+- Buscar información que ya está en el contexto
+- Respuestas largas o explicaciones innecesarias
+""".strip()
+
     async def process(self, context: UIToolContext) -> UIToolResult:
         """Process contact card interaction and load relevant data."""
 
@@ -263,14 +286,5 @@ class ContactCardTool(BaseUITool):
 
         if contact_data["total_transactions"] == 0:
             lines.append("- Sin transacciones registradas")
-
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-        lines.append("💡 **INSTRUCCIONES PARA EL AGENTE:**")
-        lines.append("- Responde de forma **breve y directa** con la información clave del contacto")
-        lines.append("- **NO llames a herramientas adicionales** - toda la información necesaria ya está arriba")
-        lines.append("- Termina tu respuesta preguntando al usuario qué le gustaría saber sobre este contacto")
-        lines.append("")
 
         return "\n".join(lines)

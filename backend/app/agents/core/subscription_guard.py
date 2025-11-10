@@ -159,7 +159,7 @@ class SubscriptionGuard:
             >>> print(agents)  # ["general_knowledge", "tax_documents", "settings"]
         """
         # All possible agents
-        all_agents = ["general_knowledge", "tax_documents", "payroll", "settings"]
+        all_agents = ["general_knowledge", "tax_documents", "f29", "payroll", "settings", "expense"]
 
         available = []
         for agent_name in all_agents:

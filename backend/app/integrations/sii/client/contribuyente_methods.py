@@ -45,8 +45,11 @@ class ContribuyenteMethods(SIIClientBase):
         if not self._contribuyente_extractor:
             self._contribuyente_extractor = ContribuyenteExtractor(self._driver)
 
-        # PASO 1: Intentar con cookies en memoria (sin RPA)
+        # Verificar y refrescar sesión si es necesario
+        # Nota: get_contribuyente() es el método usado internamente por verify_session(),
+        # así que solo validamos si hay cookies para evitar recursión infinita
         if self._current_cookies:
+            # Ya tenemos cookies, validar que sean válidas
             logger.debug("🍪 Using provided cookies for contribuyente extraction (no RPA needed)")
             try:
                 # Intentar extraer con cookies provistas
@@ -58,7 +61,7 @@ class ContribuyenteMethods(SIIClientBase):
                 logger.warning(f"⚠️ Provided cookies failed: {e}. Will retry with fresh login.")
                 # Si falla, continuar con login
 
-        # PASO 2: Si no hay cookies válidas o fallaron, hacer login con RPA
+        # Si no hay cookies válidas o fallaron, hacer login con RPA
         logger.debug("🔐 No valid cookies - performing RPA login")
         if not self._authenticated:
             self.login()

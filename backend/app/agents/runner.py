@@ -118,17 +118,14 @@ class AgentRunner:
         logger.info(f"🚀 AgentRunner.execute() | multi-agent mode | stream={stream}")
         logger.info(f"   thread_id={request.thread_id} | channel={request.channel}")
 
-        # 1. Get agent based on mode
-        agent, all_agents = await self._get_agent(request, db)
+        # 1. Get agent based on mode (creates session internally for active agent detection)
+        agent, all_agents, session = await self._get_agent(request, db)
 
         # 2. Build agent context
         context = await self._build_context(request, db)
 
         # 3. Prepare agent input
         agent_input = self._prepare_input(request)
-
-        # 4. Create session for conversation history
-        session = self._create_session(request.thread_id)
 
         # 5. Execute agent
         if stream:
@@ -158,12 +155,12 @@ class AgentRunner:
         self,
         request: AgentExecutionRequest,
         db,
-    ) -> tuple[Any, Optional[List[Any]]]:
+    ) -> tuple[Any, Optional[List[Any]], Any]:
         """
         Get agent(s) based on execution mode.
 
         Returns:
-            (agent, all_agents) tuple with supervisor and all specialized agents
+            (agent, all_agents, session) tuple with active/supervisor agent, all specialized agents, and session
         """
         # Extract vector_store_ids from attachments (for PDF FileSearch)
         vector_store_ids = []
@@ -174,7 +171,6 @@ class AgentRunner:
 
         logger.info("🔀 Creating multi-agent system...")
 
-        # Get supervisor agent
         # Parse company_id (may be string from request)
         from uuid import UUID
         company_id_uuid = None
@@ -184,12 +180,18 @@ class AgentRunner:
             except (ValueError, AttributeError):
                 logger.warning(f"⚠️  Invalid company_id format: {request.company_id}")
 
-        agent = await handoffs_manager.get_supervisor_agent(
+        # Create session first - needed to detect active agent from history
+        session = self._create_session(request.thread_id)
+
+        # Get active agent based on session history (checks for previous handoffs)
+        agent = await handoffs_manager.get_active_agent_for_thread(
             thread_id=request.thread_id,
+            session=session,
             db=db,
             user_id=request.user_id,
             company_id=company_id_uuid,  # ⭐ Pass company_id for subscription validation
             vector_store_ids=vector_store_ids if vector_store_ids else None,
+            channel=request.channel,
         )
 
         # Get all agents for handoffs
@@ -197,12 +199,12 @@ class AgentRunner:
             thread_id=request.thread_id,
             db=db,
             user_id=request.user_id,
-            company_id=company_id_uuid,  # ⭐ Pass company_id
+            company_id=company_id_uuid,  # ⭐ Pass company_id for subscription validation
             vector_store_ids=vector_store_ids if vector_store_ids else None,
         )
 
         logger.info(f"✅ Multi-agent system ready: {len(all_agents)} agents")
-        return (agent, all_agents)
+        return (agent, all_agents, session)
 
     async def _build_context(
         self,

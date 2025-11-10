@@ -13,6 +13,10 @@ from .widgets import (
     tax_calculation_widget_copy_text,
     create_document_detail_widget,
     document_detail_widget_copy_text,
+    create_f29_detail_widget,
+    f29_detail_widget_copy_text,
+    create_f29_summary_widget,
+    f29_summary_widget_copy_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -245,6 +249,294 @@ async def show_document_detail_widget(
 
     except Exception as e:
         logger.error(f"[DocumentWidget] Error showing widget: {e}", exc_info=True)
+        return {
+            "widget_shown": False,
+            "error": str(e),
+            "folio": folio,
+        }
+
+
+@function_tool(
+    strict_mode=False,
+    description_override="Muestra un widget visual con el detalle completo del Formulario 29 (F29). Usa esta herramienta para mostrar el desglose de ventas, compras, y cálculo de IVA de forma visual y estructurada.",
+)
+async def show_f29_detail_widget(
+    ctx: RunContextWrapper[FizkoContext],
+    folio: str,
+    period: str,
+    status: str,
+    submission_date: str | None,
+    total_sales: float,
+    taxable_sales: float,
+    exempt_sales: float,
+    sales_tax: float,
+    total_purchases: float,
+    taxable_purchases: float,
+    purchases_tax: float,
+    iva_to_pay: float,
+    iva_credit: float,
+    net_iva: float,
+    previous_month_credit: float | None = None,
+    pdf_available: bool = False,
+    pdf_url: str | None = None,
+) -> dict[str, Any]:
+    """
+    Muestra un widget interactivo con el detalle completo del Formulario 29 (F29).
+
+    Esta herramienta renderiza un widget visual que muestra toda la información
+    del formulario F29:
+    - Información del formulario (folio, período, estado)
+    - Ventas (totales, afectas, exentas, IVA débito)
+    - Compras (totales, afectas, IVA crédito)
+    - Cálculo final de IVA (a pagar o remanente)
+    - Crédito del mes anterior si aplica
+
+    Args:
+        folio: Número de folio del formulario
+        period: Período en formato "YYYY-MM"
+        status: Estado del formulario (Vigente, Rectificado, Anulado)
+        submission_date: Fecha de presentación (formato ISO o legible)
+        total_sales: Monto total de ventas
+        taxable_sales: Monto de ventas afectas a IVA
+        exempt_sales: Monto de ventas exentas de IVA
+        sales_tax: IVA débito fiscal (de ventas)
+        total_purchases: Monto total de compras
+        taxable_purchases: Monto de compras afectas a IVA
+        purchases_tax: IVA crédito fiscal (de compras)
+        iva_to_pay: IVA débito fiscal total
+        iva_credit: IVA crédito fiscal total
+        net_iva: IVA neto (positivo = a pagar, negativo = remanente)
+        previous_month_credit: Crédito del mes anterior (código 077) - opcional
+        pdf_available: Si el PDF está disponible
+        pdf_url: URL del PDF (opcional)
+
+    Returns:
+        Diccionario con confirmación de que el widget fue mostrado
+
+    Examples:
+        >>> await show_f29_detail_widget(
+        ...     ctx=ctx,
+        ...     folio="123456789",
+        ...     period="2025-10",
+        ...     status="Vigente",
+        ...     submission_date="2025-11-15",
+        ...     total_sales=10000000.0,
+        ...     taxable_sales=9500000.0,
+        ...     exempt_sales=500000.0,
+        ...     sales_tax=1805000.0,
+        ...     total_purchases=5000000.0,
+        ...     taxable_purchases=5000000.0,
+        ...     purchases_tax=950000.0,
+        ...     iva_to_pay=1805000.0,
+        ...     iva_credit=950000.0,
+        ...     net_iva=855000.0,
+        ...     previous_month_credit=0.0,
+        ...     pdf_available=True
+        ... )
+        {'widget_shown': True, 'folio': '123456789', 'period': '2025-10'}
+    """
+    logger.info(
+        f"[F29Widget] Showing F29 detail widget for folio {folio}, period {period}"
+    )
+
+    try:
+        # Create the widget
+        widget = create_f29_detail_widget(
+            folio=folio,
+            period=period,
+            status=status,
+            submission_date=submission_date,
+            total_sales=total_sales,
+            taxable_sales=taxable_sales,
+            exempt_sales=exempt_sales,
+            sales_tax=sales_tax,
+            total_purchases=total_purchases,
+            taxable_purchases=taxable_purchases,
+            purchases_tax=purchases_tax,
+            iva_to_pay=iva_to_pay,
+            iva_credit=iva_credit,
+            net_iva=net_iva,
+            previous_month_credit=previous_month_credit,
+            pdf_available=pdf_available,
+            pdf_url=pdf_url,
+        )
+
+        if widget is None:
+            logger.warning("[F29Widget] Widgets not available, skipping")
+            return {
+                "widget_shown": False,
+                "error": "Widgets not available",
+                "folio": folio,
+            }
+
+        # Create fallback copy text
+        copy_text = f29_detail_widget_copy_text(
+            folio=folio,
+            period=period,
+            status=status,
+            submission_date=submission_date,
+            total_sales=total_sales,
+            taxable_sales=taxable_sales,
+            exempt_sales=exempt_sales,
+            sales_tax=sales_tax,
+            total_purchases=total_purchases,
+            taxable_purchases=taxable_purchases,
+            purchases_tax=purchases_tax,
+            iva_to_pay=iva_to_pay,
+            iva_credit=iva_credit,
+            net_iva=net_iva,
+            previous_month_credit=previous_month_credit,
+            pdf_available=pdf_available,
+            pdf_url=pdf_url,
+        )
+
+        logger.info("[F29Widget] Streaming widget to client")
+
+        # Stream the widget to the client
+        await ctx.context.stream_widget(widget, copy_text=copy_text)
+
+        logger.info("[F29Widget] Widget streamed successfully")
+
+        return {
+            "widget_shown": True,
+            "folio": folio,
+            "period": period,
+            "net_iva": net_iva,
+        }
+
+    except Exception as e:
+        logger.error(f"[F29Widget] Error showing widget: {e}", exc_info=True)
+        return {
+            "widget_shown": False,
+            "error": str(e),
+            "folio": folio,
+        }
+
+
+@function_tool(
+    strict_mode=False,
+    description_override="Muestra un widget de resumen visual del Formulario 29 (F29) con la información principal. Usa esta herramienta para mostrar un resumen ejecutivo del F29 con los montos clave y detalles de presentación.",
+)
+async def show_f29_summary_widget(
+    ctx: RunContextWrapper[FizkoContext],
+    company: str,
+    rut: str,
+    periodo: str,
+    folio: str,
+    total_determinado: str,
+    total_a_pagar_plazo: str,
+    estado: str,
+    fecha_presentacion: str,
+    banco: str = "N/A",
+    medio_pago: str = "N/A",
+    tipo_declaracion: str = "Primitiva",
+    is_paid: bool = True,
+) -> dict[str, Any]:
+    """
+    Muestra un widget de resumen del Formulario 29 (F29).
+
+    Esta herramienta muestra un resumen ejecutivo del F29 con:
+    - Encabezado con empresa, RUT y período
+    - Total determinado con indicador de pago
+    - Total a pagar en plazo legal
+    - Fecha de presentación y tipo de declaración
+    - Detalles: folio, banco, medio de pago, estado
+
+    Args:
+        company: Nombre de la empresa
+        rut: RUT de la empresa (formato "XX.XXX.XXX-X")
+        periodo: Período (formato legible, ej: "Ene 2025")
+        folio: Número de folio del formulario
+        total_determinado: Total determinado (formato: "CLP $XX.XXX")
+        total_a_pagar_plazo: Total a pagar en plazo legal (formato: "CLP $XX.XXX")
+        estado: Estado del formulario (ej: "Recibida y pagada por internet")
+        fecha_presentacion: Fecha de presentación (formato: "DD/MM/YYYY")
+        banco: Nombre del banco
+        medio_pago: Medio de pago (ej: "PEL", "PAC", etc.)
+        tipo_declaracion: Tipo de declaración (Primitiva, Rectificativa, etc.)
+        is_paid: Si el formulario está pagado
+
+    Returns:
+        Diccionario con confirmación de que el widget fue mostrado
+
+    Examples:
+        >>> await show_f29_summary_widget(
+        ...     ctx=ctx,
+        ...     company="COMERCIAL ATAL SPA",
+        ...     rut="77.794.858-K",
+        ...     periodo="Ene 2025",
+        ...     folio="8104678626",
+        ...     total_determinado="CLP $58.123",
+        ...     total_a_pagar_plazo="CLP $58.123",
+        ...     estado="Recibida y pagada por internet",
+        ...     fecha_presentacion="20/02/2025",
+        ...     banco="BICE",
+        ...     medio_pago="PEL",
+        ...     tipo_declaracion="Primitiva",
+        ...     is_paid=True
+        ... )
+        {'widget_shown': True, 'folio': '8104678626'}
+    """
+    logger.info(
+        f"[F29SummaryWidget] Showing F29 summary widget for folio {folio}, period {periodo}"
+    )
+
+    try:
+        # Create the widget
+        widget = create_f29_summary_widget(
+            company=company,
+            rut=rut,
+            periodo=periodo,
+            folio=folio,
+            total_determinado=total_determinado,
+            total_a_pagar_plazo=total_a_pagar_plazo,
+            estado=estado,
+            fecha_presentacion=fecha_presentacion,
+            banco=banco,
+            medio_pago=medio_pago,
+            tipo_declaracion=tipo_declaracion,
+            is_paid=is_paid,
+        )
+
+        if widget is None:
+            logger.warning("[F29SummaryWidget] Widgets not available, skipping")
+            return {
+                "widget_shown": False,
+                "error": "Widgets not available",
+                "folio": folio,
+            }
+
+        # Create fallback copy text
+        copy_text = f29_summary_widget_copy_text(
+            company=company,
+            rut=rut,
+            periodo=periodo,
+            folio=folio,
+            total_determinado=total_determinado,
+            total_a_pagar_plazo=total_a_pagar_plazo,
+            estado=estado,
+            fecha_presentacion=fecha_presentacion,
+            banco=banco,
+            medio_pago=medio_pago,
+            tipo_declaracion=tipo_declaracion,
+            is_paid=is_paid,
+        )
+
+        logger.info("[F29SummaryWidget] Streaming widget to client")
+
+        # Stream the widget to the client
+        await ctx.context.stream_widget(widget, copy_text=copy_text)
+
+        logger.info("[F29SummaryWidget] Widget streamed successfully")
+
+        return {
+            "widget_shown": True,
+            "folio": folio,
+            "periodo": periodo,
+        }
+
+    except Exception as e:
+        logger.error(f"[F29SummaryWidget] Error showing widget: {e}", exc_info=True)
         return {
             "widget_shown": False,
             "error": str(e),

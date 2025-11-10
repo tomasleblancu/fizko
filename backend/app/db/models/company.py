@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from .calendar import CalendarEvent, CompanyEvent
     from .contact import Contact
     from .documents import PurchaseDocument, SalesDocument
+    from .expenses import Expense
     from .form29 import Form29
     from .form29_sii_download import Form29SIIDownload
     from .personnel import Payroll, Person
@@ -111,6 +112,11 @@ class Company(Base):
     # Honorarios relationships
     honorarios_receipts: Mapped[list["HonorariosReceipt"]] = relationship(
         "HonorariosReceipt", back_populates="company", cascade="all, delete-orphan"
+    )
+
+    # Expenses relationship
+    expenses: Mapped[list["Expense"]] = relationship(
+        "Expense", back_populates="company", cascade="all, delete-orphan"
     )
 
     # Subscription relationship (1:1)

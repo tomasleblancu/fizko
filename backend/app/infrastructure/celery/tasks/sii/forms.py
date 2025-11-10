@@ -118,24 +118,19 @@ def sync_f29(
                 # Initialize service with the same DB session
                 service = SIIService(db)
 
-                # Extract F29 forms from SII
+                # Extract F29 forms from SII with incremental saving
+                # El servicio ahora guarda cada formulario inmediatamente después de extraer su id_interno_sii
                 formularios = await service.extract_f29_lista(
                     session_id=session_id,
-                    anio=str(year)
+                    anio=str(year),
+                    company_id=company_id  # Necesario para guardado incremental
                 )
+
+                # Los formularios ya fueron guardados incrementalmente durante la extracción
+                # Solo retornar el resultado
 
                 if not formularios:
                     logger.info(f"ℹ️ [CELERY TASK] No F29 forms found for year {year}")
-
-                    # Get company_id if not provided
-                    if not company_id:
-                        session_result = await db.execute(
-                            select(Session.company_id).where(Session.id == UUID(session_id))
-                        )
-                        company_id_row = session_result.first()
-                        if company_id_row:
-                            company_id = str(company_id_row[0])
-
                     return {
                         "success": True,
                         "forms_synced": 0,
@@ -143,33 +138,16 @@ def sync_f29(
                         "message": f"No se encontraron formularios F29 para el año {year}"
                     }
 
-                # Get company_id from session
-                session_result = await db.execute(
-                    select(Session.company_id).where(Session.id == UUID(session_id))
+                logger.info(
+                    f"✅ [CELERY TASK] F29 extraction completed: {len(formularios)} formularios "
+                    f"(guardados incrementalmente)"
                 )
-                session_row = session_result.first()
-                if not session_row:
-                    raise ValueError(f"Session {session_id} not found")
-
-                company_id_from_session = str(session_row[0])
-
-                # Save F29 forms to database
-                saved_downloads = await service.save_f29_downloads(
-                    company_id=company_id_from_session,
-                    formularios=formularios
-                )
-
-                # Commit is automatic in get_background_db()
-
-                # Update company_id if it wasn't provided
-                if not company_id:
-                    company_id = company_id_from_session
 
                 return {
                     "success": True,
-                    "forms_synced": len(saved_downloads),
+                    "forms_synced": len(formularios),
                     "company_id": company_id,
-                    "message": f"{len(saved_downloads)} formularios F29 sincronizados"
+                    "message": f"{len(formularios)} formularios F29 sincronizados incrementalmente"
                 }
 
         # Run async function in sync context
@@ -385,6 +363,92 @@ def sync_f29_all_companies(
 
 @celery_app.task(
     bind=True,
+    name="sii.download_single_f29_pdf",
+    max_retries=2,
+    default_retry_delay=30,
+)
+def download_single_f29_pdf(
+    self,
+    download_id: str,
+    session_id: str
+) -> Dict[str, Any]:
+    """
+    Celery task para descargar el PDF de un solo formulario F29.
+
+    Esta tarea se dispara automáticamente después de guardar cada F29
+    con id_interno_sii durante la sincronización incremental.
+
+    Args:
+        download_id: UUID del registro Form29SIIDownload (str format)
+        session_id: UUID de la sesión SII para autenticación (str format)
+
+    Returns:
+        Dict con resultado de descarga:
+        {
+            "success": bool,
+            "download_id": str,
+            "folio": str,
+            "url": str (si éxito),
+            "error": str (si falla)
+        }
+    """
+    try:
+        import asyncio
+        from app.dependencies import get_background_db
+        from app.services.sii import SIIService
+
+        logger.info(
+            f"📥 [CELERY TASK] Single F29 PDF download started: "
+            f"download_id={download_id}, session_id={session_id}"
+        )
+
+        # Delegate to service layer
+        async def _download_single_pdf():
+            async with get_background_db() as db:
+                service = SIIService(db)
+                result = await service.download_and_save_f29_pdf(
+                    download_id=download_id,
+                    session_id=session_id
+                )
+                return result
+
+        # Run async function in sync context
+        result = asyncio.run(_download_single_pdf())
+
+        # Log result
+        if result.get("success"):
+            logger.info(
+                f"✅ [CELERY TASK] PDF downloaded successfully: "
+                f"download_id={download_id}, url={result.get('url')}"
+            )
+        else:
+            logger.error(
+                f"❌ [CELERY TASK] PDF download failed: "
+                f"download_id={download_id}, error={result.get('error')}"
+            )
+
+        return {
+            "success": result.get("success", False),
+            "download_id": download_id,
+            "url": result.get("url"),
+            "error": result.get("error")
+        }
+
+    except SIIUnavailableException as e:
+        logger.warning(f"⚠️ [CELERY TASK] SII unavailable, will retry: {e}")
+        raise self.retry(exc=e)
+
+    except Exception as e:
+        logger.error(f"❌ [CELERY TASK] Single PDF download failed: {e}", exc_info=True)
+        return {
+            "success": False,
+            "download_id": download_id,
+            "error": str(e)
+        }
+
+
+@celery_app.task(
+    bind=True,
     name="sii.sync_f29_pdfs_missing",
     max_retries=3,
     default_retry_delay=60,
@@ -425,60 +489,17 @@ def sync_f29_pdfs_missing(
     try:
         # Import dependencies
         import asyncio
-        from uuid import UUID
         from app.dependencies import get_background_db
         from app.services.sii import SIIService
-        from app.db.models.session import Session
-        from sqlalchemy import select
 
         logger.info(
             f"🚀 [CELERY TASK] F29 PDF download started: "
             f"session_id={session_id}, company_id={company_id}, max={max_per_company}"
         )
 
-        # Delegate to service layer - USE SINGLE DB SESSION for entire task
+        # Delegate ALL logic to service layer
         async def _download_pdfs():
-            nonlocal session_id
-
             async with get_background_db() as db:
-                # If company_id is provided but not session_id, find the most recent active session
-                if company_id and not session_id:
-                    logger.info(
-                        f"🔍 [CELERY TASK] Finding most recent active session for company {company_id}"
-                    )
-                    result = await db.execute(
-                        select(Session.id)
-                        .where(Session.company_id == UUID(company_id))
-                        .where(Session.is_active == True)
-                        .order_by(Session.last_accessed_at.desc())
-                        .limit(1)
-                    )
-                    session_row = result.first()
-                    if session_row:
-                        session_id = str(session_row[0])
-                        logger.info(f"✅ [CELERY TASK] Found session {session_id} for company {company_id}")
-                    else:
-                        error_msg = f"No active session found for company {company_id}"
-                        logger.error(f"❌ [CELERY TASK] {error_msg}")
-                        return {
-                            "success": False,
-                            "error": error_msg,
-                            "company_id": company_id,
-                            "session_id": None
-                        }
-
-                # Ensure we have a session_id at this point
-                if not session_id:
-                    error_msg = "Either session_id or company_id must be provided"
-                    logger.error(f"❌ [CELERY TASK] {error_msg}")
-                    return {
-                        "success": False,
-                        "error": error_msg,
-                        "company_id": company_id,
-                        "session_id": None
-                    }
-
-                # Initialize service with the same DB session
                 service = SIIService(db)
                 return await service.download_f29_pdfs_for_session(
                     session_id=session_id,
@@ -489,24 +510,18 @@ def sync_f29_pdfs_missing(
         # Run async function in sync context
         result = asyncio.run(_download_pdfs())
 
-        # Handle error results
-        if not result.get("success"):
-            return result
+        # Log result
+        if result.get("success"):
+            logger.info(
+                f"✅ [CELERY TASK] F29 PDF download completed: "
+                f"downloaded={result['downloaded']}, failed={result['failed']}"
+            )
+        else:
+            logger.error(
+                f"❌ [CELERY TASK] F29 PDF download failed: {result.get('error')}"
+            )
 
-        logger.info(
-            f"✅ [CELERY TASK] F29 PDF download completed: "
-            f"downloaded={result['downloaded']}, failed={result['failed']}"
-        )
-
-        return {
-            "success": True,
-            "company_id": result["company_id"],
-            "session_id": session_id,
-            "total_pending": result["total_pending"],
-            "downloaded": result["downloaded"],
-            "failed": result["failed"],
-            "errors": result["errors"]
-        }
+        return result
 
     except SIIUnavailableException as e:
         logger.warning(f"⚠️ [CELERY TASK] SII unavailable, will retry: {e}")
@@ -518,7 +533,11 @@ def sync_f29_pdfs_missing(
             "success": False,
             "error": str(e),
             "company_id": company_id,
-            "session_id": session_id
+            "session_id": session_id,
+            "total_pending": 0,
+            "downloaded": 0,
+            "failed": 0,
+            "errors": []
         }
 
 

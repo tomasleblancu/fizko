@@ -89,8 +89,10 @@ class BoletasMethods(F29Methods):
             # DV debe estar en mayúscula
             dv = dv.upper()
 
-            # Obtener cookies (hace login automáticamente si es necesario)
-            # Mismo patrón que get_compras() y get_ventas()
+            # Verificar y refrescar sesión si es necesario
+            self.verify_session()
+
+            # Obtener cookies validadas
             cookies = self.get_cookies()
 
             logger.info(f"💼 Obteniendo boletas de honorarios para {mes}/{anio} (página {pagina})...")

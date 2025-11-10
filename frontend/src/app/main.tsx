@@ -8,7 +8,8 @@ import { ProtectedRoute } from "./providers/ProtectedRoute";
 import { HomePage } from "@/pages/home";
 import { TermsOfService, PrivacyPolicy } from "@/pages/legal";
 import { SIIConnectionPage, CompanySetupPage } from "@/pages/onboarding";
-import CompaniesListPage from "@/features/admin/companies/pages/CompaniesListPage";
+import AdminDashboard from "@/features/admin/dashboard/pages/AdminDashboard";
+import CompaniesTablePage from "@/features/admin/companies/pages/CompaniesTablePage";
 import CompanyDetailPage from "@/features/admin/companies/pages/CompanyDetailPage";
 import EventTemplatesPage from "@/features/admin/calendar/pages/EventTemplatesPage";
 import NotificationTemplatesPage from "@/features/admin/notifications/pages/NotificationTemplatesPage";
@@ -52,7 +53,8 @@ createRoot(container).render(
             <Route path="/onboarding/setup" element={<ProtectedRoute><CompanySetupPage /></ProtectedRoute>} />
 
             {/* Admin routes - require auth */}
-            <Route path="/admin" element={<ProtectedRoute><CompaniesListPage /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/companies" element={<ProtectedRoute><CompaniesTablePage /></ProtectedRoute>} />
             <Route path="/admin/company/:companyId" element={<ProtectedRoute><CompanyDetailPage /></ProtectedRoute>} />
             <Route path="/admin/event-templates" element={<ProtectedRoute><EventTemplatesPage /></ProtectedRoute>} />
             <Route path="/admin/notification-templates" element={<ProtectedRoute><NotificationTemplatesPage /></ProtectedRoute>} />

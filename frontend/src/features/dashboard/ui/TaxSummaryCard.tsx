@@ -286,6 +286,17 @@ export function TaxSummaryCard({ taxSummary, loading, scheme, isCompact = false,
                   {formatCurrency(taxSummary.monthly_tax)}
                 </div>
               </div>
+              {/* Pagar button */}
+              <button
+                onClick={() => {
+                  // TODO: Implement payment logic
+                  console.log('Pagar clicked for period:', periodString);
+                }}
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+              >
+                <Receipt className="h-4 w-4" />
+                Pagar
+              </button>
             </div>
 
             {/* Toggle button in top-right corner */}

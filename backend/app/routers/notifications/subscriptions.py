@@ -3,15 +3,32 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.database import get_db
 from ...dependencies import get_current_user_id
-from ...repositories import NotificationTemplateRepository, NotificationSubscriptionRepository
-from ...db.models import NotificationSubscription
+from ...services.notifications.modules import SubscriptionService
+from ...services.whatsapp.service import WhatsAppService
 
 router = APIRouter()
+
+
+def get_subscription_service(
+    db: AsyncSession = Depends(get_db)
+) -> SubscriptionService:
+    """
+    Dependency to get SubscriptionService instance.
+
+    Args:
+        db: Database session from dependency injection
+
+    Returns:
+        SubscriptionService instance
+    """
+    # SubscriptionService needs a WhatsAppService instance
+    whatsapp_service = WhatsAppService(db)
+    return SubscriptionService(whatsapp_service)
 
 
 # ============================================================================
@@ -22,7 +39,8 @@ router = APIRouter()
 async def get_company_notification_subscriptions(
     company_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: UUID = Depends(get_current_user_id)
+    current_user: UUID = Depends(get_current_user_id),
+    service: SubscriptionService = Depends(get_subscription_service)
 ):
     """
     Obtener todas las suscripciones de notificaciones de una empresa.
@@ -30,9 +48,7 @@ async def get_company_notification_subscriptions(
     Returns:
         Dict with list of subscriptions including template information
     """
-    subscription_repo = NotificationSubscriptionRepository(db)
-
-    subscriptions = await subscription_repo.find_by_company_with_templates(company_id)
+    subscriptions = await service.get_company_subscriptions_with_templates(db, company_id)
 
     subscriptions_data = []
     for subscription, template in subscriptions:
@@ -65,7 +81,8 @@ async def create_company_notification_subscription(
     custom_timing_config: Optional[dict] = Body(None),
     custom_message_template: Optional[str] = Body(None),
     db: AsyncSession = Depends(get_db),
-    current_user: UUID = Depends(get_current_user_id)
+    current_user: UUID = Depends(get_current_user_id),
+    service: SubscriptionService = Depends(get_subscription_service)
 ):
     """
     Crear una nueva suscripción de notificación para una empresa.
@@ -84,37 +101,14 @@ async def create_company_notification_subscription(
         404: Template not found
         400: Subscription already exists
     """
-    template_repo = NotificationTemplateRepository(db)
-    subscription_repo = NotificationSubscriptionRepository(db)
-
-    # Verificar que el template existe
-    template = await template_repo.get(notification_template_id)
-    if not template:
-        raise HTTPException(status_code=404, detail="Template de notificación no encontrado")
-
-    # Verificar si ya existe una suscripción
-    existing = await subscription_repo.find_by_company_and_template(
+    created = await service.create_subscription(
+        db=db,
         company_id=company_id,
         template_id=notification_template_id,
-        enabled_only=False
-    )
-
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail="Ya existe una suscripción a este template para esta empresa"
-        )
-
-    # Crear suscripción
-    subscription = NotificationSubscription(
-        company_id=company_id,
-        notification_template_id=notification_template_id,
         is_enabled=is_enabled,
         custom_timing_config=custom_timing_config,
-        custom_message_template=custom_message_template
+        custom_message_template=custom_message_template,
     )
-
-    created = await subscription_repo.create(subscription)
 
     return {
         "data": {
@@ -137,7 +131,8 @@ async def update_company_notification_subscription(
     custom_timing_config: Optional[dict] = Body(None),
     custom_message_template: Optional[str] = Body(None),
     db: AsyncSession = Depends(get_db),
-    current_user: UUID = Depends(get_current_user_id)
+    current_user: UUID = Depends(get_current_user_id),
+    service: SubscriptionService = Depends(get_subscription_service)
 ):
     """
     Actualizar una suscripción de notificación.
@@ -155,25 +150,14 @@ async def update_company_notification_subscription(
     Raises:
         404: Subscription not found
     """
-    subscription_repo = NotificationSubscriptionRepository(db)
-
-    subscription = await subscription_repo.find_by_company_and_subscription_id(
+    updated = await service.update_subscription(
+        db=db,
         company_id=company_id,
-        subscription_id=subscription_id
+        subscription_id=subscription_id,
+        is_enabled=is_enabled,
+        custom_timing_config=custom_timing_config,
+        custom_message_template=custom_message_template,
     )
-
-    if not subscription:
-        raise HTTPException(status_code=404, detail="Suscripción no encontrada")
-
-    # Actualizar campos
-    if is_enabled is not None:
-        subscription.is_enabled = is_enabled
-    if custom_timing_config is not None:
-        subscription.custom_timing_config = custom_timing_config
-    if custom_message_template is not None:
-        subscription.custom_message_template = custom_message_template
-
-    updated = await subscription_repo.update(subscription)
 
     return {
         "data": {
@@ -192,7 +176,8 @@ async def delete_company_notification_subscription(
     company_id: UUID,
     subscription_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: UUID = Depends(get_current_user_id)
+    current_user: UUID = Depends(get_current_user_id),
+    service: SubscriptionService = Depends(get_subscription_service)
 ):
     """
     Eliminar una suscripción de notificación.
@@ -207,16 +192,10 @@ async def delete_company_notification_subscription(
     Raises:
         404: Subscription not found
     """
-    subscription_repo = NotificationSubscriptionRepository(db)
-
-    subscription = await subscription_repo.find_by_company_and_subscription_id(
+    await service.delete_subscription(
+        db=db,
         company_id=company_id,
-        subscription_id=subscription_id
+        subscription_id=subscription_id,
     )
-
-    if not subscription:
-        raise HTTPException(status_code=404, detail="Suscripción no encontrada")
-
-    await subscription_repo.delete(subscription_id)
 
     return {"message": "Suscripción eliminada exitosamente"}

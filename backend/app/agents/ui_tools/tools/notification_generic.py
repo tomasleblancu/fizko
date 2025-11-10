@@ -48,6 +48,32 @@ class NotificationGenericTool(BaseUITool):
     def domain(self) -> str:
         return "notifications"
 
+    @property
+    def agent_instructions(self) -> str:
+        """Instrucciones específicas cuando el usuario responde a una notificación genérica."""
+        return """
+## 💡 INSTRUCCIONES: Notificación Genérica
+
+El usuario está respondiendo a una notificación del sistema (no tiene un tool especializado).
+
+**Tu objetivo:**
+- Ayuda al usuario con el tema mencionado en la notificación
+- Considera que el usuario ya recibió información básica en la notificación
+- Si la notificación menciona una entidad específica (documento, evento), enfócate en eso
+
+**Formato de respuesta:**
+- Reconoce que viste su respuesta a la notificación
+- Ofrece ayuda específica según el tipo de notificación
+- Pregunta qué necesita o qué acción quiere tomar
+
+**Evita:**
+- Repetir exactamente lo que decía la notificación
+- Hablar de temas no relacionados con la notificación
+- Asumir contexto que no está en la información cargada
+
+**NOTA:** Esta es una notificación genérica. Si tiene entity_type y entity_id, puedes ofrecer ver más detalles usando herramientas específicas si el usuario lo solicita.
+""".strip()
+
     async def process(self, context: UIToolContext) -> UIToolResult:
         """
         Process generic notification interaction.

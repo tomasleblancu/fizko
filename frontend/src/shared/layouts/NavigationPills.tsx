@@ -1,8 +1,8 @@
 import clsx from 'clsx';
-import { Home, Users, Settings, BookUser } from 'lucide-react';
+import { Home, Users, Settings, BookUser, FileText } from 'lucide-react';
 import type { ColorScheme } from "@/shared/hooks/useColorScheme";
 
-export type ViewType = 'dashboard' | 'contacts' | 'personnel' | 'settings';
+export type ViewType = 'dashboard' | 'contacts' | 'personnel' | 'forms' | 'settings';
 
 interface NavigationPillsProps {
   currentView: ViewType;
@@ -13,6 +13,7 @@ interface NavigationPillsProps {
 export function NavigationPills({ currentView, onNavigate, scheme }: NavigationPillsProps) {
   const pills = [
     { id: 'dashboard' as const, icon: Home, label: 'Dashboard', ariaLabel: 'Dashboard' },
+    { id: 'forms' as const, icon: FileText, label: 'Formularios', ariaLabel: 'Formularios' },
     { id: 'contacts' as const, icon: BookUser, label: 'Contactos', ariaLabel: 'Contactos' },
     { id: 'personnel' as const, icon: Users, label: 'Colaboradores', ariaLabel: 'Colaboradores' },
     { id: 'settings' as const, icon: Settings, label: 'Configuración', ariaLabel: 'Configuración' },
@@ -23,6 +24,7 @@ export function NavigationPills({ currentView, onNavigate, scheme }: NavigationP
       {pills.map((pill) => {
         const Icon = pill.icon;
         const isActive = currentView === pill.id;
+        const isHome = pill.id === 'dashboard';
 
         return (
           <button
@@ -30,8 +32,10 @@ export function NavigationPills({ currentView, onNavigate, scheme }: NavigationP
             onClick={() => onNavigate(pill.id)}
             disabled={isActive}
             className={clsx(
-              'rounded-md p-2 transition-all duration-200 ease-in-out',
+              'rounded-md transition-all duration-200 ease-in-out',
               'transform active:scale-95',
+              // Home button takes more space
+              isHome ? 'px-6 py-2' : 'p-2',
               isActive
                 ? 'bg-white text-emerald-600 shadow-sm cursor-default dark:bg-slate-900 dark:text-emerald-400 scale-100'
                 : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 hover:scale-105 dark:text-slate-300 dark:hover:bg-slate-700/50 dark:hover:text-slate-100'

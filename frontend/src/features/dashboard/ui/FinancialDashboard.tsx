@@ -20,11 +20,12 @@ interface FinancialDashboardProps {
   onThemeChange?: (scheme: ColorScheme) => void;
   onNavigateToSettings?: () => void;
   onNavigateToContacts?: () => void;
+  onNavigateToForms?: () => void;
   onNavigateToPersonnel?: () => void;
   currentView?: ViewType;
 }
 
-export function FinancialDashboard({ scheme, companyId, isInDrawer = false, company, onThemeChange, onNavigateToSettings, onNavigateToContacts, onNavigateToPersonnel, currentView = 'dashboard' }: FinancialDashboardProps) {
+export function FinancialDashboard({ scheme, companyId, isInDrawer = false, company, onThemeChange, onNavigateToSettings, onNavigateToContacts, onNavigateToForms, onNavigateToPersonnel, currentView = 'dashboard' }: FinancialDashboardProps) {
   // Company is now passed as prop to avoid multiple fetches
   const [isDocumentsExpanded, setIsDocumentsExpanded] = useState(false);
 
@@ -67,9 +68,10 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
   // Handle navigation
   const handleNavigate = useCallback((view: ViewType) => {
     if (view === 'contacts' && onNavigateToContacts) onNavigateToContacts();
+    if (view === 'forms' && onNavigateToForms) onNavigateToForms();
     if (view === 'personnel' && onNavigateToPersonnel) onNavigateToPersonnel();
     if (view === 'settings' && onNavigateToSettings) onNavigateToSettings();
-  }, [onNavigateToContacts, onNavigateToPersonnel, onNavigateToSettings]);
+  }, [onNavigateToContacts, onNavigateToForms, onNavigateToPersonnel, onNavigateToSettings]);
 
   const hasError = docsError || calendarError || prevError || currentError;
   // Synchronize loading states: wait for ALL data to be ready before showing content

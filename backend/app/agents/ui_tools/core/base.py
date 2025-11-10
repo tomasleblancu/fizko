@@ -108,6 +108,31 @@ class BaseUITool(ABC):
         """
         return "general"
 
+    @property
+    def agent_instructions(self) -> str:
+        """
+        Instrucciones específicas para el agente cuando este UI component es activado.
+
+        Estas instrucciones complementan las instrucciones generales del agente (en .md)
+        con contexto específico del componente UI que disparó la conversación.
+
+        **Propósito:**
+        - Guiar el comportamiento del agente según el contexto UI
+        - Indicar qué herramientas usar/evitar
+        - Definir el tono y formato de respuesta apropiado
+        - Especificar próximos pasos sugeridos
+
+        **Ejemplos de uso:**
+        - "El usuario está viendo un contacto específico, enfócate en ese contacto"
+        - "Ya se cargó toda la info de IVA, NO llames herramientas adicionales"
+        - "El usuario viene de una notificación, contextualiza tu respuesta"
+
+        Returns:
+            Instrucciones en texto plano o markdown, o string vacío si no hay
+            instrucciones específicas para este componente.
+        """
+        return ""  # Default: sin instrucciones específicas
+
     @abstractmethod
     async def process(self, context: UIToolContext) -> UIToolResult:
         """

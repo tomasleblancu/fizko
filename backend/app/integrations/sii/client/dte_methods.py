@@ -42,7 +42,10 @@ class DTEMethods(ContribuyenteMethods):
         if not self._dte_extractor:
             self._dte_extractor = DTEExtractor(tax_id=self.tax_id)
 
-        # Obtener cookies (hacer login si es necesario)
+        # Verificar y refrescar sesión si es necesario
+        self.verify_session()
+
+        # Obtener cookies validadas
         cookies = self.get_cookies()
 
         return self._dte_extractor.extract_compras(periodo, tipo_doc, cookies)
@@ -69,7 +72,10 @@ class DTEMethods(ContribuyenteMethods):
         if not self._dte_extractor:
             self._dte_extractor = DTEExtractor(tax_id=self.tax_id)
 
-        # Obtener cookies (hacer login si es necesario)
+        # Verificar y refrescar sesión si es necesario
+        self.verify_session()
+
+        # Obtener cookies validadas
         cookies = self.get_cookies()
 
         return self._dte_extractor.extract_ventas(periodo, tipo_doc, cookies)
@@ -91,7 +97,10 @@ class DTEMethods(ContribuyenteMethods):
         if not self._dte_extractor:
             self._dte_extractor = DTEExtractor(tax_id=self.tax_id)
 
-        # Obtener cookies (hacer login si es necesario)
+        # Verificar y refrescar sesión si es necesario
+        self.verify_session()
+
+        # Obtener cookies validadas
         cookies = self.get_cookies()
 
         return self._dte_extractor.extract_resumen(periodo, cookies)
@@ -118,7 +127,10 @@ class DTEMethods(ContribuyenteMethods):
         if not self._dte_extractor:
             self._dte_extractor = DTEExtractor(tax_id=self.tax_id)
 
-        # Obtener cookies (hacer login si es necesario)
+        # Verificar y refrescar sesión si es necesario
+        self.verify_session()
+
+        # Obtener cookies validadas
         cookies = self.get_cookies()
 
         return self._dte_extractor.extract_boletas_diarias(periodo, tipo_doc, cookies)

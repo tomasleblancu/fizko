@@ -47,6 +47,30 @@ class TaxCalendarEventTool(BaseUITool):
     def domain(self) -> str:
         return "tax_calendar"
 
+    @property
+    def agent_instructions(self) -> str:
+        """Instrucciones específicas cuando el usuario ve un evento del calendario tributario."""
+        return """
+## 💡 INSTRUCCIONES: Evento del Calendario Tributario
+
+El usuario está viendo los detalles de una obligación tributaria específica (F29, F50, etc.).
+
+**Tu objetivo:**
+- Responde de forma **breve y directa** sobre esta obligación específica
+- **NO llames herramientas adicionales** para buscar este evento - toda la info ya está arriba
+- Enfócate en el estado actual y próximos pasos
+
+**Formato de respuesta:**
+- Inicia con el estado de la obligación (pendiente, completada, próxima)
+- Si pregunta cómo cumplir, explica los pasos generales según el tipo
+- Termina preguntando si necesita ayuda para cumplir con esta obligación
+
+**Evita:**
+- Buscar información que ya está en el contexto
+- Explicaciones largas sobre legislación tributaria
+- Hablar de otras obligaciones no relacionadas con este evento
+""".strip()
+
     async def process(self, context: UIToolContext) -> UIToolResult:
         """Process tax calendar event interaction and load relevant data."""
 
@@ -385,16 +409,5 @@ class TaxCalendarEventTool(BaseUITool):
 
             if event_data["total_history_entries"] > 5:
                 lines.append(f"  _... y {event_data['total_history_entries'] - 5} entradas más_")
-
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-        lines.append("💡 **INSTRUCCIONES PARA EL AGENTE:**")
-        lines.append("- Responde de forma **breve y directa** con la información clave de esta obligación tributaria")
-        lines.append("- **NO llames a herramientas adicionales** para buscar este evento - toda la información necesaria ya está arriba")
-        lines.append("- Si el usuario pregunta cómo cumplir con esta obligación, explica los pasos generales según el tipo de obligación")
-        lines.append("- Si el usuario pregunta por el estado, explica claramente el estado actual y qué debe hacer")
-        lines.append("- Termina tu respuesta preguntando al usuario si necesita ayuda para cumplir con esta obligación")
-        lines.append("")
 
         return "\n".join(lines)

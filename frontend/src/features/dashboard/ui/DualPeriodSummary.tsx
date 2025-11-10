@@ -143,6 +143,22 @@ export function DualPeriodSummary({
     uiComponent: 'tax_summary_expenses',
   });
 
+  // Chateable click handler for Pay button
+  const payClickProps = useChateableClick({
+    message: previousMonth
+      ? `Ayúdame a pagar mi F29 de ${formatCurrency(previousMonth.monthly_tax)} del período ${previousPeriodString}`
+      : '',
+    contextData: previousMonth ? {
+      amount: previousMonth.monthly_tax,
+      period: previousPeriodString,
+      type: 'payment',
+    } : {},
+    disabled: !previousMonth,
+    uiComponent: 'pay_latest_f29',
+    entityId: previousMonth?.period_start || '',
+    entityType: 'tax_period',
+  });
+
   if (loading) {
     return (
       <div className={clsx(
@@ -297,11 +313,11 @@ export function DualPeriodSummary({
               </p>
             </div>
 
-            {/* Revenue & Expenses */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Revenue, Expenses & Pay Button - All in one row */}
+            <div className="flex items-stretch gap-2">
               <div
                 {...prevRevenueClickProps}
-                className="chateable-element rounded-lg bg-white/40 p-2 dark:bg-slate-900/20"
+                className="chateable-element flex-1 rounded-lg bg-white/40 p-2 dark:bg-slate-900/20"
               >
                 <p className="text-xs text-slate-600 dark:text-slate-400">Ventas</p>
                 <p className="mt-0.5 text-xs font-semibold text-slate-900 dark:text-slate-100">
@@ -310,13 +326,21 @@ export function DualPeriodSummary({
               </div>
               <div
                 {...prevExpensesClickProps}
-                className="chateable-element rounded-lg bg-white/40 p-2 dark:bg-slate-900/20"
+                className="chateable-element flex-1 rounded-lg bg-white/40 p-2 dark:bg-slate-900/20"
               >
                 <p className="text-xs text-slate-600 dark:text-slate-400">Gastos</p>
                 <p className="mt-0.5 text-xs font-semibold text-slate-900 dark:text-slate-100">
                   {formatCurrency(previousMonth.total_expenses)}
                 </p>
               </div>
+              {/* Pagar button - inline with Ventas and Gastos */}
+              <button
+                {...payClickProps}
+                className="flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-orange-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1 dark:bg-orange-500 dark:hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Receipt className="h-4 w-4" />
+                <span>Pagar</span>
+              </button>
             </div>
           </div>
         ) : (

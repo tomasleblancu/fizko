@@ -45,6 +45,29 @@ class TaxSummaryRevenueTool(BaseUITool):
     def domain(self) -> str:
         return "financials"
 
+    @property
+    def agent_instructions(self) -> str:
+        """Instrucciones específicas cuando el usuario ve el resumen de ingresos."""
+        return """
+## 💡 INSTRUCCIONES: Resumen de Ingresos
+
+El usuario está viendo el desglose de sus ingresos/ventas del período.
+
+**Tu objetivo:**
+- Responde de forma **breve y directa** con insights sobre los ingresos
+- **NO llames herramientas adicionales** - toda la información ya está cargada
+- Si no hay documentos, informa brevemente y sugiere próximos pasos
+
+**Formato de respuesta:**
+- 2-3 líneas con el resumen clave (total, principales clientes, tendencias)
+- Termina preguntando qué le gustaría saber sobre estos ingresos
+
+**Evita:**
+- Buscar documentos adicionales
+- Explicaciones largas sobre contabilidad
+- Repetir números que ya están visibles
+""".strip()
+
     async def process(self, context: UIToolContext) -> UIToolResult:
         """Process revenue summary interaction and load relevant data."""
 
@@ -335,20 +358,4 @@ class TaxSummaryRevenueTool(BaseUITool):
                 )
             lines.append("")
 
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-
-        if revenue_data["total_documents"] == 0:
-            lines.append("💡 **INSTRUCCIONES PARA EL AGENTE:**")
-            lines.append("- Informa de forma breve que no hay documentos de venta para este período")
-            lines.append("- **NO llames a herramientas adicionales**")
-            lines.append("- Pregunta al usuario qué le gustaría saber sobre los ingresos")
-        else:
-            lines.append("💡 **INSTRUCCIONES PARA EL AGENTE:**")
-            lines.append("- Responde de forma **breve y directa** con el resumen de ingresos del período")
-            lines.append("- **NO llames a herramientas adicionales** - toda la información necesaria ya está arriba")
-            lines.append("- Termina tu respuesta preguntando al usuario qué le gustaría saber sobre estos ingresos")
-
-        lines.append("")
         return "\n".join(lines)

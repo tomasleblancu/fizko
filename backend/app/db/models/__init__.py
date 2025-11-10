@@ -20,6 +20,7 @@ from .chat import ChatKitAttachment, Conversation, Message
 from .company import Company, CompanyTaxInfo, CompanySettings
 from .contact import Contact
 from .documents import PurchaseDocument, SalesDocument
+from .expenses import Expense, ExpenseCategory, ExpenseStatus
 from .form29 import Form29
 from .honorarios import HonorariosReceipt
 from .form29_sii_download import Form29SIIDownload
@@ -67,6 +68,10 @@ __all__ = [
     "PurchaseDocument",
     "SalesDocument",
     "HonorariosReceipt",
+    # Expenses
+    "Expense",
+    "ExpenseCategory",
+    "ExpenseStatus",
     # Form29
     "Form29",
     "Form29SIIDownload",

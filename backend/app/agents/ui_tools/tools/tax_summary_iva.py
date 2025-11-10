@@ -47,6 +47,34 @@ class TaxSummaryIVATool(BaseUITool):
     def domain(self) -> str:
         return "tax_compliance"
 
+    @property
+    def agent_instructions(self) -> str:
+        """Instrucciones específicas cuando el usuario ve el cálculo de IVA."""
+        return """
+## 💡 INSTRUCCIONES: Cálculo de Impuesto Mensual
+
+El usuario está viendo el desglose del cálculo de impuesto mensual (IVA).
+
+**Contexto:**
+- Ya se mostró un widget interactivo con el desglose completo del cálculo
+- Toda la información de ventas, compras, y otros impuestos ya está cargada
+
+**Tu objetivo:**
+- Explica BREVEMENTE (máximo 2 líneas) el resultado del cálculo
+- **NO repitas** los números que ya están en el widget
+- **NO llames herramientas adicionales** - toda la info está arriba
+- Si hay crédito a favor o impuesto a pagar, explica qué significa
+
+**Formato de respuesta:**
+- 1-2 líneas con insight clave (ej: "Tienes un impuesto a pagar de $X porque...")
+- Pregunta si necesita más detalles o tiene dudas sobre el cálculo
+
+**Evita:**
+- Repetir el desglose completo del cálculo
+- Explicaciones largas de conceptos que ya están en el widget
+- Llamar herramientas de búsqueda de documentos
+""".strip()
+
     async def process(self, context: UIToolContext) -> UIToolResult:
         """Process IVA summary interaction and load relevant data."""
 
@@ -378,23 +406,6 @@ class TaxSummaryIVATool(BaseUITool):
             "- El crédito del mes anterior se obtiene del código 077 (remanente) del F29 del mes anterior.",
             "- Si el balance de IVA es negativo, significa que hay un remanente a favor que se arrastra al próximo mes.",
             "- El PPM se calcula automáticamente como 0.125% de las ventas totales.",
-            "",
         ])
 
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-
-        lines.append("💡 **INSTRUCCIONES PARA EL AGENTE:**")
-        if iva_data["total_documents"] == 0:
-            lines.append("- Informa de forma breve que no hay documentos para este período")
-            lines.append("- Pregunta al usuario qué le gustaría saber sobre el impuesto mensual")
-        else:
-            lines.append("- Ya se mostró el widget con el desglose del cálculo arriba")
-            lines.append("- Responde en máximo 2 líneas explicando brevemente el resultado")
-            lines.append("- NO repitas los números que ya están en el widget")
-            lines.append("- Termina preguntando si quiere más detalles")
-        lines.append("- **NO llames a herramientas adicionales**")
-
-        lines.append("")
         return "\n".join(lines)

@@ -14,6 +14,7 @@ from .base import Base
 
 if TYPE_CHECKING:
     from .chat import Conversation, Message
+    from .expenses import Expense
     from .session import Session
 
 
@@ -68,4 +69,18 @@ class Profile(Base):
     # Brain (Memory) relationship
     brain_memories: Mapped[list["UserBrain"]] = relationship(
         "UserBrain", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    # Expenses relationships
+    expenses_created: Mapped[list["Expense"]] = relationship(
+        "Expense",
+        foreign_keys="Expense.created_by_user_id",
+        back_populates="created_by",
+        cascade="all, delete-orphan"
+    )
+    expenses_approved: Mapped[list["Expense"]] = relationship(
+        "Expense",
+        foreign_keys="Expense.approved_by_user_id",
+        back_populates="approved_by",
+        cascade="all, delete-orphan"
     )

@@ -16,12 +16,13 @@ interface ContactsProps {
   company: Company | null;
   onThemeChange?: (scheme: ColorScheme) => void;
   onNavigateToDashboard?: () => void;
+  onNavigateToForms?: () => void;
   onNavigateToSettings?: () => void;
   onNavigateToPersonnel?: () => void;
   currentView?: ViewType;
 }
 
-export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToDashboard, onNavigateToSettings, onNavigateToPersonnel, currentView = 'contacts' }: ContactsProps) {
+export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToDashboard, onNavigateToForms, onNavigateToSettings, onNavigateToPersonnel, currentView = 'contacts' }: ContactsProps) {
   const { data: contacts = [], isLoading: loading, error } = useContactsQuery(company?.id);
   const [filter, setFilter] = useState<'all' | 'provider' | 'client' | 'both'>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,9 +30,10 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
   // Handle navigation
   const handleNavigate = useCallback((view: ViewType) => {
     if (view === 'dashboard' && onNavigateToDashboard) onNavigateToDashboard();
+    if (view === 'forms' && onNavigateToForms) onNavigateToForms();
     if (view === 'personnel' && onNavigateToPersonnel) onNavigateToPersonnel();
     if (view === 'settings' && onNavigateToSettings) onNavigateToSettings();
-  }, [onNavigateToDashboard, onNavigateToPersonnel, onNavigateToSettings]);
+  }, [onNavigateToDashboard, onNavigateToForms, onNavigateToPersonnel, onNavigateToSettings]);
 
   const filteredContacts = contacts.filter(contact => {
     const matchesFilter = filter === 'all' || contact.contact_type === filter || contact.contact_type === 'both';

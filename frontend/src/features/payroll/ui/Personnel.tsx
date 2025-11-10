@@ -18,6 +18,7 @@ interface PersonnelProps {
   onThemeChange?: (scheme: ColorScheme) => void;
   onNavigateToDashboard?: () => void;
   onNavigateToContacts?: () => void;
+  onNavigateToForms?: () => void;
   onNavigateToSettings?: () => void;
   currentView?: ViewType;
 }
@@ -30,6 +31,7 @@ export function Personnel({
   onThemeChange,
   onNavigateToDashboard,
   onNavigateToContacts,
+  onNavigateToForms,
   onNavigateToSettings,
   currentView = 'personnel',
 }: PersonnelProps) {
@@ -39,8 +41,9 @@ export function Personnel({
   const handleNavigate = useCallback((view: ViewType) => {
     if (view === 'dashboard' && onNavigateToDashboard) onNavigateToDashboard();
     if (view === 'contacts' && onNavigateToContacts) onNavigateToContacts();
+    if (view === 'forms' && onNavigateToForms) onNavigateToForms();
     if (view === 'settings' && onNavigateToSettings) onNavigateToSettings();
-  }, [onNavigateToDashboard, onNavigateToContacts, onNavigateToSettings]);
+  }, [onNavigateToDashboard, onNavigateToContacts, onNavigateToForms, onNavigateToSettings]);
 
   const tabs = [
     { id: 'employees' as const, icon: Users, label: 'Empleados' },

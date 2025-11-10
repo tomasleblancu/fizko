@@ -14,8 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..specialized import (
     create_general_knowledge_agent,
     create_tax_documents_agent,
+    create_monthly_taxes_agent,
     create_payroll_agent,
     create_settings_agent,
+    create_expense_agent,
 )
 from ..supervisor_agent import create_supervisor_agent
 from ..core.subscription_guard import SubscriptionGuard
@@ -42,6 +44,7 @@ class MultiAgentOrchestrator:
     Architecture:
         Supervisor (gpt-4o-mini) → General Knowledge (gpt-5-nano)
                                  → Tax Documents (gpt-5-nano)
+                                 → F29 (gpt-5-nano)
                                  → Payroll (gpt-5-nano)
                                  → Settings (gpt-5-nano)
     """
@@ -78,7 +81,7 @@ class MultiAgentOrchestrator:
         if not self.company_id:
             # No company_id: allow all agents (e.g., anonymous users, testing)
             logger.info("⚠️  No company_id provided, allowing access to all agents")
-            return ["general_knowledge", "tax_documents", "payroll", "settings"]
+            return ["general_knowledge", "tax_documents", "f29", "payroll", "settings", "expense"]
 
         # Check subscription access
         guard = SubscriptionGuard(self.db)
@@ -122,6 +125,13 @@ class MultiAgentOrchestrator:
             )
             logger.debug("✅ Created tax_documents_agent")
 
+        if "f29" in self._available_agents:
+            self.agents["monthly_taxes_agent"] = create_monthly_taxes_agent(
+                db=self.db, openai_client=self.openai_client,
+                vector_store_ids=self.vector_store_ids
+            )
+            logger.debug("✅ Created monthly_taxes_agent")
+
         if "payroll" in self._available_agents:
             self.agents["payroll_agent"] = create_payroll_agent(
                 db=self.db, openai_client=self.openai_client, channel=self.channel
@@ -135,6 +145,12 @@ class MultiAgentOrchestrator:
                 db=self.db, openai_client=self.openai_client
             )
             logger.debug("✅ Created settings_agent")
+
+        if "expense" in self._available_agents:
+            self.agents["expense_agent"] = create_expense_agent(
+                db=self.db, openai_client=self.openai_client
+            )
+            logger.debug("✅ Created expense_agent")
 
         # Configure handoffs (only for available agents)
         self._configure_supervisor_handoffs()
@@ -230,6 +246,21 @@ class MultiAgentOrchestrator:
         if td_handoff:
             handoffs_list.append(td_handoff)
 
+        # Monthly Taxes Agent
+        monthly_taxes_handoff = create_handoff_with_check(
+            agent_name="f29",
+            agent_key="monthly_taxes_agent",
+            display_name="Monthly Taxes Expert",
+            icon="📋",
+            description=(
+                "Transfer to Monthly Taxes expert for Formulario 29 questions, "
+                "F29 visualizations, explanations, and tax declarations. "
+                "Provide a brief reason for the transfer."
+            ),
+        )
+        if monthly_taxes_handoff:
+            handoffs_list.append(monthly_taxes_handoff)
+
         # Payroll (may be blocked)
         payroll_handoff = create_handoff_with_check(
             agent_name="payroll",
@@ -260,6 +291,21 @@ class MultiAgentOrchestrator:
         if settings_handoff:
             handoffs_list.append(settings_handoff)
 
+        # Expense Agent
+        expense_handoff = create_handoff_with_check(
+            agent_name="expense",
+            agent_key="expense_agent",
+            display_name="Expense Management",
+            icon="💰",
+            description=(
+                "Transfer to Expense Management expert for registering and managing "
+                "manual expenses, expense receipts, OCR extraction, and expense tracking. "
+                "Provide a brief reason for the transfer."
+            ),
+        )
+        if expense_handoff:
+            handoffs_list.append(expense_handoff)
+
         supervisor.handoffs = handoffs_list
         logger.debug(f"Configured {len(handoffs_list)} handoffs for supervisor")
 
@@ -280,7 +326,7 @@ class MultiAgentOrchestrator:
 
         # Add return-to-supervisor handoff to each specialized agent (only if created)
         # Disabled by default to prevent unnecessary handoffs
-        for agent_name in ["general_knowledge_agent", "tax_documents_agent", "payroll_agent", "settings_agent"]:
+        for agent_name in ["general_knowledge_agent", "tax_documents_agent", "payroll_agent", "settings_agent", "expense_agent"]:
             # Skip if agent was not created (blocked by subscription)
             if agent_name not in self.agents:
                 continue
@@ -352,7 +398,7 @@ async def create_multi_agent_orchestrator(
         )
     else:
         # No company_id: allow all agents (anonymous, testing)
-        available_agents = ["general_knowledge", "tax_documents", "payroll", "settings"]
+        available_agents = ["general_knowledge", "tax_documents", "f29", "payroll", "settings", "expense"]
         logger.info("⚠️  No company_id provided, allowing all agents")
 
     return MultiAgentOrchestrator(

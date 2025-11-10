@@ -188,6 +188,23 @@ class SIIService(BaseSIIService):
             max_retries=max_retries
         )
 
+    async def list_f29_forms(
+        self,
+        company_id: Union[str, UUID],
+        form_type: Optional[str] = None,
+        year: Optional[int] = None,
+        status: Optional[str] = None,
+        pdf_status: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Lista formularios F29 con filtros - Delega a FormService"""
+        return await self._form_service.list_f29_forms(
+            company_id=company_id,
+            form_type=form_type,
+            year=year,
+            status=status,
+            pdf_status=pdf_status
+        )
+
     async def download_f29_pdfs_for_session(
         self,
         session_id: Union[str, UUID],

@@ -115,3 +115,6 @@ backend/screenshots/
 # Documentation builds
 docs/_build/
 site/
+
+# SII FAQ outputs
+backend/app/integrations/sii_faq/output/

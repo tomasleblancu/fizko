@@ -49,6 +49,37 @@ class NotificationCalendarEventTool(BaseUITool):
     def domain(self) -> str:
         return "notifications"
 
+    @property
+    def agent_instructions(self) -> str:
+        """Instrucciones específicas cuando el usuario responde a una notificación de calendario."""
+        return """
+## 💡 INSTRUCCIONES: Notificación de Evento Tributario
+
+El usuario está respondiendo a una notificación que le enviamos sobre una obligación tributaria.
+
+**Contexto importante:**
+- La notificación fue enviada automáticamente según el calendario tributario
+- El usuario espera ayuda específica con ESTE evento en particular
+- Ya conoce la fecha de vencimiento porque se la informamos en la notificación
+
+**Tu objetivo:**
+- Ayuda al usuario con la obligación específica mencionada en la notificación
+- Considera la **urgencia del vencimiento** (días restantes)
+- Si hay tareas pendientes, enfócate en esas
+- **NO llames herramientas adicionales** - toda la info está arriba
+
+**Formato de respuesta:**
+- Reconoce que viste su respuesta a la notificación
+- Enfócate en los próximos pasos concretos que debe tomar
+- Si el evento está próximo a vencer, resalta la urgencia
+- Pregunta si necesita ayuda con alguna tarea específica
+
+**Evita:**
+- Repetir información que ya está en la notificación original
+- Explicaciones largas sobre el tipo de obligación
+- Hablar de otros eventos no relacionados
+""".strip()
+
     async def process(self, context: UIToolContext) -> UIToolResult:
         """
         Process notification interaction and load calendar event context.
@@ -315,9 +346,4 @@ class NotificationCalendarEventTool(BaseUITool):
     "Ver documentos relacionados",
     "Configurar recordatorio adicional"
 ])}
-
-**IMPORTANTE:** El usuario espera ayuda específica con este evento tributario. Responde considerando:
-- La urgencia del vencimiento
-- Las tareas que faltan por completar
-- El contexto de la notificación original
 """
