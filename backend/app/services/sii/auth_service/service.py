@@ -2,9 +2,15 @@
 Servicio principal de autenticación SII
 """
 import logging
-from typing import Dict, Any
+import asyncio
+from typing import Dict, Any, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+from app.db.models import Session as SessionModel, Company
+from app.integrations.sii import SIIClient
+from app.integrations.sii.exceptions import ExtractionError
 
 from .sii_auth import authenticate_sii, extract_contribuyente_info
 from .setup import (
@@ -51,6 +57,42 @@ class SIIAuthService:
         """
         self.db = db
 
+    async def _get_existing_session_with_cookies(
+        self,
+        rut: str,
+        user_id: UUID
+    ) -> Optional[SessionModel]:
+        """
+        Busca una sesión existente para este RUT y usuario con cookies
+
+        Args:
+            rut: RUT del contribuyente
+            user_id: UUID del usuario
+
+        Returns:
+            SessionModel si existe, None si no
+        """
+        # Normalizar RUT
+        rut_normalized = rut.replace(".", "").replace("-", "").lower()
+
+        # Buscar sesión existente
+        stmt = (
+            select(SessionModel)
+            .join(Company)
+            .where(
+                Company.rut == rut_normalized,
+                SessionModel.user_id == user_id,
+                SessionModel.is_active == True
+            )
+        )
+        result = await self.db.execute(stmt)
+        session = result.scalar_one_or_none()
+
+        if session and session.cookies and session.cookies.get('sii_cookies'):
+            return session
+
+        return None
+
     async def login_and_setup(
         self,
         rut: str,
@@ -88,14 +130,67 @@ class SIIAuthService:
         profile = await ensure_profile(self.db, user_id, user_data)
         logger.info(f"[SII Auth Service] Profile ensured for user {user_id}")
 
-        # PASO 2: Autenticar con SII (solo obtener cookies - RÁPIDO)
-        auth_result = await authenticate_sii(rut, password)
-        sii_cookies = auth_result['cookies']
-        logger.info(f"[SII Auth Service] SII authentication successful for {rut} - Selenium closed")
+        # PASO 1.5: Verificar si ya existe una sesión con cookies válidas
+        sii_cookies = None
+        contribuyente_info = None
+        session_verified = False
 
-        # PASO 2.5: Extraer información del contribuyente (con cookies, sin Selenium)
-        contribuyente_info = await extract_contribuyente_info(rut, sii_cookies)
-        logger.info(f"[SII Auth Service] Contribuyente info extracted: {contribuyente_info.get('razon_social', 'N/A')}")
+        existing_session = await self._get_existing_session_with_cookies(rut, user_id)
+        if existing_session:
+            logger.info(f"[SII Auth Service] Found existing session for {rut}, verifying...")
+            old_cookies = existing_session.cookies.get('sii_cookies', [])
+
+            if old_cookies:
+                # Función sincrónica que ejecuta verify_session con Selenium
+                def _verify_session():
+                    with SIIClient(
+                        tax_id=rut,
+                        password=password,
+                        headless=True,
+                        cookies=old_cookies
+                    ) as client:
+                        # verify_session() hace:
+                        # 1. Request ligero al SII para validar cookies
+                        # 2. Si están expiradas, hace re-login automáticamente
+                        # 3. Retorna cookies actualizadas (nuevas o refrescadas)
+                        verification_result = client.verify_session()
+
+                        # Extraer contribuyente con cookies verificadas
+                        contribuyente = client.get_contribuyente()
+
+                        return {
+                            'cookies': verification_result['cookies'],
+                            'refreshed': verification_result['refreshed'],
+                            'contribuyente': contribuyente
+                        }
+
+                try:
+                    # Ejecutar verify_session en thread separado
+                    result = await asyncio.to_thread(_verify_session)
+                    sii_cookies = result['cookies']
+                    contribuyente_info = result['contribuyente']
+                    session_verified = True
+
+                    if result['refreshed']:
+                        logger.info(f"[SII Auth Service] ✅ Session was refreshed (cookies expired, re-login done) for {rut}")
+                    else:
+                        logger.info(f"[SII Auth Service] ✅ Existing session is still valid for {rut}")
+
+                except Exception as e:
+                    logger.warning(f"[SII Auth Service] ⚠️ Session verification failed: {e}. Will do fresh login.")
+                    session_verified = False
+
+        # PASO 2: Si no hay sesión válida, hacer login completo
+        if not session_verified:
+            logger.info(f"[SII Auth Service] No valid session found, performing fresh login for {rut}")
+            # Autenticar con SII (solo obtener cookies - RÁPIDO)
+            auth_result = await authenticate_sii(rut, password)
+            sii_cookies = auth_result['cookies']
+            logger.info(f"[SII Auth Service] SII authentication successful for {rut} - Selenium closed")
+
+            # PASO 2.5: Extraer información del contribuyente (con cookies, sin Selenium)
+            contribuyente_info = await extract_contribuyente_info(rut, sii_cookies)
+            logger.info(f"[SII Auth Service] Contribuyente info extracted: {contribuyente_info.get('razon_social', 'N/A')}")
 
         # Construir sii_data en el formato esperado
         sii_data = {

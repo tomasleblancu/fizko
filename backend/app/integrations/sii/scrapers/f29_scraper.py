@@ -50,44 +50,90 @@ class F29Scraper(BaseScraper):
 
     def _take_debug_screenshot(self, context: str, folio: str = "unknown") -> None:
         """
-        Toma screenshot y guarda HTML para debugging en producción
+        Toma screenshot y guarda HTML para debugging en Supabase Storage
 
         Args:
             context: Contexto del error (ej: "click_intercepted", "codint_extraction", etc.)
             folio: Folio del formulario siendo procesado
         """
         try:
-            import os
+            from app.services.storage import get_debug_storage
+            import tempfile
+
             timestamp = int(time.time())
-            screenshot_dir = "/app/screenshots"
-            os.makedirs(screenshot_dir, exist_ok=True)
-
-            # Nombres descriptivos
-            screenshot_path = f"{screenshot_dir}/f29_{context}_{folio}_{timestamp}.png"
-            html_path = f"{screenshot_dir}/f29_{context}_{folio}_{timestamp}.html"
-
-            # Screenshot
-            try:
-                self.driver.driver.save_screenshot(screenshot_path)
-                logger.error(f"📸 Screenshot guardado: {screenshot_path}")
-            except Exception as ss_error:
-                logger.warning(f"⚠️ No se pudo guardar screenshot: {ss_error}")
-
-            # HTML source
-            try:
-                with open(html_path, 'w', encoding='utf-8') as f:
-                    f.write(self.driver.driver.page_source)
-                logger.error(f"📄 HTML guardado: {html_path}")
-            except Exception as html_error:
-                logger.warning(f"⚠️ No se pudo guardar HTML: {html_error}")
+            storage = get_debug_storage()
 
             # Info adicional de contexto
+            context_info = ""
             try:
                 current_url = self.driver.driver.current_url
                 window_count = len(self.driver.driver.window_handles)
-                logger.error(f"🔍 Context: URL={current_url}, Windows={window_count}")
+                context_info = f"URL={current_url}, Windows={window_count}"
+                logger.error(f"🔍 Context: {context_info}")
             except:
                 pass
+
+            # Screenshot a Supabase
+            try:
+                # Guardar screenshot temporalmente
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                    tmp_path = tmp_file.name
+                    self.driver.driver.save_screenshot(tmp_path)
+
+                    # Leer bytes y subir a Supabase
+                    with open(tmp_path, 'rb') as f:
+                        screenshot_bytes = f.read()
+
+                    success, url, error = storage.upload_screenshot(
+                        process="f29",
+                        context=context,
+                        folio=folio,
+                        timestamp=timestamp,
+                        screenshot_bytes=screenshot_bytes
+                    )
+
+                    if success:
+                        logger.error(f"📸 Screenshot guardado en Supabase: {url}")
+                    else:
+                        logger.warning(f"⚠️ No se pudo guardar screenshot en Supabase: {error}")
+
+                    # Limpiar archivo temporal
+                    import os
+                    os.unlink(tmp_path)
+
+            except Exception as ss_error:
+                logger.warning(f"⚠️ No se pudo guardar screenshot: {ss_error}")
+
+            # HTML source a Supabase
+            try:
+                html_content = self.driver.driver.page_source
+
+                # Agregar contexto al HTML
+                html_with_context = f"""
+<!-- DEBUG CONTEXT -->
+<!-- Timestamp: {timestamp} -->
+<!-- Folio: {folio} -->
+<!-- Context: {context} -->
+<!-- Info: {context_info} -->
+
+{html_content}
+"""
+
+                success, url, error = storage.upload_html(
+                    process="f29",
+                    context=context,
+                    folio=folio,
+                    timestamp=timestamp,
+                    html_content=html_with_context
+                )
+
+                if success:
+                    logger.error(f"📄 HTML guardado en Supabase: {url}")
+                else:
+                    logger.warning(f"⚠️ No se pudo guardar HTML en Supabase: {error}")
+
+            except Exception as html_error:
+                logger.warning(f"⚠️ No se pudo guardar HTML: {html_error}")
 
         except Exception as e:
             logger.warning(f"⚠️ Error en _take_debug_screenshot: {e}")
