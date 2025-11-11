@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...db.models import Company, PurchaseDocument, SalesDocument, Form29SIIDownload
+from ...db.models import Company, PurchaseDocument, SalesDocument, Form29SIIDownload, Form29
 from ...db.models.honorarios import HonorariosReceipt
 from ...schemas.tax import TaxSummary
 
@@ -293,10 +293,16 @@ class TaxSummaryRepository:
         period_start: datetime
     ) -> Optional[float]:
         """
-        Get credit from previous month's F29 (código 077).
+        Get credit from previous month's F29 (código 077 or negative net_iva).
 
-        Looks for the "Vigente" (valid) F29 of the previous month
-        and extracts code 077 (Remanente crédito fiscal mes anterior).
+        First checks Form29 drafts (submitted/paid/confirmed), then falls back
+        to Form29SIIDownload for real SII forms.
+
+        Logic:
+        1. Search Form29 table for submitted/paid/confirmed drafts
+           - If net_iva < 0, use abs(net_iva) as credit
+        2. Fallback to Form29SIIDownload table
+           - Extract código 077 from extra_data
 
         Args:
             company_id: Company UUID
@@ -314,7 +320,25 @@ class TaxSummaryRepository:
                 prev_year = period_start.year
                 prev_month = period_start.month - 1
 
-            # Query for the "Vigente" F29 of previous month
+            # FIRST: Check Form29 drafts for confirmed/submitted/paid forms
+            draft_stmt = select(Form29).where(
+                and_(
+                    Form29.company_id == company_id,
+                    Form29.period_year == prev_year,
+                    Form29.period_month == prev_month,
+                    Form29.status.in_(['confirmed', 'submitted', 'paid'])
+                )
+            ).order_by(Form29.created_at.desc()).limit(1)
+
+            draft_result = await self.db.execute(draft_stmt)
+            draft_f29 = draft_result.scalar_one_or_none()
+
+            if draft_f29 and draft_f29.net_iva < 0:
+                # Negative net_iva means credit to carry forward
+                credit = abs(float(draft_f29.net_iva))
+                return credit
+
+            # FALLBACK: Query for the "Vigente" F29 from SII downloads
             f29_stmt = select(Form29SIIDownload).where(
                 and_(
                     Form29SIIDownload.company_id == company_id,

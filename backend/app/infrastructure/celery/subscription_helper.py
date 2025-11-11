@@ -88,7 +88,7 @@ async def get_subscribed_companies(
 
     Args:
         db: Async database session
-        only_active: If True, only return companies with is_active=True
+        only_active: Deprecated parameter (kept for backwards compatibility, no effect)
 
     Returns:
         List of tuples (company_id, business_name) for subscribed companies
@@ -102,15 +102,13 @@ async def get_subscribed_companies(
     try:
         from app.db.models import Company, Subscription
 
-        # Build query
+        # Build query - only check subscription status
+        # Note: Company.is_active field no longer exists
         stmt = (
             select(Company.id, Company.business_name)
             .join(Subscription, Company.id == Subscription.company_id)
             .where(Subscription.status.in_(["trialing", "active"]))
         )
-
-        if only_active:
-            stmt = stmt.where(Company.is_active == True)
 
         result = await db.execute(stmt)
         companies = result.all()

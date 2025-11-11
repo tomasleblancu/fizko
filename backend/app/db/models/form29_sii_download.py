@@ -118,8 +118,21 @@ class Form29SIIDownload(Base):
     company: Mapped["Company"] = relationship(
         "Company", back_populates="form29_sii_downloads"
     )
+
+    # Legacy relationship: form29_id points to local Form29 for reconciliation
     form29: Mapped[Optional["Form29"]] = relationship(
-        "Form29", back_populates="sii_download", uselist=False
+        "Form29",
+        foreign_keys=[form29_id],
+        back_populates="sii_download_legacy",
+        uselist=False
+    )
+
+    # New relationship: Form29 points back to this SII download via sii_download_id
+    linked_form29: Mapped[Optional["Form29"]] = relationship(
+        "Form29",
+        foreign_keys="Form29.sii_download_id",
+        back_populates="sii_download_link",
+        uselist=False
     )
 
     def __repr__(self) -> str:
