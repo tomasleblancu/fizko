@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ============================================================================
@@ -161,6 +161,7 @@ class ExpenseReimbursement(BaseModel):
 # ============================================================================
 class Expense(BaseModel):
     """Schema for reading an expense."""
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     company_id: UUID
@@ -208,9 +209,6 @@ class Expense(BaseModel):
     created_at: datetime
     updated_at: datetime
     submitted_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True
 
 
 # ============================================================================

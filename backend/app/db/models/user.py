@@ -84,3 +84,15 @@ class Profile(Base):
         back_populates="approved_by",
         cascade="all, delete-orphan"
     )
+    feedback_submitted: Mapped[list["Feedback"]] = relationship(
+        "Feedback",
+        foreign_keys="Feedback.profile_id",
+        back_populates="profile",
+        cascade="all, delete-orphan"
+    )
+    feedback_assigned: Mapped[list["Feedback"]] = relationship(
+        "Feedback",
+        foreign_keys="Feedback.assigned_to_user_id",
+        back_populates="assigned_to",
+        cascade="all, delete-orphan"
+    )

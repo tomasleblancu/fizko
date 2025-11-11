@@ -119,6 +119,11 @@ class Company(Base):
         "Expense", back_populates="company", cascade="all, delete-orphan"
     )
 
+    # Feedback relationship
+    feedback: Mapped[list["Feedback"]] = relationship(
+        "Feedback", back_populates="company", cascade="all, delete-orphan"
+    )
+
     # Subscription relationship (1:1)
     subscription: Mapped[Optional["Subscription"]] = relationship(
         "Subscription",

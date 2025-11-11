@@ -10,7 +10,7 @@ from agents.model_settings import ModelSettings, Reasoning
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config.constants import SPECIALIZED_MODEL
+from app.config.constants import SPECIALIZED_MODEL, REASONING_EFFORT
 from app.agents.instructions import GENERAL_KNOWLEDGE_INSTRUCTIONS
 from ..tools.widgets import (
     show_f29_detail_widget,
@@ -86,13 +86,19 @@ def create_general_knowledge_agent(
     else:
         logger.info("⚠️  Creating general_knowledge_agent WITHOUT FileSearchTool (no vector stores available)")
 
-    agent = Agent(
-        name="general_knowledge_agent",
-        model=SPECIALIZED_MODEL,  # gpt-5-nano (fast and cheap)
-        instructions=f"{RECOMMENDED_PROMPT_PREFIX}\n\n{GENERAL_KNOWLEDGE_INSTRUCTIONS}",
-        # model_settings=ModelSettings(reasoning=Reasoning(effort="low")),
-        tools=tools,
-    )
+    # Build agent kwargs
+    agent_kwargs = {
+        "name": "general_knowledge_agent",
+        "model": SPECIALIZED_MODEL,
+        "instructions": f"{RECOMMENDED_PROMPT_PREFIX}\n\n{GENERAL_KNOWLEDGE_INSTRUCTIONS}",
+        "tools": tools,
+    }
+
+    # Add model_settings only for gpt-5* models
+    if SPECIALIZED_MODEL.startswith("gpt-5"):
+        agent_kwargs["model_settings"] = ModelSettings(reasoning=Reasoning(effort=REASONING_EFFORT))
+
+    agent = Agent(**agent_kwargs)
 
     # Log final tool configuration
     tool_names = [t.name if hasattr(t, 'name') else type(t).__name__ for t in tools]

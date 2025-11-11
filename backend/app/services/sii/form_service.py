@@ -39,7 +39,7 @@ class FormService(BaseSIIService):
         company_id: Optional[Union[str, UUID]] = None
     ) -> List[Dict[str, Any]]:
         """
-        Extrae lista de formularios F29 del SII con guardado incremental
+        Extrae lista de formularios F29 del SII con guardado incremental via Celery
 
         Args:
             session_id: ID de la sesión en la DB
@@ -47,7 +47,7 @@ class FormService(BaseSIIService):
             company_id: ID de la compañía (opcional, se obtiene de session si no se provee)
 
         Returns:
-            Lista de formularios F29
+            Lista de formularios F29 (sin esperar a que se guarden)
         """
         from uuid import UUID as UUIDType
 
@@ -65,64 +65,30 @@ class FormService(BaseSIIService):
         if isinstance(company_id, str):
             company_id = UUIDType(company_id)
 
-        # Crear cola thread-safe para comunicación entre Selenium (síncrono) y async DB
-        from queue import Queue
-        from threading import Thread
-        formularios_queue: Queue = Queue()
+        # Callback que dispara tarea Celery para guardar
+        def celery_save_callback(formulario: Dict[str, Any]) -> None:
+            """
+            Callback síncrono que dispara tarea Celery para guardar formulario.
 
-        # Worker async que consume formularios de la cola y los guarda
-        async def save_worker():
-            """Worker que guarda formularios conforme llegan a la cola"""
-            while True:
-                try:
-                    # Non-blocking check
-                    if formularios_queue.empty():
-                        await asyncio.sleep(0.1)
-                        continue
+            Ventajas:
+            - Más simple que queues + async workers
+            - Celery maneja reintentos automáticamente
+            - Monitoring en Flower
+            - Guardado paralelo sin complejidad de threads
+            """
+            from app.infrastructure.celery.tasks.sii.forms import save_single_f29
 
-                    formulario = formularios_queue.get(block=False)
-
-                    # Sentinel para terminar
-                    if formulario is None:
-                        logger.info("💾 Worker de guardado terminando...")
-                        break
-
-                    logger.info(f"💾 Guardando formulario {formulario['folio']} en BD...")
-                    saved = await self.save_f29_downloads(
-                        company_id=company_id,
-                        formularios=[formulario]
-                    )
-                    logger.info(f"✅ Formulario {formulario['folio']} guardado: {len(saved)} registros")
-
-                    # 📥 DESCARGA AUTOMÁTICA DE PDF: Si tiene id_interno_sii, disparar tarea Celery
-                    if formulario.get('id_interno_sii') and len(saved) > 0:
-                        try:
-                            from app.infrastructure.celery.tasks.sii.forms import download_single_f29_pdf
-
-                            download_id = str(saved[0].id)
-                            download_single_f29_pdf.apply_async(
-                                args=[download_id, str(session_id)],
-                                countdown=2  # Esperar 2s para evitar sobrecarga del SII
-                            )
-                            logger.info(
-                                f"📥 Tarea de descarga PDF encolada para folio {formulario['folio']} "
-                                f"(download_id={download_id})"
-                            )
-                        except Exception as pdf_error:
-                            logger.warning(
-                                f"⚠️ Error encolando descarga de PDF para {formulario['folio']}: {pdf_error}\n"
-                                f"   El formulario está guardado, pero el PDF se puede descargar manualmente"
-                            )
-
-                except Exception as e:
-                    logger.error(f"❌ Error en save_worker: {e}")
-                    await asyncio.sleep(0.1)
-
-        # Callback síncrono que deposita en la cola
-        def sync_save_callback(formulario: Dict[str, Any]) -> None:
-            """Callback síncrono que deposita formulario en cola para guardado async"""
-            logger.debug(f"📤 Encolando formulario {formulario['folio']} para guardado...")
-            formularios_queue.put(formulario)
+            try:
+                logger.info(f"📤 Encolando guardado de F29 {formulario['folio']} via Celery")
+                save_single_f29.apply_async(
+                    args=[str(company_id), formulario, str(session_id)],
+                    countdown=0  # Save immediately
+                )
+            except Exception as e:
+                logger.error(
+                    f"❌ Error encolando guardado de F29 {formulario['folio']}: {e}\n"
+                    f"   El formulario NO será guardado. Deberás re-ejecutar sync."
+                )
 
         # Función sincrónica que ejecuta Selenium
         def _run_extraction():
@@ -133,36 +99,29 @@ class FormService(BaseSIIService):
                 headless=True
             ) as client:
 
-                # get_f29_lista con callback síncrono que encola
+                # get_f29_lista con callback que usa Celery
                 result = client.get_f29_lista(
                     anio=anio,
-                    save_callback=sync_save_callback
+                    save_callback=celery_save_callback
                 )
 
                 # Obtener cookies actualizadas después del scraping
                 updated_cookies = client.get_cookies()
 
-                return result, None, updated_cookies
+                return result, updated_cookies
 
         try:
-            # Iniciar worker de guardado en background
-            save_task = asyncio.create_task(save_worker())
-
             # Ejecutar extracción en thread separado para no bloquear el event loop
-            result, new_cookies, updated_cookies = await asyncio.to_thread(_run_extraction)
+            result, updated_cookies = await asyncio.to_thread(_run_extraction)
 
-            # Enviar sentinel para terminar worker
-            formularios_queue.put(None)
-
-            # Esperar a que worker termine de guardar todos los formularios
-            await save_task
-
-            # Ahora SÍ podemos hacer operaciones async de DB
-            if new_cookies:
-                await self.save_cookies(session_id, new_cookies)
-
+            # Guardar cookies actualizadas
             if updated_cookies:
                 await self.save_cookies(session_id, updated_cookies)
+
+            logger.info(
+                f"✅ Extracción F29 completada: {len(result)} formularios\n"
+                f"   Los formularios se están guardando via Celery tasks en paralelo"
+            )
 
             return result
 

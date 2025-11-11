@@ -50,7 +50,8 @@ class ContribuyenteMethods(SIIClientBase):
         # así que solo validamos si hay cookies para evitar recursión infinita
         if self._current_cookies:
             # Ya tenemos cookies, validar que sean válidas
-            logger.debug("🍪 Using provided cookies for contribuyente extraction (no RPA needed)")
+            cookie_names = [c.get('name') for c in self._current_cookies]
+            logger.info(f"🍪 Using {len(self._current_cookies)} provided cookies: {cookie_names}")
             try:
                 # Intentar extraer con cookies provistas
                 return self._contribuyente_extractor.extract(
@@ -62,9 +63,14 @@ class ContribuyenteMethods(SIIClientBase):
                 # Si falla, continuar con login
 
         # Si no hay cookies válidas o fallaron, hacer login con RPA
-        logger.debug("🔐 No valid cookies - performing RPA login")
+        logger.info("🔐 No valid cookies - performing RPA login")
         if not self._authenticated:
             self.login()
+
+        # Obtener cookies del driver después del login
+        driver_cookies = self._driver.get_cookies() if self._driver else []
+        cookie_names = [c.get('name') for c in driver_cookies]
+        logger.info(f"🔄 Extracting with {len(driver_cookies)} cookies from driver: {cookie_names}")
 
         # Extraer con cookies frescas del driver
         return self._contribuyente_extractor.extract(self.tax_id)

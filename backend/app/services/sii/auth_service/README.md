@@ -237,28 +237,6 @@ Agregar nuevas funcionalidades es más simple sin afectar otros módulos.
 
 ---
 
-## Migración desde Versión Anterior
-
-El archivo original `auth_service.py` fue movido a `auth_service_old.py` como backup.
-
-**La API pública no cambió:**
-```python
-# Sigue funcionando igual
-from app.services.sii.auth_service import SIIAuthService
-```
-
-**Imports internos ahora son desde submódulos:**
-```python
-# Antes (dentro del archivo):
-def _authenticate_sii(self, ...):
-    pass
-
-# Ahora (módulo separado):
-from .sii_auth import authenticate_sii
-```
-
----
-
 ## Debugging
 
 Para debugging de módulos específicos, ajustar el nivel de log:

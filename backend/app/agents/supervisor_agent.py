@@ -15,6 +15,9 @@ from app.agents.instructions import SUPERVISOR_INSTRUCTIONS
 from app.agents.tools.widgets.subscription_widget_tools import (
     show_subscription_upgrade,
 )
+from app.agents.guardrails.implementations import (
+    abuse_detection_guardrail,
+)
 
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 
@@ -45,6 +48,12 @@ def create_supervisor_agent(
         tools=[
             show_subscription_upgrade,  # Show subscription upgrade widget when agent is blocked
         ],
+        # ⭐ Input guardrails: Validate user input before executing agent
+        input_guardrails=[
+            abuse_detection_guardrail,  # Detect malicious usage, prompt injection, off-topic requests
+        ],
     )
+
+    logger.info("✅ Supervisor agent created with input guardrails")
 
     return agent

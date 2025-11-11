@@ -8,7 +8,7 @@ from agents.model_settings import ModelSettings, Reasoning
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config.constants import SPECIALIZED_MODEL
+from app.config.constants import SPECIALIZED_MODEL, REASONING_EFFORT
 from app.agents.instructions import TAX_DOCUMENTS_INSTRUCTIONS
 from ..tools.tax.documentos_tributarios_tools import (
     get_documents,
@@ -68,11 +68,18 @@ def create_tax_documents_agent(
             )
         )
 
-    agent = Agent(
-        name="tax_documents_agent",
-        model=SPECIALIZED_MODEL,  # gpt-5-nano (fast and cheap)
-        instructions=f"{RECOMMENDED_PROMPT_PREFIX}\n\n{TAX_DOCUMENTS_INSTRUCTIONS}",
-        tools=tools,
-    )
+    # Build agent kwargs
+    agent_kwargs = {
+        "name": "tax_documents_agent",
+        "model": SPECIALIZED_MODEL,
+        "instructions": f"{RECOMMENDED_PROMPT_PREFIX}\n\n{TAX_DOCUMENTS_INSTRUCTIONS}",
+        "tools": tools,
+    }
+
+    # Add model_settings only for gpt-5* models
+    if SPECIALIZED_MODEL.startswith("gpt-5"):
+        agent_kwargs["model_settings"] = ModelSettings(reasoning=Reasoning(effort=REASONING_EFFORT))
+
+    agent = Agent(**agent_kwargs)
 
     return agent

@@ -46,6 +46,8 @@ TAX_DOCUMENTS_INSTRUCTIONS = _load_modular_instruction("tax_documents")
 MONTHLY_TAXES_INSTRUCTIONS = _load_modular_instruction("monthly_taxes")
 PAYROLL_INSTRUCTIONS = _load_modular_instruction("payroll")
 EXPENSE_INSTRUCTIONS = _load_modular_instruction("expense")
+FEEDBACK_INSTRUCTIONS = _load_modular_instruction("feedback")
+SETTINGS_INSTRUCTIONS = _load_modular_instruction("settings")
 
 __all__ = [
     "SUPERVISOR_INSTRUCTIONS",
@@ -54,4 +56,6 @@ __all__ = [
     "MONTHLY_TAXES_INSTRUCTIONS",
     "PAYROLL_INSTRUCTIONS",
     "EXPENSE_INSTRUCTIONS",
+    "FEEDBACK_INSTRUCTIONS",
+    "SETTINGS_INSTRUCTIONS",
 ]

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ....db.models import Form29SIIDownload
+from ....repositories.tax import TaxSummaryRepository
 from ...tools.widgets.builders import create_f29_payment_flow_widget, f29_payment_flow_widget_copy_text
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
@@ -23,12 +23,13 @@ class PayLatestF29Tool(BaseUITool):
 
     When a user clicks the "Pay F29" button or action in the frontend,
     this tool:
-    - Fetches the latest F29 form for the company
+    - Calculates the F29 for the requested period using TaxSummaryRepository
     - Shows a step-by-step widget guide to pay on SII
-    - Provides context about the F29 being paid
+    - Triggers Celery task to save/update Form29 draft in background
+    - Provides context about the calculated F29 values
 
-    This gives the agent immediate context about the latest F29
-    and displays a helpful payment flow guide.
+    This gives the agent immediate context about the F29 to pay
+    and displays a helpful payment flow guide with accurate amounts.
     """
 
     @property
@@ -37,7 +38,7 @@ class PayLatestF29Tool(BaseUITool):
 
     @property
     def description(self) -> str:
-        return "Shows step-by-step guide to pay the latest F29 on SII"
+        return "Calculates F29 values and shows step-by-step payment guide"
 
     @property
     def domain(self) -> str:
@@ -49,7 +50,7 @@ class PayLatestF29Tool(BaseUITool):
         return """
 ## 💡 INSTRUCCIONES: Pagar F29
 
-El usuario quiere pagar su F29 más reciente en el SII.
+El usuario quiere pagar su F29.
 
 **Tu objetivo:**
 - Confirmar el F29 que se va a pagar (período y monto)
@@ -58,9 +59,8 @@ El usuario quiere pagar su F29 más reciente en el SII.
 - Ofrece ayuda adicional si la necesita
 
 **Formato de respuesta:**
-1. Confirma el F29: "Perfecto, aquí está la guía para pagar tu F29 de [PERÍODO]."
-2. Menciona el monto a pagar si está disponible
-3. Ofrece ayuda: "¿Necesitas ayuda con algún paso?"
+1. Confirma el F29: "Perfecto, aquí está la guía para pagar tu F29 de [PERÍODO] por [MONTO]."
+2. Ofrece ayuda: "¿Necesitas ayuda con algún paso?"
 
 **Evita:**
 - Explicar cada paso manualmente (ya está en el widget)
@@ -69,7 +69,7 @@ El usuario quiere pagar su F29 más reciente en el SII.
 """.strip()
 
     async def process(self, context: UIToolContext) -> UIToolResult:
-        """Process pay latest F29 action and show payment flow guide."""
+        """Process pay F29 action, calculate values, and show payment flow guide."""
 
         if not context.db:
             return UIToolResult(
@@ -86,126 +86,193 @@ El usuario quiere pagar su F29 más reciente en el SII.
             )
 
         try:
-            # Get latest F29 for company
-            latest_f29 = await self._get_latest_f29(
-                context.db,
-                context.company_id,
+            # Parse period from entity_id or default to previous month
+            period = self._parse_period_from_entity_id(
+                context.additional_data.get("entity_id") if context.additional_data else None
             )
 
-            if not latest_f29:
+            if period:
+                self.logger.info(f"Parsed period from entity_id: {period['year']}-{period['month']:02d}")
+            else:
+                # Default to previous month
+                now = datetime.now()
+                period = {
+                    "year": now.year if now.month > 1 else now.year - 1,
+                    "month": now.month - 1 if now.month > 1 else 12
+                }
+                self.logger.info(f"Using default period (previous month): {period['year']}-{period['month']:02d}")
+
+            # Calculate F29 values using TaxSummaryRepository
+            f29_data = await self._calculate_f29_values(
+                context.db,
+                context.company_id,
+                period["year"],
+                period["month"],
+            )
+
+            if not f29_data:
                 return UIToolResult(
                     success=False,
                     context_text="",
-                    error="No se encontraron formularios F29 para esta empresa",
+                    error=f"No se pudo calcular el F29 del período {period['year']}-{period['month']:02d}",
                 )
 
+            # Trigger Celery task to save Form29 draft (fire-and-forget)
+            self._trigger_f29_draft_generation(
+                context.company_id,
+                period["year"],
+                period["month"],
+            )
+
             # Format context text for agent
-            context_text = self._format_payment_context(latest_f29)
+            context_text = self._format_payment_context(f29_data, period)
 
             # Create payment flow widget
+            period_display = f"{period['year']}-{period['month']:02d}"
             widget = create_f29_payment_flow_widget(
-                title=f"Paso a paso: pagar F29 {latest_f29['period_display']}",
+                title=f"Paso a paso: pagar F29 {period_display}",
                 url="https://zeusr.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?https://www4.sii.cl/propuestaf29ui/#/default",
             )
 
             widget_copy_text = f29_payment_flow_widget_copy_text(
-                title=f"Paso a paso: pagar F29 {latest_f29['period_display']}",
+                title=f"Paso a paso: pagar F29 {period_display}",
                 url="https://zeusr.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?https://www4.sii.cl/propuestaf29ui/#/default",
             )
 
             return UIToolResult(
                 success=True,
                 context_text=context_text,
-                structured_data=latest_f29,
+                structured_data=f29_data,
                 metadata={
-                    "form_folio": latest_f29.get("folio"),
-                    "form_status": latest_f29.get("status"),
-                    "period": latest_f29.get("period_display"),
-                    "amount_cents": latest_f29.get("amount_cents"),
+                    "period": period_display,
+                    "monthly_tax": f29_data.get("monthly_tax"),
+                    "calculated": True,
                 },
                 widget=widget,
                 widget_copy_text=widget_copy_text,
             )
 
         except Exception as e:
-            self.logger.error(f"Error processing pay latest F29: {e}", exc_info=True)
+            self.logger.error(f"Error processing pay F29: {e}", exc_info=True)
             return UIToolResult(
                 success=False,
                 context_text="",
-                error=f"Error al cargar información del F29: {str(e)}",
+                error=f"Error al calcular información del F29: {str(e)}",
             )
 
-    async def _get_latest_f29(
+    async def _calculate_f29_values(
         self,
         db: AsyncSession,
         company_id: str,
+        year: int,
+        month: int,
     ) -> dict[str, Any] | None:
-        """Fetch the latest F29 form for company."""
+        """
+        Calculate F29 values for a period using TaxSummaryRepository.
 
+        This uses the same logic as /api/tax-summary endpoint.
+        """
         company_uuid = self._safe_get_uuid(company_id)
         if not company_uuid:
             return None
 
-        # Get latest F29 (order by period year DESC, period month DESC)
-        stmt = (
-            select(Form29SIIDownload)
-            .where(Form29SIIDownload.company_id == company_uuid)
-            .where(Form29SIIDownload.period_month > 0)  # Exclude annual forms
-            .order_by(
-                desc(Form29SIIDownload.period_year),
-                desc(Form29SIIDownload.period_month)
-            )
-            .limit(1)
-        )
+        try:
+            # Format period as YYYY-MM
+            period = f"{year}-{month:02d}"
 
-        result = await db.execute(stmt)
-        form = result.scalar_one_or_none()
+            # Use TaxSummaryRepository to calculate values
+            repo = TaxSummaryRepository(db)
+            summary = await repo.get_tax_summary(company_uuid, period)
 
-        if not form:
+            # Format month name in Spanish
+            month_names = [
+                "enero", "febrero", "marzo", "abril", "mayo", "junio",
+                "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+            ]
+            period_display = f"{month_names[month - 1]} {year}"
+
+            # Calculate IVA to pay (positive net_iva, or 0 if negative)
+            iva_to_pay = max(0.0, summary.net_iva)
+
+            return {
+                "period": period,
+                "period_display": period_display,
+                "period_year": year,
+                "period_month": month,
+                "total_revenue": summary.total_revenue,
+                "total_expenses": summary.total_expenses,
+                "iva_collected": summary.iva_collected,
+                "iva_paid": summary.iva_paid,
+                "net_iva": summary.net_iva,
+                "iva_to_pay": iva_to_pay,
+                "previous_month_credit": summary.previous_month_credit or 0.0,
+                "ppm": summary.ppm or 0.0,
+                "retencion": summary.retencion or 0.0,
+                "impuesto_trabajadores": summary.impuesto_trabajadores or 0.0,
+                "monthly_tax": summary.monthly_tax,
+                "monthly_tax_formatted": f"${int(summary.monthly_tax):,}",
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error calculating F29 values: {e}", exc_info=True)
             return None
 
-        # Determine form type
-        form_type = "Anual" if form.period_month == 0 else "Mensual"
+    def _trigger_f29_draft_generation(
+        self,
+        company_id: str,
+        year: int,
+        month: int,
+    ) -> None:
+        """
+        Trigger Celery task to generate/update Form29 draft in background.
 
-        return {
-            "id": str(form.id),
-            "folio": form.sii_folio,
-            "sii_id_interno": form.sii_id_interno,
-            "period_year": form.period_year,
-            "period_month": form.period_month,
-            "period_display": form.period_display,
-            "form_type": form_type,
-            "contributor_rut": form.contributor_rut,
-            "submission_date": form.submission_date.isoformat() if form.submission_date else None,
-            "status": form.status,
-            "amount_cents": form.amount_cents,
-            "amount_formatted": f"${form.amount_cents:,.0f}",
-            "pdf_download_status": form.pdf_download_status,
-            "has_pdf": form.has_pdf,
-            "pdf_url": form.pdf_storage_url,
-            "can_download_pdf": form.can_download_pdf,
-        }
+        This is fire-and-forget - we don't wait for the result.
+        """
+        try:
+            from ....infrastructure.celery.tasks.forms.form29 import generate_f29_draft_for_company
 
-    def _format_payment_context(self, form_data: dict[str, Any]) -> str:
+            # Dispatch Celery task (async)
+            generate_f29_draft_for_company.delay(
+                company_id=company_id,
+                period_year=year,
+                period_month=month,
+                auto_calculate=True
+            )
+
+            self.logger.info(
+                f"✅ Triggered F29 draft generation for company {company_id}, "
+                f"period {year}-{month:02d}"
+            )
+
+        except Exception as e:
+            # Log error but don't fail the request
+            self.logger.error(
+                f"⚠️ Failed to trigger F29 draft generation: {e}",
+                exc_info=True
+            )
+
+    def _format_payment_context(self, f29_data: dict[str, Any], period: dict[str, int]) -> str:
         """Format F29 payment context for agent."""
-
-        status_emoji = {
-            "Vigente": "✅",
-            "Rectificado": "🔄",
-            "Anulado": "❌",
-        }.get(form_data["status"], "📄")
 
         lines = [
             "## 💳 CONTEXTO: Pagar F29",
             "",
-            f"**Período**: {form_data['period_display']} ({form_data['form_type']})",
-            f"**Folio**: {form_data['folio']}",
-            f"**Estado**: {status_emoji} {form_data['status']}",
-            f"**Monto**: {form_data['amount_formatted']}",
+            f"**Período**: {f29_data['period_display']}",
+            f"**Impuesto mensual a pagar**: {f29_data['monthly_tax_formatted']}",
+            "",
+            "**Desglose:**",
+            f"- IVA débito fiscal: ${int(f29_data['iva_collected']):,}",
+            f"- IVA crédito fiscal: ${int(f29_data['iva_paid']):,}",
         ]
 
-        if form_data.get("submission_date"):
-            lines.append(f"**Fecha de presentación**: {form_data['submission_date']}")
+        if f29_data.get("previous_month_credit", 0) > 0:
+            lines.append(f"- Crédito mes anterior: ${int(f29_data['previous_month_credit']):,}")
+
+        if f29_data.get("ppm", 0) > 0:
+            lines.append(f"- PPM: ${int(f29_data['ppm']):,}")
+
+        if f29_data.get("retencion", 0) > 0:
+            lines.append(f"- Retención: ${int(f29_data['retencion']):,}")
 
         lines.append("")
         lines.append("---")
@@ -218,3 +285,39 @@ El usuario quiere pagar su F29 más reciente en el SII.
         lines.append("- **NO llames a herramientas adicionales**")
 
         return "\n".join(lines)
+
+    def _parse_period_from_entity_id(self, entity_id: str | None) -> dict[str, int] | None:
+        """
+        Parse period from entity_id (format: "YYYY-MM" or ISO datetime).
+
+        Args:
+            entity_id: Period string in format "YYYY-MM" or ISO datetime (e.g., "2025-10-01T00:00:00") or None
+
+        Returns:
+            Dict with year and month keys, or None if parsing fails
+        """
+        if not entity_id:
+            return None
+
+        try:
+            # Handle ISO datetime format (e.g., "2025-10-01T00:00:00")
+            if "T" in entity_id:
+                # Extract just the date part before 'T'
+                date_part = entity_id.split("T")[0]
+                parts = date_part.split("-")
+                if len(parts) >= 2:
+                    year = int(parts[0])
+                    month = int(parts[1])
+                    return {"year": year, "month": month}
+            # Handle simple "YYYY-MM" format
+            else:
+                parts = entity_id.split("-")
+                if len(parts) == 2:
+                    year = int(parts[0])
+                    month = int(parts[1])
+                    return {"year": year, "month": month}
+        except (ValueError, IndexError) as e:
+            self.logger.warning(f"Failed to parse period from entity_id '{entity_id}': {e}")
+            return None
+
+        return None

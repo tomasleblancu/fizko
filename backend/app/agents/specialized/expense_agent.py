@@ -6,8 +6,9 @@ from agents import Agent
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
+from agents.model_settings import ModelSettings, Reasoning
 
-from app.config.constants import SPECIALIZED_MODEL
+from app.config.constants import SPECIALIZED_MODEL, REASONING_EFFORT
 from app.agents.instructions import EXPENSE_INSTRUCTIONS
 from app.agents.tools.tax.expense_tools import (
     create_expense,
@@ -62,11 +63,18 @@ def create_expense_agent(
         search_company_memory, # Search company-wide knowledge and settings
     ]
 
-    agent = Agent(
-        name="expense_agent",
-        model=SPECIALIZED_MODEL,  # gpt-4o-mini (fast and economical)
-        instructions=f"{RECOMMENDED_PROMPT_PREFIX}\n\n{EXPENSE_INSTRUCTIONS}",
-        tools=tools,
-    )
+    # Build agent kwargs
+    agent_kwargs = {
+        "name": "expense_agent",
+        "model": SPECIALIZED_MODEL,
+        "instructions": f"{RECOMMENDED_PROMPT_PREFIX}\n\n{EXPENSE_INSTRUCTIONS}",
+        "tools": tools,
+    }
+
+    # Add model_settings only for gpt-5* models
+    if SPECIALIZED_MODEL.startswith("gpt-5"):
+        agent_kwargs["model_settings"] = ModelSettings(reasoning=Reasoning(effort=REASONING_EFFORT))
+
+    agent = Agent(**agent_kwargs)
 
     return agent

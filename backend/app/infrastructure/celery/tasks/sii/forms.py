@@ -363,6 +363,118 @@ def sync_f29_all_companies(
 
 @celery_app.task(
     bind=True,
+    name="sii.save_single_f29",
+    max_retries=3,
+    default_retry_delay=5,
+)
+def save_single_f29(
+    self,
+    company_id: str,
+    formulario: dict,
+    session_id: str = None
+) -> Dict[str, Any]:
+    """
+    Celery task to save a single F29 form to the database.
+
+    This task is triggered for each form extracted during sync,
+    allowing incremental saving without complex queue management.
+
+    Args:
+        company_id: UUID of the company (str format)
+        formulario: F29 form data dict with keys:
+                   - folio: str
+                   - period: str (YYYY-MM)
+                   - contributor: str
+                   - submission_date: str
+                   - status: str
+                   - amount: int
+                   - id_interno_sii: str (optional)
+        session_id: Optional UUID of the SII session for PDF download trigger
+
+    Returns:
+        Dict with save result:
+        {
+            "success": bool,
+            "folio": str,
+            "download_id": str (if saved),
+            "pdf_queued": bool (if PDF download was queued),
+            "error": str (if failed)
+        }
+    """
+    try:
+        import asyncio
+        from app.config.database import AsyncSessionLocal
+        from app.services.sii import SIIService
+
+        logger.info(
+            f"💾 [CELERY TASK] Saving F29 form: "
+            f"folio={formulario.get('folio')}, period={formulario.get('period')}"
+        )
+
+        # Delegate to service layer
+        async def _save_form():
+            async with AsyncSessionLocal() as db:
+                service = SIIService(db)
+                saved = await service.save_f29_downloads(
+                    company_id=company_id,
+                    formularios=[formulario]
+                )
+                return saved
+
+        # Run async function
+        saved = asyncio.run(_save_form())
+
+        if not saved:
+            logger.error(f"❌ [CELERY TASK] Failed to save F29: no records returned")
+            return {
+                "success": False,
+                "folio": formulario.get('folio'),
+                "error": "No records saved"
+            }
+
+        download_record = saved[0]
+        download_id = str(download_record.id)
+
+        logger.info(f"✅ [CELERY TASK] F29 saved: folio={formulario.get('folio')}, id={download_id}")
+
+        # If has id_interno_sii and session_id, queue PDF download
+        pdf_queued = False
+        if formulario.get('id_interno_sii') and session_id:
+            try:
+                download_single_f29_pdf.apply_async(
+                    args=[download_id, session_id],
+                    countdown=2  # Wait 2s to avoid SII overload
+                )
+                pdf_queued = True
+                logger.info(f"📥 [CELERY TASK] PDF download queued for folio {formulario.get('folio')}")
+            except Exception as pdf_error:
+                logger.warning(f"⚠️ [CELERY TASK] Failed to queue PDF download: {pdf_error}")
+
+        return {
+            "success": True,
+            "folio": formulario.get('folio'),
+            "download_id": download_id,
+            "pdf_queued": pdf_queued
+        }
+
+    except Exception as e:
+        logger.error(
+            f"❌ [CELERY TASK] Failed to save F29 {formulario.get('folio')}: {e}",
+            exc_info=True
+        )
+        # Retry on database errors
+        if "database" in str(e).lower() or "connection" in str(e).lower():
+            raise self.retry(exc=e)
+
+        return {
+            "success": False,
+            "folio": formulario.get('folio'),
+            "error": str(e)
+        }
+
+
+@celery_app.task(
+    bind=True,
     name="sii.download_single_f29_pdf",
     max_retries=2,
     default_retry_delay=30,

@@ -7,7 +7,7 @@ import logging
 from uuid import UUID
 from typing import List, Optional
 from datetime import date
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +29,8 @@ router = APIRouter(
 
 class F29FormResponse(BaseModel):
     """Response model for F29 form"""
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     folio: str
     period_year: int
@@ -41,9 +43,6 @@ class F29FormResponse(BaseModel):
     has_pdf: bool
     pdf_url: Optional[str]
     created_at: str
-
-    class Config:
-        from_attributes = True
 
 
 class F29FormsListResponse(BaseModel):

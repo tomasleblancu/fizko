@@ -19,29 +19,29 @@ export const GREETING = "Fizko";
 
 export const STARTER_PROMPTS: StartScreenPrompt[] = [
   {
-    label: "¿Qué puedes hacer?",
-    prompt: "¿Qué puedes hacer por mi empresa?",
-    icon: "circle-question",
-  },
-  {
-    label: "Muéstrame el resumen tributario del mes",
-    prompt: "Muéstrame un resumen de los impuestos y obligaciones tributarias del mes actual",
-    icon: "notebook",
-  },
-  {
-    label: "Calcula el IVA a pagar",
-    prompt: "Calcula el IVA que debo pagar este mes basado en las ventas y compras",
-    icon: "chart",
-  },
-  {
     label: "Quiero agregar un gasto",
     prompt: "Quiero registrar un gasto manual",
     icon: "notebook-pencil",
   },
   {
-    label: "Revisa mi planilla de sueldos",
-    prompt: "Revisa la planilla de sueldos del último mes y muéstrame un resumen",
+    label: "Explica mis impuestos",
+    prompt: "Explícame mis obligaciones tributarias y el estado de mis impuestos",
+    icon: "chart",
+  },
+  {
+    label: "Dame un resumen de ventas",
+    prompt: "Muéstrame un resumen de las ventas del mes",
+    icon: "notebook",
+  },
+  {
+    label: "Agrega un nuevo colaborador",
+    prompt: "Quiero agregar un nuevo colaborador a la nómina",
     icon: "user",
+  },
+  {
+    label: "Quiero darte feedback",
+    prompt: "Quiero reportar un problema o darte feedback sobre la plataforma",
+    icon: "circle-question",
   },
 ];
 

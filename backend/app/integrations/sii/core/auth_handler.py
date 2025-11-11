@@ -251,7 +251,7 @@ class AuthenticationHandler:
             # Navegar a página de login
             self.driver.navigate_to(self.LOGIN_URL)
             logger.debug(f"📄 Navigated to login page")
-            time.sleep(2)
+            # time.sleep(2)  # ⚡ REMOVED - Testing without delay
 
             # Llenar formulario
             self._fill_login_form()
@@ -327,14 +327,14 @@ class AuthenticationHandler:
                 # Si llegamos a misiir, dar tiempo extra para carga completa
                 if "misiir.sii.cl" in new_url:
                     logger.debug("🎯 Reached MiSII, waiting for complete load...")
-                    time.sleep(5)
+                    # time.sleep(2)  # ⚡ REMOVED - Testing without delay
 
                 break
 
             wait_count += 1
 
         # Tiempo extra para cookies
-        time.sleep(2)
+        # time.sleep(2)  # ⚡ REMOVED - Testing without delay
 
     def _verify_login_result(self) -> Dict[str, Any]:
         """
@@ -443,7 +443,7 @@ class AuthenticationHandler:
             initial_cookies = self.driver.get_cookies()
 
             self.driver.navigate_to("https://misiir.sii.cl/cgi_misii/siihome.cgi")
-            time.sleep(5)
+            # time.sleep(2)  # ⚡ REMOVED - Testing without delay
 
             final_url = self.driver.get_current_url()
             logger.debug(f"🌐 URL after MiSII navigation: {final_url}")

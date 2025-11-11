@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any, AsyncIterator, Dict
 from uuid import uuid4
 
+from agents.exceptions import InputGuardrailTripwireTriggered
 from chatkit.actions import Action
 from chatkit.agents import stream_agent_response
 from chatkit.server import ChatKitServer
@@ -229,37 +230,111 @@ class ChatKitServerAdapter(ChatKitServer):
             event_count = 0
             first_token_time = None
 
-            async for event in stream_agent_response(agent_context, agent_stream):
-                event_count += 1
+            try:
+                async for event in stream_agent_response(agent_context, agent_stream):
+                    event_count += 1
 
-                # Log event type for debugging
-                event_type = type(event).__name__
-                if hasattr(event, "item"):
-                    item_type = type(event.item).__name__
-                    logger.debug(f"📤 Event #{event_count}: {event_type} with item {item_type}")
+                    # Log event type for debugging
+                    event_type = type(event).__name__
+                    if hasattr(event, "item"):
+                        item_type = type(event.item).__name__
+                        logger.debug(f"📤 Event #{event_count}: {event_type} with item {item_type}")
 
-                    # Check if this is a widget event
-                    if item_type == "WidgetItem":
-                        logger.info(f"🎨 Widget event detected in stream!")
+                        # Check if this is a widget event
+                        if item_type == "WidgetItem":
+                            logger.info(f"🎨 Widget event detected in stream!")
+                    else:
+                        logger.debug(f"📤 Event #{event_count}: {event_type} (no item)")
+
+                    # Log first token time
+                    if first_token_time is None and hasattr(event, "item") and hasattr(event.item, "content"):
+                        for content in event.item.content:
+                            if hasattr(content, "text") and content.text:
+                                first_token_time = time.time()
+                                ttft = first_token_time - request_start
+                                logger.info(f"⏱️  🎯 FIRST TOKEN (TTFT: {ttft:.3f}s)")
+                                break
+
+                    yield event
+
+                # Log completion
+                stream_duration = time.time() - stream_loop_start
+                total_time = time.time() - request_start
+                logger.info(f"⏱️  Stream completed: {event_count} events in {stream_duration:.3f}s")
+                logger.info(f"⏱️  TOTAL TIME: {total_time:.3f}s")
+
+            except InputGuardrailTripwireTriggered as e:
+                # Input bloqueado por guardrail durante streaming
+                from ..core.context import FizkoContext
+
+                fizko_context = agent_context.get("fizko_context")
+                user_id = fizko_context.user.id if fizko_context and fizko_context.user else "unknown"
+                company_id = fizko_context.company.id if fizko_context and fizko_context.company else "unknown"
+
+                logger.warning(
+                    f"🚨 Input guardrail triggered (during agent stream) | "
+                    f"User: {user_id} | "
+                    f"Company: {company_id} | "
+                    f"Guardrail: {e.guardrail_name} | "
+                    f"Reason: {e.result.output.output_info}"
+                )
+
+                # Determinar mensaje basado en el tipo de bloqueo
+                reason = e.result.output.output_info.get("reason", "").lower()
+
+                if "prompt injection" in reason:
+                    message_text = (
+                        "⚠️ Lo siento, detecté un intento de manipular mi comportamiento.\n\n"
+                        "Estoy diseñado para ayudarte exclusivamente con temas tributarios y contables de Chile. "
+                        "Por favor, hazme preguntas relacionadas con:\n"
+                        "• Impuestos (IVA, F29, DTE)\n"
+                        "• Contabilidad empresarial\n"
+                        "• Remuneraciones y personal\n"
+                        "• Documentos tributarios\n"
+                        "• Obligaciones con el SII"
+                    )
+                elif "off-topic" in reason:
+                    message_text = (
+                        "🤔 Tu pregunta parece estar fuera del alcance de Fizko.\n\n"
+                        "Soy un asistente especializado en temas tributarios y contables de Chile. "
+                        "Puedo ayudarte con:\n"
+                        "• Cálculos de IVA y otros impuestos\n"
+                        "• Llenado del formulario F29\n"
+                        "• Gestión de documentos tributarios (facturas, boletas, guías)\n"
+                        "• Remuneraciones y contratos laborales\n"
+                        "• Obligaciones y plazos del SII\n"
+                        "• Contabilidad empresarial\n\n"
+                        "¿En qué tema tributario o contable puedo ayudarte hoy?"
+                    )
                 else:
-                    logger.debug(f"📤 Event #{event_count}: {event_type} (no item)")
+                    message_text = (
+                        "Lo siento, no puedo procesar tu solicitud. "
+                        "Por favor, reformula tu pregunta relacionada con temas tributarios y contables de Chile. "
+                        "Estoy aquí para ayudarte con IVA, F29, documentos tributarios, remuneraciones y más."
+                    )
 
-                # Log first token time
-                if first_token_time is None and hasattr(event, "item") and hasattr(event.item, "content"):
-                    for content in event.item.content:
-                        if hasattr(content, "text") and content.text:
-                            first_token_time = time.time()
-                            ttft = first_token_time - request_start
-                            logger.info(f"⏱️  🎯 FIRST TOKEN (TTFT: {ttft:.3f}s)")
-                            break
+                # Enviar mensaje como AssistantMessageItemStreamEvent
+                from chatkit import (
+                    AssistantMessageItemStreamEvent,
+                    AssistantMessageItemStreamEventType,
+                    AssistantMessageItem,
+                    OutputTextContent,
+                )
 
-                yield event
+                # Create message item
+                message_item = AssistantMessageItem(content=[OutputTextContent(text=message_text)])
 
-            # Log completion
-            stream_duration = time.time() - stream_loop_start
-            total_time = time.time() - request_start
-            logger.info(f"⏱️  Stream completed: {event_count} events in {stream_duration:.3f}s")
-            logger.info(f"⏱️  TOTAL TIME: {total_time:.3f}s")
+                # Yield message event
+                yield AssistantMessageItemStreamEvent(
+                    type=AssistantMessageItemStreamEventType.ADDED,
+                    item=message_item,
+                )
+
+                # Log completion
+                stream_duration = time.time() - stream_loop_start
+                total_time = time.time() - request_start
+                logger.info(f"⏱️  Stream aborted by guardrail: {stream_duration:.3f}s")
+                logger.info(f"⏱️  TOTAL TIME: {total_time:.3f}s")
 
     async def action(
         self,

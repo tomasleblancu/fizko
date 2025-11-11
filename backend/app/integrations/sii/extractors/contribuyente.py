@@ -129,8 +129,13 @@ class ContribuyenteExtractor:
         Returns:
             Dict con respuesta JSON del API
         """
+        # Log de cookies recibidas
+        cookie_names = [c.get('name') for c in cookies]
+        logger.info(f"📋 [API Request] Received {len(cookies)} cookies: {cookie_names}")
+
         # Construir cookie string
         cookie_string = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
+        logger.debug(f"🍪 [API Request] Cookie string length: {len(cookie_string)} chars")
 
         # Headers
         headers = {
@@ -143,21 +148,35 @@ class ContribuyenteExtractor:
         payload = {'opc': opc}
 
         try:
-            logger.debug(f"🌐 Making API request to {self.MISIIR_API_URL} (opc={opc})")
+            logger.info(f"🌐 [API Request] POST to {self.MISIIR_API_URL} (opc={opc})")
             response = requests.post(
                 self.MISIIR_API_URL,
                 data=payload,
                 headers=headers,
                 timeout=30
             )
+
+            # Log de respuesta HTTP
+            logger.info(f"📥 [API Response] Status: {response.status_code}, Content-Length: {len(response.text)}")
+
             response.raise_for_status()
 
             data = response.json()
-            logger.debug(f"✅ API response received: {data.get('codigoError', 'unknown') if 'codigoError' in data else 'success'}")
+
+            # Log detallado de la respuesta
+            codigo_error = data.get('codigoError', 'N/A')
+            descripcion_error = data.get('descripcionError', 'N/A')
+            logger.info(f"✅ [API Response] codigoError={codigo_error}, descripcionError={descripcion_error}")
+
+            # Si hay error, log adicional
+            if codigo_error != 0:
+                logger.warning(f"⚠️ [API Response] API returned error code {codigo_error}: {descripcion_error}")
+                logger.debug(f"🔍 [API Response] Full response: {data}")
 
             return data
 
         except requests.exceptions.RequestException as e:
+            logger.error(f"❌ [API Request] HTTP request failed: {str(e)}")
             raise ExtractionError(
                 f"API request failed: {str(e)}",
                 resource='contribuyente_api'

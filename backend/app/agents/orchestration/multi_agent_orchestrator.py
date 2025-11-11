@@ -18,6 +18,7 @@ from ..specialized import (
     create_payroll_agent,
     create_settings_agent,
     create_expense_agent,
+    create_feedback_agent,
 )
 from ..supervisor_agent import create_supervisor_agent
 from ..core.subscription_guard import SubscriptionGuard
@@ -81,7 +82,7 @@ class MultiAgentOrchestrator:
         if not self.company_id:
             # No company_id: allow all agents (e.g., anonymous users, testing)
             logger.info("⚠️  No company_id provided, allowing access to all agents")
-            return ["general_knowledge", "tax_documents", "f29", "payroll", "settings", "expense"]
+            return ["general_knowledge", "tax_documents", "f29", "payroll", "settings", "expense", "feedback"]
 
         # Check subscription access
         guard = SubscriptionGuard(self.db)
@@ -151,6 +152,12 @@ class MultiAgentOrchestrator:
                 db=self.db, openai_client=self.openai_client
             )
             logger.debug("✅ Created expense_agent")
+
+        if "feedback" in self._available_agents:
+            self.agents["feedback_agent"] = create_feedback_agent(
+                db=self.db, openai_client=self.openai_client
+            )
+            logger.debug("✅ Created feedback_agent")
 
         # Configure handoffs (only for available agents)
         self._configure_supervisor_handoffs()
@@ -306,6 +313,22 @@ class MultiAgentOrchestrator:
         if expense_handoff:
             handoffs_list.append(expense_handoff)
 
+        # Feedback Agent
+        feedback_handoff = create_handoff_with_check(
+            agent_name="feedback",
+            agent_key="feedback_agent",
+            display_name="Feedback & Support",
+            icon="💬",
+            description=(
+                "Transfer to Feedback expert for collecting user feedback, bug reports, "
+                "feature requests, and platform issues. Use when user reports problems "
+                "or suggests improvements to the platform itself. "
+                "Provide a brief reason for the transfer."
+            ),
+        )
+        if feedback_handoff:
+            handoffs_list.append(feedback_handoff)
+
         supervisor.handoffs = handoffs_list
         logger.debug(f"Configured {len(handoffs_list)} handoffs for supervisor")
 
@@ -326,7 +349,7 @@ class MultiAgentOrchestrator:
 
         # Add return-to-supervisor handoff to each specialized agent (only if created)
         # Disabled by default to prevent unnecessary handoffs
-        for agent_name in ["general_knowledge_agent", "tax_documents_agent", "payroll_agent", "settings_agent", "expense_agent"]:
+        for agent_name in ["general_knowledge_agent", "tax_documents_agent", "payroll_agent", "settings_agent", "expense_agent", "feedback_agent"]:
             # Skip if agent was not created (blocked by subscription)
             if agent_name not in self.agents:
                 continue
@@ -398,7 +421,7 @@ async def create_multi_agent_orchestrator(
         )
     else:
         # No company_id: allow all agents (anonymous, testing)
-        available_agents = ["general_knowledge", "tax_documents", "f29", "payroll", "settings", "expense"]
+        available_agents = ["general_knowledge", "tax_documents", "f29", "payroll", "settings", "expense", "feedback"]
         logger.info("⚠️  No company_id provided, allowing all agents")
 
     return MultiAgentOrchestrator(

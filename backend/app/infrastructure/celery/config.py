@@ -80,6 +80,10 @@ task_routes = {
     "sii.sync_f29_all_companies": {"queue": "low"},
     "sii.sync_f29_pdfs_missing": {"queue": "low"},
     "sii.sync_f29_pdfs_missing_all_companies": {"queue": "low"},
+
+    # Form29 draft generation: background processing, can tolerate delays
+    "forms.generate_f29_draft_for_company": {"queue": "low"},
+    "forms.generate_f29_drafts_all_companies": {"queue": "low"},
 }
 
 # Define queues with priorities
