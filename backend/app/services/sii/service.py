@@ -145,12 +145,14 @@ class SIIService(BaseSIIService):
     async def extract_f29_lista(
         self,
         session_id: Union[str, UUID],
-        anio: str
+        anio: str,
+        company_id: Optional[Union[str, UUID]] = None
     ) -> List[Dict[str, Any]]:
         """Extrae lista de formularios F29 - Delega a FormService"""
         return await self._form_service.extract_f29_lista(
             session_id=session_id,
-            anio=anio
+            anio=anio,
+            company_id=company_id
         )
 
     async def save_f29_downloads(
