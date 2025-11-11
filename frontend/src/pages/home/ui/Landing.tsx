@@ -122,7 +122,7 @@ export default function Landing() {
               </button>
 
               <button
-                onClick={() => window.open('https://wa.me/56963333867', '_blank')}
+                onClick={() => window.open('https://wa.me/56975389973', '_blank')}
                 className="inline-flex items-center space-x-3 rounded-full bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 px-10 py-5 text-xl font-semibold text-slate-700 dark:text-slate-200 shadow-lg transition-all hover:shadow-xl hover:scale-105 hover:border-slate-300 dark:hover:border-slate-600"
                 aria-label="Contactar por WhatsApp"
               >
