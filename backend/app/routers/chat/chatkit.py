@@ -16,6 +16,10 @@ from ...agents import create_chatkit_server
 from app.integrations.chatkit import ChatKitServerAdapter
 from ...agents.config.scopes import get_scope_for_plan
 from ...agents.ui_tools import UIToolDispatcher
+from ...agents.guardrails import (
+    InputGuardrailTripwireTriggered,
+    OutputGuardrailTripwireTriggered,
+)
 from ...config.database import AsyncSessionLocal
 from ...core import get_optional_user
 from ...dependencies import require_auth, get_subscription_or_none
@@ -306,20 +310,163 @@ async def chatkit_endpoint(
     logger.info(
         f"⏱️  [+{(process_start - request_start_time):.3f}s] server.process() started"
     )
-    result = await server.process(payload, context)
-    logger.info(
-        f"⏱️  [+{(time.time() - request_start_time):.3f}s] server.process() completed ({(time.time() - process_start):.3f}s)"
-    )
 
-    # Return streaming response (respond() is called during streaming)
-    stream_response_start = time.time()
-    logger.info(
-        f"⏱️  [+{(stream_response_start - request_start_time):.3f}s] Creating StreamingResponse (respond() will be called during iteration)"
-    )
-    logger.info("=" * 80)
+    try:
+        result = await server.process(payload, context)
+        logger.info(
+            f"⏱️  [+{(time.time() - request_start_time):.3f}s] server.process() completed ({(time.time() - process_start):.3f}s)"
+        )
 
-    if isinstance(result, StreamingResult):
-        return StreamingResponse(result, media_type="text/event-stream")
-    if hasattr(result, "json"):
-        return Response(content=result.json, media_type="application/json")
-    return JSONResponse(result)
+        # Return streaming response (respond() is called during streaming)
+        stream_response_start = time.time()
+        logger.info(
+            f"⏱️  [+{(stream_response_start - request_start_time):.3f}s] Creating StreamingResponse (respond() will be called during iteration)"
+        )
+        logger.info("=" * 80)
+
+        if isinstance(result, StreamingResult):
+            # Wrap streaming result to catch guardrail exceptions during streaming
+            async def stream_with_guardrail_handler():
+                try:
+                    async for chunk in result:
+                        yield chunk
+                except InputGuardrailTripwireTriggered as e:
+                    # Input bloqueado por guardrail durante streaming
+                    logger.warning(
+                        f"🚨 Input guardrail triggered (during stream) | "
+                        f"User: {user_id} | "
+                        f"Company: {company_id} | "
+                        f"Guardrail: {e.guardrail_name} | "
+                        f"Reason: {e.result.output.output_info}"
+                    )
+
+                    # Determinar mensaje basado en el tipo de bloqueo
+                    reason = e.result.output.output_info.get("reason", "").lower()
+
+                    if "prompt injection" in reason:
+                        message_text = (
+                            "⚠️ Lo siento, detecté un intento de manipular mi comportamiento.\n\n"
+                            "Estoy diseñado para ayudarte exclusivamente con temas tributarios y contables de Chile. "
+                            "Por favor, hazme preguntas relacionadas con:\n"
+                            "• Impuestos (IVA, F29, DTE)\n"
+                            "• Contabilidad empresarial\n"
+                            "• Remuneraciones y personal\n"
+                            "• Documentos tributarios\n"
+                            "• Obligaciones con el SII"
+                        )
+                    elif "off-topic" in reason:
+                        message_text = (
+                            "🤔 Tu pregunta parece estar fuera del alcance de Fizko.\n\n"
+                            "Soy un asistente especializado en temas tributarios y contables de Chile. "
+                            "Puedo ayudarte con:\n"
+                            "• Cálculos de IVA y otros impuestos\n"
+                            "• Llenado del formulario F29\n"
+                            "• Gestión de documentos tributarios (facturas, boletas, guías)\n"
+                            "• Remuneraciones y contratos laborales\n"
+                            "• Obligaciones y plazos del SII\n"
+                            "• Contabilidad empresarial\n\n"
+                            "¿En qué tema tributario o contable puedo ayudarte hoy?"
+                        )
+                    else:
+                        message_text = (
+                            "Lo siento, no puedo procesar tu solicitud. "
+                            "Por favor, reformula tu pregunta relacionada con temas tributarios y contables de Chile. "
+                            "Estoy aquí para ayudarte con IVA, F29, documentos tributarios, remuneraciones y más."
+                        )
+
+                    # Enviar mensaje como evento SSE
+                    error_event = {
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": message_text}]
+                    }
+                    yield f"data: {json.dumps(error_event)}\n\n"
+                    yield "data: [DONE]\n\n"
+
+            return StreamingResponse(stream_with_guardrail_handler(), media_type="text/event-stream")
+        if hasattr(result, "json"):
+            return Response(content=result.json, media_type="application/json")
+        return JSONResponse(result)
+
+    except InputGuardrailTripwireTriggered as e:
+        # Input bloqueado por guardrail (ej: prompt injection, uso abusivo)
+        logger.warning(
+            f"🚨 Input guardrail triggered | "
+            f"User: {user_id} | "
+            f"Company: {company_id} | "
+            f"Guardrail: {e.guardrail_name} | "
+            f"Reason: {e.result.output.output_info}"
+        )
+
+        # Determinar mensaje basado en el tipo de bloqueo
+        reason = e.result.output.output_info.get("reason", "").lower()
+
+        if "prompt injection" in reason:
+            # Mensaje para intentos de manipulación
+            message_text = (
+                "⚠️ Lo siento, detecté un intento de manipular mi comportamiento.\n\n"
+                "Estoy diseñado para ayudarte exclusivamente con temas tributarios y contables de Chile. "
+                "Por favor, hazme preguntas relacionadas con:\n"
+                "• Impuestos (IVA, F29, DTE)\n"
+                "• Contabilidad empresarial\n"
+                "• Remuneraciones y personal\n"
+                "• Documentos tributarios\n"
+                "• Obligaciones con el SII"
+            )
+        elif "off-topic" in reason:
+            # Mensaje para preguntas fuera de tema
+            message_text = (
+                "🤔 Tu pregunta parece estar fuera del alcance de Fizko.\n\n"
+                "Soy un asistente especializado en temas tributarios y contables de Chile. "
+                "Puedo ayudarte con:\n"
+                "• Cálculos de IVA y otros impuestos\n"
+                "• Llenado del formulario F29\n"
+                "• Gestión de documentos tributarios (facturas, boletas, guías)\n"
+                "• Remuneraciones y contratos laborales\n"
+                "• Obligaciones y plazos del SII\n"
+                "• Contabilidad empresarial\n\n"
+                "¿En qué tema tributario o contable puedo ayudarte hoy?"
+            )
+        else:
+            # Mensaje genérico para otros casos
+            message_text = (
+                "Lo siento, no puedo procesar tu solicitud. "
+                "Por favor, reformula tu pregunta relacionada con temas tributarios y contables de Chile. "
+                "Estoy aquí para ayudarte con IVA, F29, documentos tributarios, remuneraciones y más."
+            )
+
+        # Retornar mensaje amigable al usuario
+        error_message = {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "output_text",
+                    "text": message_text
+                }
+            ]
+        }
+        return JSONResponse(error_message, status_code=200)  # 200 para que ChatKit lo muestre
+
+    except OutputGuardrailTripwireTriggered as e:
+        # Output bloqueado por guardrail (ej: PII detectado)
+        logger.error(
+            f"🚨 Output guardrail triggered | "
+            f"User: {user_id} | "
+            f"Company: {company_id} | "
+            f"Guardrail: {e.guardrail_name} | "
+            f"Reason: {e.result.output.output_info}"
+        )
+
+        # No mostrar el output bloqueado - devolver mensaje genérico
+        error_message = {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "output_text",
+                    "text": (
+                        "Lo siento, hubo un problema al procesar tu solicitud. "
+                        "Por favor, intenta reformular tu pregunta o contacta con soporte si el problema persiste."
+                    )
+                }
+            ]
+        }
+        return JSONResponse(error_message, status_code=200)
