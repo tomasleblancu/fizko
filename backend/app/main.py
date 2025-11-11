@@ -56,7 +56,14 @@ from .routers.auth import whatsapp as auth_whatsapp_router
 # Load environment variables from .env file
 load_dotenv()
 
-# Setup logging
+# Setup logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s:     %(name)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+
+# Setup logger for this module
 logger = logging.getLogger(__name__)
 
 

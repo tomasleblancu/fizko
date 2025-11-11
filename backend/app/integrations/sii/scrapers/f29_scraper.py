@@ -48,6 +48,50 @@ class F29Scraper(BaseScraper):
             logger.warning(f"⚠️ Error verificando sesión: {type(e).__name__}: {e}")
             return False
 
+    def _take_debug_screenshot(self, context: str, folio: str = "unknown") -> None:
+        """
+        Toma screenshot y guarda HTML para debugging en producción
+
+        Args:
+            context: Contexto del error (ej: "click_intercepted", "codint_extraction", etc.)
+            folio: Folio del formulario siendo procesado
+        """
+        try:
+            import os
+            timestamp = int(time.time())
+            screenshot_dir = "/app/screenshots"
+            os.makedirs(screenshot_dir, exist_ok=True)
+
+            # Nombres descriptivos
+            screenshot_path = f"{screenshot_dir}/f29_{context}_{folio}_{timestamp}.png"
+            html_path = f"{screenshot_dir}/f29_{context}_{folio}_{timestamp}.html"
+
+            # Screenshot
+            try:
+                self.driver.driver.save_screenshot(screenshot_path)
+                logger.error(f"📸 Screenshot guardado: {screenshot_path}")
+            except Exception as ss_error:
+                logger.warning(f"⚠️ No se pudo guardar screenshot: {ss_error}")
+
+            # HTML source
+            try:
+                with open(html_path, 'w', encoding='utf-8') as f:
+                    f.write(self.driver.driver.page_source)
+                logger.error(f"📄 HTML guardado: {html_path}")
+            except Exception as html_error:
+                logger.warning(f"⚠️ No se pudo guardar HTML: {html_error}")
+
+            # Info adicional de contexto
+            try:
+                current_url = self.driver.driver.current_url
+                window_count = len(self.driver.driver.window_handles)
+                logger.error(f"🔍 Context: URL={current_url}, Windows={window_count}")
+            except:
+                pass
+
+        except Exception as e:
+            logger.warning(f"⚠️ Error en _take_debug_screenshot: {e}")
+
     def scrape(self, **kwargs) -> dict:
         """
         Implementacion del metodo abstracto scrape
@@ -530,6 +574,12 @@ class F29Scraper(BaseScraper):
                 return None
 
         except InvalidSessionIdException as e:
+            # 📸 CAPTURAR SCREENSHOT si la sesión todavía permite
+            try:
+                self._take_debug_screenshot("invalid_session_codint", folio_text)
+            except:
+                pass  # Sesión ya inválida, no se puede capturar
+
             logger.error(
                 f"🔴 INVALID SESSION ID para folio {folio_text}\n"
                 f"   Error: {e}\n"
@@ -556,6 +606,12 @@ class F29Scraper(BaseScraper):
             return None
 
         except WebDriverException as e:
+            # 📸 CAPTURAR SCREENSHOT si es posible
+            try:
+                self._take_debug_screenshot("webdriver_codint", folio_text)
+            except:
+                pass  # No se puede capturar si el driver falló
+
             logger.error(
                 f"🌐 WEBDRIVER ERROR para folio {folio_text}\n"
                 f"   Error: {e}\n"
@@ -855,6 +911,25 @@ class F29Scraper(BaseScraper):
                                 from selenium.webdriver.support.ui import WebDriverWait
                                 from selenium.webdriver.support import expected_conditions as EC
 
+                                # 📊 LOGGING DE ESTADO ANTES DE INTENTAR VOLVER
+                                try:
+                                    logger.debug(f"📊 Estado antes de click 'Volver' para folio {datos['folio']}:")
+                                    logger.debug(f"   - URL actual: {self.driver.driver.current_url}")
+                                    logger.debug(f"   - Ventanas abiertas: {len(self.driver.driver.window_handles)}")
+                                    logger.debug(f"   - Document readyState: {self.driver.driver.execute_script('return document.readyState')}")
+
+                                    # Verificar si hay overlays visibles con z-index alto
+                                    overlay_count = self.driver.driver.execute_script("""
+                                        return Array.from(document.querySelectorAll('div')).filter(el => {
+                                            const style = window.getComputedStyle(el);
+                                            const zIndex = parseInt(style.zIndex);
+                                            return zIndex > 1000 && style.display !== 'none' && style.visibility !== 'hidden';
+                                        }).length;
+                                    """)
+                                    logger.debug(f"   - Overlays con z-index > 1000: {overlay_count}")
+                                except Exception as log_error:
+                                    logger.warning(f"⚠️ Error obteniendo estado: {log_error}")
+
                                 max_retries = 5
                                 for attempt in range(max_retries):
                                     try:
@@ -943,6 +1018,43 @@ class F29Scraper(BaseScraper):
                                         break
 
                                     except ElementClickInterceptedException as click_error:
+                                        # 📸 CAPTURAR SCREENSHOT + HTML para debugging
+                                        self._take_debug_screenshot("click_intercepted", datos['folio'])
+
+                                        # 🔍 ANALIZAR QUÉ ELEMENTO ESTÁ INTERCEPTANDO
+                                        try:
+                                            interceptor_info = self.driver.driver.execute_script("""
+                                                const btn = arguments[0];
+                                                const rect = btn.getBoundingClientRect();
+                                                const centerX = rect.left + rect.width / 2;
+                                                const centerY = rect.top + rect.height / 2;
+                                                const topElement = document.elementFromPoint(centerX, centerY);
+
+                                                return {
+                                                    interceptor_tag: topElement?.tagName,
+                                                    interceptor_class: topElement?.className,
+                                                    interceptor_id: topElement?.id,
+                                                    interceptor_text: topElement?.innerText?.substring(0, 50),
+                                                    button_visible: btn.offsetParent !== null,
+                                                    button_rect: {
+                                                        top: rect.top,
+                                                        left: rect.left,
+                                                        width: rect.width,
+                                                        height: rect.height
+                                                    }
+                                                };
+                                            """, volver_btn)
+
+                                            logger.error(f"🎯 Elemento interceptor detectado para folio {datos['folio']}:")
+                                            logger.error(f"   - Tag: {interceptor_info.get('interceptor_tag')}")
+                                            logger.error(f"   - Class: {interceptor_info.get('interceptor_class')}")
+                                            logger.error(f"   - ID: {interceptor_info.get('interceptor_id')}")
+                                            logger.error(f"   - Text: {interceptor_info.get('interceptor_text')}")
+                                            logger.error(f"   - Botón visible: {interceptor_info.get('button_visible')}")
+                                            logger.error(f"   - Botón rect: {interceptor_info.get('button_rect')}")
+                                        except Exception as js_error:
+                                            logger.warning(f"⚠️ No se pudo analizar interceptor: {js_error}")
+
                                         if attempt < max_retries - 1:
                                             logger.debug(
                                                 f"⚠️ Click bloqueado (intento {attempt + 1}/{max_retries}): {str(click_error)[:100]}"
@@ -990,6 +1102,12 @@ class F29Scraper(BaseScraper):
                             # El formulario ya fue guardado con su codInt
 
                 except InvalidSessionIdException as e:
+                    # 📸 CAPTURAR SCREENSHOT si es posible
+                    try:
+                        self._take_debug_screenshot("invalid_session_proceso", datos['folio'])
+                    except:
+                        pass
+
                     logger.error(
                         f"🔴 INVALID SESSION ID al procesar folio {datos['folio']}\n"
                         f"   Error: {e}\n"
@@ -1000,6 +1118,12 @@ class F29Scraper(BaseScraper):
                     # Continuar sin codInt si falla
 
                 except WebDriverException as e:
+                    # 📸 CAPTURAR SCREENSHOT si es posible
+                    try:
+                        self._take_debug_screenshot("webdriver_proceso", datos['folio'])
+                    except:
+                        pass
+
                     logger.error(
                         f"🌐 WEBDRIVER ERROR al procesar folio {datos['folio']}\n"
                         f"   Error: {type(e).__name__}: {e}\n"

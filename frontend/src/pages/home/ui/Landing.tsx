@@ -1,6 +1,5 @@
 import { TrendingUp, MessageCircle, CalendarCheck, Mail, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
-import { TypeAnimation } from 'react-type-animation';
 import { useAuth } from "@/app/providers/AuthContext";
 import { LandingFooter } from "@/shared/ui/branding/LandingFooter";
 import { ContactSalesDialog } from "./ContactSalesDialog";
@@ -10,7 +9,6 @@ export default function Landing() {
   const [secretClickCount, setSecretClickCount] = useState(0);
   const [showSecretLogin, setShowSecretLogin] = useState(false);
   const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
-  const [showSecondPart, setShowSecondPart] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   const handleContactSales = () => {
@@ -92,41 +90,15 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* Eyebrow text */}
-            <p className="text-blue-600 dark:text-blue-400 text-sm sm:text-base font-medium tracking-wide uppercase mb-6">
-              El caos tributario termina aquí
-            </p>
-
             {/* Main Headline */}
             <div className="mx-auto max-w-4xl">
               <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-slate-900 dark:text-white mb-8 leading-tight">
-                <TypeAnimation
-                  sequence={[
-                    'Tus números claros.',
-                    1000,
-                    'Tus números claros.',
-                    () => setShowSecondPart(true),
-                  ]}
-                  wrapper="span"
-                  speed={50}
-                  cursor={false}
-                  repeat={0}
-                  className="block"
-                />
-                {showSecondPart && (
-                  <span className="block bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                    <TypeAnimation
-                      sequence={[
-                        'Tus impuestos bajo control.',
-                        1000,
-                      ]}
-                      wrapper="span"
-                      speed={50}
-                      cursor={true}
-                      repeat={0}
-                    />
-                  </span>
-                )}
+                <span className="block transition-all duration-300 hover:scale-105 cursor-default inline-block">
+                  Tus números claros.
+                </span>
+                <span className="block bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent transition-all duration-300 hover:scale-105 cursor-default inline-block">
+                  Tus impuestos bajo control.
+                </span>
               </h1>
             </div>
 
@@ -143,10 +115,19 @@ export default function Landing() {
               <button
                 onClick={handleContactSales}
                 className="group inline-flex items-center space-x-3 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-10 py-5 text-xl font-semibold text-white shadow-xl transition-all hover:shadow-2xl hover:scale-105"
-                aria-label="Acceder al pre lanzamiento de Fizko"
+                aria-label="Solicitar una demo de Fizko"
               >
                 <Mail className="h-6 w-6" />
-                <span>Accede al Pre Lanzamiento</span>
+                <span>Solicitar Demo</span>
+              </button>
+
+              <button
+                onClick={() => window.open('https://wa.me/56963333867', '_blank')}
+                className="inline-flex items-center space-x-3 rounded-full bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 px-10 py-5 text-xl font-semibold text-slate-700 dark:text-slate-200 shadow-lg transition-all hover:shadow-xl hover:scale-105 hover:border-slate-300 dark:hover:border-slate-600"
+                aria-label="Contactar por WhatsApp"
+              >
+                <MessageCircle className="h-6 w-6" />
+                <span>Háblanos</span>
               </button>
 
               {/* Login secreto - aparece al hacer 5 clicks en el logo */}

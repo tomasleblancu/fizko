@@ -24,6 +24,7 @@ import { useSession } from "@/shared/hooks/useSession";
 import { useCompanyQuery } from "@/shared/hooks/useCompanyQuery";
 import { useSubscription, useIsInTrial, useIsFreePlan } from "@/shared/hooks/useSubscription";
 import { useSubscriptionPlans } from "@/shared/hooks/useSubscriptionPlans";
+import { useF29FormsQuery } from "@/shared/hooks/useF29FormsQuery";
 import { ChatProvider, useChat } from "@/app/providers/ChatContext";
 
 export default function Home({
@@ -63,6 +64,15 @@ function HomeContent({
 
   // Prefetch subscription plans for instant loading when user opens subscription settings
   useSubscriptionPlans();
+
+  // Prefetch F29 forms (monthly, current year) for instant loading when user opens forms tab
+  // This runs after Home loads (enabled when company is loaded), so it doesn't block initial render
+  const currentYear = new Date().getFullYear();
+  useF29FormsQuery({
+    companyId: company?.id,
+    formType: 'monthly',
+    year: currentYear,
+  });
 
   // Chat context for chateable components
   const { setSendUserMessage, setOnChateableClick } = useChat();

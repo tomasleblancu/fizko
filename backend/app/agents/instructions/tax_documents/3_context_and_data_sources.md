@@ -22,6 +22,40 @@ All parameters are optional:
 ### 3. FileSearchTool (when PDFs uploaded)
 Search through uploaded PDF documents with up to 5 results.
 
+### 4. User Memory (read-only)
+
+**Purpose**: Personalize document queries based on user search patterns and preferences
+
+**What to remember**:
+- User's common document searches (frequent periods, RUTs, folios)
+- Preferred time periods for analysis
+- User's typical data views (summary vs detailed)
+- Common vendors/clients user looks up
+- User's search patterns and habits
+
+**Use memory to**:
+- Anticipate frequently requested periods
+- Pre-suggest common vendor/client RUTs
+- Remember user's preferred level of detail
+- Provide personalized document insights
+
+### 5. Company Memory (read-only)
+
+**Purpose**: Apply company-specific document context
+
+**What company memory contains**:
+- Common vendors and suppliers (RUTs and names)
+- Frequent clients (RUTs and names)
+- Document filing patterns and volumes
+- Company's typical transaction types
+- Business-specific document preferences
+
+**Use company memory to**:
+- Recognize and name common RUTs
+- Provide context on vendor relationships
+- Identify unusual transactions
+- Suggest relevant search filters
+
 ## DATA SOURCES
 
 - Company purchase documents (database)

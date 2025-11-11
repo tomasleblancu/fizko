@@ -77,31 +77,33 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto px-4 sm:px-6">
           <div className="flex flex-col pb-4">
-            {/* Tabs */}
-            <div className="flex gap-2 border-b border-slate-200/50 dark:border-slate-700/50 pb-0 mb-4 pt-2">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const isDanger = 'isDanger' in tab && tab.isDanger;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={clsx(
-                      'border-b-2 px-4 py-2.5 text-base font-medium transition-colors flex items-center gap-2',
-                      activeTab === tab.id
-                        ? isDanger
-                          ? 'border-red-600 text-red-600 dark:border-red-500 dark:text-red-500'
-                          : 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
-                        : isDanger
-                          ? 'border-transparent text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400'
-                          : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
+            {/* Tabs - Responsive with horizontal scroll on mobile */}
+            <div className="overflow-x-auto border-b border-slate-200/50 dark:border-slate-700/50 mb-4 pt-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+              <div className="flex gap-2 pb-0 min-w-max">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isDanger = 'isDanger' in tab && tab.isDanger;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={clsx(
+                        'border-b-2 px-3 sm:px-4 py-2.5 text-sm sm:text-base font-medium transition-colors flex items-center gap-2 whitespace-nowrap',
+                        activeTab === tab.id
+                          ? isDanger
+                            ? 'border-red-600 text-red-600 dark:border-red-500 dark:text-red-500'
+                            : 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
+                          : isDanger
+                            ? 'border-transparent text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400'
+                            : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+                      )}
+                    >
+                      <Icon className="w-4 h-4 flex-shrink-0" />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Tab Content */}
