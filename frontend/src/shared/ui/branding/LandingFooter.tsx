@@ -5,11 +5,16 @@ export function LandingFooter() {
     <footer className="bg-white py-12 dark:bg-gray-900">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col items-center justify-between space-y-4 sm:flex-row sm:space-y-0">
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
             <img
               src="/encabezado.png"
-              alt="Fizko - Plataforma de Gestión Tributaria"
+              alt="Fizko Icon"
               className="h-8 w-auto"
+            />
+            <img
+              src="/encabezado_fizko.svg"
+              alt="Fizko - Plataforma de Gestión Tributaria"
+              className="h-10 w-auto"
             />
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400">

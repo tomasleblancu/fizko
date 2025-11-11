@@ -1,4 +1,4 @@
-import { TrendingUp, MessageCircle, CalendarCheck, Mail } from 'lucide-react';
+import { TrendingUp, MessageCircle, CalendarCheck, Mail, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { TypeAnimation } from 'react-type-animation';
 import { useAuth } from "@/app/providers/AuthContext";
@@ -11,6 +11,7 @@ export default function Landing() {
   const [showSecretLogin, setShowSecretLogin] = useState(false);
   const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
   const [showSecondPart, setShowSecondPart] = useState(false);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
   const handleContactSales = () => {
     setIsContactDialogOpen(true);
@@ -29,25 +30,60 @@ export default function Landing() {
     setSecretClickCount(0);
   };
 
+  const toggleFaq = (index: number) => {
+    setOpenFaqIndex(openFaqIndex === index ? null : index);
+  };
+
+  const faqs = [
+    {
+      question: "¿Cómo se conecta Fizko con el SII?",
+      answer: "Fizko se conecta de forma segura con el SII usando tus credenciales. Toda la información viaja encriptada y nunca almacenamos tus contraseñas. La conexión nos permite mantener tu información actualizada en tiempo real."
+    },
+    {
+      question: "¿Qué impuestos puedo declarar con Fizko?",
+      answer: "Actualmente Fizko te ayuda con el Formulario 29 (IVA mensual), Impuesto a la Renta Anual (F22), documentos tributarios electrónicos (DTEs), y próximamente soportaremos otros formularios. Nuestro asistente también puede responder consultas sobre cualquier tema tributario."
+    },
+    {
+      question: "¿Cuánto cuesta Fizko?",
+      answer: "Estamos en fase de pre lanzamiento. Los primeros usuarios que se unan tendrán acceso exclusivo con condiciones especiales. Contáctanos para conocer más detalles y ser parte de nuestros early adopters."
+    },
+    {
+      question: "¿Es seguro compartir mis credenciales del SII?",
+      answer: "Sí, es completamente seguro. Usamos encriptación de nivel bancario (AES-256) para proteger tus credenciales. Además, nunca almacenamos tu contraseña en texto plano y todos nuestros sistemas cumplen con estándares internacionales de seguridad."
+    },
+    {
+      question: "¿Qué pasa si tengo dudas o necesito ayuda?",
+      answer: "Nuestro asistente inteligente está disponible 24/7 para resolver todas tus dudas tributarias. Para dudas complejas, tenemos un equipo experto de contadores disponibles en horario normal. Además, durante el pre lanzamiento tendrás soporte directo de nuestro equipo vía WhatsApp."
+    },
+    {
+      question: "¿Puedo usar Fizko si tengo contador?",
+      answer: "¡Por supuesto! Fizko complementa el trabajo de tu contador. Tu contador puede tener acceso a la plataforma para revisar información en tiempo real, y tú mantienes el control y visibilidad de todo lo que pasa con tu negocio."
+    }
+  ];
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-white dark:bg-gray-900" aria-label="Hero">
-        {/* Decorative waves */}
-        <div className="absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-blue-100/50 to-transparent dark:from-blue-900/20" aria-hidden="true" />
+      <section className="relative overflow-hidden bg-white dark:bg-slate-900" aria-label="Hero">
+        {/* Decorative background */}
+        <div className="absolute inset-0 bg-gradient-to-b from-blue-50 via-transparent to-transparent dark:from-blue-950/30" aria-hidden="true" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
           <header className="text-center">
-            {/* Fizko Logo - Above accounting entry */}
+            {/* Fizko Logo */}
             <div className="mb-12">
               <div
-                className="flex justify-center items-center gap-2"
+                className="flex justify-center items-center gap-3"
                 onClick={handleSecretClick}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => e.key === 'Enter' && handleSecretClick()}
               >
+                <img
+                  src="/encabezado.png"
+                  alt="Fizko Icon"
+                  className="h-14 w-auto cursor-pointer sm:h-16 md:h-20"
+                />
                 <img
                   src="/encabezado_fizko.svg"
                   alt="Fizko - Plataforma de Gestión Tributaria Inteligente"
@@ -56,91 +92,57 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* Main Headline - Accounting Entry Style */}
-            <div className="mx-auto max-w-5xl min-h-[180px] sm:min-h-[220px]">
-              {/* Accounting Entry Container */}
-              <div className="flex items-center justify-center gap-2 sm:gap-4">
-                {/* Left Parenthesis */}
-                <img
-                  src="/parentesis_izq.svg"
-                  alt=""
-                  className="h-32 sm:h-40 w-auto flex-shrink-0"
-                  aria-hidden="true"
-                  style={{
-                    imageRendering: 'crisp-edges',
-                    WebkitBackfaceVisibility: 'hidden',
-                    WebkitTransform: 'translateZ(0)',
-                    transform: 'translateZ(0)'
-                  }}
+            {/* Eyebrow text */}
+            <p className="text-blue-600 dark:text-blue-400 text-sm sm:text-base font-medium tracking-wide uppercase mb-6">
+              El caos tributario termina aquí
+            </p>
+
+            {/* Main Headline */}
+            <div className="mx-auto max-w-4xl">
+              <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-slate-900 dark:text-white mb-8 leading-tight">
+                <TypeAnimation
+                  sequence={[
+                    'Tus números claros.',
+                    1000,
+                    'Tus números claros.',
+                    () => setShowSecondPart(true),
+                  ]}
+                  wrapper="span"
+                  speed={50}
+                  cursor={false}
+                  repeat={0}
+                  className="block"
                 />
-
-                {/* Accounting Entry Content - Two Lines */}
-                <div className="flex flex-col justify-center sm:justify-between w-full max-w-2xl py-4 sm:py-0" style={{ minHeight: '128px' }}>
-                  {/* First Line - Left Aligned - Always at top */}
-                  <div className="text-left mb-4 sm:mb-0">
-                    <div className="text-xl sm:text-4xl font-bold text-gray-900 dark:text-white whitespace-nowrap">
-                      <TypeAnimation
-                        sequence={[
-                          'Tus números claros.',
-                          1000,
-                          'Tus números claros.',
-                          () => setShowSecondPart(true),
-                        ]}
-                        wrapper="span"
-                        speed={50}
-                        cursor={false}
-                        repeat={0}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Second Line - Right Aligned - Fixed position at bottom */}
-                  <div className="text-right sm:self-end">
-                    {showSecondPart && (
-                      <div className="text-xl sm:text-4xl font-bold whitespace-nowrap">
-                        <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                          <TypeAnimation
-                            sequence={[
-                              'Tus impuestos bajo control.',
-                              1000,
-                            ]}
-                            wrapper="span"
-                            speed={50}
-                            cursor={true}
-                            repeat={0}
-                          />
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Right Parenthesis */}
-                <img
-                  src="/parentesis_der.svg"
-                  alt=""
-                  className="h-32 sm:h-40 w-auto flex-shrink-0"
-                  aria-hidden="true"
-                  style={{
-                    imageRendering: 'crisp-edges',
-                    WebkitBackfaceVisibility: 'hidden',
-                    WebkitTransform: 'translateZ(0)',
-                    transform: 'translateZ(0)'
-                  }}
-                />
-              </div>
+                {showSecondPart && (
+                  <span className="block bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    <TypeAnimation
+                      sequence={[
+                        'Tus impuestos bajo control.',
+                        1000,
+                      ]}
+                      wrapper="span"
+                      speed={50}
+                      cursor={true}
+                      repeat={0}
+                    />
+                  </span>
+                )}
+              </h1>
             </div>
 
             {/* Subtitle */}
-            <p className="mx-auto mt-8 max-w-2xl text-xl leading-relaxed text-gray-600 dark:text-gray-300">
-              Conexión directa al SII, actualización en tiempo real y proyecciones para pagar a tiempo tus obligaciones.
+            <p className="mx-auto mt-8 max-w-2xl text-xl sm:text-2xl leading-relaxed text-slate-600 dark:text-slate-300">
+              Declaramos tus impuestos automáticamente.
+              <span className="block mt-2 font-medium text-slate-700 dark:text-slate-200">
+                Tú vuelves a enfocarte en crecer.
+              </span>
             </p>
 
-            {/* CTA Button */}
-            <div className="mt-10 flex flex-col items-center gap-4">
+            {/* CTA Buttons */}
+            <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
                 onClick={handleContactSales}
-                className="group inline-flex items-center space-x-3 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-4 text-lg font-semibold text-white shadow-xl transition-all hover:shadow-2xl hover:scale-105"
+                className="group inline-flex items-center space-x-3 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-10 py-5 text-xl font-semibold text-white shadow-xl transition-all hover:shadow-2xl hover:scale-105"
                 aria-label="Acceder al pre lanzamiento de Fizko"
               >
                 <Mail className="h-6 w-6" />
@@ -151,7 +153,7 @@ export default function Landing() {
               {showSecretLogin && (
                 <button
                   onClick={handleGetStarted}
-                  className="inline-flex items-center space-x-2 rounded-lg bg-white border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:shadow-md hover:border-gray-300"
+                  className="inline-flex items-center space-x-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-8 py-4 text-lg font-medium text-slate-700 dark:text-slate-200 shadow-sm transition-all hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600"
                   aria-label="Iniciar sesión con Google"
                 >
                   <svg className="h-5 w-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -160,112 +162,135 @@ export default function Landing() {
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                   </svg>
-                  <span>Login con Google</span>
+                  <span>Login</span>
                 </button>
               )}
             </div>
 
-            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-              Únete a los primeros usuarios y obtén acceso anticipado
-            </p>
+            {/* Trust Indicators with pulsing dots */}
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-sm text-slate-600 dark:text-slate-400">
+              <div className="flex items-center gap-2">
+                <div className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                </div>
+                <span>Conexión segura con el SII</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" style={{ animationDelay: '1s' }}></span>
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                </div>
+                <span>Acceso anticipado disponible</span>
+              </div>
+            </div>
           </header>
 
-          {/* Video Preview */}
-          <figure className="mt-16 flex justify-center">
-            {/* Desktop Video */}
-            <video
-              className="hidden sm:block w-full max-w-6xl"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="auto"
-              aria-label="Video demostrativo de la plataforma Fizko mostrando cambio de empresa, agregar trabajador y chat en acción"
-            >
-              <source src="/video_tutorial_fizko.mp4" type="video/mp4" />
-              Tu navegador no soporta la reproducción de video. Por favor actualiza tu navegador.
-            </video>
+          {/* Video Preview - Pure White Container */}
+          <figure className="mt-12 sm:mt-16">
+            <div className="relative mx-auto max-w-6xl">
+              {/* Decorative blur behind container */}
+              <div className="absolute -inset-8 bg-gradient-to-r from-blue-400 to-purple-400 rounded-3xl blur-3xl opacity-10" aria-hidden="true" />
 
-            {/* Mobile Video */}
-            <video
-              className="block sm:hidden w-full max-w-sm mx-auto"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="auto"
-              aria-label="Video demostrativo de la plataforma Fizko mostrando cambio de empresa, agregar trabajador y chat en acción"
-            >
-              <source src="/video_tutorial_fizko_phone.mp4" type="video/mp4" />
-              Tu navegador no soporta la reproducción de video. Por favor actualiza tu navegador.
-            </video>
+              {/* Pure white container with padding */}
+              <div className="relative bg-white dark:bg-slate-800 rounded-3xl p-8 sm:p-12 shadow-2xl">
+                {/* Desktop Video */}
+                <div className="hidden sm:block relative overflow-hidden">
+                  <video
+                    className="w-full"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="auto"
+                    aria-label="Video demostrativo de la plataforma Fizko mostrando cambio de empresa, agregar trabajador y chat en acción"
+                  >
+                    <source src="/video_tutorial_fizko.mp4" type="video/mp4" />
+                    Tu navegador no soporta la reproducción de video. Por favor actualiza tu navegador.
+                  </video>
+                </div>
+
+                {/* Mobile Video */}
+                <div className="block sm:hidden relative overflow-hidden max-w-sm mx-auto">
+                  <video
+                    className="w-full"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="auto"
+                    aria-label="Video demostrativo de la plataforma Fizko mostrando cambio de empresa, agregar trabajador y chat en acción"
+                  >
+                    <source src="/video_tutorial_fizko_phone.mp4" type="video/mp4" />
+                    Tu navegador no soporta la reproducción de video. Por favor actualiza tu navegador.
+                  </video>
+                </div>
+              </div>
+            </div>
           </figure>
         </div>
       </section>
 
-      {/* Las 3C de Fizko Section - BEFORE Features */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 py-24" aria-labelledby="three-cs-heading">
-        {/* Decorative background elements */}
-        <div className="absolute inset-0 opacity-20" aria-hidden="true">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500 rounded-full blur-3xl" />
-        </div>
+      {/* Las 3C de Fizko Section - Hero Style */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 py-32 transition-colors" aria-labelledby="three-cs-heading">
+        {/* Decorative background */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/20 via-transparent to-transparent" aria-hidden="true" />
 
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <header className="text-center mb-16">
-            <h2 id="three-cs-heading" className="text-4xl font-bold text-white sm:text-5xl mb-4">
+          <header className="text-center mb-20">
+            <h2 id="three-cs-heading" className="text-5xl font-bold text-white sm:text-6xl mb-6">
               Las 3C de Fizko
             </h2>
-            <p className="text-xl text-blue-200">
+            <p className="text-2xl text-blue-200">
               La esencia de nuestra plataforma
             </p>
           </header>
 
-          <div className="grid gap-8 lg:grid-cols-3 lg:items-stretch">
+          <div className="grid gap-8 md:grid-cols-3 max-w-6xl mx-auto">
             {/* Conecta */}
-            <div className="relative group h-full">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-300" aria-hidden="true" />
-              <div className="relative flex flex-col items-start h-full p-8 bg-white/10 backdrop-blur-sm rounded-3xl border border-white/20 hover:bg-white/15 transition-all duration-300">
-                <div className="flex items-center justify-center w-14 h-14 mb-6 rounded-2xl bg-gradient-to-br from-blue-400 to-cyan-400 shadow-lg flex-shrink-0">
-                  <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+            <div className="group relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300" aria-hidden="true" />
+              <div className="relative flex flex-col items-center text-center h-full p-10 bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
+                <div className="flex items-center justify-center w-20 h-20 mb-8 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 shadow-2xl flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                  <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
-                <h3 className="text-3xl font-bold text-white mb-3">Conecta</h3>
+                <h3 className="text-4xl font-bold text-white mb-4">Conecta</h3>
                 <p className="text-lg text-blue-100 leading-relaxed">
-                  tu información financiera con un click
+                  Tu información financiera con un click
                 </p>
               </div>
             </div>
 
             {/* Controla */}
-            <div className="relative group h-full">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-300" aria-hidden="true" />
-              <div className="relative flex flex-col items-start h-full p-8 bg-white/10 backdrop-blur-sm rounded-3xl border border-white/20 hover:bg-white/15 transition-all duration-300">
-                <div className="flex items-center justify-center w-14 h-14 mb-6 rounded-2xl bg-gradient-to-br from-purple-400 to-pink-400 shadow-lg flex-shrink-0">
-                  <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+            <div className="group relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300" aria-hidden="true" />
+              <div className="relative flex flex-col items-center text-center h-full p-10 bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
+                <div className="flex items-center justify-center w-20 h-20 mb-8 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-2xl flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                  <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
-                <h3 className="text-3xl font-bold text-white mb-3">Controla</h3>
+                <h3 className="text-4xl font-bold text-white mb-4">Controla</h3>
                 <p className="text-lg text-blue-100 leading-relaxed">
-                  todos tus movimientos y crecimiento
+                  Todos tus movimientos y crecimiento
                 </p>
               </div>
             </div>
 
             {/* Cumple */}
-            <div className="relative group h-full">
-              <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-600 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-300" aria-hidden="true" />
-              <div className="relative flex flex-col items-start h-full p-8 bg-white/10 backdrop-blur-sm rounded-3xl border border-white/20 hover:bg-white/15 transition-all duration-300">
-                <div className="flex items-center justify-center w-14 h-14 mb-6 rounded-2xl bg-gradient-to-br from-green-400 to-emerald-400 shadow-lg flex-shrink-0">
-                  <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+            <div className="group relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-green-500/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300" aria-hidden="true" />
+              <div className="relative flex flex-col items-center text-center h-full p-10 bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
+                <div className="flex items-center justify-center w-20 h-20 mb-8 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 shadow-2xl flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                  <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h3 className="text-3xl font-bold text-white mb-3">Cumple</h3>
+                <h3 className="text-4xl font-bold text-white mb-4">Cumple</h3>
                 <p className="text-lg text-blue-100 leading-relaxed">
-                  todas tus obligaciones tributarias
+                  Todas tus obligaciones tributarias
                 </p>
               </div>
             </div>
@@ -273,80 +298,59 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Features Section - Connected to 3Cs */}
-      <section className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-24" aria-labelledby="features-heading">
-        {/* Connection line from 3Cs */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1 h-12 bg-gradient-to-b from-emerald-500/50 to-transparent" aria-hidden="true" />
-
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <header className="text-center mb-16">
-            <h2 id="features-heading" className="text-3xl font-bold text-white sm:text-4xl mb-4">
+      {/* Features Section - Compact Design */}
+      <section className="relative bg-white dark:bg-slate-900 py-20 transition-colors" aria-labelledby="features-heading">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <header className="text-center mb-12">
+            <h2 id="features-heading" className="text-3xl font-bold text-slate-900 dark:text-white mb-3">
               Qué incluye Fizko
             </h2>
-            <p className="text-xl text-slate-300">
+            <p className="text-lg text-slate-600 dark:text-slate-400">
               Para cumplir con las 3C, te entregamos estas herramientas
             </p>
           </header>
 
-          <div className="grid gap-8 md:grid-cols-3">
-            {/* Feature 1 - Connects to "Conecta" */}
-            <div className="relative group">
-              {/* Connection indicator */}
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center" aria-hidden="true">
-                <div className="w-1 h-6 bg-gradient-to-b from-blue-400/50 to-blue-400" />
-                <div className="w-3 h-3 rounded-full bg-blue-400 ring-4 ring-blue-400/20" />
+          <div className="space-y-4">
+            {/* Feature 1 - Información en tiempo real */}
+            <div className="group flex items-start gap-6 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300">
+              <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 shadow-sm flex-shrink-0">
+                <TrendingUp className="h-6 w-6 text-white" />
               </div>
-
-              <div className="relative flex flex-col items-center bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 h-full border-2 border-blue-500/30 group-hover:border-blue-500/60 transition-all duration-300 shadow-xl">
-                <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg mb-6 group-hover:scale-110 transition-transform duration-300">
-                  <TrendingUp className="h-8 w-8 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-3 text-center">
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
                   Información en tiempo real
                 </h3>
-                <p className="text-slate-300 text-center leading-relaxed text-sm">
+                <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
                   Nos conectamos al SII y te actualizamos de todo lo que está pasando con tu negocio.
                 </p>
               </div>
             </div>
 
-            {/* Feature 2 - Connects to "Controla" */}
-            <div className="relative group">
-              {/* Connection indicator */}
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center" aria-hidden="true">
-                <div className="w-1 h-6 bg-gradient-to-b from-purple-400/50 to-purple-400" />
-                <div className="w-3 h-3 rounded-full bg-purple-400 ring-4 ring-purple-400/20" />
+            {/* Feature 2 - Asistente 24/7 */}
+            <div className="group flex items-start gap-6 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300">
+              <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 shadow-sm flex-shrink-0">
+                <MessageCircle className="h-6 w-6 text-white" />
               </div>
-
-              <div className="relative flex flex-col items-center bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 h-full border-2 border-purple-500/30 group-hover:border-purple-500/60 transition-all duration-300 shadow-xl">
-                <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg mb-6 group-hover:scale-110 transition-transform duration-300">
-                  <MessageCircle className="h-8 w-8 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-3 text-center">
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
                   Asistente disponible 24/7
                 </h3>
-                <p className="text-slate-300 text-center leading-relaxed text-sm">
+                <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
                   Chat que resuelve todas las dudas que tengas, las 24 horas del día.
                 </p>
               </div>
             </div>
 
-            {/* Feature 3 - Connects to "Cumple" */}
-            <div className="relative group">
-              {/* Connection indicator */}
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center" aria-hidden="true">
-                <div className="w-1 h-6 bg-gradient-to-b from-green-400/50 to-green-400" />
-                <div className="w-3 h-3 rounded-full bg-green-400 ring-4 ring-green-400/20" />
+            {/* Feature 3 - Cumplimiento tributario */}
+            <div className="group flex items-start gap-6 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300">
+              <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-emerald-500 to-green-500 shadow-sm flex-shrink-0">
+                <CalendarCheck className="h-6 w-6 text-white" />
               </div>
-
-              <div className="relative flex flex-col items-center bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 h-full border-2 border-green-500/30 group-hover:border-green-500/60 transition-all duration-300 shadow-xl">
-                <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 shadow-lg mb-6 group-hover:scale-110 transition-transform duration-300">
-                  <CalendarCheck className="h-8 w-8 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-3 text-center">
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
                   Cumplimiento tributario
                 </h3>
-                <p className="text-slate-300 text-center leading-relaxed text-sm">
+                <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
                   Nos encargamos de generar tus declaraciones y cumplir con las fechas que establece el SII.
                 </p>
               </div>
@@ -355,23 +359,75 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <section className="relative bg-gradient-to-b from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 py-20 transition-colors" aria-labelledby="faq-heading">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+          <header className="text-center mb-12">
+            <h2 id="faq-heading" className="text-3xl font-bold text-slate-900 dark:text-white mb-3">
+              Preguntas Frecuentes
+            </h2>
+            <p className="text-lg text-slate-600 dark:text-slate-400">
+              Todo lo que necesitas saber sobre Fizko
+            </p>
+          </header>
+
+          <div className="space-y-4">
+            {faqs.map((faq, index) => (
+              <div
+                key={index}
+                className="bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden border border-slate-200 dark:border-slate-700"
+              >
+                <button
+                  onClick={() => toggleFaq(index)}
+                  className="w-full flex items-center justify-between p-6 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                  aria-expanded={openFaqIndex === index}
+                  aria-controls={`faq-answer-${index}`}
+                >
+                  <span className="text-lg font-semibold text-slate-900 dark:text-white pr-4">
+                    {faq.question}
+                  </span>
+                  <ChevronDown
+                    className={`h-5 w-5 text-slate-500 dark:text-slate-400 flex-shrink-0 transition-transform duration-300 ${
+                      openFaqIndex === index ? 'rotate-180' : ''
+                    }`}
+                    aria-hidden="true"
+                  />
+                </button>
+                <div
+                  id={`faq-answer-${index}`}
+                  className={`overflow-hidden transition-all duration-300 ${
+                    openFaqIndex === index ? 'max-h-96' : 'max-h-0'
+                  }`}
+                >
+                  <div className="px-6 pb-6 text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {faq.answer}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-purple-600 py-16" aria-labelledby="cta-heading">
+      <section className="relative bg-white dark:bg-slate-900 py-20 transition-colors" aria-labelledby="cta-heading">
         <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
-          <h2 id="cta-heading" className="text-3xl font-bold text-white sm:text-4xl">
-            Sé parte del futuro de la gestión tributaria
-          </h2>
-          <p className="mt-4 text-xl text-blue-100">
-            Únete al pre lanzamiento y obtén acceso exclusivo a Fizko.
-          </p>
-          <button
-            onClick={handleContactSales}
-            className="mt-8 inline-flex items-center space-x-3 rounded-full bg-white px-8 py-4 text-lg font-semibold text-gray-700 shadow-xl transition-all hover:scale-105 hover:shadow-2xl"
-            aria-label="Acceder al pre lanzamiento"
-          >
-            <Mail className="h-6 w-6 text-blue-600" />
-            <span>Accede al Pre Lanzamiento</span>
-          </button>
+          <div className="rounded-3xl bg-gradient-to-br from-blue-600 to-purple-600 p-12 shadow-xl">
+            <h2 id="cta-heading" className="text-3xl font-bold text-white sm:text-4xl">
+              Sé parte del futuro de la gestión tributaria
+            </h2>
+            <p className="mt-4 text-xl text-blue-50">
+              Únete al pre lanzamiento y obtén acceso exclusivo a Fizko.
+            </p>
+            <button
+              onClick={handleContactSales}
+              className="mt-8 inline-flex items-center space-x-3 rounded-full bg-white px-8 py-4 text-lg font-semibold text-slate-900 shadow-lg transition-all hover:scale-105 hover:shadow-xl"
+              aria-label="Acceder al pre lanzamiento"
+            >
+              <Mail className="h-6 w-6 text-blue-600" />
+              <span>Accede al Pre Lanzamiento</span>
+            </button>
+          </div>
         </div>
       </section>
 
