@@ -41,8 +41,8 @@ class SupabaseStore(Store[dict[str, Any]]):
         """Initialize the store."""
         pass
 
-    async def _get_session(self) -> AsyncSession:
-        """Get a new database session."""
+    def _get_session(self):
+        """Get a database session context manager."""
         return AsyncSessionLocal()
 
     @staticmethod
@@ -69,7 +69,7 @@ class SupabaseStore(Store[dict[str, Any]]):
             raise ValueError("user_id is required in context")
 
         query_start = time.time()
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             stmt = select(Conversation).where(
                 Conversation.chatkit_session_id == thread_id,
                 Conversation.user_id == UUID(user_id),
@@ -112,7 +112,7 @@ class SupabaseStore(Store[dict[str, Any]]):
 
         metadata = self._coerce_thread_metadata(thread)
 
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             # Check if conversation exists
             stmt = select(Conversation).where(
                 Conversation.chatkit_session_id == thread.id,
@@ -190,7 +190,7 @@ class SupabaseStore(Store[dict[str, Any]]):
         if not user_id:
             raise ValueError("user_id is required in context")
 
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             # Only load active conversations (exclude archived/deleted)
             stmt = select(Conversation).where(
                 Conversation.user_id == UUID(user_id),
@@ -266,7 +266,7 @@ class SupabaseStore(Store[dict[str, Any]]):
             raise ValueError("user_id is required in context")
 
         # Quick path: Mark as archived immediately for fast UI response
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             stmt = select(Conversation).where(
                 Conversation.chatkit_session_id == thread_id,
                 Conversation.user_id == UUID(user_id),
@@ -293,7 +293,7 @@ class SupabaseStore(Store[dict[str, Any]]):
             import asyncio
             await asyncio.sleep(0.5)
 
-            async with await self._get_session() as session:
+            async with self._get_session() as session:
                 stmt = select(Conversation).where(
                     Conversation.chatkit_session_id == thread_id,
                     Conversation.user_id == UUID(user_id),
@@ -325,7 +325,7 @@ class SupabaseStore(Store[dict[str, Any]]):
         retry_delay = 0.05  # 50ms between retries
 
         for attempt in range(max_retries):
-            async with await self._get_session() as session:
+            async with self._get_session() as session:
                 stmt = select(Conversation).where(
                     Conversation.chatkit_session_id == thread_id,
                     Conversation.user_id == UUID(user_id),
@@ -374,7 +374,7 @@ class SupabaseStore(Store[dict[str, Any]]):
         logger.info(f"  🔍 load_thread_items() - get_conversation_id: {(time.time() - conv_id_start):.3f}s")
 
         query_start = time.time()
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             stmt = select(Message).where(Message.conversation_id == conversation_id)
 
             if after:
@@ -429,7 +429,7 @@ class SupabaseStore(Store[dict[str, Any]]):
         # Convert datetime objects to ISO format strings
         item_dict_serializable = _serialize_for_json(item_dict)
 
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             new_message = Message(
                 conversation_id=conversation_id,
                 user_id=UUID(user_id),
@@ -454,7 +454,7 @@ class SupabaseStore(Store[dict[str, Any]]):
         # Convert datetime objects to ISO format strings
         item_dict_serializable = _serialize_for_json(item_dict)
 
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             # Check if message exists
             stmt = select(Message).where(
                 Message.conversation_id == conversation_id,
@@ -491,7 +491,7 @@ class SupabaseStore(Store[dict[str, Any]]):
 
         conversation_id = await self._get_conversation_id(thread_id, user_id)
 
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             stmt = select(Message).where(
                 Message.conversation_id == conversation_id,
                 Message.message_metadata["thread_item_id"].astext == item_id,
@@ -516,7 +516,7 @@ class SupabaseStore(Store[dict[str, Any]]):
 
         conversation_id = await self._get_conversation_id(thread_id, user_id)
 
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             stmt = select(Message).where(
                 Message.conversation_id == conversation_id,
                 Message.message_metadata["thread_item_id"].astext == item_id,
@@ -540,7 +540,7 @@ class SupabaseStore(Store[dict[str, Any]]):
         Note: The actual file is uploaded separately via AttachmentStore (two-phase upload).
         This method stores the attachment metadata in the database.
         """
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             try:
                 # Extract URLs and convert Pydantic AnyUrl to string
                 upload_url = getattr(attachment, "upload_url", None)
@@ -605,7 +605,7 @@ class SupabaseStore(Store[dict[str, Any]]):
 
         Note: This loads metadata only. The actual file content is accessed via URL.
         """
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             try:
                 # Query attachment from database
                 result = await session.execute(
@@ -658,7 +658,7 @@ class SupabaseStore(Store[dict[str, Any]]):
         Returns:
             Dict with file_id and vector_store_id, or None if not found or no OpenAI metadata
         """
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             try:
                 result = await session.execute(
                     select(ChatKitAttachment).where(ChatKitAttachment.id == attachment_id)
@@ -683,7 +683,7 @@ class SupabaseStore(Store[dict[str, Any]]):
 
     async def delete_attachment(self, attachment_id: str, context: dict[str, Any]) -> None:
         """Delete attachment metadata from Supabase using SQLAlchemy ORM."""
-        async with await self._get_session() as session:
+        async with self._get_session() as session:
             try:
                 # Query and delete attachment
                 result = await session.execute(
