@@ -8,6 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.constants import SPECIALIZED_MODEL
 from ..tools.settings import list_notifications, edit_notification
+from ..tools.memory import (
+    search_user_memory,
+    search_company_memory,
+)
 
 
 def create_settings_agent(
@@ -79,5 +83,8 @@ Tú: Utilizas edit_notification con action="mute" y template_name="F29" para sil
         tools=[
             list_notifications,
             edit_notification,
+            # Memory tools - dual system for user and company memory (read-only)
+            search_user_memory,      # Search personal user preferences and history
+            search_company_memory,   # Search company-wide knowledge and settings
         ],
     )

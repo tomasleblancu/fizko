@@ -16,6 +16,10 @@ from ..tools.widgets import (
     show_f29_detail_widget,
     show_f29_summary_widget,
 )
+from ..tools.memory import (
+    search_user_memory,
+    search_company_memory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +54,9 @@ def create_general_knowledge_agent(
         # F29 widget tools - available to all plans
         show_f29_detail_widget,  # Show detailed F29 breakdown widget
         show_f29_summary_widget,  # Show F29 summary widget
+        # Memory tools - dual system for user and company memory (read-only)
+        search_user_memory,      # Search personal user preferences and history
+        search_company_memory,   # Search company-wide knowledge and settings
     ]
 
     # Build vector stores list: SII FAQ (always) + user PDFs (from parameter)

@@ -10,5 +10,5 @@ TIMEZONE = "America/Santiago"  # Chile (UTC-3 / UTC-4 with DST)
 
 # OpenAI models configuration
 # Multi-agent system models
-SUPERVISOR_MODEL = "gpt-4.1-nano"  # Very fast and cheap for routing
+SUPERVISOR_MODEL = "gpt-4.1-mini"  # Very fast and cheap for routing
 SPECIALIZED_MODEL = "gpt-4.1-mini"  # Very fast and cheap for specialized tasks

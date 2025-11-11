@@ -29,8 +29,7 @@ Once you transfer to a specialized agent:
 ## ROUTING FLOW
 
 ```
-1. Search memory (quick)
-2. Identify agent
-3. Transfer IMMEDIATELY
-4. Do NOT respond first
+1. Identify agent
+2. Transfer IMMEDIATELY
+3. Do NOT respond first
 ```

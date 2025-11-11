@@ -180,13 +180,12 @@ class AgentRunner:
             except (ValueError, AttributeError):
                 logger.warning(f"⚠️  Invalid company_id format: {request.company_id}")
 
-        # Create session first - needed to detect active agent from history
+        # Create session
         session = self._create_session(request.thread_id)
 
-        # Get active agent based on session history (checks for previous handoffs)
-        agent = await handoffs_manager.get_active_agent_for_thread(
+        # Always start with supervisor agent (no active agent detection)
+        agent = await handoffs_manager.get_supervisor_agent(
             thread_id=request.thread_id,
-            session=session,
             db=db,
             user_id=request.user_id,
             company_id=company_id_uuid,  # ⭐ Pass company_id for subscription validation

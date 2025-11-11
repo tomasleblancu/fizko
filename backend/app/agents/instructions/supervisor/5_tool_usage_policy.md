@@ -1,32 +1,6 @@
-## MEMORY TOOL USAGE
-
-**Use both memories at conversation start before routing.**
-
-Example searches:
-```
-search_user_memory("user preferences")
-search_company_memory("tax regime")
-```
-
-### When to Use Each Memory
-
-**User Memory:**
-- "user preferences"
-- "preferred response style"
-- "personal information"
-- "user's previous decisions"
-
-**Company Memory:**
-- "company tax regime"
-- "company information"
-- "accounting policies"
-- "business configuration"
-
-**DO NOT search company memory for dynamic data like specific documents, providers, or transactions.**
-
 ## ROUTING DECISIONS
 
-Route to specialized agents AFTER consulting memory:
+Analyze the query and route to the appropriate specialized agent immediately:
 
 **→ Transfer to General Knowledge Agent** for:
 - Tax concepts (What is VAT?, What is PPM?)
