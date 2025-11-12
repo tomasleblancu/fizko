@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from openai import AsyncOpenAI
-
 logger = logging.getLogger(__name__)
 
 
@@ -18,20 +16,19 @@ class SessionManager:
     conversation thread, enabling agent persistence across multiple messages.
 
     Key responsibilities:
-    1. Track active agent in thread metadata
-    2. Persist agent state across message turns
+    1. Track active agent in-memory per thread
+    2. Persist agent state across message turns within the same orchestrator instance
     3. Clear agent state when returning to supervisor
+
+    Implementation:
+    - Uses in-memory dictionary for simplicity and speed
+    - Thread-safe within same orchestrator instance (cached per thread_id)
+    - Cleared when orchestrator cache is cleared
     """
 
-    def __init__(self, openai_client: AsyncOpenAI):
-        """
-        Initialize session manager.
-
-        Args:
-            openai_client: OpenAI client for thread metadata operations
-        """
-        self.openai_client = openai_client
-        self._metadata_key = "active_agent"
+    def __init__(self):
+        """Initialize session manager with in-memory storage."""
+        self._active_agents: dict[str, str] = {}
 
     async def get_active_agent(self, thread_id: str) -> str | None:
         """
@@ -43,21 +40,14 @@ class SessionManager:
         Returns:
             Agent key (e.g., "payroll_agent") or None if no active agent
         """
-        try:
-            thread = await self.openai_client.beta.threads.retrieve(thread_id)
-            metadata = thread.metadata or {}
-            active_agent = metadata.get(self._metadata_key)
+        active_agent = self._active_agents.get(thread_id)
 
-            if active_agent:
-                logger.info(f"📌 Active agent: {active_agent} (thread: {thread_id})")
-            else:
-                logger.debug(f"No active agent (thread: {thread_id})")
+        if active_agent:
+            logger.info(f"📌 Active agent: {active_agent} (thread: {thread_id[:8]}...)")
+        else:
+            logger.debug(f"No active agent (thread: {thread_id[:8]}...)")
 
-            return active_agent
-
-        except Exception as e:
-            logger.error(f"Failed to get active agent: {e}")
-            return None
+        return active_agent
 
     async def set_active_agent(self, thread_id: str, agent_key: str) -> bool:
         """
@@ -68,26 +58,11 @@ class SessionManager:
             agent_key: Agent key to set as active (e.g., "payroll_agent")
 
         Returns:
-            True if successful, False otherwise
+            True if successful
         """
-        try:
-            thread = await self.openai_client.beta.threads.retrieve(thread_id)
-            current_metadata = thread.metadata or {}
-
-            # Update metadata with active agent
-            updated_metadata = {**current_metadata, self._metadata_key: agent_key}
-
-            await self.openai_client.beta.threads.update(
-                thread_id=thread_id,
-                metadata=updated_metadata
-            )
-
-            logger.info(f"✅ Set active agent: {agent_key} (thread: {thread_id})")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to set active agent: {e}")
-            return False
+        self._active_agents[thread_id] = agent_key
+        logger.info(f"✅ Set active agent: {agent_key} (thread: {thread_id[:8]}...)")
+        return True
 
     async def clear_active_agent(self, thread_id: str) -> bool:
         """
@@ -97,47 +72,26 @@ class SessionManager:
             thread_id: ChatKit thread ID
 
         Returns:
-            True if successful, False otherwise
+            True if successful
         """
-        try:
-            thread = await self.openai_client.beta.threads.retrieve(thread_id)
-            current_metadata = thread.metadata or {}
+        if thread_id in self._active_agents:
+            del self._active_agents[thread_id]
+            logger.info(f"🧹 Cleared active agent (thread: {thread_id[:8]}...)")
+        else:
+            logger.debug(f"No active agent to clear (thread: {thread_id[:8]}...)")
 
-            # Remove active agent from metadata
-            if self._metadata_key in current_metadata:
-                updated_metadata = {
-                    k: v for k, v in current_metadata.items()
-                    if k != self._metadata_key
-                }
+        return True
 
-                await self.openai_client.beta.threads.update(
-                    thread_id=thread_id,
-                    metadata=updated_metadata
-                )
-
-                logger.info(f"🧹 Cleared active agent (thread: {thread_id})")
-            else:
-                logger.debug(f"No active agent to clear (thread: {thread_id})")
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to clear active agent: {e}")
-            return False
-
-    async def get_thread_metadata(self, thread_id: str) -> dict[str, Any]:
+    def get_all_active_agents(self) -> dict[str, str]:
         """
-        Get full thread metadata.
-
-        Args:
-            thread_id: ChatKit thread ID
+        Get all active agents across all threads.
 
         Returns:
-            Dictionary of metadata
+            Dictionary mapping thread_id to agent_key
         """
-        try:
-            thread = await self.openai_client.beta.threads.retrieve(thread_id)
-            return thread.metadata or {}
-        except Exception as e:
-            logger.error(f"Failed to get thread metadata: {e}")
-            return {}
+        return self._active_agents.copy()
+
+    def clear_all(self):
+        """Clear all active agent state."""
+        self._active_agents.clear()
+        logger.info("🗑️  Cleared all active agent state")

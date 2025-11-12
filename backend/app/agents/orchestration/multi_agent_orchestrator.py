@@ -58,7 +58,7 @@ class MultiAgentOrchestrator:
         self._available_agents = available_agents
 
         # Initialize managers
-        self.session_manager = SessionManager(openai_client)
+        self.session_manager = SessionManager()
 
         # Initialize agents
         self.agents: dict[str, Agent] = {}

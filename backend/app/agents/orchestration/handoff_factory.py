@@ -92,9 +92,11 @@ class HandoffFactory:
             # Track active agent for persistence (if session manager available)
             if self.session_manager:
                 try:
-                    await self.session_manager.set_active_agent(
-                        ctx.thread_id, config.agent_key
-                    )
+                    thread_id = ctx.context.request_context.get("thread_id")
+                    if thread_id:
+                        await self.session_manager.set_active_agent(
+                            thread_id, config.agent_key
+                        )
                 except Exception as e:
                     logger.warning(f"Failed to track active agent: {e}")
 
@@ -132,7 +134,9 @@ class HandoffFactory:
             # Clear active agent (return to supervisor)
             if self.session_manager:
                 try:
-                    await self.session_manager.clear_active_agent(ctx.thread_id)
+                    thread_id = ctx.context.request_context.get("thread_id")
+                    if thread_id:
+                        await self.session_manager.clear_active_agent(thread_id)
                 except Exception as e:
                     logger.warning(f"Failed to clear active agent: {e}")
 
