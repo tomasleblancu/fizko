@@ -166,11 +166,11 @@ export function DualPeriodSummary({
         isInDrawer ? "flex-col" : "flex-col xl:flex-row"
       )}>
         {/* Previous Month Skeleton */}
-        <div className="relative overflow-hidden rounded-xl border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-3 shadow-sm dark:border-orange-900/40 dark:from-orange-950/20 dark:to-amber-950/20 flex flex-col xl:w-[38%]">
+        <div className="relative overflow-hidden rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50 to-red-50 p-3 shadow-sm dark:border-rose-900/40 dark:from-rose-950/20 dark:to-red-950/20 flex flex-col xl:w-[38%]">
           {/* Header Skeleton */}
           <div className="mb-3 flex items-start justify-between">
             <div className="h-4 w-24 animate-pulse rounded bg-slate-300 dark:bg-slate-700" />
-            <div className="h-5 w-16 animate-pulse rounded-full bg-orange-300 dark:bg-orange-700" />
+            <div className="h-5 w-16 animate-pulse rounded-full bg-rose-300 dark:bg-rose-700" />
           </div>
 
           <div className="space-y-3">
@@ -178,7 +178,7 @@ export function DualPeriodSummary({
             <div className="rounded-lg bg-white/60 p-2.5 dark:bg-slate-900/30">
               <div className="flex items-center justify-between">
                 <div className="flex flex-col items-center flex-1">
-                  <div className="h-6 w-6 animate-pulse rounded-full bg-orange-300 dark:bg-orange-700" />
+                  <div className="h-6 w-6 animate-pulse rounded-full bg-rose-300 dark:bg-rose-700" />
                   <div className="mt-1 h-2 w-12 animate-pulse rounded bg-slate-300 dark:bg-slate-700" />
                 </div>
                 <div className="flex-1 h-0.5 bg-slate-300 dark:bg-slate-600 mx-1" />
@@ -197,7 +197,7 @@ export function DualPeriodSummary({
             {/* Tax Skeleton */}
             <div className="rounded-lg bg-white/60 p-2.5 dark:bg-slate-900/30">
               <div className="h-3 w-16 animate-pulse rounded bg-slate-300 dark:bg-slate-700" />
-              <div className="mt-0.5 h-6 w-32 animate-pulse rounded bg-orange-300 dark:bg-orange-700" />
+              <div className="mt-0.5 h-6 w-32 animate-pulse rounded bg-rose-300 dark:bg-rose-700" />
             </div>
 
             {/* Revenue & Expenses Skeleton */}
@@ -252,30 +252,30 @@ export function DualPeriodSummary({
       isInDrawer ? "flex-col" : "flex-col xl:flex-row"
     )}>
       {/* Previous Month Card - To Pay (Smaller) */}
-      <div className="relative overflow-hidden rounded-xl border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-3 shadow-sm dark:border-orange-900/40 dark:from-orange-950/20 dark:to-amber-950/20 flex flex-col xl:w-[38%]">
+      <div className="relative overflow-hidden rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50 to-red-50 p-3 shadow-sm dark:border-rose-900/40 dark:from-rose-950/20 dark:to-red-950/20 flex flex-col xl:w-[38%]">
         {/* Header with Badge */}
-        <div className="mb-3 flex items-start justify-between">
+        <div className="mb-2.5 flex items-start justify-between">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             {previousMonth ? getMonthName(previousMonth.period_start) : 'Mes Anterior'}
           </h3>
-          <span className="flex-shrink-0 rounded-full bg-orange-600 px-2 py-0.5 text-xs font-semibold text-white dark:bg-orange-500">
+          <span className="flex-shrink-0 rounded-full bg-rose-600 px-2 py-0.5 text-xs font-semibold text-white dark:bg-rose-500">
             A Pagar
           </span>
         </div>
 
         {previousMonth ? (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {/* Status Stepper */}
-            <div className="rounded-lg bg-white/60 p-2.5 dark:bg-slate-900/30">
+            <div className="rounded-lg bg-white/60 p-2 dark:bg-slate-900/30">
               <div className="flex items-center justify-between">
                 {/* Step 1: Calculado */}
                 <div className="flex flex-col items-center flex-1">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-600 text-white dark:bg-orange-500">
-                    <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 text-white dark:bg-rose-500">
+                    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </div>
-                  <span className="mt-1 text-[10px] font-medium text-orange-700 dark:text-orange-400">Calculado</span>
+                  <span className="mt-0.5 text-[9px] font-medium text-rose-700 dark:text-rose-400">Calculado</span>
                 </div>
 
                 {/* Connector 1 */}
@@ -283,10 +283,10 @@ export function DualPeriodSummary({
 
                 {/* Step 2: Confirmado */}
                 <div className="flex flex-col items-center flex-1">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-300 text-slate-600 dark:bg-slate-600 dark:text-slate-400">
-                    <span className="text-xs font-bold">2</span>
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-300 text-slate-600 dark:bg-slate-600 dark:text-slate-400">
+                    <span className="text-[10px] font-bold">2</span>
                   </div>
-                  <span className="mt-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">Confirmar</span>
+                  <span className="mt-0.5 text-[9px] font-medium text-slate-500 dark:text-slate-400">Confirmar</span>
                 </div>
 
                 {/* Connector 2 */}
@@ -294,10 +294,10 @@ export function DualPeriodSummary({
 
                 {/* Step 3: Pagado */}
                 <div className="flex flex-col items-center flex-1">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-300 text-slate-600 dark:bg-slate-600 dark:text-slate-400">
-                    <span className="text-xs font-bold">3</span>
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-300 text-slate-600 dark:bg-slate-600 dark:text-slate-400">
+                    <span className="text-[10px] font-bold">3</span>
                   </div>
-                  <span className="mt-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">Pagar</span>
+                  <span className="mt-0.5 text-[9px] font-medium text-slate-500 dark:text-slate-400">Pagar</span>
                 </div>
               </div>
             </div>
@@ -305,30 +305,30 @@ export function DualPeriodSummary({
             {/* Monthly Tax */}
             <div
               {...prevIvaClickProps}
-              className="chateable-element rounded-lg bg-white/60 p-2.5 dark:bg-slate-900/30"
+              className="chateable-element rounded-lg bg-white/60 p-2 dark:bg-slate-900/30"
             >
               <p className="text-xs text-slate-600 dark:text-slate-400">Impuesto</p>
-              <p className="mt-0.5 text-xl font-bold text-orange-700 dark:text-orange-300">
+              <p className="mt-0.5 text-lg font-bold text-rose-700 dark:text-rose-300">
                 {formatCurrency(previousMonth.monthly_tax)}
               </p>
             </div>
 
             {/* Revenue, Expenses & Pay Button - All in one row */}
-            <div className="flex items-stretch gap-2">
+            <div className="flex items-stretch gap-1.5">
               <div
                 {...prevRevenueClickProps}
-                className="chateable-element flex-1 rounded-lg bg-white/40 p-2 dark:bg-slate-900/20"
+                className="chateable-element flex-1 rounded-lg bg-white/40 p-1.5 dark:bg-slate-900/20"
               >
-                <p className="text-xs text-slate-600 dark:text-slate-400">Ventas</p>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400">Ventas</p>
                 <p className="mt-0.5 text-xs font-semibold text-slate-900 dark:text-slate-100">
                   {formatCurrency(previousMonth.total_revenue)}
                 </p>
               </div>
               <div
                 {...prevExpensesClickProps}
-                className="chateable-element flex-1 rounded-lg bg-white/40 p-2 dark:bg-slate-900/20"
+                className="chateable-element flex-1 rounded-lg bg-white/40 p-1.5 dark:bg-slate-900/20"
               >
-                <p className="text-xs text-slate-600 dark:text-slate-400">Gastos</p>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400">Gastos</p>
                 <p className="mt-0.5 text-xs font-semibold text-slate-900 dark:text-slate-100">
                   {formatCurrency(previousMonth.total_expenses)}
                 </p>
@@ -336,16 +336,16 @@ export function DualPeriodSummary({
               {/* Pagar button - inline with Ventas and Gastos */}
               <button
                 {...payClickProps}
-                className="flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:bg-orange-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1 dark:bg-orange-500 dark:hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-rose-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-1 dark:bg-rose-500 dark:hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Receipt className="h-4 w-4" />
+                <Receipt className="h-3.5 w-3.5" />
                 <span>Pagar</span>
               </button>
             </div>
           </div>
         ) : (
           <div className="flex items-center gap-2 rounded-lg bg-white/60 p-2 dark:bg-slate-900/30">
-            <AlertCircle className="h-3 w-3 text-orange-600 dark:text-orange-400" />
+            <AlertCircle className="h-3 w-3 text-rose-600 dark:text-rose-400" />
             <p className="text-xs text-slate-600 dark:text-slate-400">Sin datos</p>
           </div>
         )}
@@ -354,8 +354,8 @@ export function DualPeriodSummary({
       {/* Current Month Card - In Progress (Larger) */}
       <div className="relative overflow-hidden rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 dark:border-emerald-700 dark:from-emerald-950/30 dark:to-teal-950/30 flex flex-col flex-1">
         {/* Header with Badge */}
-        <div className="mb-3 flex items-start justify-between">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+        <div className="mb-2.5 flex items-start justify-between">
+          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
             {currentMonth ? getMonthName(currentMonth.period_start) : 'Mes Actual'}
           </h3>
           <span className="flex-shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white dark:bg-emerald-500">
@@ -364,35 +364,35 @@ export function DualPeriodSummary({
         </div>
 
         {currentMonth ? (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {/* Monthly Tax Projection */}
             <div
               {...currentIvaClickProps}
-              className="chateable-element rounded-xl bg-white/70 p-5 dark:bg-slate-900/40"
+              className="chateable-element rounded-xl bg-white/70 p-4 dark:bg-slate-900/40"
             >
-              <p className="text-sm text-slate-600 dark:text-slate-400">Impuesto Proyectado</p>
-              <p className="mt-2 text-4xl font-bold text-emerald-700 dark:text-emerald-300">
+              <p className="text-xs text-slate-600 dark:text-slate-400">Impuesto Proyectado</p>
+              <p className="mt-1.5 text-3xl font-bold text-emerald-700 dark:text-emerald-300">
                 {formatCurrency(currentMonth.monthly_tax)}
               </p>
             </div>
 
             {/* Revenue & Expenses */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div
                 {...currentRevenueClickProps}
-                className="chateable-element rounded-lg bg-white/50 p-4 dark:bg-slate-900/30"
+                className="chateable-element rounded-lg bg-white/50 p-3 dark:bg-slate-900/30"
               >
                 <p className="text-xs text-slate-600 dark:text-slate-400">Ventas</p>
-                <p className="mt-1.5 text-lg font-bold text-slate-900 dark:text-slate-100">
+                <p className="mt-1 text-base font-bold text-slate-900 dark:text-slate-100">
                   {formatCurrency(currentMonth.total_revenue)}
                 </p>
               </div>
               <div
                 {...currentExpensesClickProps}
-                className="chateable-element rounded-lg bg-white/50 p-4 dark:bg-slate-900/30"
+                className="chateable-element rounded-lg bg-white/50 p-3 dark:bg-slate-900/30"
               >
                 <p className="text-xs text-slate-600 dark:text-slate-400">Gastos</p>
-                <p className="mt-1.5 text-lg font-bold text-slate-900 dark:text-slate-100">
+                <p className="mt-1 text-base font-bold text-slate-900 dark:text-slate-100">
                   {formatCurrency(currentMonth.total_expenses)}
                 </p>
               </div>

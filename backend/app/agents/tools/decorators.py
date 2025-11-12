@@ -20,8 +20,8 @@ from typing import Any, Callable
 
 from agents import RunContextWrapper
 
-from ..core import FizkoContext
-from ..core.subscription_responses import create_tool_block_response
+from app.agents.core import FizkoContext
+from app.agents.core.subscription_responses import create_tool_block_response
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +99,8 @@ def require_subscription_tool(tool_name: str) -> Callable:
                 }
 
             # Verify tool access
-            from ....config.database import AsyncSessionLocal
-            from ..core.subscription_guard import SubscriptionGuard
+            from app.config.database import AsyncSessionLocal
+            from app.agents.core.subscription_guard import SubscriptionGuard
 
             async with AsyncSessionLocal() as db:
                 guard = SubscriptionGuard(db)
@@ -175,8 +175,8 @@ def require_subscription_feature(feature_key: str) -> Callable:
                 }
 
             # Verify feature access
-            from ....config.database import AsyncSessionLocal
-            from ....services.subscriptions import SubscriptionService
+            from app.config.database import AsyncSessionLocal
+            from app.services.subscriptions import SubscriptionService
 
             async with AsyncSessionLocal() as db:
                 service = SubscriptionService(db)

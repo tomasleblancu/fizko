@@ -274,10 +274,11 @@ function HomeContent({
             />
           </div>
 
-          {/* Mobile: Navigation Pills - Left (Contacts, People) | Center (Home) | Right (Theme, Settings) */}
-          <div className="relative z-[60] flex-shrink-0 px-4 py-2 flex items-center justify-between bg-white dark:bg-slate-900 lg:hidden">
-            {/* Left group: Contacts & Personnel */}
+          {/* Mobile: Navigation Pills - All icons in one component */}
+          <div className="relative z-[60] flex-shrink-0 px-4 py-2 flex items-center justify-center bg-white dark:bg-slate-900 lg:hidden">
+            {/* Single unified group with all navigation icons */}
             <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 transition-colors shadow-sm">
+              {/* Contacts */}
               <button
                 onClick={() => {
                   setIsContactsDrawerOpen(!isContactsDrawerOpen);
@@ -299,6 +300,8 @@ function HomeContent({
                   isContactsDrawerOpen && "scale-110"
                 )} />
               </button>
+
+              {/* Personnel */}
               <button
                 onClick={() => {
                   setIsPersonnelDrawerOpen(!isPersonnelDrawerOpen);
@@ -320,10 +323,8 @@ function HomeContent({
                   isPersonnelDrawerOpen && "scale-110"
                 )} />
               </button>
-            </div>
 
-            {/* Center: Home/Dashboard */}
-            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 transition-colors shadow-sm">
+              {/* Home/Dashboard */}
               <button
                 onClick={() => {
                   setIsDrawerOpen(!isDrawerOpen);
@@ -332,7 +333,7 @@ function HomeContent({
                   setIsSettingsDrawerOpen(false);
                 }}
                 className={clsx(
-                  "flex items-center justify-center rounded-lg px-14 py-2 transition-all duration-200 ease-in-out",
+                  "flex items-center justify-center rounded-lg px-8 py-2 transition-all duration-200 ease-in-out",
                   "transform active:scale-95",
                   isDrawerOpen
                     ? "bg-white text-emerald-600 shadow-sm dark:bg-slate-900 dark:text-emerald-400"
@@ -345,10 +346,8 @@ function HomeContent({
                   isDrawerOpen && "scale-110"
                 )} />
               </button>
-            </div>
 
-            {/* Right group: Theme toggle & Settings */}
-            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 transition-colors shadow-sm">
+              {/* Theme toggle */}
               <button
                 onClick={() => handleThemeChange(scheme === 'dark' ? 'light' : 'dark')}
                 className={clsx(
@@ -364,6 +363,8 @@ function HomeContent({
                   <Moon className="h-5 w-5" />
                 )}
               </button>
+
+              {/* Settings */}
               <button
                 onClick={() => {
                   setIsSettingsDrawerOpen(!isSettingsDrawerOpen);

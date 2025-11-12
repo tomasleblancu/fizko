@@ -11,9 +11,10 @@ interface AccountSettingsProps {
   profileLoading: boolean;
   profile: any;
   isInDrawer?: boolean;
+  compact?: boolean;
 }
 
-export function AccountSettings({ user, scheme, profileLoading, profile: profileProp, isInDrawer = false }: AccountSettingsProps) {
+export function AccountSettings({ user, scheme, profileLoading, profile: profileProp, isInDrawer = false, compact = false }: AccountSettingsProps) {
   const { profile, updateProfile, requestPhoneVerification, confirmPhoneVerification, error: profileError } = useUserProfile();
   const { signOut } = useAuth();
   const [nombre, setNombre] = useState('');

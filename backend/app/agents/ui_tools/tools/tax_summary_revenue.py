@@ -9,8 +9,8 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ....db.models import Company, Contact, SalesDocument
-from ....repositories.tax import TaxSummaryRepository
+from app.db.models import Company, Contact, SalesDocument
+from app.repositories.tax import TaxSummaryRepository
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 

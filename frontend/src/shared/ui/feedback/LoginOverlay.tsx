@@ -5,10 +5,12 @@ import { WhatsAppLogin } from "@/features/auth/ui/WhatsAppLogin";
 type LoginMethod = 'selection' | 'google' | 'whatsapp';
 
 export function LoginOverlay() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signInWithEmail } = useAuth();
   const [method, setMethod] = useState<LoginMethod>('selection');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleGoogleLogin = async () => {
     try {
@@ -27,15 +29,15 @@ export function LoginOverlay() {
         {/* Card */}
         <div className="relative overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
           {/* Gradient decoration */}
-          <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 blur-3xl" />
-          <div className="absolute -bottom-24 -left-24 h-48 w-48 rounded-full bg-gradient-to-br from-green-500/20 to-blue-500/20 blur-3xl" />
+          <div className="absolute -top-24 -right-24 h-48 w-48 rounded-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 blur-3xl" />
+          <div className="absolute -bottom-24 -left-24 h-48 w-48 rounded-full bg-gradient-to-br from-teal-500/20 to-emerald-500/20 blur-3xl" />
 
           {/* Content */}
           <div className="relative px-8 py-12">
             {/* Logo/Title */}
             <div className="mb-8 text-center">
               <div className="mb-4 flex justify-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg">
                   <svg
                     className="h-8 w-8 text-white"
                     fill="none"
@@ -131,7 +133,7 @@ export function LoginOverlay() {
                   <div className="flex items-center justify-center gap-3">
                     {isLoading ? (
                       <>
-                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-emerald-600" />
                         <span>Iniciando sesión...</span>
                       </>
                     ) : (

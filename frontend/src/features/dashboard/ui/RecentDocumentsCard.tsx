@@ -153,12 +153,12 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-purple-500" />
+            <FileText className="h-5 w-5 text-emerald-500" />
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
               Documentos Recientes
             </h3>
             {documents.length > 0 && (
-              <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                 {filteredDocuments.length}
               </span>
             )}
@@ -192,7 +192,7 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Buscar por número, descripción, tipo o monto..."
-                className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-4 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
+                className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-4 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
               />
             </div>
 
@@ -203,7 +203,7 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
                 className={clsx(
                   "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
                   filter === 'all'
-                    ? "bg-purple-600 text-white shadow-sm dark:bg-purple-500"
+                    ? "bg-emerald-600 text-white shadow-sm dark:bg-emerald-500"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 )}
               >
@@ -325,8 +325,8 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
               {groupDocumentsByDate(displayedDocuments).map(({ date, docs }) => (
                 <div key={date}>
                   {/* Date header */}
-                  <div className="sticky top-0 z-10 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/40 dark:to-purple-950/40 backdrop-blur-sm -mx-2 px-2 py-2 mb-3 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
-                    <h4 className="text-sm font-bold text-blue-900 dark:text-blue-100">
+                  <div className="sticky top-0 z-10 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 backdrop-blur-sm -mx-2 px-2 py-2 mb-3 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50">
+                    <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
                       {formatFullDate(date)}
                     </h4>
                   </div>

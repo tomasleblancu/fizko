@@ -141,7 +141,7 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
   // Desktop view using ViewContainer
   return (
     <ViewContainer
-      icon={<FizkoLogo className="h-7 w-7" />}
+      icon={<FizkoLogo className="h-8 w-8" />}
       iconGradient="from-white to-white"
       title={company?.business_name || 'Cargando...'}
       subtitle={`RUT: ${company?.rut || '---'}`}

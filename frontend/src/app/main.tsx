@@ -8,6 +8,7 @@ import { ProtectedRoute } from "./providers/ProtectedRoute";
 import { HomePage } from "@/pages/home";
 import { TermsOfService, PrivacyPolicy } from "@/pages/legal";
 import { SIIConnectionPage, CompanySetupPage } from "@/pages/onboarding";
+import LoginPage from "@/pages/auth/ui/LoginPage";
 import AdminDashboard from "@/features/admin/dashboard/pages/AdminDashboard";
 import CompaniesTablePage from "@/features/admin/companies/pages/CompaniesTablePage";
 import CompanyDetailPage from "@/features/admin/companies/pages/CompanyDetailPage";
@@ -45,6 +46,7 @@ createRoot(container).render(
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
             <Route path="/terminos" element={<TermsOfService />} />
             <Route path="/privacidad" element={<PrivacyPolicy />} />
 

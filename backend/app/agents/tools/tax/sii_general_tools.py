@@ -9,8 +9,8 @@ from uuid import UUID
 from agents import RunContextWrapper, function_tool
 from sqlalchemy import select
 
-from ....config.database import AsyncSessionLocal
-from ...core import FizkoContext
+from app.config.database import AsyncSessionLocal
+from app.agents.core import FizkoContext
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ async def get_company_info(
     Returns:
         Complete company information including basic data and tax info
     """
-    from ....db.models import Company, CompanyTaxInfo
+    from app.db.models import Company, CompanyTaxInfo
 
     # Get company_id from context
     company_id = ctx.context.request_context.get("company_id")

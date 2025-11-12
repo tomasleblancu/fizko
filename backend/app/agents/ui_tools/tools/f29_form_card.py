@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ....db.models import Form29SIIDownload, Form29, Company
+from app.db.models import Form29SIIDownload, Form29, Company
 from ...tools.widgets.builders import create_f29_summary_widget, f29_summary_widget_copy_text
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry

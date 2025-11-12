@@ -63,7 +63,7 @@ export function TaxCalendar({ scheme, loading = false, events = [], error, isInD
     return {
       icon: Clock,
       text: `${daysUntil} días`,
-      className: 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400',
+      className: 'bg-teal-100 text-teal-700 dark:bg-teal-950/30 dark:text-teal-400',
     };
   };
 

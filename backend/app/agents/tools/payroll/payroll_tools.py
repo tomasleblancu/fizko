@@ -18,10 +18,10 @@ from agents import RunContextWrapper, function_tool
 from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 
-from ....config.database import AsyncSessionLocal
-from ...core import FizkoContext
-from ....utils.rut import normalize_rut, validate_rut
-from ..decorators import require_subscription_tool
+from app.config.database import AsyncSessionLocal
+from app.agents.core import FizkoContext
+from app.utils.rut import normalize_rut, validate_rut
+from app.agents.tools.decorators import require_subscription_tool
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ async def get_people(
         - List all: get_people()
         - List first 10: get_people(limit=10)
     """
-    from ....db.models import Person
+    from app.db.models import Person
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
@@ -115,7 +115,7 @@ async def get_person(
         - By ID: get_person(person_id="123e4567-...")
         - By RUT: get_person(rut="12345678-9")
     """
-    from ....db.models import Person
+    from app.db.models import Person
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
@@ -255,7 +255,7 @@ async def create_person(
             base_salary=800000
         )
     """
-    from ....db.models import Person
+    from app.db.models import Person
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
@@ -399,7 +399,7 @@ async def update_person(
             position_title="Contador Senior"
         )
     """
-    from ....db.models import Person
+    from app.db.models import Person
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:

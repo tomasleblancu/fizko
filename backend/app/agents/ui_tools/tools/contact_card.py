@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ....db.models import Contact, PurchaseDocument, SalesDocument
+from app.db.models import Contact, PurchaseDocument, SalesDocument
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 

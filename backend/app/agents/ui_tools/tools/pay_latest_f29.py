@@ -8,7 +8,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ....repositories.tax import TaxSummaryRepository
+from app.repositories.tax import TaxSummaryRepository
 from ...tools.widgets.builders import create_f29_payment_flow_widget, f29_payment_flow_widget_copy_text
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
@@ -229,7 +229,7 @@ El usuario quiere pagar su F29.
         This is fire-and-forget - we don't wait for the result.
         """
         try:
-            from ....infrastructure.celery.tasks.forms.form29 import generate_f29_draft_for_company
+            from app.infrastructure.celery.tasks.forms.form29 import generate_f29_draft_for_company
 
             # Dispatch Celery task (async)
             generate_f29_draft_for_company.delay(

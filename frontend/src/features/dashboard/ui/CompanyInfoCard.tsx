@@ -39,7 +39,7 @@ export function CompanyInfoCard({ company, loading, scheme, isInDrawer = false }
       }}
       uiComponent="CompanyInfoCard"
     >
-      <div className={isInDrawer ? "p-0" : "rounded-2xl border border-slate-200/70 bg-gradient-to-br from-blue-50 to-purple-50 p-3 dark:border-slate-800/70 dark:from-blue-950/30 dark:to-purple-950/30"}>
+      <div className={isInDrawer ? "p-0" : "rounded-2xl border border-slate-200/70 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 dark:border-slate-800/70 dark:from-emerald-950/30 dark:to-teal-950/30"}>
         {/* Company Info */}
         <div className="flex items-center gap-3">
           {/* Fizko Logo */}

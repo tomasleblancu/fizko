@@ -172,35 +172,39 @@ export function CompanySetupPage() {
 
       <div
         className={clsx(
-          'relative w-full h-full md:h-auto md:max-w-lg md:rounded-xl md:border overflow-hidden md:shadow-xl',
+          'relative w-full h-full md:h-auto md:max-w-xl md:rounded-xl md:border overflow-hidden md:shadow-xl',
           'bg-white/80 backdrop-blur-xl md:border-slate-200',
           'dark:bg-slate-900/80 dark:backdrop-blur-xl md:dark:border-slate-700',
           'flex flex-col'
         )}
       >
-        <div className="relative flex-1 flex flex-col p-6 md:p-6 overflow-y-auto">
+        <div className="relative flex-1 flex flex-col p-6 md:p-8 overflow-y-auto">
           {/* Header */}
-          <div className="mb-6 md:mb-6">
+          <div className="mb-6 md:mb-8">
             {/* Logo - clickable to logout */}
-            <div className="mb-4 flex justify-center">
+            <div className="mb-6 flex justify-center">
               <button
                 onClick={handleLogoClick}
-                className="opacity-70 hover:opacity-100 transition-opacity"
+                className="flex items-center gap-2 opacity-90 hover:opacity-100 transition-opacity"
                 aria-label="Cerrar sesión y volver al inicio"
               >
                 <img
+                  src="/encabezado.png"
+                  alt="Fizko Icon"
+                  className="h-8 md:h-10 w-auto"
+                />
+                <img
                   src="/encabezado_fizko.svg"
                   alt="Fizko"
-                  className="h-16 w-auto brightness-0"
-                  style={{ filter: 'brightness(0)' }}
+                  className="h-8 md:h-10 w-auto"
                 />
               </button>
             </div>
 
-            <h2 className="text-lg md:text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">
+            <h2 className="text-xl md:text-2xl font-semibold text-slate-900 dark:text-slate-100 mb-2 text-center">
               Configuración inicial
             </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm md:text-base text-slate-600 dark:text-slate-400 text-center">
               {company ? (company.business_name || company.rut) : 'Configurando tu empresa...'}
             </p>
           </div>
@@ -221,14 +225,19 @@ export function CompanySetupPage() {
           </div>
 
           {/* Question Card */}
-          <div className="mb-6 md:mb-6 flex-1 flex flex-col justify-center" key={currentStep}>
-            <div className="flex items-start gap-3 mb-6">
-              <div className="flex-shrink-0 text-slate-400 dark:text-slate-500 mt-1">
+          <div className="mb-6 md:mb-8 flex-1 flex flex-col justify-center" key={currentStep}>
+            <div className="flex items-start gap-4 mb-6">
+              <div className="flex-shrink-0 text-emerald-500 dark:text-emerald-400 mt-1">
                 {currentQuestion.icon}
               </div>
-              <h3 className="text-base md:text-base font-medium text-slate-900 dark:text-slate-100 leading-relaxed">
-                {currentQuestion.title}
-              </h3>
+              <div className="flex-1">
+                <h3 className="text-base md:text-lg font-medium text-slate-900 dark:text-slate-100 leading-relaxed mb-1">
+                  {currentQuestion.title}
+                </h3>
+                <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400">
+                  {currentQuestion.description}
+                </p>
+              </div>
             </div>
 
             {/* Answer Options */}
@@ -237,15 +246,15 @@ export function CompanySetupPage() {
                 onClick={() => handleAnswer(true)}
                 disabled={loading}
                 className={clsx(
-                  'w-full p-4 md:p-3 rounded-lg border text-left transition-all flex items-center gap-2',
+                  'w-full p-4 rounded-lg border text-left transition-all flex items-center gap-3',
                   answers[currentQuestion.key] === true
-                    ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-900/20'
+                    ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-900/20 shadow-sm'
                     : 'border-slate-200 bg-white hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-600',
                   'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
               >
                 <svg className={clsx(
-                  'h-4 w-4 flex-shrink-0',
+                  'h-5 w-5 flex-shrink-0',
                   answers[currentQuestion.key] === true
                     ? 'text-emerald-600 dark:text-emerald-400'
                     : 'text-slate-400 dark:text-slate-500'
@@ -253,7 +262,7 @@ export function CompanySetupPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 <span className={clsx(
-                  'text-sm font-medium',
+                  'text-base font-medium',
                   answers[currentQuestion.key] === true
                     ? 'text-emerald-700 dark:text-emerald-300'
                     : 'text-slate-700 dark:text-slate-300'
@@ -266,15 +275,15 @@ export function CompanySetupPage() {
                 onClick={() => handleAnswer(false)}
                 disabled={loading}
                 className={clsx(
-                  'w-full p-4 md:p-3 rounded-lg border text-left transition-all flex items-center gap-2',
+                  'w-full p-4 rounded-lg border text-left transition-all flex items-center gap-3',
                   answers[currentQuestion.key] === false
-                    ? 'border-slate-400 bg-slate-50 dark:border-slate-500 dark:bg-slate-800/50'
+                    ? 'border-slate-400 bg-slate-50 dark:border-slate-500 dark:bg-slate-800/50 shadow-sm'
                     : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600',
                   'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
               >
                 <svg className={clsx(
-                  'h-4 w-4 flex-shrink-0',
+                  'h-5 w-5 flex-shrink-0',
                   answers[currentQuestion.key] === false
                     ? 'text-slate-600 dark:text-slate-400'
                     : 'text-slate-400 dark:text-slate-500'
@@ -282,7 +291,7 @@ export function CompanySetupPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
                 <span className={clsx(
-                  'text-sm font-medium',
+                  'text-base font-medium',
                   answers[currentQuestion.key] === false
                     ? 'text-slate-700 dark:text-slate-300'
                     : 'text-slate-700 dark:text-slate-300'
@@ -295,15 +304,15 @@ export function CompanySetupPage() {
                 onClick={() => handleAnswer(null)}
                 disabled={loading}
                 className={clsx(
-                  'w-full p-4 md:p-3 rounded-lg border text-left transition-all flex items-center gap-2',
+                  'w-full p-4 rounded-lg border text-left transition-all flex items-center gap-3',
                   answers[currentQuestion.key] === null
-                    ? 'border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-800/30'
+                    ? 'border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-800/30 shadow-sm'
                     : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600',
                   'disabled:opacity-50 disabled:cursor-not-allowed'
                 )}
               >
                 <svg className={clsx(
-                  'h-4 w-4 flex-shrink-0',
+                  'h-5 w-5 flex-shrink-0',
                   answers[currentQuestion.key] === null
                     ? 'text-slate-500 dark:text-slate-400'
                     : 'text-slate-400 dark:text-slate-500'
@@ -311,7 +320,7 @@ export function CompanySetupPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className={clsx(
-                  'text-sm font-medium',
+                  'text-base font-medium',
                   answers[currentQuestion.key] === null
                     ? 'text-slate-600 dark:text-slate-400'
                     : 'text-slate-700 dark:text-slate-300'
@@ -347,9 +356,10 @@ export function CompanySetupPage() {
                 onClick={handleComplete}
                 disabled={loading}
                 className={clsx(
-                  'ml-auto px-6 py-3 md:px-5 md:py-2 text-sm font-medium text-white rounded-lg transition-all',
-                  'bg-emerald-600 hover:bg-emerald-700',
-                  'disabled:cursor-not-allowed disabled:opacity-50'
+                  'ml-auto px-6 py-3 text-base font-medium text-white rounded-lg transition-all',
+                  'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                  'shadow-sm hover:shadow-md'
                 )}
               >
                 {loading ? 'Guardando...' : 'Finalizar'}

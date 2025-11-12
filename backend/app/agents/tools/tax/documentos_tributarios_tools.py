@@ -15,9 +15,9 @@ from uuid import UUID
 from agents import RunContextWrapper, function_tool
 from sqlalchemy import select, and_, desc
 
-from ....config.database import AsyncSessionLocal
-from ...core import FizkoContext
-from ..decorators import require_subscription_tool
+from app.config.database import AsyncSessionLocal
+from app.agents.core import FizkoContext
+from app.agents.tools.decorators import require_subscription_tool
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ async def get_documents(
         - Date range: get_documents(start_date="2024-10-01", end_date="2024-10-31")
         - Combined: get_documents(document_type="purchases", rut="12345678-9", limit=5)
     """
-    from ....db.models import PurchaseDocument, SalesDocument
+    from app.db.models import PurchaseDocument, SalesDocument
 
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
@@ -227,7 +227,7 @@ async def get_documents_summary(
         - Last year summary: get_documents_summary(year=2023)
     """
     import time
-    from ....db.models import PurchaseDocument, SalesDocument
+    from app.db.models import PurchaseDocument, SalesDocument
 
     tool_start = time.time()
     logger.info("=" * 60)

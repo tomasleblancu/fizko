@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
-from ....db.models import CalendarEvent, CompanyEvent, EventHistory, EventTemplate
+from app.db.models import CalendarEvent, CompanyEvent, EventHistory, EventTemplate
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 

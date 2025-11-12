@@ -8,8 +8,8 @@ from decimal import Decimal
 
 from agents import RunContextWrapper, function_tool
 
-from ....config.database import AsyncSessionLocal
-from ...core import FizkoContext
+from app.config.database import AsyncSessionLocal
+from app.agents.core import FizkoContext
 
 logger = logging.getLogger(__name__)
 

@@ -7,6 +7,8 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
   signInWithWhatsApp: (phone: string, otp: string) => Promise<void>;
   requestWhatsAppOTP: (phone: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -63,6 +65,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return response.json();
   };
 
+  const signInWithEmail = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+  };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`,
+      },
+    });
+    if (error) throw error;
+  };
+
   const signInWithWhatsApp = async (phone: string, otp: string) => {
     const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8089';
     const response = await fetch(`${API_BASE_URL}/api/auth/whatsapp/verify-otp`, {
@@ -99,6 +120,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         loading,
         signInWithGoogle,
+        signInWithEmail,
+        signUpWithEmail,
         requestWhatsAppOTP,
         signInWithWhatsApp,
         signOut,

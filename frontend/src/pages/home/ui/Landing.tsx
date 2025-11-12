@@ -1,13 +1,9 @@
 import { TrendingUp, MessageCircle, CalendarCheck, Mail, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
-import { useAuth } from "@/app/providers/AuthContext";
 import { LandingFooter } from "@/shared/ui/branding/LandingFooter";
 import { ContactSalesDialog } from "./ContactSalesDialog";
 
 export default function Landing() {
-  const { signInWithGoogle } = useAuth();
-  const [secretClickCount, setSecretClickCount] = useState(0);
-  const [showSecretLogin, setShowSecretLogin] = useState(false);
   const [isContactDialogOpen, setIsContactDialogOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
@@ -15,17 +11,8 @@ export default function Landing() {
     setIsContactDialogOpen(true);
   };
 
-  const handleSecretClick = () => {
-    setSecretClickCount(prev => prev + 1);
-    if (secretClickCount >= 4) {
-      setShowSecretLogin(true);
-    }
-  };
-
-  const handleGetStarted = async () => {
-    await signInWithGoogle();
-    setShowSecretLogin(false);
-    setSecretClickCount(0);
+  const handleGetStarted = () => {
+    window.location.href = '/login';
   };
 
   const toggleFaq = (index: number) => {
@@ -60,43 +47,51 @@ export default function Landing() {
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      {/* Navigation Bar */}
+      <nav className="relative">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between py-6">
+            {/* Logo a la izquierda */}
+            <div className="flex items-center gap-2">
+              <img
+                src="/encabezado.png"
+                alt="Fizko Icon"
+                className="h-8 w-auto sm:h-10"
+              />
+              <img
+                src="/encabezado_fizko.svg"
+                alt="Fizko"
+                className="h-10 w-auto sm:h-12"
+              />
+            </div>
+
+            {/* Botón Entrar a la derecha */}
+            <button
+              onClick={handleGetStarted}
+              className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:scale-105"
+              aria-label="Entrar a Fizko"
+            >
+              <span>Entrar</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-white dark:bg-slate-900" aria-label="Hero">
+      <section className="relative overflow-hidden" aria-label="Hero">
         {/* Decorative background */}
-        <div className="absolute inset-0 bg-gradient-to-b from-blue-50 via-transparent to-transparent dark:from-blue-950/30" aria-hidden="true" />
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-50/50 via-transparent to-transparent dark:from-emerald-950/30" aria-hidden="true" />
 
         <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
           <header className="text-center">
-            {/* Fizko Logo */}
-            <div className="mb-12">
-              <div
-                className="flex justify-center items-center gap-3"
-                onClick={handleSecretClick}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && handleSecretClick()}
-              >
-                <img
-                  src="/encabezado.png"
-                  alt="Fizko Icon"
-                  className="h-14 w-auto cursor-pointer sm:h-16 md:h-20"
-                />
-                <img
-                  src="/encabezado_fizko.svg"
-                  alt="Fizko - Plataforma de Gestión Tributaria Inteligente"
-                  className="h-16 w-auto cursor-pointer sm:h-20 md:h-24"
-                />
-              </div>
-            </div>
-
             {/* Main Headline */}
             <div className="mx-auto max-w-4xl">
               <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-slate-900 dark:text-white mb-8 leading-tight">
                 <span className="block transition-all duration-300 hover:scale-105 cursor-default inline-block">
                   Tus números claros.
                 </span>
-                <span className="block bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent transition-all duration-300 hover:scale-105 cursor-default inline-block">
+                <span className="block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent transition-all duration-300 hover:scale-105 cursor-default inline-block">
                   Tus impuestos bajo control.
                 </span>
               </h1>
@@ -114,7 +109,7 @@ export default function Landing() {
             <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
                 onClick={handleContactSales}
-                className="group inline-flex items-center space-x-3 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-10 py-5 text-xl font-semibold text-white shadow-xl transition-all hover:shadow-2xl hover:scale-105"
+                className="group inline-flex items-center space-x-3 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-10 py-5 text-xl font-semibold text-white shadow-xl transition-all hover:shadow-2xl hover:scale-105"
                 aria-label="Solicitar una demo de Fizko"
               >
                 <Mail className="h-6 w-6" />
@@ -129,23 +124,6 @@ export default function Landing() {
                 <MessageCircle className="h-6 w-6" />
                 <span>Háblanos</span>
               </button>
-
-              {/* Login secreto - aparece al hacer 5 clicks en el logo */}
-              {showSecretLogin && (
-                <button
-                  onClick={handleGetStarted}
-                  className="inline-flex items-center space-x-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-8 py-4 text-lg font-medium text-slate-700 dark:text-slate-200 shadow-sm transition-all hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600"
-                  aria-label="Iniciar sesión con Google"
-                >
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                  </svg>
-                  <span>Login</span>
-                </button>
-              )}
             </div>
 
             {/* Trust Indicators with pulsing dots */}
@@ -171,7 +149,7 @@ export default function Landing() {
           <figure className="mt-12 sm:mt-16">
             <div className="relative mx-auto max-w-6xl">
               {/* Decorative blur behind container */}
-              <div className="absolute -inset-8 bg-gradient-to-r from-blue-400 to-purple-400 rounded-3xl blur-3xl opacity-10" aria-hidden="true" />
+              <div className="absolute -inset-8 bg-gradient-to-r from-emerald-400 to-teal-400 rounded-3xl blur-3xl opacity-10" aria-hidden="true" />
 
               {/* Pure white container with padding */}
               <div className="relative bg-white dark:bg-slate-800 rounded-3xl p-8 sm:p-12 shadow-2xl">
@@ -213,16 +191,16 @@ export default function Landing() {
       </section>
 
       {/* Las 3C de Fizko Section - Hero Style */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 py-32 transition-colors" aria-labelledby="three-cs-heading">
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 py-32 transition-colors" aria-labelledby="three-cs-heading">
         {/* Decorative background */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/20 via-transparent to-transparent" aria-hidden="true" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/20 via-transparent to-transparent" aria-hidden="true" />
 
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <header className="text-center mb-20">
             <h2 id="three-cs-heading" className="text-5xl font-bold text-white sm:text-6xl mb-6">
               Las 3C de Fizko
             </h2>
-            <p className="text-2xl text-blue-200">
+            <p className="text-2xl text-emerald-200">
               La esencia de nuestra plataforma
             </p>
           </header>
@@ -230,15 +208,15 @@ export default function Landing() {
           <div className="grid gap-8 md:grid-cols-3 max-w-6xl mx-auto">
             {/* Conecta */}
             <div className="group relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300" aria-hidden="true" />
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300" aria-hidden="true" />
               <div className="relative flex flex-col items-center text-center h-full p-10 bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
-                <div className="flex items-center justify-center w-20 h-20 mb-8 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 shadow-2xl flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                <div className="flex items-center justify-center w-20 h-20 mb-8 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-2xl flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
                   <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
                 <h3 className="text-4xl font-bold text-white mb-4">Conecta</h3>
-                <p className="text-lg text-blue-100 leading-relaxed">
+                <p className="text-lg text-emerald-100 leading-relaxed">
                   Tu información financiera con un click
                 </p>
               </div>
@@ -246,15 +224,15 @@ export default function Landing() {
 
             {/* Controla */}
             <div className="group relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300" aria-hidden="true" />
+              <div className="absolute inset-0 bg-gradient-to-br from-teal-500/20 to-cyan-500/20 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300" aria-hidden="true" />
               <div className="relative flex flex-col items-center text-center h-full p-10 bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300">
-                <div className="flex items-center justify-center w-20 h-20 mb-8 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-2xl flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                <div className="flex items-center justify-center w-20 h-20 mb-8 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-500 shadow-2xl flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
                   <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
                 <h3 className="text-4xl font-bold text-white mb-4">Controla</h3>
-                <p className="text-lg text-blue-100 leading-relaxed">
+                <p className="text-lg text-emerald-100 leading-relaxed">
                   Todos tus movimientos y crecimiento
                 </p>
               </div>
@@ -294,7 +272,7 @@ export default function Landing() {
           <div className="space-y-4">
             {/* Feature 1 - Información en tiempo real */}
             <div className="group flex items-start gap-6 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300">
-              <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 shadow-sm flex-shrink-0">
+              <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 shadow-sm flex-shrink-0">
                 <TrendingUp className="h-6 w-6 text-white" />
               </div>
               <div className="flex-1">
@@ -309,7 +287,7 @@ export default function Landing() {
 
             {/* Feature 2 - Asistente 24/7 */}
             <div className="group flex items-start gap-6 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300">
-              <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 shadow-sm flex-shrink-0">
+              <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-500 shadow-sm flex-shrink-0">
                 <MessageCircle className="h-6 w-6 text-white" />
               </div>
               <div className="flex-1">
@@ -393,11 +371,11 @@ export default function Landing() {
       {/* CTA Section */}
       <section className="relative bg-white dark:bg-slate-900 py-20 transition-colors" aria-labelledby="cta-heading">
         <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
-          <div className="rounded-3xl bg-gradient-to-br from-blue-600 to-purple-600 p-12 shadow-xl">
+          <div className="rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-600 p-12 shadow-xl">
             <h2 id="cta-heading" className="text-3xl font-bold text-white sm:text-4xl">
               Sé parte del futuro de la gestión tributaria
             </h2>
-            <p className="mt-4 text-xl text-blue-50">
+            <p className="mt-4 text-xl text-emerald-50">
               Únete al pre lanzamiento y obtén acceso exclusivo a Fizko.
             </p>
             <button
@@ -405,7 +383,7 @@ export default function Landing() {
               className="mt-8 inline-flex items-center space-x-3 rounded-full bg-white px-8 py-4 text-lg font-semibold text-slate-900 shadow-lg transition-all hover:scale-105 hover:shadow-xl"
               aria-label="Acceder al pre lanzamiento"
             >
-              <Mail className="h-6 w-6 text-blue-600" />
+              <Mail className="h-6 w-6 text-emerald-600" />
               <span>Accede al Pre Lanzamiento</span>
             </button>
           </div>

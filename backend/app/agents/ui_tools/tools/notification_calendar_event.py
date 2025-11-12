@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ....db.models import CalendarEvent, EventTask, NotificationHistory
+from app.db.models import CalendarEvent, EventTask, NotificationHistory
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 

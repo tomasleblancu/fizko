@@ -6,8 +6,8 @@ from agents import RunContextWrapper, function_tool
 from typing import Optional, Any
 from uuid import UUID
 
-from ...core import FizkoContext
-from ....config.database import AsyncSessionLocal
+from app.agents.core import FizkoContext
+from app.config.database import AsyncSessionLocal
 
 
 @function_tool(strict_mode=False)
@@ -38,7 +38,7 @@ async def list_notifications(ctx: RunContextWrapper[FizkoContext]) -> dict[str, 
     try:
         async with AsyncSessionLocal() as session:
             # Lazy import to avoid circular dependency
-            from ....services.notifications import get_notification_service
+            from app.services.notifications import get_notification_service
 
             # Get notification service
             notification_service = get_notification_service()
@@ -151,7 +151,7 @@ async def edit_notification(
 
         async with AsyncSessionLocal() as session:
             # Lazy import to avoid circular dependency
-            from ....services.notifications import get_notification_service
+            from app.services.notifications import get_notification_service
 
             # Get notification service
             notification_service = get_notification_service()
