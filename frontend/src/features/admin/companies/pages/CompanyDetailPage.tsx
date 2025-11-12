@@ -20,6 +20,7 @@ import { API_BASE_URL } from "@/shared/lib/config";
 import { useAuth } from "@/app/providers/AuthContext";
 import SyncPanel from '../components/SyncPanel';
 import F29List from '../components/F29List';
+import Form29GeneratedList from '../components/Form29GeneratedList';
 import CalendarConfig from '../../calendar/components/CalendarConfig';
 import CalendarEventsSection from '../../calendar/components/CalendarEventsSection';
 import NotificationSubscriptions from '../components/NotificationSubscriptions';
@@ -32,7 +33,7 @@ export default function AdminCompanyView() {
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'f29' | 'calendar' | 'notifications'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'f29' | 'f29-generated' | 'calendar' | 'notifications'>('overview');
   const [sendingNotification, setSendingNotification] = useState(false);
   const [notificationResult, setNotificationResult] = useState<{
     success: boolean;
@@ -344,7 +345,17 @@ export default function AdminCompanyView() {
                   : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300'
               }`}
             >
-              Formularios 29
+              F29 SII
+            </button>
+            <button
+              onClick={() => setActiveTab('f29-generated')}
+              className={`whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
+                activeTab === 'f29-generated'
+                  ? 'border-blue-500 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300'
+              }`}
+            >
+              F29 Generados
             </button>
             <button
               onClick={() => setActiveTab('calendar')}
@@ -595,10 +606,17 @@ export default function AdminCompanyView() {
         </div>
         )}
 
-        {/* Tab Content: F29 Forms */}
+        {/* Tab Content: F29 Forms (SII Downloads) */}
         {activeTab === 'f29' && (
           <div>
             <F29List companyId={companyId!} />
+          </div>
+        )}
+
+        {/* Tab Content: F29 Generated Forms (Local) */}
+        {activeTab === 'f29-generated' && (
+          <div>
+            <Form29GeneratedList companyId={companyId!} />
           </div>
         )}
 

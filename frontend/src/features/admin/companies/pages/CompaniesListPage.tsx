@@ -258,6 +258,33 @@ export default function AdminCompaniesView() {
                       {formatDate(company.created_at)}
                     </span>
                   </div>
+
+                  {/* F29 Status */}
+                  {company.latest_f29_status && (
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+                        <FileText className="h-4 w-4" />
+                        <span>F29</span>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                          company.latest_f29_status === 'saved' || company.latest_f29_status === 'paid'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                            : company.latest_f29_status === 'draft'
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                        }`}>
+                          {company.latest_f29_status === 'draft' ? 'Borrador' :
+                           company.latest_f29_status === 'saved' ? 'Guardado' :
+                           company.latest_f29_status === 'paid' ? 'Pagado' :
+                           company.latest_f29_status}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {company.latest_f29_period}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

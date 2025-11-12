@@ -25,13 +25,11 @@ class Form29(Base):
     calculates the net IVA to pay or carry forward as credit based on sales
     and purchases for a given period.
 
-    Draft Lifecycle:
-    1. draft -> User creates and edits the form
-    2. validated -> System validates calculations
-    3. confirmed -> User confirms for submission
-    4. submitted -> Form submitted to SII
-    5. paid -> Payment confirmed
-    6. cancelled -> Superseded by a newer revision
+    Form Lifecycle:
+    1. draft -> User creates and edits the form (calculado)
+    2. saved -> User confirms and saves the form (guardado)
+    3. paid -> Payment confirmed (pagado)
+    4. cancelled -> Superseded by a newer revision
     """
 
     __tablename__ = "form29"
@@ -97,7 +95,7 @@ class Form29(Base):
     # Status
     status: Mapped[str] = mapped_column(
         Text, server_default=text("'draft'::text")
-    )  # draft, validated, confirmed, submitted, paid, cancelled
+    )  # draft, saved, paid, cancelled
     submission_date: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
@@ -145,7 +143,7 @@ class Form29(Base):
             name="form29_period_month_check",
         ),
         CheckConstraint(
-            "status = ANY (ARRAY['draft'::text, 'validated'::text, 'confirmed'::text, 'submitted'::text, 'paid'::text, 'cancelled'::text])",
+            "status = ANY (ARRAY['draft'::text, 'saved'::text, 'paid'::text, 'cancelled'::text])",
             name="form29_status_check",
         ),
         CheckConstraint(
@@ -159,7 +157,7 @@ class Form29(Base):
         # Indexes for efficient queries
         Index("ix_form29_company_period", "company_id", "period_year", "period_month"),
         Index("ix_form29_active_drafts", "company_id", "period_year", "period_month", postgresql_where=text("status = 'draft'")),
-        Index("ix_form29_ready_for_submission", "company_id", "status", postgresql_where=text("status IN ('validated', 'confirmed')")),
+        Index("ix_form29_ready_for_payment", "company_id", "status", postgresql_where=text("status = 'saved'")),
         Index("ix_form29_payment_status", "company_id", "payment_status", postgresql_where=text("payment_status IN ('unpaid', 'pending', 'overdue')")),
         Index("ix_form29_created_by", "created_by_user_id", "created_at"),
         Index("ix_form29_sii_link", "sii_download_id", postgresql_where=text("sii_download_id IS NOT NULL")),
@@ -207,19 +205,14 @@ class Form29(Base):
         return self.validation_status == "valid"
 
     @property
-    def is_confirmed(self) -> bool:
-        """Check if form has been confirmed by user."""
-        return self.status in ("confirmed", "submitted", "paid")
-
-    @property
-    def is_submitted(self) -> bool:
-        """Check if form has been submitted to SII."""
-        return self.status in ("submitted", "paid")
+    def is_saved(self) -> bool:
+        """Check if form has been saved by user."""
+        return self.status in ("saved", "paid")
 
     @property
     def is_paid(self) -> bool:
         """Check if payment has been completed."""
-        return self.payment_status == "paid"
+        return self.status == "paid"
 
     @property
     def is_cancelled(self) -> bool:
@@ -229,17 +222,17 @@ class Form29(Base):
     @property
     def can_be_edited(self) -> bool:
         """Check if form can still be edited."""
-        return self.status in ("draft", "validated")
+        return self.status == "draft"
 
     @property
-    def can_be_confirmed(self) -> bool:
-        """Check if form is ready to be confirmed."""
-        return self.status == "validated" and self.validation_status == "valid"
+    def can_be_saved(self) -> bool:
+        """Check if form is ready to be saved."""
+        return self.status == "draft" and self.validation_status == "valid"
 
     @property
-    def can_be_submitted(self) -> bool:
-        """Check if form is ready to be submitted to SII."""
-        return self.status == "confirmed"
+    def can_be_paid(self) -> bool:
+        """Check if form is ready to be paid."""
+        return self.status == "saved"
 
     @property
     def has_validation_errors(self) -> bool:

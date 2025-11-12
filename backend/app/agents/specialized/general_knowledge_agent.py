@@ -87,6 +87,7 @@ def create_general_knowledge_agent(
         logger.info("⚠️  Creating general_knowledge_agent WITHOUT FileSearchTool (no vector stores available)")
 
     # Build agent kwargs
+    SPECIALIZED_MODEL = "gpt-4.1-mini"
     agent_kwargs = {
         "name": "general_knowledge_agent",
         "model": SPECIALIZED_MODEL,

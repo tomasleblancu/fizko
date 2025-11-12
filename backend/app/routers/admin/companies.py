@@ -21,6 +21,7 @@ from ...repositories import (
     ProfileRepository,
     SessionRepository,
     AdminStatsRepository,
+    Form29Repository,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,8 @@ class CompanySummary(BaseModel):
     total_documents: int
     created_at: datetime
     last_activity: Optional[datetime]
+    latest_f29_status: Optional[str] = None  # Status del último F29 generado
+    latest_f29_period: Optional[str] = None  # Periodo del último F29 (YYYY-MM)
 
 
 class CompanyDetailResponse(BaseModel):
@@ -325,12 +328,16 @@ async def list_all_companies(
     # Extract company IDs for batch queries
     company_ids = [company.id for company in companies]
 
+    # Initialize Form29 repository
+    f29_repo = Form29Repository(db)
+
     # Execute all batch queries in parallel using repositories
     batch_start = time.time()
-    users_count_map, doc_counts_map, last_activity_map = await asyncio.gather(
+    users_count_map, doc_counts_map, last_activity_map, latest_f29_map = await asyncio.gather(
         session_repo.count_users_batch(company_ids),
         stats_repo.get_document_counts_batch(company_ids),
-        session_repo.get_last_activity_batch(company_ids)
+        session_repo.get_last_activity_batch(company_ids),
+        f29_repo.get_latest_f29_batch(company_ids)
     )
     logger.info(f"[PERF] Batch queries took {(time.time() - batch_start)*1000:.2f}ms for {len(companies)} companies")
 
@@ -344,6 +351,11 @@ async def list_all_companies(
             total_documents = doc_counts.purchase_count + doc_counts.sales_count
         last_activity = last_activity_map.get(company.id)
 
+        # Get F29 data
+        f29_data = latest_f29_map.get(company.id)
+        latest_f29_status = f29_data[0] if f29_data else None
+        latest_f29_period = f29_data[1] if f29_data else None
+
         summaries.append(CompanySummary(
             id=str(company.id),
             rut=company.rut,
@@ -353,7 +365,9 @@ async def list_all_companies(
             total_users=users_count,
             total_documents=total_documents,
             created_at=company.created_at,
-            last_activity=last_activity
+            last_activity=last_activity,
+            latest_f29_status=latest_f29_status,
+            latest_f29_period=latest_f29_period
         ))
 
     logger.info(f"[PERF] Total list_all_companies took {(time.time() - start_time)*1000:.2f}ms")

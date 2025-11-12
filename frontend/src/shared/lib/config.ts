@@ -24,11 +24,6 @@ export const STARTER_PROMPTS: StartScreenPrompt[] = [
     icon: "notebook-pencil",
   },
   {
-    label: "Explica mis impuestos",
-    prompt: "Explícame mis obligaciones tributarias y el estado de mis impuestos",
-    icon: "chart",
-  },
-  {
     label: "Dame un resumen de ventas",
     prompt: "Muéstrame un resumen de las ventas del mes",
     icon: "notebook",

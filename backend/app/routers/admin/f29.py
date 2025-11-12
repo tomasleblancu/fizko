@@ -19,6 +19,7 @@ from ...repositories import (
     ProfileRepository,
     SessionRepository,
     Form29SIIDownloadRepository,
+    Form29Repository,
 )
 
 logger = logging.getLogger(__name__)
@@ -145,3 +146,133 @@ async def get_company_f29_list(
         )
         for download in f29_downloads
     ]
+
+
+class Form29GeneratedInfo(BaseModel):
+    """Form29 generated information"""
+    id: str
+    company_id: str
+    company_name: str
+    period_year: int
+    period_month: int
+    revision_number: int
+    total_sales: float
+    taxable_sales: float
+    exempt_sales: float
+    sales_tax: float
+    total_purchases: float
+    taxable_purchases: float
+    purchases_tax: float
+    iva_to_pay: float
+    iva_credit: float
+    net_iva: float
+    previous_month_credit: float
+    status: str
+    validation_status: str
+    submission_date: Optional[datetime]
+    folio: Optional[str]
+    payment_status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+@router.get("/form29/all", response_model=List[Form29GeneratedInfo])
+async def get_all_form29_generated(
+    current_user_id: UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    year: Optional[int] = None,
+    status_filter: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100
+):
+    """
+    Get all Form29 generated records across all companies (admin only)
+
+    Returns all Form29 records from the form29 table.
+    Can be filtered by year and status.
+
+    Args:
+        current_user_id: Authenticated user ID
+        db: Database session
+        year: Optional year filter
+        status_filter: Optional status filter (draft, saved, paid, cancelled)
+        skip: Pagination offset
+        limit: Number of records to return
+
+    Returns:
+        List of Form29GeneratedInfo
+
+    Raises:
+        403: User is not admin
+    """
+    logger.info(f"All Form29 generated list requested by user {current_user_id}")
+
+    # Initialize repositories
+    profile_repo = ProfileRepository(db)
+    company_repo = CompanyRepository(db)
+    f29_repo = Form29Repository(db)
+
+    # Check user role - admin only
+    user = await profile_repo.get_by_user_id(current_user_id)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User profile not found"
+        )
+
+    if user.rol != "admin-kaiken":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can access all Form29 records"
+        )
+
+    # Get all F29 forms using repository
+    filters = {}
+    if year:
+        filters['period_year'] = year
+    if status_filter:
+        filters['status'] = status_filter
+
+    forms = await f29_repo.find_all(
+        filters=filters,
+        skip=skip,
+        limit=limit
+    )
+
+    # Get company names
+    result = []
+    for form in forms:
+        company = await company_repo.get(form.company_id)
+        company_name = company.business_name if company else "Unknown"
+
+        result.append(
+            Form29GeneratedInfo(
+                id=str(form.id),
+                company_id=str(form.company_id),
+                company_name=company_name,
+                period_year=form.period_year,
+                period_month=form.period_month,
+                revision_number=form.revision_number,
+                total_sales=float(form.total_sales),
+                taxable_sales=float(form.taxable_sales),
+                exempt_sales=float(form.exempt_sales),
+                sales_tax=float(form.sales_tax),
+                total_purchases=float(form.total_purchases),
+                taxable_purchases=float(form.taxable_purchases),
+                purchases_tax=float(form.purchases_tax),
+                iva_to_pay=float(form.iva_to_pay),
+                iva_credit=float(form.iva_credit),
+                net_iva=float(form.net_iva),
+                previous_month_credit=float(form.previous_month_credit),
+                status=form.status,
+                validation_status=form.validation_status,
+                submission_date=form.submission_date,
+                folio=form.folio,
+                payment_status=form.payment_status,
+                created_at=form.created_at,
+                updated_at=form.updated_at
+            )
+        )
+
+    return result

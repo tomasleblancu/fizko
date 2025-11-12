@@ -103,6 +103,11 @@ class TaxSummaryRepository:
         # TODO: Implement income tax calculation
         income_tax = 0.0
 
+        # Get generated Form29 for this period
+        generated_f29 = await self._get_generated_f29(
+            company_id, period_start.year, period_start.month
+        )
+
         # Generate summary ID
         summary_id = f"{company_id}-{period_start.year}-{period_start.month:02d}"
 
@@ -122,6 +127,7 @@ class TaxSummaryRepository:
             retencion=retencion,
             impuesto_trabajadores=impuesto_trabajadores,
             monthly_tax=monthly_tax,
+            generated_f29=generated_f29,
             created_at=datetime.now().isoformat(),
             updated_at=datetime.now().isoformat()
         )
@@ -295,11 +301,11 @@ class TaxSummaryRepository:
         """
         Get credit from previous month's F29 (código 077 or negative net_iva).
 
-        First checks Form29 drafts (submitted/paid/confirmed), then falls back
+        First checks Form29 drafts (saved/paid), then falls back
         to Form29SIIDownload for real SII forms.
 
         Logic:
-        1. Search Form29 table for submitted/paid/confirmed drafts
+        1. Search Form29 table for saved/paid forms
            - If net_iva < 0, use abs(net_iva) as credit
         2. Fallback to Form29SIIDownload table
            - Extract código 077 from extra_data
@@ -320,13 +326,13 @@ class TaxSummaryRepository:
                 prev_year = period_start.year
                 prev_month = period_start.month - 1
 
-            # FIRST: Check Form29 drafts for confirmed/submitted/paid forms
+            # FIRST: Check Form29 drafts for saved/paid forms
             draft_stmt = select(Form29).where(
                 and_(
                     Form29.company_id == company_id,
                     Form29.period_year == prev_year,
                     Form29.period_month == prev_month,
-                    Form29.status.in_(['confirmed', 'submitted', 'paid'])
+                    Form29.status.in_(['saved', 'paid'])
                 )
             ).order_by(Form29.created_at.desc()).limit(1)
 
@@ -425,6 +431,74 @@ class TaxSummaryRepository:
             retencion = float(row.retencion) if row.retencion else 0.0
 
             return retencion if retencion > 0 else None
+
+        except Exception:
+            # Return None on any error
+            pass
+
+        return None
+
+    async def _get_generated_f29(
+        self,
+        company_id: UUID,
+        period_year: int,
+        period_month: int
+    ) -> Optional[dict]:
+        """
+        Get generated Form29 for the specified period.
+
+        Searches for Form29 records in order of preference:
+        1. Latest non-cancelled form (any status except cancelled)
+        2. Returns most recent revision
+
+        Args:
+            company_id: Company UUID
+            period_year: Year of the period
+            period_month: Month of the period
+
+        Returns:
+            Form29 data as dict or None if not found
+        """
+        try:
+            # Query for Form29 records (excluding cancelled)
+            stmt = select(Form29).where(
+                and_(
+                    Form29.company_id == company_id,
+                    Form29.period_year == period_year,
+                    Form29.period_month == period_month,
+                    Form29.status != 'cancelled'
+                )
+            ).order_by(
+                Form29.revision_number.desc(),
+                Form29.created_at.desc()
+            ).limit(1)
+
+            result = await self.db.execute(stmt)
+            form29 = result.scalar_one_or_none()
+
+            if form29:
+                # Convert to dict matching Form29 schema
+                return {
+                    'id': str(form29.id),
+                    'company_id': str(form29.company_id),
+                    'period_year': form29.period_year,
+                    'period_month': form29.period_month,
+                    'total_sales': float(form29.total_sales),
+                    'taxable_sales': float(form29.taxable_sales),
+                    'exempt_sales': float(form29.exempt_sales),
+                    'sales_tax': float(form29.sales_tax),
+                    'total_purchases': float(form29.total_purchases),
+                    'taxable_purchases': float(form29.taxable_purchases),
+                    'purchases_tax': float(form29.purchases_tax),
+                    'iva_to_pay': float(form29.iva_to_pay),
+                    'iva_credit': float(form29.iva_credit),
+                    'net_iva': float(form29.net_iva),
+                    'status': form29.status,
+                    'extra_data': form29.extra_data,
+                    'submitted_at': form29.submission_date.isoformat() if form29.submission_date else None,
+                    'created_at': form29.created_at.isoformat(),
+                    'updated_at': form29.updated_at.isoformat(),
+                }
 
         except Exception:
             # Return None on any error

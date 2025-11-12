@@ -25,6 +25,28 @@ export interface CompanySettings {
   updated_at?: string;
 }
 
+export interface Form29 {
+  id: string;
+  company_id: string;
+  period_year: number;
+  period_month: number;
+  total_sales: number;
+  taxable_sales: number;
+  exempt_sales: number;
+  sales_tax: number;
+  total_purchases: number;
+  taxable_purchases: number;
+  purchases_tax: number;
+  iva_to_pay: number;
+  iva_credit: number;
+  net_iva: number;
+  status: string;
+  extra_data?: Record<string, any>;
+  submitted_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TaxSummary {
   id: string;
   company_id: string;
@@ -38,6 +60,7 @@ export interface TaxSummary {
   income_tax: number;
   previous_month_credit?: number;
   monthly_tax: number;
+  generated_f29?: Form29;
   created_at: string;
 }
 

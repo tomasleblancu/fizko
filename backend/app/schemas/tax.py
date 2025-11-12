@@ -177,7 +177,7 @@ class Form29Create(BaseModel):
     iva_to_pay: Decimal = Field(default=Decimal("0"), description="IVA to pay")
     iva_credit: Decimal = Field(default=Decimal("0"), description="IVA credit")
     net_iva: Decimal = Field(default=Decimal("0"), description="Net IVA (to pay or credit)")
-    status: str = Field(default="draft", description="Form status (draft, submitted, paid)")
+    status: str = Field(default="draft", description="Form status (draft, saved, paid, cancelled)")
     extra_data: Optional[dict] = Field(None, description="Additional data")
 
 
@@ -249,6 +249,7 @@ class TaxSummary(BaseModel):
     retencion: Optional[float] = Field(None, description="Retención (honorarios) - withholding from invoices")
     impuesto_trabajadores: Optional[float] = Field(None, description="Impuesto trabajadores - employee tax withholding")
     monthly_tax: float = Field(..., description="Monthly tax to pay")
+    generated_f29: Optional[Form29] = Field(None, description="Generated Form29 for this period (if exists)")
     created_at: str = Field(..., description="Creation timestamp")
     updated_at: str = Field(..., description="Update timestamp")
 

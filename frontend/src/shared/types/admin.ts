@@ -41,6 +41,8 @@ export interface CompanySummary {
   total_documents: number;
   created_at: string;
   last_activity: string | null;
+  latest_f29_status: string | null;
+  latest_f29_period: string | null;
 }
 
 export interface CompanyDetail {

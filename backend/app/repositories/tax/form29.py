@@ -290,3 +290,56 @@ class Form29Repository(BaseRepository[Form29]):
 
         result = await self.db.execute(query)
         return list(result.scalars().all())
+
+    async def get_latest_f29_batch(self, company_ids: List[UUID]) -> dict:
+        """
+        Get the latest Form29 for each company in batch.
+
+        Args:
+            company_ids: List of company UUIDs
+
+        Returns:
+            Dict mapping company_id to tuple (status, period_display)
+        """
+        from sqlalchemy import literal_column
+
+        # Subquery to get latest F29 per company
+        subq = (
+            select(
+                Form29.company_id,
+                func.max(
+                    literal_column(f"period_year * 100 + period_month")
+                ).label('max_period')
+            )
+            .where(
+                Form29.company_id.in_(company_ids),
+                Form29.status != "cancelled"
+            )
+            .group_by(Form29.company_id)
+            .subquery()
+        )
+
+        # Main query to get latest forms
+        query = (
+            select(Form29)
+            .join(
+                subq,
+                and_(
+                    Form29.company_id == subq.c.company_id,
+                    literal_column(f"period_year * 100 + period_month") == subq.c.max_period
+                )
+            )
+        )
+
+        result = await self.db.execute(query)
+        forms = result.scalars().all()
+
+        # Build result map
+        result_map = {}
+        for form in forms:
+            result_map[form.company_id] = (
+                form.status,
+                form.period_display
+            )
+
+        return result_map

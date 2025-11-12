@@ -76,7 +76,7 @@ async def list_form29(
     - company_id: Company ID (required)
     - period_year: Filter by year
     - period_month: Filter by month (1-12)
-    - status: Filter by status (draft, submitted)
+    - status: Filter by status (draft, saved, paid, cancelled)
     - skip: Pagination offset
     - limit: Number of records to return
     """
@@ -268,7 +268,7 @@ async def update_form29(
     Update a Form29.
 
     User must have access to the company that owns this form.
-    Note: Cannot update a Form29 that has been submitted.
+    Note: Cannot update a Form29 that has been saved or paid.
     """
     # Get form using repository (injected via Depends)
     form = await repo.get(form_id)
@@ -282,11 +282,11 @@ async def update_form29(
     # Verify access
     await verify_company_access(form.company_id, user_id, db)
 
-    # Check if form is submitted
-    if form.status == "submitted":
+    # Check if form is saved or paid
+    if form.status in ("saved", "paid"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot update a submitted Form29"
+            detail="Cannot update a saved or paid Form29"
         )
 
     # Update only provided fields using repository
@@ -320,7 +320,7 @@ async def delete_form29(
     Delete a Form29.
 
     User must have access to the company that owns this form.
-    Note: Cannot delete a Form29 that has been submitted.
+    Note: Cannot delete a Form29 that has been saved or paid.
     This is a hard delete. For soft delete, update the status instead.
     """
     # Get form using repository (injected via Depends)
@@ -335,11 +335,11 @@ async def delete_form29(
     # Verify access
     await verify_company_access(form.company_id, user_id, db)
 
-    # Check if form is submitted
-    if form.status == "submitted":
+    # Check if form is saved or paid
+    if form.status in ("saved", "paid"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot delete a submitted Form29"
+            detail="Cannot delete a saved or paid Form29"
         )
 
     # Delete form using repository
@@ -363,13 +363,10 @@ async def submit_form29(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """
-    Submit a Form29 to SII.
+    Save/Confirm a Form29 (guardado).
 
-    This changes the status to 'submitted' and records the submission date.
+    This changes the status to 'saved' and records the confirmation date.
     User must have access to the company that owns this form.
-
-    Note: This is a placeholder endpoint. In production, this would integrate
-    with the actual SII submission service.
     """
     # Get form using repository (injected via Depends)
     form = await repo.get(form_id)
@@ -383,23 +380,16 @@ async def submit_form29(
     # Verify access
     await verify_company_access(form.company_id, user_id, db)
 
-    # Check if already submitted
-    if form.status == "submitted":
+    # Check if already saved or paid
+    if form.status in ("saved", "paid"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Form29 has already been submitted"
+            detail="Form29 has already been saved or paid"
         )
-
-    # TODO: Implement actual SII submission logic here
-    # This would involve:
-    # 1. Validating the form data
-    # 2. Connecting to SII API/service
-    # 3. Submitting the form
-    # 4. Getting back a folio/confirmation number
 
     # Update form status using repository
     update_data = {
-        "status": "submitted",
+        "status": "saved",
         "submission_date": datetime.utcnow()
     }
     if data.folio:
@@ -416,8 +406,8 @@ async def submit_form29(
             "period_year": form.period_year,
             "period_month": form.period_month,
             "status": form.status,
-            "submission_date": form.submission_date.isoformat(),
+            "submission_date": form.submission_date.isoformat() if form.submission_date else None,
             "folio": form.folio,
         },
-        "message": "Form29 submitted successfully"
+        "message": "Form29 saved successfully"
     }
