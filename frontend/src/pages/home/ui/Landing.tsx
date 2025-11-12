@@ -66,14 +66,22 @@ export default function Landing() {
               />
             </div>
 
-            {/* Botón Entrar a la derecha */}
-            <button
-              onClick={handleGetStarted}
-              className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:scale-105"
-              aria-label="Entrar a Fizko"
-            >
-              <span>Entrar</span>
-            </button>
+            {/* Links de navegación y botón Entrar */}
+            <div className="flex items-center gap-6">
+              <a
+                href="/como-funciona"
+                className="text-sm font-medium text-slate-700 hover:text-emerald-600 dark:text-slate-300 dark:hover:text-emerald-400 transition-colors hidden sm:inline-block"
+              >
+                Cómo Funciona
+              </a>
+              <button
+                onClick={handleGetStarted}
+                className="inline-flex items-center rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:scale-105"
+                aria-label="Entrar a Fizko"
+              >
+                <span>Entrar</span>
+              </button>
+            </div>
           </div>
         </div>
       </nav>

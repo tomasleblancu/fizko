@@ -6,6 +6,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { AuthProvider } from "./providers/AuthContext";
 import { ProtectedRoute } from "./providers/ProtectedRoute";
 import { HomePage } from "@/pages/home";
+import HowItWorks from "@/pages/home/ui/HowItWorks";
 import { TermsOfService, PrivacyPolicy } from "@/pages/legal";
 import { SIIConnectionPage, CompanySetupPage } from "@/pages/onboarding";
 import LoginPage from "@/pages/auth/ui/LoginPage";
@@ -46,6 +47,7 @@ createRoot(container).render(
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<HomePage />} />
+            <Route path="/como-funciona" element={<HowItWorks />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/terminos" element={<TermsOfService />} />
             <Route path="/privacidad" element={<PrivacyPolicy />} />
