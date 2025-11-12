@@ -74,13 +74,6 @@ class AgentService:
             StreamedRunResult object with .stream_events() method
             (used by ChatKit's stream_agent_response)
         """
-        logger.info("=" * 60)
-        logger.info("🌐 AgentService.execute_from_chatkit()")
-        logger.info(f"   user_id={user_id}")
-        logger.info(f"   company_id={company_id}")
-        logger.info(f"   thread_id={thread_id}")
-        logger.info(f"   ui_component={ui_component}")
-        logger.info("=" * 60)
 
         # 1. Load company context
         company_info = await self.context_builder.load_company_context(
@@ -118,7 +111,6 @@ class AgentService:
 
         # 4. Execute via runner (streaming)
         # IMPORTANT: We need to call the async parts first, then return the sync streaming result
-        logger.info("🚀 Starting agent execution (streaming)...")
 
         # Get agent (async) - also creates/returns session for active agent detection
         agent, _, session = await self.runner._get_agent(request, db)
@@ -172,12 +164,6 @@ class AgentService:
         Returns:
             (response_text, conversation_id) tuple
         """
-        logger.info("=" * 60)
-        logger.info("📱 AgentService.execute_from_whatsapp()")
-        logger.info(f"   user_id={user_id}")
-        logger.info(f"   company_id={company_id}")
-        logger.info(f"   conversation_id={conversation_id}")
-        logger.info("=" * 60)
 
         # 1. Load company context
         company_info = await self.context_builder.load_company_context(
@@ -200,15 +186,12 @@ class AgentService:
         )
 
         # 3. Execute via runner (non-streaming)
-        logger.info("🚀 Starting agent execution (non-streaming)...")
         result: AgentExecutionResult = await self.runner.execute(
             request=request,
             db=db,
             stream=False,
             run_config=run_config,
         )
-
-        logger.info(f"✅ Agent execution complete: {len(result.response_text)} chars")
 
         return (result.response_text, conversation_id)
 

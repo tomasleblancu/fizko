@@ -103,9 +103,6 @@ class SupabaseStore(Store[dict[str, Any]]):
 
     async def save_thread(self, thread: ThreadMetadata, context: dict[str, Any]) -> None:
         """Save or update a conversation thread in Supabase."""
-        import time
-        save_start = time.time()
-
         user_id = context.get("user_id")
         if not user_id:
             raise ValueError("user_id is required in context")
@@ -175,8 +172,6 @@ class SupabaseStore(Store[dict[str, Any]]):
                     raise
 
             await session.commit()
-
-        logger.info(f"  ✅ save_thread() completed: {(time.time() - save_start):.3f}s")
 
     async def load_threads(
         self,

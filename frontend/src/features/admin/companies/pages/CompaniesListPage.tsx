@@ -164,7 +164,7 @@ export default function AdminCompaniesView() {
         </div>
       </div>
 
-      {/* Companies Grid */}
+      {/* Companies Table */}
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {filteredCompanies.length === 0 ? (
           <div className="rounded-lg border border-gray-200 bg-white p-12 text-center dark:border-gray-700 dark:bg-gray-800">
@@ -179,115 +179,106 @@ export default function AdminCompaniesView() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredCompanies.map((company) => (
-              <div
-                key={company.id}
-                onMouseEnter={() => handlePrefetchCompany(company.id)}
-                onClick={() => navigate(`/admin/company/${company.id}`)}
-                className="group cursor-pointer rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-blue-500 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-600"
-              >
-                {/* Company Header */}
-                <div className="mb-4 flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <Building2 className="h-5 w-5 text-blue-600" />
-                      <h3 className="font-semibold text-gray-900 dark:text-white">
-                        {company.business_name}
-                      </h3>
-                    </div>
-                    {company.trade_name && (
-                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                        {company.trade_name}
-                      </p>
-                    )}
-                  </div>
-                  <ArrowRight className="h-5 w-5 text-gray-400 transition-transform group-hover:translate-x-1" />
-                </div>
-
-                {/* RUT */}
-                <div className="mb-4">
-                  <p className="text-sm font-mono text-gray-600 dark:text-gray-400">
-                    RUT: {company.rut}
-                  </p>
-                  {company.tax_regime && (
-                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                      Régimen: {company.tax_regime}
-                    </p>
-                  )}
-                </div>
-
-                {/* Stats */}
-                <div className="space-y-2 border-t border-gray-200 pt-4 dark:border-gray-700">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-                      <Users className="h-4 w-4" />
-                      <span>Usuarios</span>
-                    </div>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {company.total_users}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-                      <FileText className="h-4 w-4" />
-                      <span>Documentos</span>
-                    </div>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {company.total_documents}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-                      <Activity className="h-4 w-4" />
-                      <span>Última actividad</span>
-                    </div>
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      {formatDateTime(company.last_activity)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-                      <Calendar className="h-4 w-4" />
-                      <span>Creada</span>
-                    </div>
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      {formatDate(company.created_at)}
-                    </span>
-                  </div>
-
-                  {/* F29 Status */}
-                  {company.latest_f29_status && (
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
-                        <FileText className="h-4 w-4" />
-                        <span>F29</span>
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                          company.latest_f29_status === 'saved' || company.latest_f29_status === 'paid'
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                            : company.latest_f29_status === 'draft'
-                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
-                        }`}>
-                          {company.latest_f29_status === 'draft' ? 'Borrador' :
-                           company.latest_f29_status === 'saved' ? 'Guardado' :
-                           company.latest_f29_status === 'paid' ? 'Pagado' :
-                           company.latest_f29_status}
-                        </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                          {company.latest_f29_period}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow dark:border-gray-700 dark:bg-gray-800">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-900">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      Empresa
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      RUT
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      Régimen
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      Usuarios
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      Documentos
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      F29
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      Última Actividad
+                    </th>
+                    <th scope="col" className="relative px-6 py-3">
+                      <span className="sr-only">Ver</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
+                  {filteredCompanies.map((company) => (
+                    <tr
+                      key={company.id}
+                      onMouseEnter={() => handlePrefetchCompany(company.id)}
+                      onClick={() => navigate(`/admin/company/${company.id}`)}
+                      className="cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    >
+                      <td className="whitespace-nowrap px-6 py-4">
+                        <div className="flex items-center">
+                          <Building2 className="h-5 w-5 text-blue-600 mr-3 flex-shrink-0" />
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">
+                              {company.business_name}
+                            </div>
+                            {company.trade_name && (
+                              <div className="text-sm text-gray-500 dark:text-gray-400">
+                                {company.trade_name}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm font-mono text-gray-900 dark:text-white">
+                        {company.rut}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                        {company.tax_regime || '-'}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-900 dark:text-white">
+                        {company.total_users}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-900 dark:text-white">
+                        {company.total_documents}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        {company.latest_f29_status ? (
+                          <div className="flex flex-col">
+                            <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium ${
+                              company.latest_f29_status === 'saved' || company.latest_f29_status === 'paid'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                : company.latest_f29_status === 'draft'
+                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                            }`}>
+                              {company.latest_f29_status === 'draft' ? 'Borrador' :
+                               company.latest_f29_status === 'saved' ? 'Guardado' :
+                               company.latest_f29_status === 'paid' ? 'Pagado' :
+                               company.latest_f29_status}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              {company.latest_f29_period}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400 dark:text-gray-500">-</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                        {formatDateTime(company.last_activity)}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+                        <ArrowRight className="inline h-5 w-5 text-gray-400 transition-transform group-hover:translate-x-1" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

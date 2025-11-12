@@ -20,9 +20,14 @@ COPY pyproject.toml uv.lock ./
 # Install ALL dependencies (including dev for local development)
 # Production will use --no-dev
 ARG INSTALL_DEV=false
-RUN if [ "$INSTALL_DEV" = "true" ]; then \
-        uv sync --frozen; \
+RUN echo "================================" && \
+    echo "INSTALL_DEV value: $INSTALL_DEV" && \
+    echo "================================" && \
+    if [ "$INSTALL_DEV" = "true" ]; then \
+        echo "Installing WITH dev dependencies..." && \
+        uv sync --frozen --extra dev; \
     else \
+        echo "Installing WITHOUT dev dependencies..." && \
         uv sync --frozen --no-dev; \
     fi
 
@@ -60,6 +65,12 @@ COPY app ./app
 
 # Copy scripts (including seed scripts)
 COPY scripts ./scripts
+
+# Copy tests (for running tests in container)
+COPY tests ./tests
+
+# Copy test configuration
+COPY pytest.ini ./pytest.ini
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh /docker-entrypoint.sh

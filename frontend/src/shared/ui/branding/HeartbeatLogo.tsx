@@ -4,7 +4,7 @@ interface HeartbeatLogoProps {
 
 export function HeartbeatLogo({ className = "h-12 w-12" }: HeartbeatLogoProps) {
   return (
-    <div className={`relative inline-flex items-center justify-center ${className}`}>
+    <div className={`relative inline-flex items-center justify-center ${className}`} style={{ padding: '0 24px' }}>
       <style>{`
         @keyframes heartbeat-left {
           0%, 100% {
@@ -54,28 +54,30 @@ export function HeartbeatLogo({ className = "h-12 w-12" }: HeartbeatLogoProps) {
       <img
         src="/parentesis_izq.svg"
         alt="("
-        className="h-full w-auto animate-heartbeat-left"
+        className="h-full w-auto animate-heartbeat-left flex-shrink-0"
         style={{
           objectFit: 'contain',
-          imageRendering: 'crisp-edges',
+          imageRendering: 'auto',
           WebkitBackfaceVisibility: 'hidden',
           WebkitTransform: 'translateZ(0)',
           transform: 'translateZ(0)',
-          willChange: 'transform'
+          willChange: 'transform',
+          maxWidth: '50%'
         }}
       />
       {/* Right parenthesis - animates to the right */}
       <img
         src="/parentesis_der.svg"
         alt=")"
-        className="h-full w-auto animate-heartbeat-right"
+        className="h-full w-auto animate-heartbeat-right flex-shrink-0"
         style={{
           objectFit: 'contain',
-          imageRendering: 'crisp-edges',
+          imageRendering: 'auto',
           WebkitBackfaceVisibility: 'hidden',
           WebkitTransform: 'translateZ(0)',
           transform: 'translateZ(0)',
-          willChange: 'transform'
+          willChange: 'transform',
+          maxWidth: '50%'
         }}
       />
     </div>

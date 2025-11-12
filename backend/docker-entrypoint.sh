@@ -184,6 +184,14 @@ case "$1" in
         exec python -m scripts.seed "$@"
         ;;
 
+    test|pytest)
+        echo -e "${GREEN}🧪 Running Tests${NC}"
+        # No dependency checks needed for tests
+        # Pass all remaining arguments to pytest
+        shift  # Remove 'test' or 'pytest' from arguments
+        exec python -m pytest "$@"
+        ;;
+
     bash|sh)
         echo -e "${GREEN}🐚 Starting Interactive Shell${NC}"
         exec /bin/bash
@@ -199,11 +207,13 @@ case "$1" in
         echo "  celery-beat    - Start Celery Beat Scheduler"
         echo "  flower         - Start Flower monitoring"
         echo "  seed           - Run seed scripts (sync data between environments)"
+        echo "  test|pytest    - Run tests with pytest"
         echo "  bash           - Interactive shell"
         echo ""
         echo "Examples:"
         echo "  docker run backend seed notification-templates --to production --dry-run"
         echo "  docker run backend seed all --to production --dry-run"
+        echo "  docker run backend test tests/sii_integration/test_f29.py -v -s"
         echo "  docker run backend bash"
         exit 1
         ;;

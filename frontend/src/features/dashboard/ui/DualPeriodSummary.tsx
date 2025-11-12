@@ -2,7 +2,6 @@ import { Calendar, TrendingUp, Receipt, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 import type { TaxSummary } from "@/shared/types/fizko";
 import type { ColorScheme } from "@/shared/hooks/useColorScheme";
-import { TaxSummaryCardSkeleton } from './TaxSummaryCardSkeleton';
 import { useChateableClick } from "@/shared/hooks/useChateableClick";
 import '@/app/styles/chateable.css';
 
@@ -87,7 +86,7 @@ export function DualPeriodSummary({
 
   const prevExpensesClickProps = useChateableClick({
     message: previousMonth
-      ? `Analiza mis gastos de ${formatCurrency(previousMonth.total_expenses)} en ${previousPeriodString}`
+      ? `Analiza mis compras de ${formatCurrency(previousMonth.total_expenses)} en ${previousPeriodString}`
       : '',
     contextData: previousMonth ? {
       amount: previousMonth.total_expenses,
@@ -132,7 +131,7 @@ export function DualPeriodSummary({
 
   const currentExpensesClickProps = useChateableClick({
     message: currentMonth
-      ? `Analiza mis gastos de ${formatCurrency(currentMonth.total_expenses)} en ${currentPeriodString}`
+      ? `Analiza mis compras de ${formatCurrency(currentMonth.total_expenses)} en ${currentPeriodString}`
       : '',
     contextData: currentMonth ? {
       amount: currentMonth.total_expenses,
@@ -328,12 +327,12 @@ export function DualPeriodSummary({
                 {...prevExpensesClickProps}
                 className="chateable-element flex-1 rounded-lg bg-white/40 p-1.5 dark:bg-slate-900/20"
               >
-                <p className="text-[10px] text-slate-600 dark:text-slate-400">Gastos</p>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400">Compras</p>
                 <p className="mt-0.5 text-xs font-semibold text-slate-900 dark:text-slate-100">
                   {formatCurrency(previousMonth.total_expenses)}
                 </p>
               </div>
-              {/* Pagar button - inline with Ventas and Gastos */}
+              {/* Pagar button - inline with Ventas and Compras */}
               <button
                 {...payClickProps}
                 className="flex items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-rose-700 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-1 dark:bg-rose-500 dark:hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -391,7 +390,7 @@ export function DualPeriodSummary({
                 {...currentExpensesClickProps}
                 className="chateable-element rounded-lg bg-white/50 p-3 dark:bg-slate-900/30"
               >
-                <p className="text-xs text-slate-600 dark:text-slate-400">Gastos</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Compras</p>
                 <p className="mt-1 text-base font-bold text-slate-900 dark:text-slate-100">
                   {formatCurrency(currentMonth.total_expenses)}
                 </p>

@@ -115,8 +115,6 @@ class AgentRunner:
         Returns:
             AgentExecutionResult (if stream=False) or AsyncIterator of events
         """
-        logger.info(f"🚀 AgentRunner.execute() | multi-agent mode | stream={stream}")
-        logger.info(f"   thread_id={request.thread_id} | channel={request.channel}")
 
         # 1. Get agent based on mode (creates session internally for active agent detection)
         agent, all_agents, session = await self._get_agent(request, db)
@@ -129,7 +127,6 @@ class AgentRunner:
 
         # 5. Execute agent
         if stream:
-            logger.info(f"🔄 Starting streaming execution...")
             result = Runner.run_streamed(
                 agent,
                 agent_input,
@@ -140,7 +137,6 @@ class AgentRunner:
             )
             return result
         else:
-            logger.info(f"⚡ Starting non-streaming execution...")
             result = await Runner.run(
                 agent,
                 agent_input,
@@ -168,8 +164,6 @@ class AgentRunner:
             for att in request.attachments:
                 if "vector_store_id" in att:
                     vector_store_ids.append(att["vector_store_id"])
-
-        logger.info("🔀 Creating multi-agent system...")
 
         # Parse company_id (may be string from request)
         from uuid import UUID
@@ -202,7 +196,6 @@ class AgentRunner:
             vector_store_ids=vector_store_ids if vector_store_ids else None,
         )
 
-        logger.info(f"✅ Multi-agent system ready: {len(all_agents)} agents")
         return (agent, all_agents, session)
 
     async def _build_context(
@@ -274,8 +267,6 @@ class AgentRunner:
         # Wrap in message format
         agent_input = [{"role": "user", "content": content_parts}]
 
-        logger.info(f"📝 Agent input: {len(content_parts)} content parts")
-
         return agent_input
 
     def _create_session(self, thread_id: str) -> SQLiteSession:
@@ -283,7 +274,6 @@ class AgentRunner:
         Create SQLite session for conversation history.
         """
         session = SQLiteSession(thread_id, self.session_file)
-        logger.info(f"💾 Session created: {thread_id}")
         return session
 
     def _parse_result(

@@ -89,7 +89,6 @@ class ChatKitServerAdapter(ChatKitServer):
             ThreadStreamEvent for streaming response
         """
         request_start = context.get("request_start_time", time.time())
-        logger.info(f"⏱️  ChatKitServerAdapter.respond() started")
 
         async with AsyncSessionLocal() as db:
             # Get target item
@@ -106,7 +105,6 @@ class ChatKitServerAdapter(ChatKitServer):
                 if isinstance(target_item, UserMessageItem)
                 else ""
             )
-            logger.info(f"💬 User: {user_message_text[:100]}{'...' if len(user_message_text) > 100 else ''}")
 
             # Convert attachments to content format
             if isinstance(target_item, UserMessageItem):
@@ -114,7 +112,6 @@ class ChatKitServerAdapter(ChatKitServer):
                     target_item,
                     self.attachment_store
                 )
-                logger.info(f"📝 Content: {len(content_parts)} parts")
             else:
                 content_parts = [{"type": "input_text", "text": user_message_text}]
 
@@ -127,8 +124,6 @@ class ChatKitServerAdapter(ChatKitServer):
             ui_component = get_value("ui_component")
             entity_id = get_value("entity_id")
             entity_type = get_value("entity_type")
-
-            logger.info(f"📊 UI Context: component={ui_component}, entity_id={entity_id}, entity_type={entity_type}")
 
             # Prepare company context injection
             company_id = context.get("company_id")
@@ -149,7 +144,6 @@ class ChatKitServerAdapter(ChatKitServer):
                 if thread.metadata is None:
                     thread.metadata = {}
                 thread.metadata["company_context_sent"] = True
-                logger.info("📋 Company context will be injected (first message)")
 
             # Add UI context if available
             ui_context_text = context.get("ui_context_text", "")
@@ -182,9 +176,6 @@ class ChatKitServerAdapter(ChatKitServer):
                     return history + [{"role": "user", "content": [{"type": "input_text", "text": str(new_input)}]}]
 
             run_config = RunConfig(session_input_callback=session_input_callback)
-
-            # Execute agent via AgentService (streaming)
-            logger.info(f"🚀 Executing agent via AgentService...")
 
             agent_stream, agent_context = await self.agent_service.execute_from_chatkit(
                 db=db,
@@ -265,7 +256,7 @@ class ChatKitServerAdapter(ChatKitServer):
 
             except InputGuardrailTripwireTriggered as e:
                 # Input bloqueado por guardrail durante streaming
-                from ..core.context import FizkoContext
+                from app.agents.core import FizkoContext
 
                 fizko_context = agent_context.get("fizko_context")
                 user_id = fizko_context.user.id if fizko_context and fizko_context.user else "unknown"

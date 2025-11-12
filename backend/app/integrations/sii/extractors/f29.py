@@ -6,7 +6,7 @@ import requests
 import uuid
 from typing import List, Dict, Any, Optional
 
-from ..scrapers.f29_scraper import F29Scraper
+from ..scrapers.f29 import F29Scraper
 from ..core import SeleniumDriver
 from ..exceptions import ExtractionError
 
