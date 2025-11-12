@@ -298,16 +298,24 @@ async def chatkit_endpoint(
                         yield chunk
                 except InputGuardrailTripwireTriggered as e:
                     # Input bloqueado por guardrail durante streaming
+                    # Extract guardrail info safely (ChatKit exceptions may not have these attributes)
+                    guardrail_name = getattr(e, "guardrail_name", "unknown")
+                    guardrail_result = getattr(e, "result", None)
+                    reason_info = guardrail_result.output.output_info if guardrail_result else str(e)
+
                     logger.warning(
                         f"🚨 Input guardrail triggered (during stream) | "
                         f"User: {user_id} | "
                         f"Company: {company_id} | "
-                        f"Guardrail: {e.guardrail_name} | "
-                        f"Reason: {e.result.output.output_info}"
+                        f"Guardrail: {guardrail_name} | "
+                        f"Reason: {reason_info}"
                     )
 
                     # Determinar mensaje basado en el tipo de bloqueo
-                    reason = e.result.output.output_info.get("reason", "").lower()
+                    if guardrail_result and hasattr(guardrail_result.output, "output_info"):
+                        reason = guardrail_result.output.output_info.get("reason", "").lower()
+                    else:
+                        reason = str(e).lower()
 
                     if "prompt injection" in reason:
                         message_text = (
@@ -355,16 +363,24 @@ async def chatkit_endpoint(
 
     except InputGuardrailTripwireTriggered as e:
         # Input bloqueado por guardrail (ej: prompt injection, uso abusivo)
+        # Extract guardrail info safely (ChatKit exceptions may not have these attributes)
+        guardrail_name = getattr(e, "guardrail_name", "unknown")
+        guardrail_result = getattr(e, "result", None)
+        reason_info = guardrail_result.output.output_info if guardrail_result else str(e)
+
         logger.warning(
             f"🚨 Input guardrail triggered | "
             f"User: {user_id} | "
             f"Company: {company_id} | "
-            f"Guardrail: {e.guardrail_name} | "
-            f"Reason: {e.result.output.output_info}"
+            f"Guardrail: {guardrail_name} | "
+            f"Reason: {reason_info}"
         )
 
         # Determinar mensaje basado en el tipo de bloqueo
-        reason = e.result.output.output_info.get("reason", "").lower()
+        if guardrail_result and hasattr(guardrail_result.output, "output_info"):
+            reason = guardrail_result.output.output_info.get("reason", "").lower()
+        else:
+            reason = str(e).lower()
 
         if "prompt injection" in reason:
             # Mensaje para intentos de manipulación

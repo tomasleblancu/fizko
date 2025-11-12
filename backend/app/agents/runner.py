@@ -177,24 +177,28 @@ class AgentRunner:
         # Create session
         session = self._create_session(request.thread_id)
 
-        # Always start with supervisor agent (no active agent detection)
-        agent = await handoffs_manager.get_supervisor_agent(
+        # Get orchestrator (contains all agents and session manager)
+        orchestrator = await handoffs_manager.get_orchestrator(
             thread_id=request.thread_id,
             db=db,
             user_id=request.user_id,
-            company_id=company_id_uuid,  # ⭐ Pass company_id for subscription validation
+            company_id=company_id_uuid,
             vector_store_ids=vector_store_ids if vector_store_ids else None,
             channel=request.channel,
         )
 
+        # Check if there's an active agent (agent persistence)
+        active_agent = await orchestrator.get_active_agent()
+        if active_agent and active_agent != orchestrator.get_supervisor_agent():
+            logger.info(f"🔄 Continuing with active agent (not supervisor)")
+            agent = active_agent
+        else:
+            # No active agent - start with supervisor
+            logger.debug(f"Starting with supervisor agent")
+            agent = orchestrator.get_supervisor_agent()
+
         # Get all agents for handoffs
-        all_agents = await handoffs_manager.get_all_agents(
-            thread_id=request.thread_id,
-            db=db,
-            user_id=request.user_id,
-            company_id=company_id_uuid,  # ⭐ Pass company_id for subscription validation
-            vector_store_ids=vector_store_ids if vector_store_ids else None,
-        )
+        all_agents = list(orchestrator.agents.values())
 
         return (agent, all_agents, session)
 

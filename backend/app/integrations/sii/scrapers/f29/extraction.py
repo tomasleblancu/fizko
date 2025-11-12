@@ -26,6 +26,152 @@ from .navigation import SEARCH_URL
 logger = logging.getLogger(__name__)
 
 
+def _cerrar_overlays(driver) -> None:
+    """Detecta y cierra overlays que puedan estar bloqueando clicks"""
+    try:
+        # Buscar overlays comunes del SII
+        overlay_selectors = [
+            "//div[contains(@class, 'gw-par-negrita')]",  # El div específico del error
+            "//div[contains(@class, 'modal')]",
+            "//div[contains(@class, 'overlay')]",
+            "//div[contains(@class, 'loading')]"
+        ]
+
+        for overlay_selector in overlay_selectors:
+            try:
+                overlays = driver.driver.find_elements(By.XPATH, overlay_selector)
+                for overlay in overlays:
+                    if overlay.is_displayed():
+                        logger.debug(f"   ⚠️ Overlay detectado, intentando ocultar: {overlay_selector}")
+                        # Ocultar con JavaScript
+                        driver.driver.execute_script(
+                            "arguments[0].style.display = 'none';",
+                            overlay
+                        )
+                        time.sleep(0.3)
+            except:
+                pass
+    except Exception as overlay_error:
+        logger.debug(f"   No se pudo detectar/cerrar overlays: {overlay_error}")
+
+
+def _analizar_interceptor(driver, element, folio: str) -> None:
+    """Analiza qué elemento está interceptando el click"""
+    try:
+        interceptor_info = driver.driver.execute_script("""
+            const btn = arguments[0];
+            const rect = btn.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const topElement = document.elementFromPoint(centerX, centerY);
+
+            return {
+                interceptor_tag: topElement?.tagName,
+                interceptor_class: topElement?.className,
+                interceptor_id: topElement?.id,
+                interceptor_text: topElement?.innerText?.substring(0, 50),
+                button_visible: btn.offsetParent !== null,
+                button_rect: {
+                    top: rect.top,
+                    left: rect.left,
+                    width: rect.width,
+                    height: rect.height
+                }
+            };
+        """, element)
+
+        logger.error(f"🎯 Elemento interceptor detectado para folio {folio}:")
+        logger.error(f"   - Tag: {interceptor_info.get('interceptor_tag')}")
+        logger.error(f"   - Class: {interceptor_info.get('interceptor_class')}")
+        logger.error(f"   - ID: {interceptor_info.get('interceptor_id')}")
+        logger.error(f"   - Text: {interceptor_info.get('interceptor_text')}")
+        logger.error(f"   - Botón visible: {interceptor_info.get('button_visible')}")
+        logger.error(f"   - Botón rect: {interceptor_info.get('button_rect')}")
+    except Exception as js_error:
+        logger.warning(f"⚠️ No se pudo analizar interceptor: {js_error}")
+
+
+def _click_con_retry(driver, element, folio: str, button_name: str, max_retries: int = 5) -> None:
+    """
+    Hace click en un elemento con retry robusto y manejo de interceptores
+
+    Args:
+        driver: WebDriver instance
+        element: Elemento a clickear
+        folio: Folio del formulario (para logging)
+        button_name: Nombre del botón (para logging)
+        max_retries: Número máximo de intentos
+
+    Raises:
+        Exception: Si todos los intentos fallan
+    """
+    for attempt in range(max_retries):
+        try:
+            # ESTRATEGIA 1: Esperar más tiempo inicial en cada reintento
+            if attempt > 0:
+                wait_time = 1.0 + (attempt * 0.5)
+                logger.debug(f"   Esperando {wait_time}s antes de reintento {attempt + 1}...")
+                time.sleep(wait_time)
+
+            # ESTRATEGIA 2: Cerrar overlays antes del click
+            _cerrar_overlays(driver)
+
+            # ESTRATEGIA 3: Scroll al elemento y esperar que sea clickable
+            try:
+                driver.driver.execute_script(
+                    "arguments[0].scrollIntoView({block: 'center', inline: 'center'});",
+                    element
+                )
+                time.sleep(0.5)
+
+                # Esperar a que sea clickable
+                WebDriverWait(driver.driver, 5).until(
+                    EC.element_to_be_clickable(element)
+                )
+            except TimeoutException:
+                logger.debug(f"   ⚠️ Timeout esperando elemento clickable, intentando de todas formas")
+
+            # ESTRATEGIA 4: Intentar click según el intento
+            if attempt < 3:
+                # Primeros 3 intentos: click normal
+                element.click()
+                logger.debug(f"✓ Click normal exitoso en '{button_name}' (intento {attempt + 1})")
+            else:
+                # Últimos intentos: JavaScript click directo
+                logger.debug(f"   Usando JavaScript click directo (intento {attempt + 1})")
+                driver.driver.execute_script("arguments[0].click();", element)
+                logger.debug(f"✓ JavaScript click exitoso en '{button_name}' (intento {attempt + 1})")
+
+            # Si llegamos aquí, el click fue exitoso
+            return
+
+        except ElementClickInterceptedException as click_error:
+            # 📸 Capturar screenshot para debugging
+            try:
+                take_debug_screenshot(driver, f"click_intercepted_{button_name.replace(' ', '_').lower()}", folio)
+                _analizar_interceptor(driver, element, folio)
+            except:
+                pass
+
+            if attempt < max_retries - 1:
+                logger.debug(
+                    f"⚠️ Click en '{button_name}' bloqueado (intento {attempt + 1}/{max_retries}): "
+                    f"{str(click_error)[:100]}"
+                )
+            else:
+                logger.error(
+                    f"❌ Click en '{button_name}' bloqueado después de {max_retries} intentos para folio {folio}"
+                )
+                raise
+
+        except Exception as e:
+            if attempt < max_retries - 1:
+                logger.debug(f"⚠️ Error en intento {attempt + 1} de click en '{button_name}': {type(e).__name__}")
+            else:
+                logger.error(f"❌ Error final en click de '{button_name}' después de {max_retries} intentos: {e}")
+                raise
+
+
 def extraer_codint_from_formulario_compacto(driver, folio_text: str) -> Optional[str]:
     """
     Extrae el codInt haciendo click en "Formulario Compacto" y capturando la URL
@@ -53,9 +199,13 @@ def extraer_codint_from_formulario_compacto(driver, folio_text: str) -> Optional
 
         # Paso 1: Buscar el botón "Formulario Compacto"
         logger.debug(f"   [1/6] Buscando botón 'Formulario Compacto'...")
-        formulario_compacto_btn = driver.driver.find_element(
-            By.XPATH,
-            "//button[contains(text(), 'Formulario Compacto')]"
+
+        # Esperar a que el botón esté presente
+        formulario_compacto_btn = WebDriverWait(driver.driver, 10).until(
+            EC.presence_of_element_located((
+                By.XPATH,
+                "//button[contains(text(), 'Formulario Compacto')]"
+            ))
         )
         logger.debug(f"   [1/6] ✓ Botón encontrado")
 
@@ -64,10 +214,10 @@ def extraer_codint_from_formulario_compacto(driver, folio_text: str) -> Optional
         ventanas_antes = driver.driver.window_handles
         logger.debug(f"   [2/6] ✓ Ventanas antes: {len(ventanas_antes)}")
 
-        # Paso 3: Click en Formulario Compacto (abrirá nueva pestaña con el PDF)
-        logger.debug(f"   [3/6] Haciendo click en 'Formulario Compacto'...")
-        formulario_compacto_btn.click()
-        logger.debug(f"   [3/6] ✓ Click realizado, esperando 3s (más tiempo en Docker)...")
+        # Paso 3: Click en Formulario Compacto con retry anti-interceptor
+        logger.debug(f"   [3/6] Haciendo click en 'Formulario Compacto' (con anti-interceptor)...")
+        _click_con_retry(driver, formulario_compacto_btn, folio_text, "Formulario Compacto")
+        logger.debug(f"   [3/6] ✓ Click realizado, esperando 3s...")
         time.sleep(3)  # Aumentado a 3s para dar más tiempo en Docker
 
         # Paso 4: Verificar sesión después del click
@@ -510,71 +660,6 @@ def _volver_a_tabla_principal(driver, folio: str) -> None:
         )
         # No es crítico - continuar procesando
         # El formulario ya fue guardado con su codInt
-
-
-def _cerrar_overlays(driver) -> None:
-    """Detecta y cierra overlays que puedan estar bloqueando clicks"""
-    try:
-        # Buscar overlays comunes del SII
-        overlay_selectors = [
-            "//div[contains(@class, 'gw-par-negrita')]",  # El div específico del error
-            "//div[contains(@class, 'modal')]",
-            "//div[contains(@class, 'overlay')]",
-            "//div[contains(@class, 'loading')]"
-        ]
-
-        for overlay_selector in overlay_selectors:
-            try:
-                overlays = driver.driver.find_elements(By.XPATH, overlay_selector)
-                for overlay in overlays:
-                    if overlay.is_displayed():
-                        logger.debug(f"   ⚠️ Overlay detectado, intentando ocultar: {overlay_selector}")
-                        # Ocultar con JavaScript
-                        driver.driver.execute_script(
-                            "arguments[0].style.display = 'none';",
-                            overlay
-                        )
-                        time.sleep(0.3)
-            except:
-                pass
-    except Exception as overlay_error:
-        logger.debug(f"   No se pudo detectar/cerrar overlays: {overlay_error}")
-
-
-def _analizar_interceptor(driver, volver_btn, folio: str) -> None:
-    """Analiza qué elemento está interceptando el click"""
-    try:
-        interceptor_info = driver.driver.execute_script("""
-            const btn = arguments[0];
-            const rect = btn.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
-            const topElement = document.elementFromPoint(centerX, centerY);
-
-            return {
-                interceptor_tag: topElement?.tagName,
-                interceptor_class: topElement?.className,
-                interceptor_id: topElement?.id,
-                interceptor_text: topElement?.innerText?.substring(0, 50),
-                button_visible: btn.offsetParent !== null,
-                button_rect: {
-                    top: rect.top,
-                    left: rect.left,
-                    width: rect.width,
-                    height: rect.height
-                }
-            };
-        """, volver_btn)
-
-        logger.error(f"🎯 Elemento interceptor detectado para folio {folio}:")
-        logger.error(f"   - Tag: {interceptor_info.get('interceptor_tag')}")
-        logger.error(f"   - Class: {interceptor_info.get('interceptor_class')}")
-        logger.error(f"   - ID: {interceptor_info.get('interceptor_id')}")
-        logger.error(f"   - Text: {interceptor_info.get('interceptor_text')}")
-        logger.error(f"   - Botón visible: {interceptor_info.get('button_visible')}")
-        logger.error(f"   - Botón rect: {interceptor_info.get('button_rect')}")
-    except Exception as js_error:
-        logger.warning(f"⚠️ No se pudo analizar interceptor: {js_error}")
 
 
 def _navegar_directo_a_tabla(driver) -> None:

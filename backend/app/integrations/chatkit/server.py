@@ -256,22 +256,28 @@ class ChatKitServerAdapter(ChatKitServer):
 
             except InputGuardrailTripwireTriggered as e:
                 # Input bloqueado por guardrail durante streaming
-                from app.agents.core import FizkoContext
+                # agent_context is a FizkoContext object with request_context dict
+                user_id = agent_context.request_context.get("user_id", "unknown")
+                company_id = agent_context.request_context.get("company_id", "unknown")
 
-                fizko_context = agent_context.get("fizko_context")
-                user_id = fizko_context.user.id if fizko_context and fizko_context.user else "unknown"
-                company_id = fizko_context.company.id if fizko_context and fizko_context.company else "unknown"
+                # Extract guardrail info safely (ChatKit exceptions may not have these attributes)
+                guardrail_name = getattr(e, "guardrail_name", "unknown")
+                guardrail_result = getattr(e, "result", None)
+                reason_info = guardrail_result.output.output_info if guardrail_result else str(e)
 
                 logger.warning(
                     f"🚨 Input guardrail triggered (during agent stream) | "
                     f"User: {user_id} | "
                     f"Company: {company_id} | "
-                    f"Guardrail: {e.guardrail_name} | "
-                    f"Reason: {e.result.output.output_info}"
+                    f"Guardrail: {guardrail_name} | "
+                    f"Reason: {reason_info}"
                 )
 
                 # Determinar mensaje basado en el tipo de bloqueo
-                reason = e.result.output.output_info.get("reason", "").lower()
+                if guardrail_result and hasattr(guardrail_result.output, "output_info"):
+                    reason = guardrail_result.output.output_info.get("reason", "").lower()
+                else:
+                    reason = str(e).lower()
 
                 if "prompt injection" in reason:
                     message_text = (
