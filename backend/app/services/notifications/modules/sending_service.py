@@ -212,9 +212,11 @@ class SendingService(BaseNotificationService):
         """
         try:
             if entity_type == "calendar_event":
-                # Load event
+                # Load event with event_template
                 result = await db.execute(
-                    select(CalendarEvent).where(
+                    select(CalendarEvent)
+                    .options(selectinload(CalendarEvent.event_template))
+                    .where(
                         and_(
                             CalendarEvent.id == entity_id,
                             CalendarEvent.company_id == company_id,
@@ -235,12 +237,12 @@ I sent you a reminder about an event.
                 context = f"""<notification_context>
 I sent you a reminder about:
 
-📅 Event: {event.title}
+📅 Event: {event.event_template.name if event.event_template else "Sin título"}
 Due: {due_date_str}
 Status: {event.status or 'Pending'}"""
 
-                if event.description:
-                    context += f"\nDescription: {event.description}"
+                if event.event_template and event.event_template.description:
+                    context += f"\nDescription: {event.event_template.description}"
 
                 if notification_content:
                     context += f"\n\nSent message: {notification_content}"

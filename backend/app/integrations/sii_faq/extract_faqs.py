@@ -90,7 +90,6 @@ def test_topics_summary():
     print("\n🔍 Testing topics summary...")
     with SIIFAQClient() as client:
         summary = client.get_topics_summary()
-        print(f"✅ Found {len(summary)} topics")
 
         print("\nTopics list:")
         for i, topic in enumerate(summary[:10], 1):
@@ -126,7 +125,6 @@ def test_search(query: str, topics: List[FAQTopic] = None):
     print(f"\n🔎 Testing search for: '{query}'...")
     with SIIFAQClient() as client:
         results = client.search_questions(query, topics=topics)
-        print(f"✅ Found {len(results)} matching questions")
 
         if results:
             print("\nSearch results:")

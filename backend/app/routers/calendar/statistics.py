@@ -30,8 +30,8 @@ async def get_calendar_stats(
     """
     repo = CalendarRepository(db)
 
-    # Eventos pendientes
-    pending_events = await repo.get_pending_events(company_id)
+    # Eventos guardados (saved)
+    saved_events = await repo.get_pending_events(company_id)
 
     # Eventos vencidos
     overdue_events = await repo.get_overdue_events(company_id)
@@ -44,7 +44,7 @@ async def get_calendar_stats(
 
     return {
         "data": {
-            "pending": len(pending_events),
+            "saved": len(saved_events),
             "overdue": len(overdue_events),
             "upcoming_7_days": len(upcoming_events),
             "completed_this_month": len(completed_events),

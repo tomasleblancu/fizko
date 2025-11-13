@@ -190,11 +190,20 @@ class AgentRunner:
         # Check if there's an active agent (agent persistence)
         active_agent = await orchestrator.get_active_agent()
         if active_agent and active_agent != orchestrator.get_supervisor_agent():
-            logger.info(f"🔄 Continuing with active agent (not supervisor)")
+            agent_name = getattr(active_agent, 'name', 'unknown')
+            logger.info(
+                f"🔄 [STICKY AGENT] Using active agent: {agent_name} | "
+                f"Thread: {request.thread_id[:12]}... | "
+                f"Channel: {request.channel}"
+            )
             agent = active_agent
         else:
             # No active agent - start with supervisor
-            logger.debug(f"Starting with supervisor agent")
+            logger.info(
+                f"👔 [STICKY AGENT] Using supervisor (no active agent) | "
+                f"Thread: {request.thread_id[:12]}... | "
+                f"Channel: {request.channel}"
+            )
             agent = orchestrator.get_supervisor_agent()
 
         # Get all agents for handoffs
@@ -234,6 +243,7 @@ class AgentRunner:
             request_context={
                 "user_id": request.user_id,
                 "company_id": request.company_id,
+                "thread_id": request.thread_id,  # Add thread_id for handoff tracking
                 **(request.metadata or {}),
             },
             current_agent_type="fizko_agent",

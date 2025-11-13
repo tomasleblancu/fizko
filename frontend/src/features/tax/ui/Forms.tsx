@@ -1,13 +1,13 @@
 import { useState, useCallback, useMemo } from 'react';
 import clsx from 'clsx';
 import { FileText } from 'lucide-react';
-import { ChateableWrapper } from '@/shared/ui/ChateableWrapper';
-import { useF29FormsQuery, type FormType } from "@/shared/hooks/useF29FormsQuery";
+import { useF29FormsQuery, type FormType, type F29Form } from "@/shared/hooks/useF29FormsQuery";
 import { ViewContainer } from '@/shared/layouts/ViewContainer';
 import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
 import type { ViewType } from '@/shared/layouts/NavigationPills';
 import type { ColorScheme } from "@/shared/hooks/useColorScheme";
 import type { Company } from "@/shared/types/fizko";
+import { FormDetail } from './FormDetail';
 
 interface FormsProps {
   scheme: ColorScheme;
@@ -36,6 +36,7 @@ export function Forms({
   const [formTypeFilter, setFormTypeFilter] = useState<FormType>('monthly');
   const [yearFilter, setYearFilter] = useState<number>(new Date().getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedForm, setSelectedForm] = useState<F29Form | null>(null);
 
   const { data, isLoading: loading, error } = useF29FormsQuery({
     companyId: company?.id,
@@ -51,11 +52,27 @@ export function Forms({
 
   // Handle navigation
   const handleNavigate = useCallback((view: ViewType) => {
+    // If clicking on forms tab while viewing a form detail, go back to list
+    if (view === 'forms' && selectedForm) {
+      setSelectedForm(null);
+      return;
+    }
+
     if (view === 'dashboard' && onNavigateToDashboard) onNavigateToDashboard();
     if (view === 'personnel' && onNavigateToPersonnel) onNavigateToPersonnel();
     if (view === 'settings' && onNavigateToSettings) onNavigateToSettings();
     if (view === 'contacts' && onNavigateToContacts) onNavigateToContacts();
-  }, [onNavigateToDashboard, onNavigateToPersonnel, onNavigateToSettings, onNavigateToContacts]);
+  }, [selectedForm, onNavigateToDashboard, onNavigateToPersonnel, onNavigateToSettings, onNavigateToContacts]);
+
+  // Handle form selection
+  const handleFormClick = useCallback((form: F29Form) => {
+    setSelectedForm(form);
+  }, []);
+
+  // Handle back to list
+  const handleBackToList = useCallback(() => {
+    setSelectedForm(null);
+  }, []);
 
   // Filter forms by search term
   const filteredForms = useMemo(() => {
@@ -121,7 +138,21 @@ export function Forms({
   };
 
   // Content component (shared between drawer and normal mode)
-  const renderContent = () => (
+  const renderContent = () => {
+    // If a form is selected, show the detail view
+    if (selectedForm) {
+      return (
+        <FormDetail
+          form={selectedForm}
+          onBack={handleBackToList}
+          scheme={scheme}
+          companyId={company?.id}
+        />
+      );
+    }
+
+    // Otherwise, show the list view
+    return (
     <>
       {/* Filters and Search */}
       <div className={clsx(
@@ -268,55 +299,44 @@ export function Forms({
               </thead>
               <tbody>
                 {filteredForms.map((form) => (
-                  <ChateableWrapper
+                  <tr
                     key={form.id}
-                    as="fragment"
-                    message={`Dame información sobre el formulario F29 del periodo ${form.period_display} (folio: ${form.folio})`}
-                    contextData={{
-                      formId: form.id,
-                      folio: form.folio,
-                      period: form.period_display,
-                      status: form.status,
-                    }}
-                    uiComponent="f29_form_card"
-                    entityId={form.folio}
-                    entityType="f29_form"
+                    className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700"
+                    onClick={() => handleFormClick(form)}
                   >
-                    <tr className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
-                      <td className="py-3 px-2">
-                        <div className="min-w-0">
-                          <p className="font-medium text-slate-900 dark:text-slate-100">
-                            {formatPeriod(form.period_display)}
+                    <td className="py-3 px-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-900 dark:text-slate-100">
+                          {formatPeriod(form.period_display)}
+                        </p>
+                        {form.submission_date && (
+                          <p className="text-sm text-slate-500 dark:text-slate-500">
+                            {new Date(form.submission_date).toLocaleDateString('es-CL')}
                           </p>
-                          {form.submission_date && (
-                            <p className="text-sm text-slate-500 dark:text-slate-500">
-                              {new Date(form.submission_date).toLocaleDateString('es-CL')}
-                            </p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2 whitespace-nowrap">
-                        <span className="text-slate-700 dark:text-slate-300 font-mono text-sm">
-                          {form.folio}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 whitespace-nowrap">
-                        <span className="text-slate-900 dark:text-slate-100 font-medium">
-                          {formatAmount(form.amount_cents)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 whitespace-nowrap">
-                        <span className={getStatusBadge(form.status)}>
-                          {form.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 whitespace-nowrap">
-                        <span className={getPDFStatusBadge(form.pdf_download_status, form.has_pdf)}>
-                          {getPDFStatusLabel(form.pdf_download_status, form.has_pdf)}
-                        </span>
-                      </td>
-                    </tr>
-                  </ChateableWrapper>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-2 whitespace-nowrap">
+                      <span className="text-slate-700 dark:text-slate-300 font-mono text-sm">
+                        {form.folio}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 whitespace-nowrap">
+                      <span className="text-slate-900 dark:text-slate-100 font-medium">
+                        {formatAmount(form.amount_cents)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 whitespace-nowrap">
+                      <span className={getStatusBadge(form.status)}>
+                        {form.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 whitespace-nowrap">
+                      <span className={getPDFStatusBadge(form.pdf_download_status, form.has_pdf)}>
+                        {getPDFStatusLabel(form.pdf_download_status, form.has_pdf)}
+                      </span>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -340,7 +360,8 @@ export function Forms({
         </div>
       )}
     </>
-  );
+    );
+  };
 
   // Drawer mode - simple container with padding
   if (isInDrawer) {
@@ -363,7 +384,7 @@ export function Forms({
       scheme={scheme}
       onThemeChange={onThemeChange}
       isInDrawer={false}
-      contentClassName="flex-1 overflow-hidden flex flex-col"
+      contentClassName="flex-1 overflow-hidden flex flex-col px-4 sm:px-6"
     >
       {renderContent()}
     </ViewContainer>

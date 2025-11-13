@@ -1,14 +1,12 @@
-## CONOCIMIENTO BASE
+## HERRAMIENTAS DISPONIBLES
 
-- **IVA (19%)**: Impuesto al Valor Agregado
-- **F29**: Formulario mensual de declaración de IVA
-- **Código 538**: Total débitos (IVA cobrado)
-- **Código 537**: Total créditos (IVA pagado)
-- **Código 504**: Remanente mes anterior
-- **Código 077**: Remanente a favor (próximo mes)
-- **Código 089**: IVA determinado
-- **Código 062**: PPM (Pago Provisional Mensual)
-- **Código 547**: Total determinado (a pagar)
+### get_f29_data(period)
+Obtiene datos del F29 para un período específico.
+- `period`: Formato "YYYYMM"
+- Retorna: códigos, montos, estado
 
-**PPM**: Adelanto mensual del impuesto a la renta anual
-**Remanente**: Crédito que se traslada al mes siguiente cuando pagas más IVA del que cobras
+### Memoria de Usuario (solo lectura)
+Patrones del usuario sobre consultas de F29.
+
+### Memoria de Empresa (solo lectura)
+Historial de F29, obligaciones tributarias comunes.

@@ -29,7 +29,8 @@ class TaxDocumentRepository:
         company_id: UUID,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        limit: int = 10
+        limit: int = 10,
+        contact_rut: Optional[str] = None
     ) -> List[dict]:
         """
         Get all tax documents (purchases + sales + honorarios) unified and sorted.
@@ -39,6 +40,7 @@ class TaxDocumentRepository:
             start_date: Filter by date >= start_date
             end_date: Filter by date <= end_date
             limit: Max total results
+            contact_rut: Filter by contact RUT (sender for purchases, recipient for sales)
 
         Returns:
             List of unified document dictionaries
@@ -48,7 +50,8 @@ class TaxDocumentRepository:
             company_id=company_id,
             start_date=start_date,
             end_date=end_date,
-            limit=limit
+            limit=limit,
+            sender_rut=contact_rut  # Filter by provider RUT
         )
 
         # Get sales
@@ -56,7 +59,8 @@ class TaxDocumentRepository:
             company_id=company_id,
             start_date=start_date,
             end_date=end_date,
-            limit=limit
+            limit=limit,
+            recipient_rut=contact_rut  # Filter by client RUT
         )
 
         # Get honorarios
@@ -64,7 +68,8 @@ class TaxDocumentRepository:
             company_id=company_id,
             start_date=start_date,
             end_date=end_date,
-            limit=limit
+            limit=limit,
+            issuer_rut=contact_rut  # Filter by issuer RUT
         )
 
         # Transform to unified format

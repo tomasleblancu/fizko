@@ -20,6 +20,7 @@ from ..tools.memory import (
     search_user_memory,
     search_company_memory,
 )
+from ..tools.orchestration import return_to_supervisor
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,8 @@ def create_general_knowledge_agent(
         # Memory tools - dual system for user and company memory (read-only)
         search_user_memory,      # Search personal user preferences and history
         search_company_memory,   # Search company-wide knowledge and settings
+        # Orchestration tools
+        return_to_supervisor,    # Return to supervisor and clear active agent
     ]
 
     # Build vector stores list: SII FAQ (always) + user PDFs (from parameter)
@@ -67,7 +70,6 @@ def create_general_knowledge_agent(
     sii_faq_vector_id = os.getenv("SII_FAQ_VECTOR_STORE_ID")
     if sii_faq_vector_id:
         final_vector_store_ids.append(sii_faq_vector_id)
-        logger.info(f"📚 Added SII FAQ vector store: {sii_faq_vector_id}")
 
     # Add user PDF vector stores (if provided)
     if vector_store_ids:
@@ -76,7 +78,6 @@ def create_general_knowledge_agent(
 
     # Add FileSearchTool if there are any vector stores
     if final_vector_store_ids:
-        logger.info(f"📚 Creating general_knowledge_agent with FileSearchTool ({len(final_vector_store_ids)} total vector store(s))")
         tools.append(
             FileSearchTool(
                 max_num_results=5,
@@ -100,9 +101,5 @@ def create_general_knowledge_agent(
         agent_kwargs["model_settings"] = ModelSettings(reasoning=Reasoning(effort=REASONING_EFFORT))
 
     agent = Agent(**agent_kwargs)
-
-    # Log final tool configuration
-    tool_names = [t.name if hasattr(t, 'name') else type(t).__name__ for t in tools]
-    logger.info(f"✅ general_knowledge_agent created with {len(tools)} tools: {', '.join(tool_names)}")
 
     return agent

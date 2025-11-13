@@ -74,7 +74,6 @@ class F29Extractor:
                 save_callback=save_callback
             )
 
-            logger.info(f"✅ Found {len(formularios)} F29 forms")
             return formularios
 
         except Exception as e:

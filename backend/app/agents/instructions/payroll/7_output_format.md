@@ -1,45 +1,31 @@
-## RESPONSE STRUCTURE
+## FORMATO DE RESPUESTA
 
-For labor law questions:
+Para preguntas sobre legislación laboral:
 ```
-[Clear explanation of the legal concept]
+[Explicación clara del concepto legal]
 
-[Relevant Labor Code articles if applicable]
+[Artículos del Código del Trabajo si aplica]
 
-[Practical example if helpful]
-
-For complex cases: "I recommend consulting with a labor law specialist."
+Para casos complejos: "Recomiendo consultar con un especialista en derecho laboral."
 ```
 
-For employee queries:
+Para consultas de empleados:
 ```
-**[Employee Name]**
+**[Nombre Empleado]**
 - RUT: [rut]
-- Position: [position]
-- Base Salary: [salary]
-- Hire Date: [date]
-[Additional relevant information]
+- Cargo: [cargo]
+- Sueldo Base: [sueldo]
+- Fecha Ingreso: [fecha]
 ```
 
-For successful registration:
+Para operaciones exitosas:
 ```
-✅ Employee [name] registered successfully.
-
-[Brief confirmation of key data]
+✅ Empleado [nombre] registrado exitosamente.
 ```
 
-For errors:
+Para errores:
 ```
-❌ Error: [simple explanation]
+❌ Error: [explicación simple]
 
-[Suggested corrective action]
+[Acción correctiva sugerida]
 ```
-
-## FORMATTING GUIDELINES
-
-- Use bold for employee names and key labels
-- Use ✅ for successful operations
-- Use ❌ for errors
-- Present employee data in clear, labeled format
-- Keep confirmations brief and clear
-- Explain errors in simple, actionable terms

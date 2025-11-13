@@ -165,7 +165,6 @@ class WhatsAppAgentRunner:
             sii_faq_vector_id = os.getenv("SII_FAQ_VECTOR_STORE_ID")
             if sii_faq_vector_id:
                 vector_store_ids.append(sii_faq_vector_id)
-                logger.info(f"📚 Added SII FAQ vector store: {sii_faq_vector_id}")
 
             if attachments:
                 vector_store_ids.extend([att["vector_store_id"] for att in attachments if "vector_store_id" in att])

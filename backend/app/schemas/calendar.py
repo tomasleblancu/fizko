@@ -94,35 +94,40 @@ class CompanyEvent(BaseModel):
 # ============================================================================
 
 class CreateCalendarEventRequest(BaseModel):
-    """Schema for creating a calendar event instance."""
+    """Schema for creating a calendar event instance.
+
+    Note: title and description come from the associated event_template,
+    not from this request.
+    """
     company_event_id: UUID = Field(..., description="Reference to company event config")
     company_id: UUID = Field(..., description="Company this event belongs to")
     event_date: date = Field(..., description="Date of the event")
-    title: str = Field(..., description="Event title")
-    description: Optional[str] = Field(None, description="Event description")
-    status: str = Field(default="pending", description="Status: pending, completed, overdue")
+    status: str = Field(default="saved", description="Status: saved, in_progress, completed, overdue, cancelled")
     metadata: Optional[dict] = Field(None, description="Additional metadata")
 
 
 class UpdateCalendarEventRequest(BaseModel):
-    """Schema for updating a calendar event."""
+    """Schema for updating a calendar event.
+
+    Note: title and description cannot be updated as they come from event_template.
+    """
     event_date: Optional[date] = Field(None, description="Event date")
-    title: Optional[str] = Field(None, description="Event title")
-    description: Optional[str] = Field(None, description="Event description")
     status: Optional[str] = Field(None, description="Event status")
     metadata: Optional[dict] = Field(None, description="Additional metadata")
 
 
 class CalendarEvent(BaseModel):
-    """Schema for reading a calendar event."""
+    """Schema for reading a calendar event.
+
+    Note: Use event_template relationship to get title and description.
+    """
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     company_event_id: UUID
     company_id: UUID
+    event_template_id: UUID
     event_date: date
-    title: str
-    description: Optional[str] = None
     status: str
     metadata: Optional[dict] = None
     completed_at: Optional[datetime] = None
@@ -164,7 +169,7 @@ class CreateEventTaskRequest(BaseModel):
     title: str = Field(..., description="Task title")
     description: Optional[str] = Field(None, description="Task description")
     due_date: Optional[date] = Field(None, description="Task due date")
-    status: str = Field(default="pending", description="Status: pending, in_progress, completed")
+    status: str = Field(default="pending", description="Status: pending, in_progress, completed, skipped")
     assigned_to: Optional[UUID] = Field(None, description="User ID assigned to this task")
     metadata: Optional[dict] = Field(None, description="Additional metadata")
 

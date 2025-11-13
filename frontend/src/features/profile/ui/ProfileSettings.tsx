@@ -94,14 +94,14 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
                       className={clsx(
-                        'border-b-2 px-1.5 sm:px-5 py-3 text-sm sm:text-base font-semibold transition-all flex items-center gap-0.5 sm:gap-2 whitespace-nowrap',
+                        'border-b-2 px-4 sm:px-5 py-3 text-sm sm:text-base font-semibold transition-all flex items-center gap-0.5 sm:gap-2 whitespace-nowrap',
                         activeTab === tab.id
                           ? 'border-emerald-600 text-emerald-600 dark:border-emerald-400 dark:text-emerald-400'
                           : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
                       )}
                     >
                       <Icon className="w-4 h-4 flex-shrink-0" />
-                      <span>{tab.label}</span>
+                      <span className="hidden sm:inline">{tab.label}</span>
                     </button>
                   );
                 })}

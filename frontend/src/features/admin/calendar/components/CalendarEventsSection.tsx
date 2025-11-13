@@ -31,7 +31,7 @@ export default function CalendarEventsSection({ companyId }: CalendarEventsSecti
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      pending: 'Pendiente',
+      saved: 'Guardado',
       in_progress: 'En Progreso',
       completed: 'Completado',
       overdue: 'Vencido',
@@ -42,13 +42,13 @@ export default function CalendarEventsSection({ companyId }: CalendarEventsSecti
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      pending: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+      saved: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
       in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
       completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
       overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
       cancelled: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
     };
-    return colors[status] || colors.pending;
+    return colors[status] || colors.saved;
   };
 
   const getCategoryColor = (category: string) => {
@@ -123,14 +123,14 @@ export default function CalendarEventsSection({ companyId }: CalendarEventsSecti
               Todos
             </button>
             <button
-              onClick={() => setStatusFilter('pending')}
+              onClick={() => setStatusFilter('saved')}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                statusFilter === 'pending'
+                statusFilter === 'saved'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
               }`}
             >
-              Pendientes
+              Guardados
             </button>
             <button
               onClick={() => setStatusFilter('completed')}

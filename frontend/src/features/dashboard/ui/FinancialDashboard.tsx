@@ -59,7 +59,7 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
   // Documents list does NOT filter by period - always shows recent documents
   // This prevents re-fetching documents every time user changes period
   // Always fetch 50 documents upfront (pre-fetch) for instant expansion
-  const { data: documents = [], isLoading: docsLoading, error: docsError } = useTaxDocumentsQuery(activeCompanyId, 50, undefined, shouldFetchData);
+  const { data: documents = [], isLoading: docsLoading, error: docsError } = useTaxDocumentsQuery(activeCompanyId, 50, undefined, undefined, shouldFetchData);
 
   // Calendar events for tax obligations
   const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useCalendarQuery(activeCompanyId, 30, false, shouldFetchData);

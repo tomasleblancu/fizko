@@ -54,6 +54,4 @@ def create_supervisor_agent(
         ],
     )
 
-    logger.info("✅ Supervisor agent created with input guardrails")
-
     return agent

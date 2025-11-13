@@ -115,7 +115,7 @@ export type EventCategory =
   | 'otros';
 
 export type EventStatus =
-  | 'pending'
+  | 'saved'
   | 'in_progress'
   | 'completed'
   | 'overdue'

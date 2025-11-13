@@ -35,7 +35,7 @@ async def list_calendar_events(
     - **company_id**: ID de la empresa
     - **start_date**: Fecha de inicio (formato: YYYY-MM-DD)
     - **end_date**: Fecha de fin (formato: YYYY-MM-DD)
-    - **status**: Filtrar por estado (pending, in_progress, completed, overdue, cancelled)
+    - **status**: Filtrar por estado (saved, in_progress, completed, overdue, cancelled)
     - **event_template_code**: Filtrar por tipo de evento (f29, f22, etc.)
     - **limit**: Máximo de resultados (default: 50, max: 200)
     """
@@ -53,8 +53,8 @@ async def list_calendar_events(
         "data": [
             {
                 "id": str(event.id),
-                "title": event.title,
-                "description": event.description,
+                "title": event.event_template.name,
+                "description": event.event_template.description,
                 "event_template": {
                     "code": event.event_template.code,
                     "name": event.event_template.name,
@@ -114,7 +114,7 @@ async def get_upcoming_events(
         "data": [
             {
                 "id": str(event.id),
-                "title": event.title,
+                "title": event.event_template.name,
                 "event_template": {
                     "code": event.event_template.code,
                     "name": event.event_template.name,
@@ -147,11 +147,15 @@ async def get_calendar_event(
     if not event:
         raise HTTPException(status_code=404, detail="Evento no encontrado")
 
+    # Asegurar que event_template está cargado
+    if not event.event_template:
+        await db.refresh(event, ["event_template"])
+
     return {
         "data": {
             "id": str(event.id),
-            "title": event.title,
-            "description": event.description,
+            "title": event.event_template.name,
+            "description": event.event_template.description,
             "event_template": {
                 "id": str(event.event_template.id),
                 "code": event.event_template.code,
@@ -206,6 +210,10 @@ async def complete_calendar_event(
     if not event:
         raise HTTPException(status_code=404, detail="Evento no encontrado")
 
+    # Asegurar que event_template está cargado
+    if not event.event_template:
+        await db.refresh(event, ["event_template"])
+
     event.status = "completed"
     event.completion_date = datetime.now()
     event.completion_data = completion_data or {}
@@ -215,7 +223,7 @@ async def complete_calendar_event(
     return {
         "data": {
             "id": str(event.id),
-            "title": event.title,
+            "title": event.event_template.name,
             "status": event.status,
             "completion_date": event.completion_date.isoformat(),
             "completion_data": event.completion_data,
@@ -235,9 +243,9 @@ async def update_event_status(
     Actualizar el estado de un evento.
 
     - **event_id**: ID del evento
-    - **status**: Nuevo estado (pending, in_progress, completed, overdue, cancelled)
+    - **status**: Nuevo estado (saved, in_progress, completed, overdue, cancelled)
     """
-    valid_statuses = ["pending", "in_progress", "completed", "overdue", "cancelled"]
+    valid_statuses = ["saved", "in_progress", "completed", "overdue", "cancelled"]
     if status not in valid_statuses:
         raise HTTPException(
             status_code=400,
@@ -250,6 +258,10 @@ async def update_event_status(
     if not event:
         raise HTTPException(status_code=404, detail="Evento no encontrado")
 
+    # Asegurar que event_template está cargado
+    if not event.event_template:
+        await db.refresh(event, ["event_template"])
+
     event.status = status
 
     if status == "completed" and not event.completion_date:
@@ -260,7 +272,7 @@ async def update_event_status(
     return {
         "data": {
             "id": str(event.id),
-            "title": event.title,
+            "title": event.event_template.name,
             "status": event.status,
         },
         "message": f"Estado actualizado a '{status}'"

@@ -24,6 +24,7 @@ class SalesDocumentRepository(BaseRepository[SalesDocument]):
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         status: Optional[str] = None,
+        recipient_rut: Optional[str] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[SalesDocument]:
@@ -36,6 +37,7 @@ class SalesDocumentRepository(BaseRepository[SalesDocument]):
             start_date: Filter by issue date >= start_date
             end_date: Filter by issue date <= end_date
             status: Filter by status
+            recipient_rut: Filter by recipient (client) RUT
             skip: Pagination offset
             limit: Max results
 
@@ -57,6 +59,9 @@ class SalesDocumentRepository(BaseRepository[SalesDocument]):
 
         if status:
             query = query.where(SalesDocument.status == status)
+
+        if recipient_rut:
+            query = query.where(SalesDocument.recipient_rut == recipient_rut)
 
         query = query.order_by(desc(SalesDocument.issue_date))
         query = query.offset(skip).limit(limit)

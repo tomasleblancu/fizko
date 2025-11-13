@@ -198,7 +198,6 @@ class WhatsAppService:
                         if conv_phone == normalized_phone and conv_status == "active":
                             conversation_id = conv.get("id")
                             result["conversation_id"] = conversation_id
-                            logger.info(f"✅ Found conversation_id: {conversation_id} for {phone_number}")
                             break
                     else:
                         logger.warning(f"⚠️ No active conversation found for {phone_number} after sending template")

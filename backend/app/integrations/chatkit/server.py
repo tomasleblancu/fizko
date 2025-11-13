@@ -148,6 +148,11 @@ class ChatKitServerAdapter(ChatKitServer):
             # Add UI context if available
             ui_context_text = context.get("ui_context_text", "")
 
+            # 🚀 OPTIMIZATION: Stream widget FIRST (before agent processing)
+            # Note: Widget streaming is handled via agent_context.stream_widget()
+            # after agent setup. The widget is passed via context and streamed
+            # within the agent execution flow to maintain proper ChatKit event ordering.
+
             # Prepare RunConfig with session_input_callback
             from agents import RunConfig
 
@@ -177,6 +182,7 @@ class ChatKitServerAdapter(ChatKitServer):
 
             run_config = RunConfig(session_input_callback=session_input_callback)
 
+            # Execute agent
             agent_stream, agent_context = await self.agent_service.execute_from_chatkit(
                 db=db,
                 user_id=context.get("user_id", "unknown"),
@@ -192,29 +198,19 @@ class ChatKitServerAdapter(ChatKitServer):
                 store=self.store,  # Pass store for widget streaming in tools
             )
 
-            # Use the agent_context returned from execute_from_chatkit
-            # This is the same context that was used to execute the agent,
-            # so it will contain any widgets streamed by tools during execution
-
-            # Stream widget immediately if available (before agent processing)
+            # 🚀 OPTIMIZATION: Stream widget IMMEDIATELY after context is ready
             ui_tool_result = context.get("ui_tool_result")
             if ui_tool_result and ui_tool_result.widget:
-                widget_start = time.time()
                 try:
-                    logger.info(f"📊 Attempting to stream widget:")
-                    logger.info(f"   - Widget type: {type(ui_tool_result.widget)}")
-                    logger.info(f"   - Widget content length: {len(str(ui_tool_result.widget))} chars")
-                    logger.info(f"   - Copy text: {ui_tool_result.widget_copy_text}")
-
-                    # Stream widget using the agent_context (which is connected to response stream)
+                    widget_start_time = time.time()
                     await agent_context.stream_widget(
                         ui_tool_result.widget,
                         copy_text=ui_tool_result.widget_copy_text
                     )
-                    logger.info(f"⏱️  Widget streamed ({(time.time() - widget_start):.3f}s)")
-                    logger.info(f"📊 Widget streaming completed")
+                    widget_duration = time.time() - widget_start_time
+                    logger.info(f"⚡ Widget streamed via context ({widget_duration:.3f}s)")
                 except Exception as e:
-                    logger.error(f"❌ Error streaming widget: {e}", exc_info=True)
+                    logger.error(f"❌ Failed to stream widget: {e}", exc_info=True)
 
             # Stream response
             stream_loop_start = time.time()

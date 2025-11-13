@@ -24,6 +24,7 @@ class HonorariosRepository(BaseRepository[HonorariosReceipt]):
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         status: Optional[str] = None,
+        issuer_rut: Optional[str] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[HonorariosReceipt]:
@@ -36,6 +37,7 @@ class HonorariosRepository(BaseRepository[HonorariosReceipt]):
             start_date: Filter by issue date >= start_date
             end_date: Filter by issue date <= end_date
             status: Filter by status
+            issuer_rut: Filter by issuer RUT (professional providing the service)
             skip: Pagination offset
             limit: Max results
 
@@ -57,6 +59,9 @@ class HonorariosRepository(BaseRepository[HonorariosReceipt]):
 
         if status:
             query = query.where(HonorariosReceipt.status == status)
+
+        if issuer_rut:
+            query = query.where(HonorariosReceipt.issuer_rut == issuer_rut)
 
         query = query.order_by(desc(HonorariosReceipt.issue_date))
         query = query.offset(skip).limit(limit)

@@ -257,7 +257,6 @@ class DTEExtractor:
             logger.error(f"❌ No TOKEN cookie found. Available cookies: {[c['name'] for c in cookies]}")
             raise ExtractionError("No se encontró el cookie TOKEN requerido", resource='api_cookies')
 
-        logger.debug(f"✅ Found TOKEN cookie: {token_cookie['value'][:20]}...")
         cookie_string = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
 
         headers = {

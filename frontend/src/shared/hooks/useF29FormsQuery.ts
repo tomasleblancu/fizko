@@ -18,6 +18,20 @@ export interface F29Form {
   has_pdf: boolean;
   pdf_url: string | null;
   created_at: string;
+  extra_data?: {
+    f29_data?: {
+      codes?: Record<string, { value: number; label?: string }>;
+      grouped?: Record<string, any>;
+      summary?: {
+        total_debitos?: number;
+        total_creditos?: number;
+        iva_determinado?: number;
+        total_determinado?: number;
+        ppm_neto?: number;
+      };
+      header?: Record<string, any>;
+    };
+  } | null;
 }
 
 export interface F29FormsResponse {

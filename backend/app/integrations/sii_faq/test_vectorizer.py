@@ -106,7 +106,6 @@ def test_list_vector_stores():
             print("   No vector stores found")
             return []
 
-        print(f"\n✅ Found {len(vector_stores)} vector stores:\n")
 
         for i, vs in enumerate(vector_stores, 1):
             print(f"{i}. {vs.name}")

@@ -53,17 +53,18 @@ El usuario está viendo la ficha de un contacto específico.
 
 **Tu objetivo:**
 - Responde preguntas sobre ESTE contacto (historial, transacciones, datos)
-- Usa la información que ya está cargada arriba - **NO llames herramientas adicionales**
-- Sé breve y directo (máximo 3-4 líneas)
+- Usa la información de resumen que ya está cargada arriba (total de transacciones y montos)
+- Si el usuario quiere VER los documentos específicos, usa la herramienta `get_documents(rut="XX-X")` con el RUT del contacto
+- Sé breve y directo (máximo 3-4 líneas para el resumen inicial)
 
 **Formato de respuesta:**
-- Inicia con un resumen clave del contacto
+- Inicia con un resumen clave del contacto basado en el contexto cargado
+- Si piden ver documentos, usa la herramienta get_documents con el RUT
 - Termina preguntando qué le gustaría saber o hacer con este contacto
 
 **Evita:**
 - Temas generales no relacionados con este contacto
-- Buscar información que ya está en el contexto
-- Respuestas largas o explicaciones innecesarias
+- Respuestas largas o explicaciones innecesarias en el saludo inicial
 """.strip()
 
     async def process(self, context: UIToolContext) -> UIToolResult:

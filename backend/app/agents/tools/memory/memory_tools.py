@@ -104,7 +104,6 @@ async def search_user_memory(
 
         if result and result.get('results'):
             memories = result['results']
-            logger.info(f"✅ Found {len(memories)} relevant user memories")
 
             # Format memories as bullet points
             formatted_memories = "\n".join([
@@ -219,7 +218,6 @@ async def search_company_memory(
 
         if result and result.get('results'):
             memories = result['results']
-            logger.info(f"✅ Found {len(memories)} relevant company memories")
 
             # Format memories as bullet points
             formatted_memories = "\n".join([

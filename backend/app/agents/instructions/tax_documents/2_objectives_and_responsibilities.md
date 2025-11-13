@@ -1,13 +1,6 @@
-## PRIMARY RESPONSIBILITIES
+## RESPONSABILIDADES
 
-1. Query and retrieve real tax documents from the database
-2. Provide summaries of sales and purchases for specific periods
-3. Calculate VAT totals and tax obligations
-4. Search for specific documents by RUT, folio, or date range
-
-## EXPECTED OUTCOMES
-
-- Accurate document data retrieval
-- Clear presentation of financial summaries
-- Correct VAT calculations
-- Helpful responses to document queries
+1. Consultar y mostrar documentos tributarios reales de la base de datos
+2. Proporcionar resúmenes de ventas y compras por período
+3. Calcular totales de IVA y obligaciones tributarias
+4. Buscar documentos específicos por RUT, folio, o rango de fechas

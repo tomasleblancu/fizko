@@ -43,9 +43,17 @@ class SessionManager:
         active_agent = self._active_agents.get(thread_id)
 
         if active_agent:
-            logger.info(f"📌 Active agent: {active_agent} (thread: {thread_id[:8]}...)")
+            logger.info(
+                f"🎯 [STICKY AGENT] Active: {active_agent} | "
+                f"Thread: {thread_id[:12]}... | "
+                f"Total tracked: {len(self._active_agents)}"
+            )
         else:
-            logger.debug(f"No active agent (thread: {thread_id[:8]}...)")
+            logger.info(
+                f"👔 [STICKY AGENT] No active (using supervisor) | "
+                f"Thread: {thread_id[:12]}... | "
+                f"Total tracked: {len(self._active_agents)}"
+            )
 
         return active_agent
 
@@ -60,8 +68,14 @@ class SessionManager:
         Returns:
             True if successful
         """
+        was_new = thread_id not in self._active_agents
         self._active_agents[thread_id] = agent_key
-        logger.info(f"✅ Set active agent: {agent_key} (thread: {thread_id[:8]}...)")
+
+        logger.info(
+            f"✅ [STICKY AGENT] {'New' if was_new else 'Updated'}: {agent_key} | "
+            f"Thread: {thread_id[:12]}... | "
+            f"Total tracked: {len(self._active_agents)}"
+        )
         return True
 
     async def clear_active_agent(self, thread_id: str) -> bool:
@@ -75,10 +89,18 @@ class SessionManager:
             True if successful
         """
         if thread_id in self._active_agents:
+            agent_key = self._active_agents[thread_id]
             del self._active_agents[thread_id]
-            logger.info(f"🧹 Cleared active agent (thread: {thread_id[:8]}...)")
+            logger.info(
+                f"🧹 [STICKY AGENT] Cleared: {agent_key} → supervisor | "
+                f"Thread: {thread_id[:12]}... | "
+                f"Total tracked: {len(self._active_agents)}"
+            )
         else:
-            logger.debug(f"No active agent to clear (thread: {thread_id[:8]}...)")
+            logger.info(
+                f"⚪ [STICKY AGENT] Nothing to clear (already supervisor) | "
+                f"Thread: {thread_id[:12]}..."
+            )
 
         return True
 

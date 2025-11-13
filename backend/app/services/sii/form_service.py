@@ -117,6 +117,8 @@ class FormService(BaseSIIService):
             # Guardar cookies actualizadas
             if updated_cookies:
                 await self.save_cookies(session_id, updated_cookies)
+                await self.db.commit()
+                logger.debug(f"💾 Fresh cookies persisted to database for session {session_id}")
 
             logger.info(
                 f"✅ Extracción F29 completada: {len(result)} formularios\n"
@@ -393,9 +395,30 @@ class FormService(BaseSIIService):
                             cookies=cookies,
                             headless=True
                         ) as client:
-                            # Login si no hay cookies o si solo hay cookies de infraestructura
-                            # IMPORTANTE: Verificar que haya cookies REALES de sesión, no solo las 2 de infraestructura
+                            # Verificar estado de cookies antes de usarlas
                             needs_login = not cookies or len(cookies) <= 2
+
+                            # Si tenemos cookies, verificar si son válidas
+                            if cookies and len(cookies) > 2:
+                                logger.info(f"🔍 Verifying session validity for {creds['rut']}")
+                                try:
+                                    session_status = client.verify_session()
+
+                                    if session_status['refreshed']:
+                                        # Cookies fueron refrescadas automáticamente
+                                        logger.info("🔄 Session refreshed, saving new cookies")
+                                        new_cookies = session_status['cookies']
+                                        self._save_cookies_sync(session_id, new_cookies)
+                                        cookies = new_cookies
+                                    elif not session_status['valid']:
+                                        # Sesión inválida, necesita login
+                                        logger.warning("⚠️ Session invalid, will perform login")
+                                        needs_login = True
+                                    else:
+                                        logger.info("✅ Session valid, reusing cookies")
+                                except Exception as e:
+                                    logger.warning(f"⚠️ Session verification failed: {e}, will perform login")
+                                    needs_login = True
 
                             if needs_login:
                                 logger.info(f"🔐 Performing login for {creds['rut']} (cookies: {len(cookies) if cookies else 0})")
@@ -794,7 +817,9 @@ class FormService(BaseSIIService):
 
             # Actualizar cookies en la sesión
             if updated_cookies:
-                await self.update_session_cookies(session_id, updated_cookies)
+                await self.save_cookies(session_id, updated_cookies)
+                await self.db.commit()
+                logger.debug(f"💾 Fresh cookies persisted to database for session {session_id}")
 
             logger.info("✅ F29 propuesta retrieved successfully")
             return result
@@ -864,7 +889,9 @@ class FormService(BaseSIIService):
 
             # Actualizar cookies en la sesión
             if updated_cookies:
-                await self.update_session_cookies(session_id, updated_cookies)
+                await self.save_cookies(session_id, updated_cookies)
+                await self.db.commit()
+                logger.debug(f"💾 Fresh cookies persisted to database for session {session_id}")
 
             logger.info("✅ PPMO tasa retrieved successfully")
             return result
@@ -968,10 +995,6 @@ class FormService(BaseSIIService):
         )
         total_result = await self.db.execute(total_query)
         total_forms = len(total_result.scalars().all())
-
-        logger.info(
-            f"✅ Found {len(forms)} F29 forms (total: {total_forms})"
-        )
 
         return {
             "forms": forms,

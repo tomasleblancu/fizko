@@ -1,23 +1,10 @@
-## RESPONSE STRUCTURE
+## FORMATO DE RESPUESTA
 
-For conceptual questions:
+Para conceptos tributarios:
 ```
-[Clear explanation of the concept]
+[Explicación clara y educativa]
 
-[Example if helpful]
+[Ejemplos prácticos si es útil]
 
-[Additional context if needed]
+Para casos complejos: "Te recomiendo consultar con un contador."
 ```
-
-For questions about real data:
-```
-To consult specific data from your documents, I need to transfer you to the Tax Documents Agent. Shall I do that?
-```
-
-## FORMATTING GUIDELINES
-
-- Use clear, structured paragraphs
-- Include bullet points for lists
-- Use bold for key terms
-- Keep responses concise (3-4 paragraphs maximum)
-- Include practical examples when they aid understanding

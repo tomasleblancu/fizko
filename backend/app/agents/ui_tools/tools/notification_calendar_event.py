@@ -177,8 +177,8 @@ El usuario está respondiendo a una notificación que le enviamos sobre una obli
                 },
                 "event": {
                     "id": str(event.id),
-                    "title": event.title,
-                    "description": event.description,
+                    "title": event.event_template.name,
+                    "description": event.event_template.description,
                     "due_date": event.due_date.isoformat(),
                     "status": event.status,
                     "days_until_due": days_until_due,
@@ -321,7 +321,7 @@ El usuario está respondiendo a una notificación que le enviamos sobre una obli
 ## 📬 Contexto de Notificación de Calendario
 
 **El usuario está respondiendo a una notificación sobre:**
-**{event.title}**
+**{event.event_template.name}**
 
 ### Información del Evento Tributario
 - **Tipo:** {event.event_template.name} ({event.event_template.category})
@@ -329,7 +329,7 @@ El usuario está respondiendo a una notificación que le enviamos sobre una obli
 - **Estado actual:** {event.status}
 - **Período:** {period_str}
 - **Autoridad:** {event.event_template.authority}
-- **Descripción:** {event.description or 'Sin descripción'}
+- **Descripción:** {event.event_template.description or 'Sin descripción'}
 
 ### 📨 Notificación Enviada
 - **Cuándo:** {sent_time_str}

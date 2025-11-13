@@ -9,6 +9,7 @@ from uuid import UUID
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models import (
     CalendarEvent,
@@ -140,11 +141,15 @@ class CalendarNotificationIntegration:
             )
             return None
 
+        # Asegurar que event_template está cargado
+        if not calendar_event.event_template:
+            await db.refresh(calendar_event, ["event_template"])
+
         # Preparar contexto para el mensaje
         message_context = {
-            "event_title": calendar_event.title,
+            "event_title": calendar_event.event_template.name,
             "due_date": calendar_event.due_date.strftime("%d de %B de %Y"),
-            "description": calendar_event.description or "Sin descripción",
+            "description": calendar_event.event_template.description or "Sin descripción",
         }
 
         # Si el evento tiene período, agregarlo
@@ -181,7 +186,7 @@ class CalendarNotificationIntegration:
             )
 
             logger.info(
-                f"✅ Notificación programada para evento '{calendar_event.title}' "
+                f"✅ Notificación programada para evento '{calendar_event.event_template.name}' "
                 f"({scheduled.scheduled_for})"
             )
 
@@ -229,9 +234,13 @@ class CalendarNotificationIntegration:
             if scheduled_id:
                 scheduled_ids.append(scheduled_id)
 
+        # Asegurar que event_template está cargado
+        if not calendar_event.event_template:
+            await db.refresh(calendar_event, ["event_template"])
+
         logger.info(
             f"✅ {len(scheduled_ids)} notificaciones programadas para evento "
-            f"'{calendar_event.title}'"
+            f"'{calendar_event.event_template.name}'"
         )
 
         return scheduled_ids
@@ -265,9 +274,9 @@ class CalendarNotificationIntegration:
             and_(
                 CalendarEvent.due_date >= today,
                 CalendarEvent.due_date <= future_date,
-                CalendarEvent.status.in_(["pending", "in_progress"]),
+                CalendarEvent.status.in_(["saved", "in_progress"]),
             )
-        )
+        ).options(selectinload(CalendarEvent.event_template))
 
         if company_id:
             query = query.where(CalendarEvent.company_id == company_id)
@@ -341,9 +350,13 @@ class CalendarNotificationIntegration:
         if not recipients:
             return None
 
+        # Asegurar que event_template está cargado
+        if not calendar_event.event_template:
+            await db.refresh(calendar_event, ["event_template"])
+
         # Contexto del mensaje
         message_context = {
-            "event_title": calendar_event.title,
+            "event_title": calendar_event.event_template.name,
             "completion_date": (
                 calendar_event.completion_date.strftime("%d de %B de %Y")
                 if calendar_event.completion_date
@@ -366,7 +379,7 @@ class CalendarNotificationIntegration:
             )
 
             logger.info(
-                f"✅ Notificación inmediata programada: evento completado '{calendar_event.title}'"
+                f"✅ Notificación inmediata programada: evento completado '{calendar_event.event_template.name}'"
             )
 
             return str(scheduled.id)

@@ -87,6 +87,7 @@ F29_CODIGO_MAP = {
     "089": ("iva_determinado", "IVA Determinado"),
     "062": ("ppm_neto", "PPM Neto Determinado"),
     "048": ("retencion_imp_unico", "Retención Impuesto Único Trabajadores Art. 74 N°1 LIR"),
+    "151": ("retencion_tasa_ley_21133", "Retención Tasa Ley 21.133 Sobre Rentas"),
     "563": ("base_imponible", "Base Imponible"),
     "115": ("tasa_ppm", "Tasa PPM 1ra Categoría"),
     "595": ("subtotal_imp_determinado", "Sub Total Impuestos Determinado Anverso"),
@@ -98,8 +99,11 @@ F29_CODIGO_MAP = {
     "93": ("mas_interes_multas", "Más Intereses y Multas"),
     "795": ("condonacion", "Condonación"),
     "94": ("total_pagar_recargo", "Total a Pagar con Recargo"),
+
+    # Detalles de condonación
+    "60": ("codigo_condonacion", "Código de Condonación"),
     "922": ("porc_condonacion", "% Condonación"),
-    "915": ("numero_resolucion", "Número de la Resolución"),
+    "915": ("fecha_condonacion", "Fecha de la Condonación"),
 }
 
 
@@ -258,57 +262,239 @@ class F29EnhancedExtractor:
 
         return header
 
+    def _clean_numeric_value(self, value_str: str) -> str:
+        """
+        Limpia un valor numérico distinguiendo entre puntos decimales y separadores de miles
+
+        Reglas:
+        - Comas siempre son decimales (formato chileno alternativo)
+        - Múltiples puntos son separadores de miles (1.234.567)
+        - Un solo punto: determinar por contexto
+          * Si empieza con 0 o un dígito < 10 y tiene 3 decimales -> es decimal (0.250, 1.500)
+          * Si tiene 3 decimales y primer número > 9 -> es miles (123.456)
+          * Si tiene != 3 decimales -> es decimal (0.25, 123.5)
+
+        Ejemplos:
+        - "0.250" -> "0.250" (decimal)
+        - "1.234.567" -> "1234567" (miles)
+        - "123.456" -> "123456" (miles)
+        - "16.959" -> "16959" (miles)
+        """
+        # Si tiene coma decimal, convertirla a punto
+        if ',' in value_str:
+            value_str = value_str.replace(',', '.')
+
+        # Si tiene punto, determinar si es decimal o miles
+        if '.' in value_str:
+            parts = value_str.split('.')
+
+            # Múltiples puntos: definitivamente miles (1.234.567)
+            if len(parts) > 2:
+                return value_str.replace('.', '')
+
+            # Un solo punto: verificar contexto
+            elif len(parts) == 2:
+                first_part = parts[0]
+                second_part = parts[1]
+
+                # Si la última parte tiene 3 dígitos
+                if len(second_part) == 3:
+                    # Si primera parte es "0" o un solo dígito pequeño, es decimal
+                    if first_part == '0' or (len(first_part) == 1 and int(first_part) < 10):
+                        # Es decimal: 0.250, 1.500, 2.125
+                        return value_str
+                    else:
+                        # Es miles: 123.456, 16.959
+                        return value_str.replace('.', '')
+                else:
+                    # No tiene 3 dígitos: definitivamente decimal (0.25, 123.5, 16.9)
+                    return value_str
+
+        return value_str
+
     def _extract_all_codes(self, text: str) -> Dict[str, Any]:
         """
         Extrae TODOS los códigos del F29 con sus valores
 
-        Busca patrones como:
-        Código Glosa Valor
-        503 CANTIDAD FACTURAS EMITIDAS 49
-        502 DÉBITOS FACTURAS EMITIDAS 251.186
+        Soporta dos formatos:
+        Formato 1 (código al inicio): 503 CANTIDAD FACTURAS EMITIDAS 49
+        Formato 2 (código al final):  Más IPC 92 0 +
         """
         codes = {}
 
-        # Patrón para capturar: código + glosa + valor numérico
+        # Patrón 1: Código al inicio + glosa + valor
+        # Soporta: números, letras (mayúsculas/minúsculas), acentos, /, -, ., (), comas, etc.
         # Ejemplos:
         # 503 CANTIDAD FACTURAS EMITIDAS 49
-        # 502 DÉBITOS FACTURAS EMITIDAS 251.186
-        # 115 TASA PPM 1ra. CATEGORÍA 0.125
+        # 111 DÉBITOS / BOLETAS 32.081
+        # 115 TASA PPM 1ra. CATEGORÍA 0.250
+        # 151 RETENCION TASA LEY 21.133 SOBRE RENTAS 16.959
+        # 544 RECUP. IMP. ESP. DIESEL (Art. 2) 0
+        pattern1 = r'^(\d{2,3})\s+(.+?)\s+([\d.,]+)(?:\s*[+\-=])?$'
 
-        pattern = r'(\d{2,3})\s+([A-ZÁÉÍÓÚÑ\s\.\(\)]+?)\s+([\d.,]+)\s*$'
+        # Patrón 2: Glosa + código + valor (para sección de totales)
+        # Ejemplos:
+        # TOTAL A PAGAR DENTRO DEL PLAZO LEGAL 91 34.055 +
+        # Más IPC 92 0 +
+        # CONDONACIÓN 795 50.880 -
+        pattern2 = r'^(.+?)\s+(\d{2,3})\s+([\d.,]+)(?:\s*[+\-=])?$'
+
+        # Patrón 3: Glosa específica para códigos de pago (más flexible)
+        # Maneja casos donde hay espacios extra o formato irregular
+        # Ejemplos: "Más IPC" "92" "0" "+"
+        pattern3 = r'(Más\s+IPC|Más\s+Interes(?:es)?\s+y\s+Multas|CONDONACIÓN|Condonación|TOTAL\s+A\s+PAGAR\s+CON\s+RECARGO|Total\s+a\s+Pagar\s+con\s+Recargo)\s+(\d{2,3})\s+([\d.,]+)'
+
+        # Patrón 4: Códigos de pago sin valor (cuando está vacío)
+        # Ejemplos: "Más IPC 92 +"
+        pattern4 = r'(Más\s+IPC|Más\s+Interes(?:es)?\s+y\s+Multas|CONDONACIÓN|Condonación|TOTAL\s+A\s+PAGAR\s+CON\s+RECARGO|Total\s+a\s+Pagar\s+con\s+Recargo)\s+(\d{2,3})\s*[+\-=]'
 
         for line in text.split('\n'):
             line = line.strip()
-            match = re.match(pattern, line)
-            if match:
-                code = match.group(1)
-                glosa = match.group(2).strip()
-                value_str = match.group(3)
 
-                # Limpiar el valor: remover puntos de miles, convertir coma a punto decimal
-                clean_value = value_str.replace('.', '').replace(',', '.')
+            # Primero intentar detectar códigos de la sección de pagos (92, 93, 795, 94)
+            # con un patrón más específico
+            special_match = re.search(pattern3, line, re.IGNORECASE)
+            if special_match:
+                glosa = special_match.group(1).strip()
+                code = special_match.group(2)
+                value_str = special_match.group(3)
 
-                # Intentar convertir a número
-                try:
-                    # Si tiene decimales, es Decimal
-                    if '.' in clean_value:
-                        value = Decimal(clean_value)
+                # Normalizar glosa
+                if 'IPC' in glosa.upper():
+                    glosa = 'Más IPC'
+                elif 'INTERES' in glosa.upper() or 'MULTAS' in glosa.upper():
+                    glosa = 'Más Intereses y Multas'
+                elif 'CONDONACIÓN' in glosa.upper() or 'CONDONACION' in glosa.upper():
+                    glosa = 'Condonación'
+                elif 'PAGAR CON RECARGO' in glosa.upper():
+                    glosa = 'Total a Pagar con Recargo'
+            else:
+                # Intentar detectar códigos de pago sin valor (vacíos)
+                empty_match = re.search(pattern4, line, re.IGNORECASE)
+                if empty_match:
+                    glosa = empty_match.group(1).strip()
+                    code = empty_match.group(2)
+                    value_str = '0'  # Asignar 0 cuando no hay valor
+
+                    # Normalizar glosa
+                    if 'IPC' in glosa.upper():
+                        glosa = 'Más IPC'
+                    elif 'INTERES' in glosa.upper() or 'MULTAS' in glosa.upper():
+                        glosa = 'Más Intereses y Multas'
+                    elif 'CONDONACIÓN' in glosa.upper() or 'CONDONACION' in glosa.upper():
+                        glosa = 'Condonación'
+                    elif 'PAGAR CON RECARGO' in glosa.upper():
+                        glosa = 'Total a Pagar con Recargo'
+                else:
+                    # Intentar con patrón 1 (código al inicio)
+                    match = re.match(pattern1, line, re.IGNORECASE)
+                    if match:
+                        code = match.group(1)
+                        glosa = match.group(2).strip()
+                        value_str = match.group(3)
                     else:
-                        # Si es entero, mantener como int
-                        value = int(clean_value)
+                        # Intentar con patrón 2 (código al final)
+                        match = re.match(pattern2, line, re.IGNORECASE)
+                        if match:
+                            glosa = match.group(1).strip()
+                            code = match.group(2)
+                            value_str = match.group(3)
+                        else:
+                            # No match con ningún patrón
+                            continue
 
-                    codes[code] = {
-                        'value': value,
-                        'glosa': glosa,
-                        'field_name': F29_CODIGO_MAP.get(code, (f"codigo_{code}", glosa))[0]
-                    }
+            # Limpiar el valor con lógica mejorada para distinguir decimales de miles
+            clean_value = self._clean_numeric_value(value_str)
 
-                    logger.debug(f"Código {code}: {glosa} = {value}")
+            # Intentar convertir a número
+            try:
+                # Si tiene decimales, usar float (JSON-serializable)
+                if '.' in clean_value:
+                    value = float(clean_value)
+                else:
+                    # Si es entero, mantener como int
+                    value = int(clean_value)
 
-                except (ValueError, Decimal.InvalidOperation):
-                    logger.warning(f"No se pudo convertir valor para código {code}: {value_str}")
+                codes[code] = {
+                    'value': value,
+                    'glosa': glosa,
+                    'field_name': F29_CODIGO_MAP.get(code, (f"codigo_{code}", glosa))[0]
+                }
+
+                logger.debug(f"Código {code}: {glosa} = {value}")
+
+            except (ValueError, Decimal.InvalidOperation):
+                logger.warning(f"No se pudo convertir valor para código {code}: {value_str}")
+
+        # Extraer códigos de tabla de condonación (formato especial)
+        # Formato: "60 | % Condonación | 922 | Número de la Resolución | 915 | Fecha de la Condonación"
+        #          "   |      70       |     |       013-2015          |     |      31/12/2025        "
+        self._extract_condonacion_table(text, codes)
 
         return codes
+
+    def _extract_condonacion_table(self, text: str, codes: Dict[str, Any]) -> None:
+        """
+        Extrae códigos de la tabla de condonación (formato especial con múltiples columnas)
+
+        Formato en el PDF:
+        60 | % Condonación | 922 | Número de la Resolución | 915 | Fecha de la Condonación
+           |      70       |     |       013-2015          |     |      31/12/2025
+        """
+        # Buscar línea con "% Condonación" y "Número de la Resolución"
+        for i, line in enumerate(text.split('\n')):
+            if '% Condonación' in line or '% Condonacion' in line:
+                # Extraer código 60 si está en el encabezado
+                header_match = re.search(r'(\d{2,3})\s+%\s+Condonaci[oó]n', line)
+                if header_match and '60' not in codes:
+                    codes['60'] = {
+                        'value': None,  # Código 60 es solo indicador de sección
+                        'glosa': 'Código de Condonación',
+                        'field_name': 'codigo_condonacion'
+                    }
+                    logger.debug("Código 60: Código de Condonación (sección detectada)")
+                # Buscar la siguiente línea con los valores
+                lines = text.split('\n')
+                if i + 1 < len(lines):
+                    value_line = lines[i + 1].strip()
+
+                    # Extraer valores usando regex más flexible
+                    # Patrón: número (1-3 dígitos) seguido opcionalmente de guiones/letras (para resolución) o fecha
+                    parts = value_line.split()
+
+                    # Intentar extraer valores en orden
+                    for part in parts:
+                        part = part.strip()
+
+                        # Código 60 o 922: porcentaje de condonación (número simple)
+                        if part.isdigit() and len(part) <= 3:
+                            valor = int(part)
+                            # Si es un porcentaje razonable, asignarlo al código 922
+                            if 1 <= valor <= 100 and '922' not in codes:
+                                codes['922'] = {
+                                    'value': valor,
+                                    'glosa': '% Condonación',
+                                    'field_name': 'porc_condonacion'
+                                }
+                                logger.debug(f"Código 922: % Condonación = {valor}")
+
+                        # Código 915: número de resolución (formato: XXX-XXXX)
+                        elif re.match(r'\d{3}-\d{4}', part):
+                            codes['915'] = {
+                                'value': part,
+                                'glosa': 'Número de la Resolución',
+                                'field_name': 'numero_resolucion'
+                            }
+                            logger.debug(f"Código 915: Número de la Resolución = {part}")
+
+                        # Código 915 (fecha): formato DD/MM/YYYY
+                        elif re.match(r'\d{2}/\d{2}/\d{4}', part):
+                            if '915' in codes and isinstance(codes['915']['value'], str) and '-' in codes['915']['value']:
+                                # Ya tenemos el número de resolución, esto es la fecha de condonación
+                                # Podríamos agregar como un campo separado si es necesario
+                                pass
+
+                break
 
     def _group_codes(self, codes: Dict[str, Any]) -> Dict[str, Dict]:
         """Agrupa códigos por categoría para facilitar acceso"""
@@ -323,10 +509,10 @@ class F29EnhancedExtractor:
         credito_codes = ['511', '520', '528', '532', '535', '504', '077', '544', '779', '537']
 
         # Códigos de impuestos
-        impuesto_codes = ['089', '062', '048', '563', '115', '595', '547']
+        impuesto_codes = ['089', '062', '048', '563', '115', '595', '547', '151']
 
         # Códigos de totales a pagar
-        pago_codes = ['91', '92', '93', '795', '94', '922', '915']
+        pago_codes = ['91', '92', '93', '795', '94', '60', '922', '915']
 
         grouped = {
             'cantidades': {},

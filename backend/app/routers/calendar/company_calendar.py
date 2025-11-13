@@ -264,7 +264,7 @@ async def sync_calendar_events(
        - Crea eventos faltantes para los próximos periodos
        - Actualiza el estado de eventos existentes
        - Solo el próximo a vencer queda con estado 'in_progress'
-       - Los demás quedan con estado 'pending'
+       - Los demás quedan con estado 'saved'
     4. No modifica eventos completados o cancelados
 
     Args:
@@ -402,8 +402,8 @@ async def get_company_calendar_events(
     return [
         CalendarEventInfo(
             id=str(event.id),
-            title=event.title,
-            description=event.description,
+            title=event.event_template.name,
+            description=event.event_template.description,
             event_template_code=event.event_template.code,
             event_template_name=event.event_template.name,
             category=event.event_template.category,

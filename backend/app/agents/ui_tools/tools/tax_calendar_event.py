@@ -177,11 +177,11 @@ El usuario está viendo los detalles de una obligación tributaria específica (
         days_until = self._calculate_days_until(event.due_date)
         urgency_level = self._get_urgency_level(days_until, event.status)
 
-        # Format event data
+        # Format event data (title and description come from event_template)
         event_data = {
             "id": str(event.id),
-            "title": event.title,
-            "description": event.description,
+            "title": event.event_template.name if event.event_template else "Sin título",
+            "description": event.event_template.description if event.event_template else None,
             "due_date": event.due_date.isoformat() if event.due_date else None,
             "period_start": event.period_start.isoformat() if event.period_start else None,
             "period_end": event.period_end.isoformat() if event.period_end else None,

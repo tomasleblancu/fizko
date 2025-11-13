@@ -84,21 +84,27 @@ class HandoffFactory:
 
             # Agent available - proceed with handoff
             agent = self.agents[config.agent_key]
+            thread_id = ctx.context.request_context.get("thread_id", "unknown")
+
             logger.info(
-                f"{config.icon} → {config.display_name} | {reason} | "
+                f"{config.icon} [HANDOFF] Supervisor → {config.display_name} | "
+                f"Reason: {reason} | "
+                f"Thread: {thread_id[:12] if thread_id != 'unknown' else 'unknown'}... | "
                 f"Tools: {len(agent.tools)}"
             )
 
             # Track active agent for persistence (if session manager available)
             if self.session_manager:
                 try:
-                    thread_id = ctx.context.request_context.get("thread_id")
-                    if thread_id:
+                    if thread_id and thread_id != "unknown":
                         await self.session_manager.set_active_agent(
                             thread_id, config.agent_key
                         )
+                        logger.info(
+                            f"📍 [HANDOFF] Tracking {config.agent_key} as active for thread"
+                        )
                 except Exception as e:
-                    logger.warning(f"Failed to track active agent: {e}")
+                    logger.warning(f"⚠️ [HANDOFF] Failed to track active agent: {e}")
 
         # Create handoff
         return handoff(
@@ -129,16 +135,22 @@ class HandoffFactory:
             ctx: RunContextWrapper, input_data: HandoffMetadata | None = None
         ):
             reason = input_data.reason if input_data else "Topic change"
-            logger.info(f"🔄 → Supervisor | {reason}")
+            thread_id = ctx.context.request_context.get("thread_id", "unknown")
+
+            logger.info(
+                f"🔄 [HANDOFF] Agent → Supervisor | "
+                f"Reason: {reason} | "
+                f"Thread: {thread_id[:12] if thread_id != 'unknown' else 'unknown'}..."
+            )
 
             # Clear active agent (return to supervisor)
             if self.session_manager:
                 try:
-                    thread_id = ctx.context.request_context.get("thread_id")
-                    if thread_id:
+                    if thread_id and thread_id != "unknown":
                         await self.session_manager.clear_active_agent(thread_id)
+                        logger.info(f"🗑️ [HANDOFF] Cleared active agent, back to supervisor")
                 except Exception as e:
-                    logger.warning(f"Failed to clear active agent: {e}")
+                    logger.warning(f"⚠️ [HANDOFF] Failed to clear active agent: {e}")
 
         default_description = (
             "Return to main menu ONLY if user explicitly requests a completely different topic "

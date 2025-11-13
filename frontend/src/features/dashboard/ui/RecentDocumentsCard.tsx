@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import clsx from 'clsx';
-import { FileText, Calendar, DollarSign, CheckCircle, Clock, AlertCircle, Maximize2, Minimize2, Search } from 'lucide-react';
+import {
+  FileText, Calendar, DollarSign, CheckCircle, Clock, AlertCircle,
+  Maximize2, Minimize2, Search, ArrowUpCircle, ArrowDownCircle,
+  Receipt, ScrollText, FileCheck, FileMinus, CreditCard
+} from 'lucide-react';
 import type { TaxDocument } from "@/shared/types/fizko";
 import type { ColorScheme } from "@/shared/hooks/useColorScheme";
 import { RecentDocumentsCardSkeleton } from './RecentDocumentsCardSkeleton';
@@ -15,12 +19,92 @@ interface RecentDocumentsCardProps {
   isInDrawer?: boolean;
 }
 
+// Helper function to get icon based on document type
+const getDocumentIcon = (docType: string, isVenta: boolean) => {
+  const cleanType = docType.toLowerCase().replace(/_(venta|compra)$/i, '');
+  const iconClass = "h-5 w-5 flex-shrink-0";
+
+  // Facturas (invoices)
+  if (cleanType.includes('factura') && !cleanType.includes('liquidacion')) {
+    return <FileText className={clsx(iconClass, isVenta ? "text-emerald-500" : "text-rose-500")} />;
+  }
+
+  // Boletas (receipts)
+  if (cleanType.includes('boleta')) {
+    return <Receipt className={clsx(iconClass, "text-emerald-500")} />;
+  }
+
+  // Notas de crédito (credit notes)
+  if (cleanType.includes('nota') && cleanType.includes('credito')) {
+    return <FileMinus className={clsx(iconClass, isVenta ? "text-amber-500" : "text-orange-500")} />;
+  }
+
+  // Notas de débito (debit notes)
+  if (cleanType.includes('nota') && cleanType.includes('debito')) {
+    return <FileCheck className={clsx(iconClass, isVenta ? "text-blue-500" : "text-indigo-500")} />;
+  }
+
+  // Liquidaciones (settlements)
+  if (cleanType.includes('liquidacion')) {
+    return <ScrollText className={clsx(iconClass, isVenta ? "text-purple-500" : "text-violet-500")} />;
+  }
+
+  // Comprobantes de pago (payment vouchers)
+  if (cleanType.includes('comprobante')) {
+    return <CreditCard className={clsx(iconClass, "text-teal-500")} />;
+  }
+
+  // Default fallback
+  return isVenta ? (
+    <ArrowUpCircle className={clsx(iconClass, "text-emerald-500")} />
+  ) : (
+    <ArrowDownCircle className={clsx(iconClass, "text-rose-500")} />
+  );
+};
+
 export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = false, onToggleExpand, isInDrawer = false }: RecentDocumentsCardProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'venta' | 'compra'>('all');
 
   if (loading) {
     return <RecentDocumentsCardSkeleton count={isExpanded ? 10 : 5} />;
+  }
+
+  // Inject keyframes for animations if not already present
+  if (typeof document !== 'undefined' && !document.getElementById('recent-docs-animations')) {
+    const style = document.createElement('style');
+    style.id = 'recent-docs-animations';
+    style.textContent = `
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes zoomIn {
+        from {
+          opacity: 0;
+          transform: scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      @keyframes slideInFromTop {
+        from {
+          opacity: 0;
+          transform: translateY(-8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   // Filter documents based on search and filter
@@ -155,7 +239,7 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-emerald-500" />
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              Documentos Recientes
+              Movimientos
             </h3>
             {documents.length > 0 && (
               <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
@@ -167,14 +251,14 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
             {onToggleExpand && documents.length > 0 && (
               <button
                 onClick={onToggleExpand}
-                className="rounded-lg p-1.5 transition-all duration-200 hover:bg-slate-100 hover:scale-110 active:scale-95 dark:hover:bg-slate-800"
+                className="group rounded-lg p-1.5 transition-all duration-300 hover:bg-emerald-50 hover:scale-110 active:scale-95 dark:hover:bg-emerald-950/30"
                 aria-label={isExpanded ? "Contraer lista" : "Expandir lista"}
                 title={isExpanded ? "Ver menos" : hasMore ? `Ver todos (${filteredDocuments.length})` : "Expandir vista"}
               >
                 {isExpanded ? (
-                  <Minimize2 className="h-5 w-5 text-slate-600 dark:text-slate-400 transition-transform duration-200" />
+                  <Minimize2 className="h-5 w-5 text-slate-600 dark:text-slate-400 transition-all duration-300 group-hover:text-emerald-600 group-hover:rotate-90 dark:group-hover:text-emerald-400" />
                 ) : (
-                  <Maximize2 className="h-5 w-5 text-slate-600 dark:text-slate-400 transition-transform duration-200" />
+                  <Maximize2 className="h-5 w-5 text-slate-600 dark:text-slate-400 transition-all duration-300 group-hover:text-emerald-600 group-hover:rotate-90 dark:group-hover:text-emerald-400" />
                 )}
               </button>
             )}
@@ -183,7 +267,12 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
 
         {/* Search and Filters - Only show when expanded */}
         {isExpanded && (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            style={{
+              animation: 'slideInFromTop 0.3s ease-out',
+            }}
+          >
             {/* Search */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -245,83 +334,15 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
         </div>
       ) : (
         <>
-          {/* Collapsed: Detailed list with scroll */}
-          {!isExpanded && (
-            <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden" style={{ scrollbarGutter: 'stable' }}>
-              {displayedDocuments.map((doc) => {
-                // Determine if it's a purchase or sale based on source field (from backend)
-                const isCompra = doc.source === 'purchase';
-                const isVenta = doc.source === 'sale';
-
-                // Clean document type: remove "_venta" or "_compra" suffix
-                const cleanDocType = doc.document_type.replace(/_(venta|compra)$/i, '');
-
-                // Check if it's a credit note (nota de crédito)
-                const isNotaCredito = cleanDocType.toLowerCase().includes('nota') && cleanDocType.toLowerCase().includes('credito');
-
-                // Clean description: remove "Purchase: " or "Sale: " prefix
-                const cleanDescription = doc.description
-                  ? doc.description.replace(/^(Purchase|Sale):\s*/i, '')
-                  : '';
-
-                // Format amount with sign
-                // Ventas: positivas en verde (+)
-                // Compras: negativas en rojo (-)
-                // Notas de crédito invierten el signo
-                let amountSign = '';
-                let amountColor = 'text-slate-900 dark:text-slate-100';
-
-                if (isVenta) {
-                  amountSign = isNotaCredito ? '-' : '+';
-                  amountColor = 'text-emerald-600 dark:text-emerald-400'; // Verde para ventas
-                } else if (isCompra) {
-                  amountSign = isNotaCredito ? '+' : '-';
-                  amountColor = 'text-rose-600 dark:text-rose-400'; // Rojo para compras
-                }
-
-                return (
-                  <ChateableWrapper
-                    key={doc.id}
-                    message={`Muéstrame detalles del documento ${formatDocumentTypeName(cleanDocType)} #${doc.document_number} de ${formatCurrency(doc.amount)}`}
-                    contextData={{
-                      documentId: doc.id,
-                      documentType: doc.document_type,
-                      documentNumber: doc.document_number,
-                      amount: doc.amount,
-                      issueDate: doc.issue_date,
-                      description: doc.description,
-                    }}
-                    uiComponent="document_detail"
-                    entityId={doc.id}
-                    entityType={isVenta ? "sales_document" : isCompra ? "purchase_document" : "document"}
-                  >
-                    <div className="flex items-center justify-between gap-2 py-2 px-1 rounded-lg">
-                      <div className="flex-1 min-w-0 max-w-[60%]">
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                          {cleanDescription || 'Sin descripción'}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                          {formatDocumentTypeName(cleanDocType)} #{doc.document_number}
-                        </p>
-                      </div>
-                      <div className="flex-shrink-0 text-right">
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
-                          {formatDate(doc.issue_date)}
-                        </p>
-                        <span className={clsx("text-base font-semibold whitespace-nowrap", amountColor)}>
-                          {amountSign}{formatCurrency(doc.amount)}
-                        </span>
-                      </div>
-                    </div>
-                  </ChateableWrapper>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Expanded: Detailed view WITH scroll for all documents */}
-          {isExpanded && (
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden" style={{ scrollbarGutter: 'stable' }}>
+          {/* Collapsed: Grouped by date (Desktop) */}
+          {!isExpanded && !isInDrawer && (
+            <div
+              className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden"
+              style={{
+                scrollbarGutter: 'stable',
+                animation: 'fadeIn 0.3s ease-out',
+              }}
+            >
               {groupDocumentsByDate(displayedDocuments).map(({ date, docs }) => (
                 <div key={date}>
                   {/* Date header */}
@@ -381,13 +402,199 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
                           entityType={isVenta ? "sales_document" : isCompra ? "purchase_document" : "document"}
                         >
                           <div className="flex items-center justify-between gap-2 py-2 px-1 rounded-lg">
-                            <div className="flex-1 min-w-0 max-w-[60%]">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {getDocumentIcon(cleanDocType, isVenta)}
                               <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
                                 {cleanDescription || 'Sin descripción'}
                               </p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                                {formatDocumentTypeName(cleanDocType)} #{doc.document_number}
+                            </div>
+                            <div className="flex-shrink-0 text-right">
+                              <span className={clsx("text-base font-semibold whitespace-nowrap", amountColor)}>
+                                {amountSign}{formatCurrency(doc.amount)}
+                              </span>
+                            </div>
+                          </div>
+                        </ChateableWrapper>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Drawer (Mobile): Grouped by date with simplified view */}
+          {!isExpanded && isInDrawer && (
+            <div
+              className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden"
+              style={{
+                scrollbarGutter: 'stable',
+                animation: 'fadeIn 0.3s ease-out',
+              }}
+            >
+              {groupDocumentsByDate(displayedDocuments).map(({ date, docs }) => (
+                <div key={date}>
+                  {/* Date header */}
+                  <div className="sticky top-0 z-10 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 backdrop-blur-sm -mx-2 px-2 py-2 mb-3 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50">
+                    <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
+                      {formatFullDate(date)}
+                    </h4>
+                  </div>
+
+                  {/* Documents for this date */}
+                  <div className="space-y-1.5">
+                    {docs.map((doc) => {
+                      // Determine if it's a purchase or sale based on source field (from backend)
+                      const isCompra = doc.source === 'purchase';
+                      const isVenta = doc.source === 'sale';
+
+                      // Clean document type: remove "_venta" or "_compra" suffix
+                      const cleanDocType = doc.document_type.replace(/_(venta|compra)$/i, '');
+
+                      // Check if it's a credit note (nota de crédito)
+                      const isNotaCredito = cleanDocType.toLowerCase().includes('nota') && cleanDocType.toLowerCase().includes('credito');
+
+                      // Clean description: remove "Purchase: " or "Sale: " prefix
+                      const cleanDescription = doc.description
+                        ? doc.description.replace(/^(Purchase|Sale):\s*/i, '')
+                        : '';
+
+                      // Format amount with sign
+                      // Ventas: positivas en verde (+)
+                      // Compras: negativas en rojo (-)
+                      // Notas de crédito invierten el signo
+                      let amountSign = '';
+                      let amountColor = 'text-slate-900 dark:text-slate-100';
+
+                      if (isVenta) {
+                        amountSign = isNotaCredito ? '-' : '+';
+                        amountColor = 'text-emerald-600 dark:text-emerald-400'; // Verde para ventas
+                      } else if (isCompra) {
+                        amountSign = isNotaCredito ? '+' : '-';
+                        amountColor = 'text-rose-600 dark:text-rose-400'; // Rojo para compras
+                      }
+
+                      return (
+                        <ChateableWrapper
+                          key={doc.id}
+                          message={`Muéstrame detalles del documento ${formatDocumentTypeName(cleanDocType)} #${doc.document_number} de ${formatCurrency(doc.amount)}`}
+                          contextData={{
+                            documentId: doc.id,
+                            documentType: doc.document_type,
+                            documentNumber: doc.document_number,
+                            amount: doc.amount,
+                            issueDate: doc.issue_date,
+                            description: doc.description,
+                          }}
+                          uiComponent="document_detail"
+                          entityId={doc.id}
+                          entityType={isVenta ? "sales_document" : isCompra ? "purchase_document" : "document"}
+                        >
+                          <div className="flex items-center justify-between gap-2 py-2 px-1 rounded-lg">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {getDocumentIcon(cleanDocType, isVenta)}
+                              <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                                {cleanDescription || 'Sin descripción'}
                               </p>
+                            </div>
+                            <div className="flex-shrink-0">
+                              <span className={clsx("text-sm font-semibold whitespace-nowrap", amountColor)}>
+                                {amountSign}{formatCurrency(doc.amount)}
+                              </span>
+                            </div>
+                          </div>
+                        </ChateableWrapper>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Expanded: Detailed view WITH scroll for all documents */}
+          {isExpanded && (
+            <div
+              className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden"
+              style={{
+                scrollbarGutter: 'stable',
+                animation: 'zoomIn 0.3s ease-out',
+              }}
+            >
+              {groupDocumentsByDate(displayedDocuments).map(({ date, docs }) => (
+                <div key={date}>
+                  {/* Date header */}
+                  <div className="sticky top-0 z-10 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 backdrop-blur-sm -mx-2 px-2 py-2 mb-3 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50">
+                    <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
+                      {formatFullDate(date)}
+                    </h4>
+                  </div>
+
+                  {/* Documents for this date */}
+                  <div className="space-y-1.5">
+                    {docs.map((doc) => {
+                      // Determine if it's a purchase or sale based on source field (from backend)
+                      const isCompra = doc.source === 'purchase';
+                      const isVenta = doc.source === 'sale';
+
+                      // Clean document type: remove "_venta" or "_compra" suffix
+                      const cleanDocType = doc.document_type.replace(/_(venta|compra)$/i, '');
+
+                      // Check if it's a credit note (nota de crédito)
+                      const isNotaCredito = cleanDocType.toLowerCase().includes('nota') && cleanDocType.toLowerCase().includes('credito');
+
+                      // Clean description: remove "Purchase: " or "Sale: " prefix
+                      const cleanDescription = doc.description
+                        ? doc.description.replace(/^(Purchase|Sale):\s*/i, '')
+                        : '';
+
+                      // Format amount with sign
+                      // Ventas: positivas en verde (+)
+                      // Compras: negativas en rojo (-)
+                      // Notas de crédito invierten el signo
+                      let amountSign = '';
+                      let amountColor = 'text-slate-900 dark:text-slate-100';
+
+                      if (isVenta) {
+                        amountSign = isNotaCredito ? '-' : '+';
+                        amountColor = 'text-emerald-600 dark:text-emerald-400'; // Verde para ventas
+                      } else if (isCompra) {
+                        amountSign = isNotaCredito ? '+' : '-';
+                        amountColor = 'text-rose-600 dark:text-rose-400'; // Rojo para compras
+                      }
+
+                      return (
+                        <ChateableWrapper
+                          key={doc.id}
+                          message={`Muéstrame detalles del documento ${formatDocumentTypeName(cleanDocType)} #${doc.document_number} de ${formatCurrency(doc.amount)}`}
+                          contextData={{
+                            documentId: doc.id,
+                            documentType: doc.document_type,
+                            documentNumber: doc.document_number,
+                            amount: doc.amount,
+                            issueDate: doc.issue_date,
+                            description: doc.description,
+                          }}
+                          uiComponent="document_detail"
+                          entityId={doc.id}
+                          entityType={isVenta ? "sales_document" : isCompra ? "purchase_document" : "document"}
+                        >
+                          <div className="flex items-center justify-between gap-2 py-2 px-1 rounded-lg">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {getDocumentIcon(cleanDocType, isVenta)}
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                                  {cleanDescription || 'Sin descripción'}
+                                </p>
+                                {!isInDrawer && (
+                                  <>
+                                    <span className="hidden md:inline text-slate-400 dark:text-slate-600">|</span>
+                                    <span className="hidden md:inline text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                      {formatDocumentTypeName(cleanDocType)}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
                             </div>
                             <div className="flex-shrink-0">
                               <span className={clsx("text-sm font-semibold whitespace-nowrap", amountColor)}>

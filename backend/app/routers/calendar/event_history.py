@@ -4,9 +4,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from ...config.database import get_db
-from ...db.models import EventHistory
+from ...db.models import EventHistory, CalendarEvent
 from ...dependencies import get_current_user_id, require_auth
 from ...repositories.calendar import CalendarRepository
 from ...schemas.calendar import CreateEventHistoryRequest
@@ -38,6 +39,10 @@ async def get_event_history(
     if not event:
         raise HTTPException(status_code=404, detail="Evento no encontrado")
 
+    # Asegurar que event_template está cargado
+    if not event.event_template:
+        await db.refresh(event, ["event_template"])
+
     # Obtener historial
     history_entries = await repo.get_event_history(event_id, limit)
 
@@ -57,7 +62,7 @@ async def get_event_history(
         "total": len(history_entries),
         "event": {
             "id": str(event.id),
-            "title": event.title,
+            "title": event.event_template.name,
             "status": event.status,
         }
     }

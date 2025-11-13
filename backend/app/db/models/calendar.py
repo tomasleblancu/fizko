@@ -137,6 +137,8 @@ class CalendarEvent(Base):
     Representa una ocurrencia específica de una obligación tributaria
     para una empresa y fecha determinada (ej: "F29 Octubre 2025 vence 12-Nov-2025").
     Contiene el estado, notas, y datos específicos de cumplimiento de la empresa.
+
+    Nota: El título y descripción vienen del event_template asociado, no se duplican aquí.
     """
 
     __tablename__ = "calendar_events"
@@ -154,10 +156,6 @@ class CalendarEvent(Base):
         PG_UUID(as_uuid=True), ForeignKey("event_templates.id", ondelete="CASCADE"), nullable=False
     )
 
-    # Información del evento
-    title: Mapped[str] = mapped_column(Text, nullable=False)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
     # Fechas
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
     period_start: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
@@ -166,7 +164,7 @@ class CalendarEvent(Base):
     # Estado
     status: Mapped[str] = mapped_column(
         Enum(
-            'pending',
+            'saved',
             'in_progress',
             'completed',
             'overdue',
@@ -174,7 +172,7 @@ class CalendarEvent(Base):
             name='event_status',
             schema='public'
         ),
-        server_default=text("'pending'"),
+        server_default=text("'saved'"),
         nullable=False
     )
 

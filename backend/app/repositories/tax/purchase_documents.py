@@ -24,6 +24,7 @@ class PurchaseDocumentRepository(BaseRepository[PurchaseDocument]):
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         status: Optional[str] = None,
+        sender_rut: Optional[str] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[PurchaseDocument]:
@@ -36,6 +37,7 @@ class PurchaseDocumentRepository(BaseRepository[PurchaseDocument]):
             start_date: Filter by issue date >= start_date
             end_date: Filter by issue date <= end_date
             status: Filter by status
+            sender_rut: Filter by sender (provider) RUT
             skip: Pagination offset
             limit: Max results
 
@@ -57,6 +59,9 @@ class PurchaseDocumentRepository(BaseRepository[PurchaseDocument]):
 
         if status:
             query = query.where(PurchaseDocument.status == status)
+
+        if sender_rut:
+            query = query.where(PurchaseDocument.sender_rut == sender_rut)
 
         query = query.order_by(desc(PurchaseDocument.issue_date))
         query = query.offset(skip).limit(limit)

@@ -1,13 +1,13 @@
 import { useState, useCallback } from 'react';
 import clsx from 'clsx';
 import { Users } from 'lucide-react';
-import { ChateableWrapper } from '@/shared/ui/ChateableWrapper';
 import { useContactsQuery, type Contact } from "@/shared/hooks/useContactsQuery";
 import { ViewContainer } from '@/shared/layouts/ViewContainer';
 import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
 import type { ViewType } from '@/shared/layouts/NavigationPills';
 import type { ColorScheme } from "@/shared/hooks/useColorScheme";
 import type { Company } from "@/shared/types/fizko";
+import { ContactDetail } from './ContactDetail';
 
 interface ContactsProps {
   scheme: ColorScheme;
@@ -26,14 +26,31 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
   const { data: contacts = [], isLoading: loading, error } = useContactsQuery(company?.id);
   const [filter, setFilter] = useState<'all' | 'provider' | 'client' | 'both'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
   // Handle navigation
   const handleNavigate = useCallback((view: ViewType) => {
+    // If clicking on contacts tab while viewing a contact detail, go back to list
+    if (view === 'contacts' && selectedContact) {
+      setSelectedContact(null);
+      return;
+    }
+
     if (view === 'dashboard' && onNavigateToDashboard) onNavigateToDashboard();
     if (view === 'forms' && onNavigateToForms) onNavigateToForms();
     if (view === 'personnel' && onNavigateToPersonnel) onNavigateToPersonnel();
     if (view === 'settings' && onNavigateToSettings) onNavigateToSettings();
-  }, [onNavigateToDashboard, onNavigateToForms, onNavigateToPersonnel, onNavigateToSettings]);
+  }, [selectedContact, onNavigateToDashboard, onNavigateToForms, onNavigateToPersonnel, onNavigateToSettings]);
+
+  // Handle contact selection
+  const handleContactClick = useCallback((contact: Contact) => {
+    setSelectedContact(contact);
+  }, []);
+
+  // Handle back to list
+  const handleBackToList = useCallback(() => {
+    setSelectedContact(null);
+  }, []);
 
   const filteredContacts = contacts.filter(contact => {
     const matchesFilter = filter === 'all' || contact.contact_type === filter || contact.contact_type === 'both';
@@ -68,7 +85,21 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
   };
 
   // Content component (shared between drawer and normal mode)
-  const renderContent = () => (
+  const renderContent = () => {
+    // If a contact is selected, show the detail view
+    if (selectedContact) {
+      return (
+        <ContactDetail
+          contact={selectedContact}
+          onBack={handleBackToList}
+          scheme={scheme}
+          companyId={company?.id}
+        />
+      );
+    }
+
+    // Otherwise, show the list view
+    return (
     <>
       {/* Filters and Search */}
       <div className={clsx(
@@ -199,45 +230,34 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
               </thead>
               <tbody>
                 {filteredContacts.map((contact) => (
-                  <ChateableWrapper
+                  <tr
                     key={contact.id}
-                    as="fragment"
-                    message={`Dame información sobre mi contacto ${contact.business_name} (RUT: ${contact.rut})`}
-                    contextData={{
-                      contactId: contact.id,
-                      contactName: contact.business_name,
-                      contactRut: contact.rut,
-                      contactType: contact.contact_type,
-                    }}
-                    uiComponent="contact_card"
-                    entityId={contact.rut}
-                    entityType="contact"
+                    className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700"
+                    onClick={() => handleContactClick(contact)}
                   >
-                    <tr className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
-                      <td className="py-3 px-2">
-                        <div className="min-w-0 max-w-xs">
-                          <p className="font-medium text-slate-900 dark:text-slate-100 truncate">
-                            {contact.business_name}
+                    <td className="py-3 px-2">
+                      <div className="min-w-0 max-w-xs">
+                        <p className="font-medium text-slate-900 dark:text-slate-100 truncate">
+                          {contact.business_name}
+                        </p>
+                        {contact.trade_name && (
+                          <p className="text-sm text-slate-500 dark:text-slate-500 truncate">
+                            {contact.trade_name}
                           </p>
-                          {contact.trade_name && (
-                            <p className="text-sm text-slate-500 dark:text-slate-500 truncate">
-                              {contact.trade_name}
-                            </p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2 whitespace-nowrap">
-                        <span className="text-slate-700 dark:text-slate-300">
-                          {contact.rut}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 whitespace-nowrap">
-                        <span className={getContactTypeBadge(contact.contact_type)}>
-                          {getContactTypeLabel(contact.contact_type)}
-                        </span>
-                      </td>
-                    </tr>
-                  </ChateableWrapper>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-2 whitespace-nowrap">
+                      <span className="text-slate-700 dark:text-slate-300">
+                        {contact.rut}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 whitespace-nowrap">
+                      <span className={getContactTypeBadge(contact.contact_type)}>
+                        {getContactTypeLabel(contact.contact_type)}
+                      </span>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -260,7 +280,8 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
         </div>
       )}
     </>
-  );
+    );
+  };
 
   // Drawer mode - simple container with padding
   if (isInDrawer) {

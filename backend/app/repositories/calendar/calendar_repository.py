@@ -187,7 +187,7 @@ class CalendarRepository:
                 CalendarEvent.company_id == company_id,
                 CalendarEvent.due_date >= today,
                 CalendarEvent.due_date <= end_date,
-                CalendarEvent.status.in_(["pending", "in_progress"])
+                CalendarEvent.status.in_(["saved", "in_progress"])
             )
         ).order_by(CalendarEvent.due_date)
 
@@ -214,11 +214,11 @@ class CalendarRepository:
     # ============================================================================
 
     async def get_pending_events(self, company_id: UUID) -> List[CalendarEvent]:
-        """Get pending events for a company."""
+        """Get saved events for a company."""
         query = select(CalendarEvent).where(
             and_(
                 CalendarEvent.company_id == company_id,
-                CalendarEvent.status == "pending"
+                CalendarEvent.status == "saved"
             )
         )
         result = await self.db.execute(query)
@@ -231,7 +231,7 @@ class CalendarRepository:
             and_(
                 CalendarEvent.company_id == company_id,
                 CalendarEvent.due_date < today,
-                CalendarEvent.status.in_(["pending", "in_progress"])
+                CalendarEvent.status.in_(["saved", "in_progress"])
             )
         )
         result = await self.db.execute(query)
@@ -246,7 +246,7 @@ class CalendarRepository:
                 CalendarEvent.company_id == company_id,
                 CalendarEvent.due_date >= today,
                 CalendarEvent.due_date <= next_week,
-                CalendarEvent.status.in_(["pending", "in_progress"])
+                CalendarEvent.status.in_(["saved", "in_progress"])
             )
         )
         result = await self.db.execute(query)

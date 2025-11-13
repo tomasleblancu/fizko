@@ -23,6 +23,7 @@ from ..tools.memory import (
     search_user_memory,
     search_company_memory,
 )
+from ..tools.orchestration import return_to_supervisor
 
 
 def create_payroll_agent(
@@ -61,12 +62,12 @@ def create_payroll_agent(
         # Memory tools - dual system for user and company memory (read-only)
         search_user_memory,     # Search personal user preferences and history
         search_company_memory,  # Search company-wide knowledge and settings
+        # Orchestration tools
+        return_to_supervisor,   # Return to supervisor and clear active agent
     ]
 
     # Add widgets ONLY for web channel (not for WhatsApp)
     if channel == "web":
-        logger.info("📊 Including payroll widget tools (web channel)")
-        # Insert confirmation widget at the beginning (MUST BE USED FIRST before create/update)
         tools.insert(0, show_person_confirmation)
     else:
         logger.info("📱 Excluding payroll widget tools (WhatsApp channel)")

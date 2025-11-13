@@ -43,6 +43,7 @@ class F29FormResponse(BaseModel):
     has_pdf: bool
     pdf_url: Optional[str]
     created_at: str
+    extra_data: Optional[dict] = None
 
 
 class F29FormsListResponse(BaseModel):
@@ -151,7 +152,8 @@ async def list_f29_forms(
                 pdf_download_status=form.pdf_download_status,
                 has_pdf=form.has_pdf,
                 pdf_url=form.pdf_storage_url,
-                created_at=form.created_at.isoformat()
+                created_at=form.created_at.isoformat(),
+                extra_data=form.extra_data
             )
             for form in result["forms"]
         ]

@@ -208,12 +208,14 @@ async def chatkit_endpoint(
 
     payload = await request.body()
 
-    # Extract message from payload to use for UI context extraction
+    # Extract message and thread_id from payload
     user_message = ""
     operation = "unknown"
+    thread_id = "unknown"
     try:
         payload_dict = json.loads(payload)
         operation = payload_dict.get("op", "unknown")
+        thread_id = payload_dict.get("thread_id", "unknown")
         # Try to extract message from payload
         if payload_dict.get("op") == "create_message" and "text" in payload_dict:
             user_message = payload_dict["text"]
