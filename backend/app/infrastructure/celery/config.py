@@ -29,7 +29,7 @@ enable_utc = True
 task_track_started = True  # Track when tasks start (not just when queued)
 task_time_limit = 30 * 60  # Hard time limit: 30 minutes
 task_soft_time_limit = 25 * 60  # Soft time limit: 25 minutes
-worker_prefetch_multiplier = 1  # Fetch one task at a time (better for long tasks)
+worker_prefetch_multiplier = 4  # Fetch up to 4 tasks at a time (allows parallel processing)
 worker_max_tasks_per_child = 50  # Restart worker after 50 tasks (prevent memory leaks)
 
 # Retry settings

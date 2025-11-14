@@ -36,7 +36,7 @@ fi
 
 # Parse command line arguments
 LOGLEVEL=${LOGLEVEL:-info}
-CONCURRENCY=${CONCURRENCY:-2}
+CONCURRENCY=${CONCURRENCY:-4}
 QUEUE=${QUEUE:-""}
 RELOAD=""
 

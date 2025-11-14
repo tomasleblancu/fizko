@@ -44,81 +44,83 @@ async def get_or_create_contact(
     # Normalizar RUT (eliminar puntos, guiones, etc)
     rut = rut.strip().replace(".", "").replace("-", "").upper()
 
-    try:
-        # Primero intentar buscar contacto existente
-        stmt = select(Contact).where(
-            Contact.company_id == company_id,
-            Contact.rut == rut
-        )
-        result = await db.execute(stmt)
-        existing_contact = result.scalar_one_or_none()
-
-        if existing_contact:
-            # Verificar si necesitamos actualizar el tipo
-            if existing_contact.contact_type != 'both':
-                # Si es proveedor y ahora es cliente (o viceversa), cambiar a 'both'
-                if (existing_contact.contact_type == 'provider' and contact_type == 'client') or \
-                   (existing_contact.contact_type == 'client' and contact_type == 'provider'):
-                    existing_contact.contact_type = 'both'
-                    existing_contact.updated_at = datetime.utcnow()
-                    logger.info(f"📝 Updated contact {rut} type to 'both'")
-
-            return existing_contact.id
-
-        # No existe, intentar crear usando INSERT ... ON CONFLICT
-        # para manejar race conditions a nivel de DB
-        contact_id = uuid4()
-
-        stmt = insert(Contact).values(
-            id=contact_id,
-            company_id=company_id,
-            rut=rut,
-            business_name=name,
-            contact_type=contact_type,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        ).on_conflict_do_update(
-            index_elements=['company_id', 'rut'],
-            set_={
-                'contact_type': Contact.contact_type,  # Mantener el tipo original si ya existe
-                'updated_at': datetime.utcnow()
-            }
-        ).returning(Contact.id)
-
-        result = await db.execute(stmt)
-        returned_id = result.scalar_one()
-
-        if returned_id == contact_id:
-            logger.info(f"✨ Created new {contact_type}: {name} ({rut})")
-        else:
-            logger.debug(f"♻️ Contact {rut} already existed (concurrent creation)")
-
-        return returned_id
-
-    except Exception as e:
-        logger.error(f"❌ Error in get_or_create_contact for {rut}: {e}", exc_info=True)
-
-        # Intentar rollback a savepoint si hay error
+    # Usar nested transaction (savepoint) para evitar abortar la transacción principal
+    async with db.begin_nested():
         try:
-            await db.rollback()
-        except Exception:
-            pass
-
-        # Último intento: buscar el contacto que debería existir
-        try:
-            stmt = select(Contact.id).where(
+            # Primero intentar buscar contacto existente
+            stmt = select(Contact).where(
                 Contact.company_id == company_id,
                 Contact.rut == rut
             )
             result = await db.execute(stmt)
-            contact_id = result.scalar_one_or_none()
-            if contact_id:
-                logger.info(f"♻️ Found contact {rut} on retry after error")
-                return contact_id
-        except Exception:
-            pass
+            existing_contact = result.scalar_one_or_none()
 
-        return None
+            if existing_contact:
+                # Verificar si necesitamos actualizar el tipo
+                if existing_contact.contact_type != 'both':
+                    # Si es proveedor y ahora es cliente (o viceversa), cambiar a 'both'
+                    if (existing_contact.contact_type == 'provider' and contact_type == 'client') or \
+                       (existing_contact.contact_type == 'client' and contact_type == 'provider'):
+                        existing_contact.contact_type = 'both'
+                        existing_contact.updated_at = datetime.utcnow()
+                        logger.info(f"📝 Updated contact {rut} type to 'both'")
+
+                return existing_contact.id
+
+            # No existe, intentar crear usando INSERT ... ON CONFLICT
+            # para manejar race conditions a nivel de DB
+            contact_id = uuid4()
+
+            stmt = insert(Contact).values(
+                id=contact_id,
+                company_id=company_id,
+                rut=rut,
+                business_name=name,
+                contact_type=contact_type,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow()
+            ).on_conflict_do_update(
+                index_elements=['company_id', 'rut'],
+                set_={
+                    'contact_type': Contact.contact_type,  # Mantener el tipo original si ya existe
+                    'updated_at': datetime.utcnow()
+                }
+            ).returning(Contact.id)
+
+            result = await db.execute(stmt)
+            returned_id = result.scalar_one()
+
+            if returned_id == contact_id:
+                logger.info(f"✨ Created new {contact_type}: {name} ({rut})")
+            else:
+                logger.debug(f"♻️ Contact {rut} already existed (concurrent creation)")
+
+            return returned_id
+
+        except Exception as e:
+            logger.error(f"❌ Error in get_or_create_contact for {rut}: {e}", exc_info=True)
+            # El savepoint se revertirá automáticamente al salir del bloque begin_nested()
+            # pero la transacción principal NO se aborta
+
+            # Último intento: buscar el contacto que debería existir
+            # (fuera del bloque begin_nested para no interferir)
+            raise  # Re-lanzar para salir del savepoint primero
+
+    # Si llegamos aquí fue por excepción - intentar buscar contacto existente
+    try:
+        stmt = select(Contact.id).where(
+            Contact.company_id == company_id,
+            Contact.rut == rut
+        )
+        result = await db.execute(stmt)
+        contact_id = result.scalar_one_or_none()
+        if contact_id:
+            logger.info(f"♻️ Found contact {rut} on retry after error")
+            return contact_id
+    except Exception as retry_error:
+        logger.warning(f"⚠️ Retry also failed for {rut}: {retry_error}")
+
+    return None
 
 
 async def bulk_upsert_purchases(

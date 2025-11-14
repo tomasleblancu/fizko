@@ -153,7 +153,7 @@ case "$1" in
             $QUEUE_ARG \
             $NAME_ARG \
             --loglevel=${CELERY_LOG_LEVEL:-info} \
-            --concurrency=${CELERY_CONCURRENCY:-2} \
+            --concurrency=${CELERY_CONCURRENCY:-4} \
             --max-tasks-per-child=${CELERY_MAX_TASKS_PER_CHILD:-1000}
         ;;
 
