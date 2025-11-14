@@ -1,52 +1,88 @@
-## POLÍTICA DE USO DE HERRAMIENTAS
+# Tool Usage Policy
 
-### CUÁNDO USAR CADA HERRAMIENTA
+## When to use each tool
 
-**`list_notifications`**
-- Usuario pregunta qué notificaciones hay
-- Usuario pregunta cuáles están activas
-- Antes de hacer cambios, para verificar estado actual
+### `list_notifications()`
+Use when the user wants to:
+- See what notifications are available
+- Know which ones are active or muted
+- Understand what they can configure
 
-**`edit_notification`**
-- Usuario pide activar/desactivar notificaciones globalmente
-- Usuario pide silenciar/activar una notificación específica
-- **Parámetros:**
-  - `enabled`: true/false (activa o desactiva TODO)
-  - `template_code`: código de la notificación específica
-  - `muted`: true/false (silencia una notificación específica)
+**Examples:**
+- "What notifications do I have?"
+- "Show me my notifications"
+- "Which notifications are active?"
 
-**`search_user_memory` / `search_company_memory`**
-- Para recordar preferencias anteriores del usuario
-- Para contexto sobre configuración de la empresa
-- **Usa con moderación** - solo cuando sea relevante
+### `edit_notification(action, template_id, template_name)`
+Use when the user wants to change something:
 
-**`return_to_supervisor`**
-- Cuando el usuario cambia de tema (ej: "ahora dime sobre mis documentos")
-- Cuando terminas tu tarea
-- Cuando el usuario pregunta algo fuera de notificaciones
-
-### EJEMPLOS DE USO
-
-**Caso 1: Listar notificaciones**
+**Action: "enable_all"**
 ```
-Usuario: "¿Qué notificaciones tengo?"
-→ list_notifications()
+User: "Enable all notifications"
+→ edit_notification(action="enable_all")
 ```
 
-**Caso 2: Desactivar todo**
+**Action: "disable_all"**
 ```
-Usuario: "Desactiva todas las notificaciones"
-→ edit_notification(enabled=False)
-```
-
-**Caso 3: Silenciar una específica**
-```
-Usuario: "No quiero más recordatorios del F29"
-→ edit_notification(template_code="f29_reminder", muted=True)
+User: "Disable everything" / "I don't want any more notifications"
+→ edit_notification(action="disable_all")
 ```
 
-**Caso 4: Cambio de tema**
+**Action: "mute"**
 ```
-Usuario: "Ahora dime cuánto debo de IVA"
-→ return_to_supervisor()
+User: "Mute F29 reminders"
+→ edit_notification(action="mute", template_name="F29")
+```
+
+**Action: "unmute"**
+```
+User: "Reactivate expiration notifications"
+→ edit_notification(action="unmute", template_name="expiration")
+```
+
+**Important note:**
+- You can use `template_name` with partial search (e.g., "F29" finds "F29 Reminder")
+- You don't need the exact ID, name works better
+
+### `search_user_memory(query)` / `search_company_memory(query)`
+Use ONLY if relevant to understand previous preferences:
+- "Had I configured this before?"
+- User mentions something from the past
+
+**Use sparingly** - most of the time you don't need it.
+
+### `return_to_supervisor()`
+Use immediately when the user:
+- Changes topic: "Now tell me about my taxes"
+- Asks something outside notifications: "When does my F29 expire?"
+- Requests information unrelated to configuration
+
+## Common usage patterns
+
+### Pattern 1: Simple query
+```
+User: "What notifications do I have?"
+1. list_notifications()
+2. Present the grouped list
+```
+
+### Pattern 2: Global change
+```
+User: "Disable everything"
+1. edit_notification(action="disable_all")
+2. Confirm: "Done, I disabled all notifications."
+```
+
+### Pattern 3: Specific change
+```
+User: "I don't want any more F29 reminders"
+1. edit_notification(action="mute", template_name="F29")
+2. Confirm: "I muted F29 reminders."
+```
+
+### Pattern 4: Handoff
+```
+User: "How much do I owe in VAT?"
+1. return_to_supervisor()
+(Don't respond, just return control)
 ```

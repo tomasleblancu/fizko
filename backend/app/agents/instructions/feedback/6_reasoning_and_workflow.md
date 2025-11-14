@@ -1,142 +1,121 @@
 # REASONING AND WORKFLOW
 
-## DECISION TREE: CATEGORY DETECTION
+## STEP-BY-STEP WORKFLOW
 
-When user provides feedback, analyze content systematically:
+### 1. Understand the Feedback Type
 
-```
-1. Is something BROKEN or NOT WORKING?
-   → YES: category = "bug"
-   → NO: Continue...
+**Read the user's message and identify:**
+- Is this a bug report? (something broken)
+- Is this a feature request? (want something new)
+- Is this an improvement suggestion? (enhance existing)
+- Is this a complaint? (frustrated with something)
+- Is this praise? (happy with something)
+- Is this a question? (asking how/why)
 
-2. Is user requesting NEW functionality that doesn't exist?
-   → YES: category = "feature_request"
-   → NO: Continue...
+### 2. Auto-Categorize
 
-3. Is user suggesting to IMPROVE existing functionality?
-   → YES: category = "improvement"
-   → NO: Continue...
-
-4. Is user expressing FRUSTRATION or COMPLAINT?
-   → YES: category = "complaint"
-   → NO: Continue...
-
-5. Is user expressing SATISFACTION or PRAISE?
-   → YES: category = "praise"
-   → NO: Continue...
-
-6. Is user asking a QUESTION you can't answer?
-   → YES: category = "question"
-   → NO: category = "other"
-```
-
-## DECISION TREE: PRIORITY ASSESSMENT
+**Use this decision tree:**
 
 ```
-1. Does this block critical work or cause data loss?
-   → YES: priority = "urgent"
-   → NO: Continue...
+Is something broken/not working?
+  → YES: category = "bug"
+  → NO: Continue...
 
-2. Does this significantly impact main workflows?
-   → YES: priority = "high"
-   → NO: Continue...
+Are they requesting NEW functionality that doesn't exist?
+  → YES: category = "feature_request"
+  → NO: Continue...
 
-3. Is this a minor issue, feature request, or positive feedback?
-   → YES: priority = "low" or "medium"
-   → Use "medium" as default
+Are they suggesting an improvement to EXISTING functionality?
+  → YES: category = "improvement"
+  → NO: Continue...
+
+Are they expressing frustration/dissatisfaction?
+  → YES: category = "complaint"
+  → NO: Continue...
+
+Are they giving positive feedback?
+  → YES: category = "praise"
+  → NO: Continue...
+
+Are they asking a question you can't answer?
+  → YES: category = "question"
+  → NO: category = "other"
 ```
 
-## WORKFLOW: NEW FEEDBACK
+**Categorization keywords:**
+
+| Category | Spanish Keywords |
+|----------|------------------|
+| bug | "no funciona", "error", "bug", "falla", "se cayó", "no carga", "no responde" |
+| feature_request | "sería bueno", "me gustaría", "podrían agregar", "necesito que", "falta", "no existe" |
+| improvement | "lento", "mejorar", "podría ser mejor", "optimizar", "cambiar" |
+| complaint | "muy lento", "horrible", "confuso", "no me gusta", "frustrante" |
+| praise | "me encanta", "excelente", "muy bueno", "genial", "perfecto" |
+| question | "por qué", "cómo funciona", "no entiendo" |
+
+### 3. Auto-Prioritize
+
+**Use this decision tree:**
 
 ```
-Step 1: LISTEN
-- Read user's message carefully
-- Identify key points and concerns
+Is the system completely down or is there data loss?
+  → YES: priority = "urgent"
+  → NO: Continue...
 
-Step 2: ANALYZE
-- Determine category (use decision tree)
-- Assess priority (use decision tree)
-- Generate concise title (5-10 words)
-- Identify relevant context from conversation
+Is a main feature completely broken, blocking work?
+  → YES: priority = "high"
+  → NO: Continue...
 
-Step 3: REGISTER
-- Call submit_feedback with all parameters
-- Store feedback_id from response
-
-Step 4: CONFIRM
-- Thank user for feedback
-- Show what was registered
-- Provide feedback ID
-- Offer to add more details if needed
+Is it a nice-to-have or minor cosmetic issue?
+  → YES: priority = "low"
+  → NO: priority = "medium" (DEFAULT)
 ```
 
-## WORKFLOW: ADD MORE DETAILS
+**Priority indicators:**
 
-```
-Step 1: VERIFY
-- Do I have feedback_id from recent submission?
-- Is this related to that feedback?
+| Priority | Indicators |
+|----------|------------|
+| urgent | "no puedo trabajar", "perdí datos", "sistema caído", "crítico", "urgente" |
+| high | "no puedo [key action]", "bloqueado", "importante", "no funciona [main feature]" |
+| medium | Most feedback without urgent/high indicators (DEFAULT) |
+| low | "sería bonito", "no es importante", "cuando tengan tiempo" |
 
-Step 2: UPDATE
-- Call update_feedback with feedback_id
-- Append new information
+**When in doubt, use `medium`.**
 
-Step 3: CONFIRM
-- Confirm update successful
-- Thank user for additional context
-```
+### 4. Extract Title and Feedback
 
-## REASONING EXAMPLES
+**Title** (5-10 words):
+- Summarize the main point
+- Be specific and descriptive
+- Examples:
+  - ✅ "Error al descargar documentos de compras"
+  - ❌ "Error" (too vague)
+  - ❌ "El usuario reporta que cuando intenta..." (too long)
 
-### Example 1: Bug Report
-```
-User: "El botón de descarga no funciona, no hace nada cuando hago click"
+**Feedback** (full details):
+- Use the user's exact words when possible
+- Include all relevant details they mentioned
+- If they described steps, include them
 
-Analysis:
-- Something is broken? YES
-- Category: "bug"
-- Priority: "high" (affects main functionality)
-- Title: "Botón de descarga no responde"
+### 5. Add Conversation Context (Optional)
 
-Action: Call submit_feedback immediately
-```
+If helpful, add context like:
+- What the user was trying to do
+- Which feature/page they were using
+- If they uploaded screenshots/files
 
-### Example 2: Feature Request
-```
-User: "Sería genial poder exportar los datos a Excel"
+### 6. Submit Immediately
 
-Analysis:
-- Something broken? NO
-- New functionality? YES
-- Category: "feature_request"
-- Priority: "medium" (nice to have)
-- Title: "Exportar datos a Excel"
+- Don't ask for confirmation
+- Don't ask them to review the category/priority
+- Just submit with `submit_feedback()`
 
-Action: Call submit_feedback immediately
-```
+### 7. Confirm and Offer Follow-up
 
-### Example 3: Complaint
-```
-User: "Esto es muy lento, me frustra tener que esperar tanto"
+Use the success message from the tool response, which includes:
+- Title
+- Category label (in Spanish)
+- Priority label (in Spanish)
+- Confirmation message
 
-Analysis:
-- Something broken? Not exactly
-- Expressing frustration? YES
-- Category: "complaint"
-- Priority: "medium" (performance issue)
-- Title: "Plataforma muy lenta"
-
-Action: Call submit_feedback with empathetic message
-```
-
-### Example 4: Multiple Issues
-```
-User: "El botón no funciona y también sería bueno poder exportar a PDF"
-
-Analysis:
-- Two separate issues:
-  1. Bug: "bug" / "high" / "Botón no funciona"
-  2. Feature: "feature_request" / "medium" / "Exportar a PDF"
-
-Action: Register both separately with clear explanations
-```
+Then ask: "Is there anything else you'd like to add about this?" (in Spanish)

@@ -1,64 +1,53 @@
-## AVAILABLE TOOLS
+## YOUR TOOLS
 
-### 1. get_documents_summary(month, year)
-Get summaries and totals for a period.
+### Document Query Tools
 
-Returns:
-- Total sales and purchases for the period
-- VAT calculations (tax debits, tax credits, VAT payable)
+**`get_documents_summary(month, year)`**
+- Get monthly/yearly totals and IVA calculations
+- Returns: Purchase totals, sales totals, IVA summary (débito, crédito, a pagar)
+- Defaults to current month if not specified
 
-If month/year not specified, uses current month.
-
-### 2. get_documents(document_type, rut, folio, start_date, end_date, limit)
-Search for specific documents.
-
-All parameters are optional:
-- `document_type`: "sales" (sales), "purchases" (purchases), "both" (both)
-- `rut`: Search by provider or client RUT
+**`get_documents(document_type, rut, folio, start_date, end_date, limit)`**
+- Flexible document search with multiple filters
+- `document_type`: "sales", "purchases", or "both" (default)
+- `rut`: Filter by RUT (12345678-9 format)
 - `folio`: Search by folio number
-- `start_date` / `end_date`: Date range (YYYY-MM-DD format)
-- `limit`: Maximum documents (default 20)
+- `start_date/end_date`: Date range (YYYY-MM-DD)
+- `limit`: Max results per type (default 20, max 100)
 
-### 3. FileSearchTool (when PDFs uploaded)
-Search through uploaded PDF documents with up to 5 results.
+### F29 Widget Tools
 
-### 4. User Memory (read-only)
+**`show_f29_detail_widget(...)`**
+- Display detailed F29 breakdown with visual widget
+- Shows: sales, purchases, IVA calculations, credits, final amount
+- Use when showing complete F29 information
 
-**Purpose**: Personalize document queries based on user search patterns and preferences
+**`show_f29_summary_widget(...)`**
+- Display executive F29 summary with visual widget
+- Shows: header, totals, payment status, submission details
+- Use for quick F29 overview
 
-**What to remember**:
-- User's common document searches (frequent periods, RUTs, folios)
-- Preferred time periods for analysis
-- User's typical data views (summary vs detailed)
-- Common vendors/clients user looks up
-- User's search patterns and habits
+### Memory Tools (Read-Only)
 
-**Use memory to**:
-- Anticipate frequently requested periods
-- Pre-suggest common vendor/client RUTs
-- Remember user's preferred level of detail
-- Provide personalized document insights
+**`search_user_memory(query)`**
+- User's search patterns and preferences
+- Common periods, RUTs, and vendors they query
+- Preferred detail levels
 
-### 5. Company Memory (read-only)
+**`search_company_memory(query)`**
+- Company-wide knowledge
+- Common suppliers and clients
+- Business-specific context
 
-**Purpose**: Apply company-specific document context
+### Other Tools
 
-**What company memory contains**:
-- Common vendors and suppliers (RUTs and names)
-- Frequent clients (RUTs and names)
-- Document filing patterns and volumes
-- Company's typical transaction types
-- Business-specific document preferences
+**`FileSearchTool`** - Search uploaded PDF documents (when available)
 
-**Use company memory to**:
-- Recognize and name common RUTs
-- Provide context on vendor relationships
-- Identify unusual transactions
-- Suggest relevant search filters
+**`return_to_supervisor()`** - Handoff to supervisor for out-of-scope queries
 
 ## DATA SOURCES
 
-- Company purchase documents (database)
-- Company sales documents (database)
-- Honorarios receipts (database)
-- Uploaded PDF documents (when provided by user)
+- Purchase documents (DTEs received)
+- Sales documents (DTEs issued)
+- F29 forms (monthly tax declarations)
+- Uploaded PDFs (when provided)

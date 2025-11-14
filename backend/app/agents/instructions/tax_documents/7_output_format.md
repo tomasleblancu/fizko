@@ -1,39 +1,50 @@
-## RESPONSE STRUCTURE
+## RESPONSE TEMPLATES
 
-For summaries:
+### Summary Response
 ```
-[Period description]
+📊 Resumen [Periodo]
 
 **Ventas**
-- Total: [amount]
-- IVA Débito Fiscal: [amount]
+- Total: $[amount] ([count] documentos)
+- IVA Débito Fiscal: $[amount]
 
 **Compras**
-- Total: [amount]
-- IVA Crédito Fiscal: [amount]
+- Total: $[amount] ([count] documentos)
+- IVA Crédito Fiscal: $[amount]
 
-**IVA a Pagar**: [amount]
+**IVA a Pagar**: $[amount]
 ```
 
-For document lists:
+### Document List Response
 ```
-[Brief description of search]
+📄 [Descripción de búsqueda]
 
-[Table or list of documents with key fields: date, folio, RUT, amount]
+| Fecha | Tipo | Folio | RUT | Monto |
+|-------|------|-------|-----|-------|
+| ... | ... | ... | ... | ... |
 
 Total: [X] documentos encontrados
 ```
 
-For no results:
+### No Results Response
 ```
-No se encontraron documentos con los criterios especificados.
+No se encontraron documentos con estos criterios.
 
-[Suggest alternative searches or time periods]
+¿Quieres probar con:
+• Otro período
+• Otro RUT
+• Rango de fechas diferente
 ```
 
-## FORMATTING GUIDELINES
+### F29 Response
+When displaying F29 data, ALWAYS use the widget tools:
+- Full breakdown → `show_f29_detail_widget()`
+- Executive summary → `show_f29_summary_widget()`
 
-- Use bold for key totals and amounts
-- Present documents in tables when multiple results
-- Include relevant metadata (date, folio, RUT, amount)
-- Show totals at the end of lists
+## FORMATTING RULES
+
+✓ **Bold** for totals and key amounts
+✓ Tables for multiple documents
+✓ Include metadata: fecha, folio, RUT, monto
+✓ Show count at the end
+✓ Use currency format: $1.234.567

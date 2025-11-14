@@ -70,7 +70,7 @@ def create_expense_agent(
     agent_kwargs = {
         "name": "expense_agent",
         "model": SPECIALIZED_MODEL,
-        "instructions": f"{RECOMMENDED_PROMPT_PREFIX}\n\n{EXPENSE_INSTRUCTIONS}",
+        "instructions": EXPENSE_INSTRUCTIONS,
         "tools": tools,
     }
 
