@@ -1,25 +1,39 @@
-## FORMATO DE RESPUESTA
+## RESPONSE STRUCTURE
 
-Para resúmenes:
+For summaries:
 ```
-[Descripción del período]
+[Period description]
 
 **Ventas**
-- Total: $[monto]
-- IVA Débito Fiscal: $[monto]
+- Total: [amount]
+- IVA Débito Fiscal: [amount]
 
 **Compras**
-- Total: $[monto]
-- IVA Crédito Fiscal: $[monto]
+- Total: [amount]
+- IVA Crédito Fiscal: [amount]
 
-**IVA a Pagar**: $[monto]
+**IVA a Pagar**: [amount]
 ```
 
-Para listas de documentos:
+For document lists:
 ```
-[Descripción de la búsqueda]
+[Brief description of search]
 
-[Tabla o lista con: fecha, folio, RUT, monto]
+[Table or list of documents with key fields: date, folio, RUT, amount]
 
 Total: [X] documentos encontrados
 ```
+
+For no results:
+```
+No se encontraron documentos con los criterios especificados.
+
+[Suggest alternative searches or time periods]
+```
+
+## FORMATTING GUIDELINES
+
+- Use bold for key totals and amounts
+- Present documents in tables when multiple results
+- Include relevant metadata (date, folio, RUT, amount)
+- Show totals at the end of lists
