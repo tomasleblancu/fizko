@@ -31,7 +31,7 @@ export default function CalendarEventsSection({ companyId }: CalendarEventsSecti
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      saved: 'Guardado',
+      pending: 'Pendiente',
       in_progress: 'En Progreso',
       completed: 'Completado',
       overdue: 'Vencido',
@@ -42,13 +42,13 @@ export default function CalendarEventsSection({ companyId }: CalendarEventsSecti
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      saved: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+      pending: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
       in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
       completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
       overdue: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
       cancelled: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
     };
-    return colors[status] || colors.saved;
+    return colors[status] || colors.pending;
   };
 
   const getCategoryColor = (category: string) => {

@@ -44,7 +44,7 @@ async def get_calendar_stats(
 
     return {
         "data": {
-            "saved": len(saved_events),
+            "pending": len(saved_events),
             "overdue": len(overdue_events),
             "upcoming_7_days": len(upcoming_events),
             "completed_this_month": len(completed_events),

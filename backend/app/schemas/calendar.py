@@ -102,7 +102,7 @@ class CreateCalendarEventRequest(BaseModel):
     company_event_id: UUID = Field(..., description="Reference to company event config")
     company_id: UUID = Field(..., description="Company this event belongs to")
     event_date: date = Field(..., description="Date of the event")
-    status: str = Field(default="saved", description="Status: saved, in_progress, completed, overdue, cancelled")
+    status: str = Field(default="pending", description="Status: pending, in_progress, completed, overdue, cancelled")
     metadata: Optional[dict] = Field(None, description="Additional metadata")
 
 

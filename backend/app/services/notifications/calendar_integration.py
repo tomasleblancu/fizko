@@ -274,7 +274,7 @@ class CalendarNotificationIntegration:
             and_(
                 CalendarEvent.due_date >= today,
                 CalendarEvent.due_date <= future_date,
-                CalendarEvent.status.in_(["saved", "in_progress"]),
+                CalendarEvent.status.in_(["pending", "in_progress"]),
             )
         ).options(selectinload(CalendarEvent.event_template))
 

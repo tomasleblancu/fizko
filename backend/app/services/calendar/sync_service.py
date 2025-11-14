@@ -55,7 +55,7 @@ class SyncService(BaseCalendarService):
            - Crea eventos faltantes para los próximos periodos
            - Actualiza el estado de eventos existentes
            - Solo el próximo a vencer queda con estado 'in_progress'
-           - Los demás quedan con estado 'saved'
+           - Los demás quedan con estado 'pending'
         4. No modifica eventos completados o cancelados
 
         Args:
@@ -239,7 +239,7 @@ class SyncService(BaseCalendarService):
         """
         existing_events_stmt = select(CalendarEvent).where(
             CalendarEvent.company_event_id == company_event_id,
-            CalendarEvent.status.in_(['saved', 'in_progress', 'overdue']),
+            CalendarEvent.status.in_(['pending', 'in_progress', 'overdue']),
             CalendarEvent.due_date >= today
         ).order_by(CalendarEvent.due_date)
 
@@ -381,7 +381,7 @@ class SyncService(BaseCalendarService):
                 due_date=event_data['due_date'],
                 period_start=event_data['period_start'],
                 period_end=event_data['period_end'],
-                status='saved',  # Se creará como saved
+                status='pending',  # Se creará como pending
                 auto_generated=True
             )
             self.db.add(event)

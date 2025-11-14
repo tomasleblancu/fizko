@@ -164,7 +164,7 @@ class CalendarEvent(Base):
     # Estado
     status: Mapped[str] = mapped_column(
         Enum(
-            'saved',
+            'pending',
             'in_progress',
             'completed',
             'overdue',
@@ -172,7 +172,7 @@ class CalendarEvent(Base):
             name='event_status',
             schema='public'
         ),
-        server_default=text("'saved'"),
+        server_default=text("'pending'"),
         nullable=False
     )
 
