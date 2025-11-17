@@ -29,6 +29,7 @@ router = APIRouter(
 async def get_tax_documents_for_user(
     repo: TaxDocumentRepositoryDep,
     limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0, description="Number of documents to skip (for pagination)"),
     contact_rut: str | None = Query(None, description="Filter by contact RUT (provider or client)"),
     current_user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
@@ -41,6 +42,7 @@ async def get_tax_documents_for_user(
 
     Optional filters:
     - contact_rut: Filter documents by provider (purchases) or client (sales) RUT
+    - offset: Number of documents to skip (for pagination/infinite scroll)
     """
     # Resolve company_id from user's active session
     company_id = await get_user_primary_company_id(current_user_id, db)
@@ -55,6 +57,7 @@ async def get_tax_documents_for_user(
     documents = await repo.get_all_documents(
         company_id=company_id,
         limit=limit,
+        offset=offset,
         contact_rut=contact_rut
     )
 

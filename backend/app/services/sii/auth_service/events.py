@@ -2,10 +2,40 @@
 Módulo de gestión de eventos tributarios y notificaciones
 """
 import logging
-from datetime import datetime
+from datetime import datetime, date
+from typing import Optional
 from uuid import UUID
 
 logger = logging.getLogger(__name__)
+
+
+def calculate_months_since_start(start_date: Optional[date]) -> int:
+    """
+    Calcula cuántos meses sincronizar desde la fecha de inicio de actividades.
+
+    Args:
+        start_date: Fecha de inicio de actividades de la empresa
+
+    Returns:
+        Número de meses a sincronizar (mínimo 3, máximo 24)
+    """
+    if not start_date:
+        logger.warning("[Events] No start_of_activities_date available, using default 12 months")
+        return 12  # Default conservador
+
+    today = datetime.utcnow().date()
+    months = (today.year - start_date.year) * 12 + (today.month - start_date.month)
+
+    # Limitar entre 3 y 24 meses para evitar syncs muy largos
+    months_to_sync = max(3, min(months, 24))
+
+    logger.info(
+        f"[Events] Company started on {start_date.isoformat()}, "
+        f"calculated {months} months of history, "
+        f"will sync {months_to_sync} months (capped at 3-24)"
+    )
+
+    return months_to_sync
 
 
 async def activate_mandatory_events(company_id: UUID) -> None:
@@ -89,17 +119,39 @@ async def assign_auto_notifications(
         )
 
 
-async def trigger_sync_tasks(company_id: UUID) -> None:
+async def trigger_sync_tasks(company_id: UUID, company_tax_info=None) -> None:
     """
-    Dispara tareas de Celery en background para sincronización
+    Dispara tareas de Celery en background para sincronización inteligente.
+
+    Nueva estrategia (3 syncs):
+    1. Mes actual → inmediato, cola 'default' (rápido)
+    2. Mes anterior → delay 20s, cola 'default' (rápido)
+    3. Historia completa → delay 40s, cola 'low' (lento), basado en fecha de inicio
 
     Args:
         company_id: UUID de la compañía
+        company_tax_info: CompanyTaxInfo opcional (para evitar query adicional)
     """
     # Importar tareas de Celery
     from app.infrastructure.celery.tasks.sii.documents import sync_documents
     from app.infrastructure.celery.tasks.sii.forms import sync_f29
     from app.infrastructure.celery.tasks.calendar import sync_company_calendar
+
+    # Si no se provee company_tax_info, obtenerlo de la DB
+    if company_tax_info is None:
+        from sqlalchemy.ext.asyncio import AsyncSession
+        from sqlalchemy import select
+        from app.db.models import CompanyTaxInfo
+        from app.config.database import get_db
+
+        async with get_db() as db:
+            stmt = select(CompanyTaxInfo).where(CompanyTaxInfo.company_id == company_id)
+            result = await db.execute(stmt)
+            company_tax_info = result.scalar_one_or_none()
+
+    # Calcular meses a sincronizar basado en fecha de inicio
+    start_date = company_tax_info.start_of_activities_date if company_tax_info else None
+    historical_months = calculate_months_since_start(start_date)
 
     # 1. Disparar sincronización de calendario (eventos tributarios)
     try:
@@ -113,16 +165,12 @@ async def trigger_sync_tasks(company_id: UUID) -> None:
             f"[Events] Error triggering sync_company_calendar: {e}"
         )
 
-    # 2. Disparar sincronización de documentos tributarios (últimos 3 meses)
-    # Estrategia: Sincronizar cada mes por separado en diferentes workers
-    # - Mes más reciente (offset=0): ejecutar inmediatamente (más importante)
-    # - Mes -1 (offset=1): ejecutar con delay de 5 minutos
-    # - Mes -2 (offset=2): ejecutar con delay de 5 minutos
-    # NOTA: Durante onboarding, estos syncs van a la cola 'default' (worker FAST)
-    # para mejorar la experiencia del usuario. Los syncs periódicos posteriores
-    # van a la cola 'low' (worker SLOW) según task_routes en config.py
+    # 2. Disparar sincronización de documentos tributarios (NUEVA ESTRATEGIA)
+    # Sync 1: Mes actual (offset=0) → inmediato, cola 'default' (rápido)
+    # Sync 2: Mes anterior (offset=1) → delay 20s, cola 'default' (rápido)
+    # Sync 3: Historia completa → delay 40s, cola 'low' (lento), basado en fecha inicio
     try:
-        # Mes más reciente (offset=0) - ejecutar inmediatamente en cola 'default'
+        # Sync 1: Mes actual (offset=0) - inmediato en cola 'default'
         sync_documents.apply_async(
             kwargs={
                 "company_id": str(company_id),
@@ -132,41 +180,42 @@ async def trigger_sync_tasks(company_id: UUID) -> None:
             queue="default"  # Cola rápida para onboarding
         )
         logger.info(
-            f"[Events] sync_documents task triggered (offset=0, most recent month) "
-            f"for company {company_id} - immediate execution on 'default' queue"
+            f"[Events] 📥 Sync 1/3: Current month (offset=0) - "
+            f"immediate on 'default' queue"
         )
 
-        # Mes -1 (offset=1) - ejecutar en 20 segundos en cola 'default'
+        # Sync 2: Mes anterior (offset=1) - delay 20s en cola 'default'
         sync_documents.apply_async(
             kwargs={
                 "company_id": str(company_id),
                 "months": 1,
                 "month_offset": 1
             },
-            countdown=20,
+            countdown=5,
             queue="default"  # Cola rápida para onboarding
         )
         logger.info(
-            f"[Events] sync_documents task triggered (offset=1) "
-            f"for company {company_id} - delayed 20s on 'default' queue"
+            f"[Events] 📥 Sync 2/3: Previous month (offset=1) - "
+            f"delayed 20s on 'default' queue"
         )
 
-        # Mes -2 (offset=2) - ejecutar en 40 segundos en cola 'default'
+        # Sync 3: Historia completa (desde offset=2, N meses calculados)
+        # Va a cola 'low' para no impactar onboarding
         sync_documents.apply_async(
             kwargs={
                 "company_id": str(company_id),
-                "months": 1,
-                "month_offset": 2
+                "months": historical_months,  # Calculado dinámicamente
+                "month_offset": 2  # Empieza desde mes -2 (ya tenemos 0 y 1)
             },
             countdown=40,
-            queue="default"  # Cola rápida para onboarding
+            queue="low"  # Cola lenta para historia
         )
         logger.info(
-            f"[Events] sync_documents task triggered (offset=2) "
-            f"for company {company_id} - delayed 40s on 'default' queue"
+            f"[Events] 📥 Sync 3/3: Historical data ({historical_months} months, offset=2) - "
+            f"delayed 40s on 'low' queue"
         )
     except Exception as e:
-        logger.error(f"[Events] Error triggering sync_documents: {e}")
+        logger.error(f"[Events] ❌ Error triggering sync_documents: {e}")
 
     # 3. Disparar sincronización de formularios F29 (año actual)
     # NOTA: F29 se mantiene en cola 'low' (worker SLOW) según task_routes en config.py

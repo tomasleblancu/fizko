@@ -232,7 +232,7 @@ class SIIAuthService:
 
         # PASO 8: Disparar tareas de sincronización en background (solo para empresas nuevas)
         if is_new_company:
-            await trigger_sync_tasks(company.id)
+            await trigger_sync_tasks(company.id, company_tax_info)
             logger.info(f"[SII Auth Service] Sync tasks triggered for new company {company.id}")
         else:
             logger.info(f"[SII Auth Service] Skipping sync tasks for existing company {company.id}")

@@ -8,58 +8,7 @@ import { useCompanyQuery } from "@/shared/hooks/useCompanyQuery";
 import { useCompanySettings, CompanySettingsUpdate } from "@/shared/hooks/useCompanySettings";
 import { FizkoLoadingScreen } from "@/shared/ui/feedback/FizkoLoadingScreen";
 import { queryKeys } from "@/shared/lib/query-keys";
-
-type SettingValue = boolean | null;
-
-interface Question {
-  key: keyof CompanySettingsUpdate;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-}
-
-const questions: Question[] = [
-  {
-    key: 'has_formal_employees',
-    title: '¿Tiene empleados con contrato de trabajo formal?',
-    description: 'Empleados con contrato indefinido, a plazo fijo o por obra.',
-    icon: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-  },
-  {
-    key: 'has_imports',
-    title: '¿Realiza importaciones?',
-    description: 'Compra de productos o servicios desde el extranjero.',
-    icon: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    ),
-  },
-  {
-    key: 'has_exports',
-    title: '¿Realiza exportaciones?',
-    description: 'Venta de productos o servicios hacia el extranjero.',
-    icon: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
-      </svg>
-    ),
-  },
-  {
-    key: 'has_lease_contracts',
-    title: '¿Tiene contratos de arriendo?',
-    description: 'Arrienda oficinas, locales, bodegas u otros inmuebles.',
-    icon: (
-      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-      </svg>
-    ),
-  },
-];
+import { setupQuestions, getInitialAnswers, type SettingValue } from "../config/setup-questions";
 
 export function CompanySetupPage() {
   const navigate = useNavigate();
@@ -74,13 +23,8 @@ export function CompanySetupPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
 
-  // State for each question - start with null (unanswered)
-  const [answers, setAnswers] = useState<Record<string, SettingValue>>({
-    has_formal_employees: null,
-    has_imports: null,
-    has_exports: null,
-    has_lease_contracts: null,
-  });
+  // State for each question - initialized from config
+  const [answers, setAnswers] = useState<Record<string, SettingValue>>(getInitialAnswers());
 
   // Redirect if not in setup state or missing company
   useEffect(() => {
@@ -93,9 +37,9 @@ export function CompanySetupPage() {
     }
   }, [needsOnboarding, needsInitialSetup, navigate]);
 
-  const currentQuestion = questions[currentStep];
-  const isLastQuestion = currentStep === questions.length - 1;
-  const progress = ((currentStep + 1) / questions.length) * 100;
+  const currentQuestion = setupQuestions[currentStep];
+  const isLastQuestion = currentStep === setupQuestions.length - 1;
+  const progress = ((currentStep + 1) / setupQuestions.length) * 100;
 
   const handleLogoClick = async () => {
     try {
@@ -112,14 +56,22 @@ export function CompanySetupPage() {
       [currentQuestion.key]: value,
     }));
 
-    // Auto-advance to next question after short delay
-    setTimeout(() => {
-      if (isLastQuestion) {
-        // Don't auto-submit, let user click "Finalizar"
-      } else {
-        setCurrentStep(prev => prev + 1);
-      }
-    }, 300);
+    // Auto-advance to next question after short delay (only for boolean questions)
+    if (currentQuestion.type !== 'text') {
+      setTimeout(() => {
+        if (isLastQuestion) {
+          // Don't auto-submit, let user click "Finalizar"
+        } else {
+          setCurrentStep(prev => prev + 1);
+        }
+      }, 300);
+    }
+  };
+
+  const handleNext = () => {
+    if (!isLastQuestion) {
+      setCurrentStep(prev => prev + 1);
+    }
   };
 
   const handleBack = () => {
@@ -213,7 +165,7 @@ export function CompanySetupPage() {
           <div className="mb-6 md:mb-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                {currentStep + 1} de {questions.length}
+                {currentStep + 1} de {setupQuestions.length}
               </span>
             </div>
             <div className="h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
@@ -242,92 +194,124 @@ export function CompanySetupPage() {
 
             {/* Answer Options */}
             <div className="space-y-3">
-              <button
-                onClick={() => handleAnswer(true)}
-                disabled={loading}
-                className={clsx(
-                  'w-full p-4 rounded-lg border text-left transition-all flex items-center gap-3',
-                  answers[currentQuestion.key] === true
-                    ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-900/20 shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-600',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
-                )}
-              >
-                <svg className={clsx(
-                  'h-5 w-5 flex-shrink-0',
-                  answers[currentQuestion.key] === true
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-slate-400 dark:text-slate-500'
-                )} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className={clsx(
-                  'text-base font-medium',
-                  answers[currentQuestion.key] === true
-                    ? 'text-emerald-700 dark:text-emerald-300'
-                    : 'text-slate-700 dark:text-slate-300'
-                )}>
-                  Sí
-                </span>
-              </button>
+              {currentQuestion.type === 'text' ? (
+                <div>
+                  <textarea
+                    value={answers[currentQuestion.key] as string || ''}
+                    onChange={(e) => setAnswers(prev => ({
+                      ...prev,
+                      [currentQuestion.key]: e.target.value,
+                    }))}
+                    placeholder={currentQuestion.placeholder}
+                    maxLength={currentQuestion.maxLength}
+                    disabled={loading}
+                    className={clsx(
+                      'w-full p-4 rounded-lg border transition-all resize-none',
+                      'border-slate-200 bg-white hover:border-emerald-300',
+                      'dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-600',
+                      'text-slate-900 dark:text-slate-100',
+                      'placeholder:text-slate-400 dark:placeholder:text-slate-500',
+                      'focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500',
+                      'disabled:opacity-50 disabled:cursor-not-allowed'
+                    )}
+                    rows={6}
+                  />
+                  {currentQuestion.maxLength && (
+                    <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-right">
+                      {(answers[currentQuestion.key] as string || '').length} / {currentQuestion.maxLength} caracteres
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleAnswer(true)}
+                    disabled={loading}
+                    className={clsx(
+                      'w-full p-4 rounded-lg border text-left transition-all flex items-center gap-3',
+                      answers[currentQuestion.key] === true
+                        ? 'border-emerald-500 bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-900/20 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-600',
+                      'disabled:opacity-50 disabled:cursor-not-allowed'
+                    )}
+                  >
+                    <svg className={clsx(
+                      'h-5 w-5 flex-shrink-0',
+                      answers[currentQuestion.key] === true
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-slate-400 dark:text-slate-500'
+                    )} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className={clsx(
+                      'text-base font-medium',
+                      answers[currentQuestion.key] === true
+                        ? 'text-emerald-700 dark:text-emerald-300'
+                        : 'text-slate-700 dark:text-slate-300'
+                    )}>
+                      Sí
+                    </span>
+                  </button>
 
-              <button
-                onClick={() => handleAnswer(false)}
-                disabled={loading}
-                className={clsx(
-                  'w-full p-4 rounded-lg border text-left transition-all flex items-center gap-3',
-                  answers[currentQuestion.key] === false
-                    ? 'border-slate-400 bg-slate-50 dark:border-slate-500 dark:bg-slate-800/50 shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
-                )}
-              >
-                <svg className={clsx(
-                  'h-5 w-5 flex-shrink-0',
-                  answers[currentQuestion.key] === false
-                    ? 'text-slate-600 dark:text-slate-400'
-                    : 'text-slate-400 dark:text-slate-500'
-                )} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <span className={clsx(
-                  'text-base font-medium',
-                  answers[currentQuestion.key] === false
-                    ? 'text-slate-700 dark:text-slate-300'
-                    : 'text-slate-700 dark:text-slate-300'
-                )}>
-                  No
-                </span>
-              </button>
+                  <button
+                    onClick={() => handleAnswer(false)}
+                    disabled={loading}
+                    className={clsx(
+                      'w-full p-4 rounded-lg border text-left transition-all flex items-center gap-3',
+                      answers[currentQuestion.key] === false
+                        ? 'border-slate-400 bg-slate-50 dark:border-slate-500 dark:bg-slate-800/50 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600',
+                      'disabled:opacity-50 disabled:cursor-not-allowed'
+                    )}
+                  >
+                    <svg className={clsx(
+                      'h-5 w-5 flex-shrink-0',
+                      answers[currentQuestion.key] === false
+                        ? 'text-slate-600 dark:text-slate-400'
+                        : 'text-slate-400 dark:text-slate-500'
+                    )} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <span className={clsx(
+                      'text-base font-medium',
+                      answers[currentQuestion.key] === false
+                        ? 'text-slate-700 dark:text-slate-300'
+                        : 'text-slate-700 dark:text-slate-300'
+                    )}>
+                      No
+                    </span>
+                  </button>
 
-              <button
-                onClick={() => handleAnswer(null)}
-                disabled={loading}
-                className={clsx(
-                  'w-full p-4 rounded-lg border text-left transition-all flex items-center gap-3',
-                  answers[currentQuestion.key] === null
-                    ? 'border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-800/30 shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600',
-                  'disabled:opacity-50 disabled:cursor-not-allowed'
-                )}
-              >
-                <svg className={clsx(
-                  'h-5 w-5 flex-shrink-0',
-                  answers[currentQuestion.key] === null
-                    ? 'text-slate-500 dark:text-slate-400'
-                    : 'text-slate-400 dark:text-slate-500'
-                )} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className={clsx(
-                  'text-base font-medium',
-                  answers[currentQuestion.key] === null
-                    ? 'text-slate-600 dark:text-slate-400'
-                    : 'text-slate-700 dark:text-slate-300'
-                )}>
-                  No estoy seguro
-                </span>
-              </button>
+                  <button
+                    onClick={() => handleAnswer(null)}
+                    disabled={loading}
+                    className={clsx(
+                      'w-full p-4 rounded-lg border text-left transition-all flex items-center gap-3',
+                      answers[currentQuestion.key] === null
+                        ? 'border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-800/30 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600',
+                      'disabled:opacity-50 disabled:cursor-not-allowed'
+                    )}
+                  >
+                    <svg className={clsx(
+                      'h-5 w-5 flex-shrink-0',
+                      answers[currentQuestion.key] === null
+                        ? 'text-slate-500 dark:text-slate-400'
+                        : 'text-slate-400 dark:text-slate-500'
+                    )} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className={clsx(
+                      'text-base font-medium',
+                      answers[currentQuestion.key] === null
+                        ? 'text-slate-600 dark:text-slate-400'
+                        : 'text-slate-700 dark:text-slate-300'
+                    )}>
+                      No estoy seguro
+                    </span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -348,6 +332,22 @@ export function CompanySetupPage() {
                 className="text-sm text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 disabled:opacity-50"
               >
                 ← Anterior
+              </button>
+            )}
+
+            {/* Show "Continuar" button for text questions, "Finalizar" for last question */}
+            {currentQuestion.type === 'text' && !isLastQuestion && (
+              <button
+                onClick={handleNext}
+                disabled={loading}
+                className={clsx(
+                  'ml-auto px-6 py-3 text-base font-medium text-white rounded-lg transition-all',
+                  'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                  'shadow-sm hover:shadow-md'
+                )}
+              >
+                Continuar →
               </button>
             )}
 

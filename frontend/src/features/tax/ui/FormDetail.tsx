@@ -1,4 +1,5 @@
-import { FileText, ArrowLeft, MessageCircle, Download, Calendar, DollarSign } from 'lucide-react';
+import { useState } from 'react';
+import { FileText, ArrowLeft, MessageCircle, Download, Calendar, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
 import clsx from 'clsx';
 import type { F29Form } from "@/shared/hooks/useF29FormsQuery";
 import { ChateableWrapper } from '@/shared/ui/ChateableWrapper';
@@ -12,6 +13,22 @@ interface FormDetailProps {
 }
 
 export function FormDetail({ form, onBack, scheme }: FormDetailProps) {
+  // Estado para controlar qué secciones están expandidas
+  const [expandedSections, setExpandedSections] = useState({
+    cantidades: false,
+    debitos: false,
+    creditos: false,
+    impuestos: false,
+    pagos: true, // Esta sección inicia abierta
+    condonacion: false,
+  });
+
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
 
   const formatAmount = (amountCents: number) => {
     const amount = amountCents;
@@ -225,170 +242,378 @@ export function FormDetail({ form, onBack, scheme }: FormDetailProps) {
           {/* Detailed Breakdown - if available */}
           {form.extra_data?.f29_data?.grouped && (
             <>
-              {/* Débitos Section */}
-              {form.extra_data.f29_data.grouped.debitos && Object.keys(form.extra_data.f29_data.grouped.debitos).length > 0 && (
-                <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <h3 className="mb-3 text-sm font-semibold text-rose-700 dark:text-rose-400">
-                    Débitos Fiscales
-                  </h3>
-                  <div className="space-y-2">
-                    {Object.entries(form.extra_data.f29_data.grouped.debitos)
-                      .filter(([code]) => code !== '538') // Excluir total
-                      .map(([code, data]: [string, any]) => (
-                        <div key={code} className="flex justify-between items-center py-1.5">
-                          <span className="text-xs text-slate-600 dark:text-slate-400">
-                            {data.glosa}
+              {/* Cantidades de Documentos */}
+              {form.extra_data.f29_data.grouped.cantidades && Object.keys(form.extra_data.f29_data.grouped.cantidades).length > 0 && (() => {
+                const totalDocs = Object.values(form.extra_data.f29_data.grouped.cantidades).reduce((sum: number, data: any) => sum + (data.value || 0), 0);
+                return (
+                  <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                    <button
+                      onClick={() => toggleSection('cantidades')}
+                      className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-semibold text-blue-700 dark:text-blue-400">
+                          📋 Cantidades de Documentos
+                        </h3>
+                        {!expandedSections.cantidades && (
+                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            {totalDocs} documentos
                           </span>
-                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                            {formatAmount(data.value)}
-                          </span>
+                        )}
+                      </div>
+                      {expandedSections.cantidades ? (
+                        <ChevronUp className="h-5 w-5 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-slate-400" />
+                      )}
+                    </button>
+                    {expandedSections.cantidades && (
+                      <div className="px-4 pb-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {Object.entries(form.extra_data.f29_data.grouped.cantidades).map(([code, data]: [string, any]) => (
+                            <div key={code} className="flex justify-between items-center py-1.5 px-2 bg-slate-50 dark:bg-slate-800/50 rounded">
+                              <span className="text-xs text-slate-600 dark:text-slate-400">
+                                {data.glosa}
+                              </span>
+                              <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                {data.value}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    {form.extra_data.f29_data.grouped.debitos['538'] && (
-                      <div className="flex justify-between items-center py-2 border-t border-slate-200 dark:border-slate-700 mt-2 pt-2">
-                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          Total Débitos
-                        </span>
-                        <span className="text-base font-bold text-rose-700 dark:text-rose-400">
-                          {formatAmount(form.extra_data.f29_data.grouped.debitos['538'].value)}
-                        </span>
                       </div>
                     )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
+
+              {/* Débitos Section */}
+              {form.extra_data.f29_data.grouped.debitos && Object.keys(form.extra_data.f29_data.grouped.debitos).length > 0 && (() => {
+                const totalDebitos = form.extra_data.f29_data.grouped.debitos['538']?.value || 0;
+                return (
+                  <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                    <button
+                      onClick={() => toggleSection('debitos')}
+                      className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-semibold text-rose-700 dark:text-rose-400">
+                          📈 Débitos Fiscales (IVA a Pagar)
+                        </h3>
+                        {!expandedSections.debitos && (
+                          <span className="text-sm font-bold text-rose-700 dark:text-rose-400">
+                            {formatAmount(totalDebitos)}
+                          </span>
+                        )}
+                      </div>
+                      {expandedSections.debitos ? (
+                        <ChevronUp className="h-5 w-5 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-slate-400" />
+                      )}
+                    </button>
+                    {expandedSections.debitos && (
+                      <div className="px-4 pb-4">
+                        <div className="space-y-2">
+                          {Object.entries(form.extra_data.f29_data.grouped.debitos)
+                            .filter(([code]) => code !== '538') // Excluir total
+                            .map(([code, data]: [string, any]) => (
+                              <div key={code} className="flex justify-between items-center py-1.5">
+                                <span className="text-xs text-slate-600 dark:text-slate-400">
+                                  {data.glosa}
+                                </span>
+                                <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                  {formatAmount(data.value)}
+                                </span>
+                              </div>
+                            ))}
+                          {form.extra_data.f29_data.grouped.debitos['538'] && (
+                            <div className="flex justify-between items-center py-2 border-t border-slate-200 dark:border-slate-700 mt-2 pt-2">
+                              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                Total Débitos
+                              </span>
+                              <span className="text-base font-bold text-rose-700 dark:text-rose-400">
+                                {formatAmount(form.extra_data.f29_data.grouped.debitos['538'].value)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Créditos Section */}
-              {form.extra_data.f29_data.grouped.creditos && Object.keys(form.extra_data.f29_data.grouped.creditos).length > 0 && (
-                <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <h3 className="mb-3 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-                    Créditos Fiscales
-                  </h3>
-                  <div className="space-y-2">
-                    {Object.entries(form.extra_data.f29_data.grouped.creditos)
-                      .filter(([code]) => !['537', '077'].includes(code)) // Excluir total y remanente
-                      .map(([code, data]: [string, any]) => (
-                        <div key={code} className="flex justify-between items-center py-1.5">
-                          <span className="text-xs text-slate-600 dark:text-slate-400">
-                            {data.glosa}
+              {form.extra_data.f29_data.grouped.creditos && Object.keys(form.extra_data.f29_data.grouped.creditos).length > 0 && (() => {
+                const totalCreditos = form.extra_data.f29_data.grouped.creditos['537']?.value || 0;
+                return (
+                  <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                    <button
+                      onClick={() => toggleSection('creditos')}
+                      className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                          💰 Créditos Fiscales (IVA a Favor)
+                        </h3>
+                        {!expandedSections.creditos && (
+                          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                            {formatAmount(totalCreditos)}
                           </span>
-                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                            {formatAmount(data.value)}
-                          </span>
+                        )}
+                      </div>
+                      {expandedSections.creditos ? (
+                        <ChevronUp className="h-5 w-5 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-slate-400" />
+                      )}
+                    </button>
+                    {expandedSections.creditos && (
+                      <div className="px-4 pb-4">
+                        <div className="space-y-2">
+                          {Object.entries(form.extra_data.f29_data.grouped.creditos)
+                            .filter(([code]) => !['537', '077'].includes(code)) // Excluir total y remanente
+                            .map(([code, data]: [string, any]) => (
+                              <div key={code} className="flex justify-between items-center py-1.5">
+                                <span className="text-xs text-slate-600 dark:text-slate-400">
+                                  {data.glosa}
+                                </span>
+                                <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                  {formatAmount(data.value)}
+                                </span>
+                              </div>
+                            ))}
+                          {form.extra_data.f29_data.grouped.creditos['537'] && (
+                            <div className="flex justify-between items-center py-2 border-t border-slate-200 dark:border-slate-700 mt-2 pt-2">
+                              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                Total Créditos
+                              </span>
+                              <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">
+                                {formatAmount(form.extra_data.f29_data.grouped.creditos['537'].value)}
+                              </span>
+                            </div>
+                          )}
+                          {form.extra_data.f29_data.grouped.creditos['077'] && (
+                            <div className="flex justify-between items-center py-2 bg-emerald-50 dark:bg-emerald-900/20 px-3 rounded-lg mt-2">
+                              <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                                Remanente de Crédito Fiscal
+                              </span>
+                              <span className="text-base font-bold text-emerald-800 dark:text-emerald-300">
+                                {formatAmount(form.extra_data.f29_data.grouped.creditos['077'].value)}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      ))}
-                    {form.extra_data.f29_data.grouped.creditos['537'] && (
-                      <div className="flex justify-between items-center py-2 border-t border-slate-200 dark:border-slate-700 mt-2 pt-2">
-                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                          Total Créditos
-                        </span>
-                        <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">
-                          {formatAmount(form.extra_data.f29_data.grouped.creditos['537'].value)}
-                        </span>
-                      </div>
-                    )}
-                    {form.extra_data.f29_data.grouped.creditos['077'] && (
-                      <div className="flex justify-between items-center py-2 bg-emerald-50 dark:bg-emerald-900/20 px-3 rounded-lg mt-2">
-                        <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-                          Remanente de Crédito Fiscal
-                        </span>
-                        <span className="text-base font-bold text-emerald-800 dark:text-emerald-300">
-                          {formatAmount(form.extra_data.f29_data.grouped.creditos['077'].value)}
-                        </span>
                       </div>
                     )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
-              {/* Summary */}
-              {form.extra_data.f29_data.summary && (
-                <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <h3 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Resumen de Impuestos
-                  </h3>
-                  <div className="space-y-2">
-                    {form.extra_data.f29_data.summary.iva_determinado !== undefined && (
-                      <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
-                        <span className="text-sm text-slate-600 dark:text-slate-400">
-                          IVA Determinado
-                        </span>
-                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                          {formatAmount(form.extra_data.f29_data.summary.iva_determinado)}
-                        </span>
+              {/* Impuestos Section */}
+              {form.extra_data.f29_data.grouped.impuestos && Object.keys(form.extra_data.f29_data.grouped.impuestos).length > 0 && (() => {
+                const totalDeterminado = form.extra_data.f29_data.grouped.impuestos['547']?.value ||
+                                        form.extra_data.f29_data.grouped.impuestos['595']?.value || 0;
+                return (
+                  <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                    <button
+                      onClick={() => toggleSection('impuestos')}
+                      className="w-full p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-semibold text-indigo-700 dark:text-indigo-400">
+                          📊 Impuestos y Base Imponible
+                        </h3>
+                        {!expandedSections.impuestos && (
+                          <span className="text-sm font-bold text-indigo-700 dark:text-indigo-400">
+                            {formatAmount(totalDeterminado)}
+                          </span>
+                        )}
                       </div>
-                    )}
+                      {expandedSections.impuestos ? (
+                        <ChevronUp className="h-5 w-5 text-slate-400" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-slate-400" />
+                      )}
+                    </button>
+                    {expandedSections.impuestos && (
+                      <div className="px-4 pb-4">
+                        <div className="space-y-2">
+                          {Object.entries(form.extra_data.f29_data.grouped.impuestos).map(([code, data]: [string, any]) => {
+                            // Formato especial para porcentajes (tasa_ppm)
+                            const isPercentage = code === '115';
+                            const formattedValue = isPercentage
+                              ? `${(data.value * 100).toFixed(1)}%`
+                              : formatAmount(data.value);
 
-                    {form.extra_data.f29_data.summary.ppm_neto !== undefined && form.extra_data.f29_data.summary.ppm_neto !== 0 && (
-                      <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
-                        <span className="text-sm text-slate-600 dark:text-slate-400">
-                          PPM Neto Determinado
-                        </span>
-                        <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                          {formatAmount(form.extra_data.f29_data.summary.ppm_neto)}
-                        </span>
-                      </div>
-                    )}
-
-                    {form.extra_data.f29_data.summary.total_determinado !== undefined && (
-                      <div className="flex justify-between items-center py-2 bg-blue-50 dark:bg-blue-900/20 px-3 rounded-lg mt-2">
-                        <span className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                          Total Determinado
-                        </span>
-                        <span className="text-lg font-bold text-blue-800 dark:text-blue-300">
-                          {formatAmount(form.extra_data.f29_data.summary.total_determinado)}
-                        </span>
+                            return (
+                              <div key={code} className="flex justify-between items-center py-1.5">
+                                <span className="text-xs text-slate-600 dark:text-slate-400">
+                                  {data.glosa}
+                                </span>
+                                <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                  {formattedValue}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
+
+              {/* Totales a Pagar */}
+              {form.extra_data.f29_data.grouped.pagos && Object.keys(form.extra_data.f29_data.grouped.pagos).length > 0 && (() => {
+                const totalPagar = form.extra_data.f29_data.grouped.pagos['91']?.value || 0;
+                return (
+                  <div className="rounded-lg border border-orange-200 bg-orange-50/50 dark:border-orange-900/30 dark:bg-orange-900/10">
+                    <button
+                      onClick={() => toggleSection('pagos')}
+                      className="w-full p-4 flex items-center justify-between hover:bg-orange-100/50 dark:hover:bg-orange-900/20 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-400">
+                          💳 Totales a Pagar
+                        </h3>
+                        {!expandedSections.pagos && (
+                          <span className="text-sm font-bold text-orange-900 dark:text-orange-300">
+                            {formatAmount(totalPagar)}
+                          </span>
+                        )}
+                      </div>
+                      {expandedSections.pagos ? (
+                        <ChevronUp className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                      )}
+                    </button>
+                    {expandedSections.pagos && (
+                      <div className="px-4 pb-4">
+                        <div className="space-y-2">
+                    {/* Orden específico para mostrar los campos */}
+                    {form.extra_data.f29_data.grouped.pagos['91'] && (
+                      <div className="flex justify-between items-center py-1.5">
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
+                          {form.extra_data.f29_data.grouped.pagos['91'].glosa}
+                        </span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          {formatAmount(form.extra_data.f29_data.grouped.pagos['91'].value)}
+                        </span>
+                      </div>
+                    )}
+
+                    {form.extra_data.f29_data.grouped.pagos['92'] && (
+                      <div className="flex justify-between items-center py-1.5">
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
+                          {form.extra_data.f29_data.grouped.pagos['92'].glosa}
+                        </span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          {formatAmount(form.extra_data.f29_data.grouped.pagos['92'].value)}
+                        </span>
+                      </div>
+                    )}
+
+                    {form.extra_data.f29_data.grouped.pagos['93'] && (
+                      <div className="flex justify-between items-center py-1.5">
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
+                          {form.extra_data.f29_data.grouped.pagos['93'].glosa}
+                        </span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          {formatAmount(form.extra_data.f29_data.grouped.pagos['93'].value)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Condonación - aplicada sobre intereses y multas */}
+                    {form.extra_data.f29_data.grouped.pagos['795'] && (
+                      <div className="flex justify-between items-center py-1.5 bg-purple-50 dark:bg-purple-900/20 px-2 rounded">
+                        <span className="text-xs text-slate-600 dark:text-slate-400">
+                          {form.extra_data.f29_data.grouped.pagos['795'].glosa}
+                        </span>
+                        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                          {formatAmount(form.extra_data.f29_data.grouped.pagos['795'].value)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Total con recargo */}
+                    {form.extra_data.f29_data.grouped.pagos['94'] && (
+                      <div className="flex justify-between items-center py-2 border-t border-orange-300 dark:border-orange-800 mt-2 pt-2">
+                        <span className="text-sm font-semibold text-orange-800 dark:text-orange-300">
+                          {form.extra_data.f29_data.grouped.pagos['94'].glosa}
+                        </span>
+                        <span className="text-base font-bold text-orange-900 dark:text-orange-300">
+                          {formatAmount(form.extra_data.f29_data.grouped.pagos['94'].value)}
+                        </span>
+                      </div>
+                    )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Detalles de Condonación */}
               {form.extra_data.f29_data.grouped.pagos && (
-                (form.extra_data.f29_data.grouped.pagos['60'] ||
-                 form.extra_data.f29_data.grouped.pagos['922'] ||
-                 form.extra_data.f29_data.grouped.pagos['915']) && (
-                  <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                    <h3 className="mb-3 text-sm font-semibold text-purple-700 dark:text-purple-400">
-                      Detalles de Condonación
-                    </h3>
-                    <div className="space-y-2">
-                      {form.extra_data.f29_data.grouped.pagos['60'] && (
-                        <div className="flex justify-between items-center py-1.5">
-                          <span className="text-xs text-slate-600 dark:text-slate-400">
-                            {form.extra_data.f29_data.grouped.pagos['60'].glosa}
-                          </span>
-                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                            {form.extra_data.f29_data.grouped.pagos['60'].value}
-                          </span>
+                (form.extra_data.f29_data.grouped.pagos['922'] ||
+                 form.extra_data.f29_data.grouped.pagos['915']) && (() => {
+                  const porcCondonacion = form.extra_data.f29_data.grouped.pagos['922']?.value;
+                  return (
+                    <div className="rounded-lg border border-purple-200 bg-purple-50/50 dark:border-purple-900/30 dark:bg-purple-900/10">
+                      <button
+                        onClick={() => toggleSection('condonacion')}
+                        className="w-full p-4 flex items-center justify-between hover:bg-purple-100/50 dark:hover:bg-purple-900/20 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-sm font-semibold text-purple-800 dark:text-purple-400">
+                            🎁 Detalles de Condonación
+                          </h3>
+                          {!expandedSections.condonacion && porcCondonacion && (
+                            <span className="text-sm font-bold text-purple-900 dark:text-purple-300">
+                              {porcCondonacion}%
+                            </span>
+                          )}
                         </div>
-                      )}
+                        {expandedSections.condonacion ? (
+                          <ChevronUp className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                        ) : (
+                          <ChevronDown className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                        )}
+                      </button>
+                      {expandedSections.condonacion && (
+                        <div className="px-4 pb-4">
+                          <div className="space-y-2">
+                            {form.extra_data.f29_data.grouped.pagos['922'] && (
+                              <div className="flex justify-between items-center py-1.5">
+                                <span className="text-xs text-slate-600 dark:text-slate-400">
+                                  {form.extra_data.f29_data.grouped.pagos['922'].glosa}
+                                </span>
+                                <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                  {form.extra_data.f29_data.grouped.pagos['922'].value}%
+                                </span>
+                              </div>
+                            )}
 
-                      {form.extra_data.f29_data.grouped.pagos['922'] && (
-                        <div className="flex justify-between items-center py-1.5">
-                          <span className="text-xs text-slate-600 dark:text-slate-400">
-                            {form.extra_data.f29_data.grouped.pagos['922'].glosa}
-                          </span>
-                          <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                            {form.extra_data.f29_data.grouped.pagos['922'].value}%
-                          </span>
-                        </div>
-                      )}
-
-                      {form.extra_data.f29_data.grouped.pagos['915'] && (
-                        <div className="flex justify-between items-center py-1.5">
-                          <span className="text-xs text-slate-600 dark:text-slate-400">
-                            {form.extra_data.f29_data.grouped.pagos['915'].glosa}
-                          </span>
-                          <span className="text-sm font-medium font-mono text-slate-900 dark:text-slate-100">
-                            {form.extra_data.f29_data.grouped.pagos['915'].value}
-                          </span>
+                            {form.extra_data.f29_data.grouped.pagos['915'] && (
+                              <div className="flex justify-between items-center py-1.5">
+                                <span className="text-xs text-slate-600 dark:text-slate-400">
+                                  {form.extra_data.f29_data.grouped.pagos['915'].glosa}
+                                </span>
+                                <span className="text-sm font-medium font-mono text-slate-900 dark:text-slate-100">
+                                  {form.extra_data.f29_data.grouped.pagos['915'].value}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
-                  </div>
-                )
+                  );
+                })()
               )}
             </>
           )}

@@ -26,7 +26,7 @@ class SalesDocumentRepository(BaseRepository[SalesDocument]):
         status: Optional[str] = None,
         recipient_rut: Optional[str] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: Optional[int] = 100
     ) -> List[SalesDocument]:
         """
         Find sales documents by company with filters.
@@ -64,7 +64,11 @@ class SalesDocumentRepository(BaseRepository[SalesDocument]):
             query = query.where(SalesDocument.recipient_rut == recipient_rut)
 
         query = query.order_by(desc(SalesDocument.issue_date))
-        query = query.offset(skip).limit(limit)
+        query = query.offset(skip)
+
+        # Only apply limit if provided (None = fetch all)
+        if limit is not None:
+            query = query.limit(limit)
 
         result = await self.db.execute(query)
         return list(result.scalars().all())

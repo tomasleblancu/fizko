@@ -19,6 +19,8 @@ export interface CompanySettings {
   has_imports: boolean | null;
   has_exports: boolean | null;
   has_lease_contracts: boolean | null;
+  has_bank_loans: boolean | null;
+  business_description: string | null;
   is_initial_setup_complete: boolean;
   initial_setup_completed_at: string | null;
   created_at?: string;
@@ -30,6 +32,8 @@ export interface CompanySettingsUpdate {
   has_imports?: boolean | null;
   has_exports?: boolean | null;
   has_lease_contracts?: boolean | null;
+  has_bank_loans?: boolean | null;
+  business_description?: string | null;
 }
 
 interface CompanySettingsResponse {
@@ -89,6 +93,8 @@ export function useCompanySettings(companyId: string | null) {
             has_imports: null,
             has_exports: null,
             has_lease_contracts: null,
+            has_bank_loans: null,
+            business_description: null,
             is_initial_setup_complete: false,
             initial_setup_completed_at: null,
           };

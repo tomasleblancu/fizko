@@ -263,6 +263,8 @@ class CompanySettings(Base):
     has_imports: Mapped[Optional[bool]] = mapped_column(nullable=True)
     has_exports: Mapped[Optional[bool]] = mapped_column(nullable=True)
     has_lease_contracts: Mapped[Optional[bool]] = mapped_column(nullable=True)
+    has_bank_loans: Mapped[Optional[bool]] = mapped_column(nullable=True)
+    business_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Setup tracking
     is_initial_setup_complete: Mapped[bool] = mapped_column(default=False)

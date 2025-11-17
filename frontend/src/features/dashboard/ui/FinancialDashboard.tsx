@@ -6,6 +6,7 @@ import { useCalendarQuery } from "@/shared/hooks/useCalendarQuery";
 import { CompanyInfoCard } from './CompanyInfoCard';
 import { TaxCalendar } from './TaxCalendar';
 import { RecentDocumentsCard } from './RecentDocumentsCard';
+import { RecentDocumentsCardInfinite } from './RecentDocumentsCardInfinite';
 import { DualPeriodSummary } from './DualPeriodSummary';
 import { ViewContainer } from '@/shared/layouts/ViewContainer';
 import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
@@ -125,14 +126,24 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
         )}
 
         <div className="py-4">
-          <RecentDocumentsCard
-            documents={documents}
-            loading={isInitialLoading}
-            scheme={scheme}
-            isExpanded={isDocumentsExpanded}
-            onToggleExpand={() => setIsDocumentsExpanded(!isDocumentsExpanded)}
-            isInDrawer={true}
-          />
+          {isDocumentsExpanded ? (
+            <RecentDocumentsCardInfinite
+              companyId={activeCompanyId}
+              scheme={scheme}
+              isExpanded={isDocumentsExpanded}
+              onToggleExpand={() => setIsDocumentsExpanded(!isDocumentsExpanded)}
+              isInDrawer={true}
+            />
+          ) : (
+            <RecentDocumentsCard
+              documents={documents}
+              loading={isInitialLoading}
+              scheme={scheme}
+              isExpanded={isDocumentsExpanded}
+              onToggleExpand={() => setIsDocumentsExpanded(!isDocumentsExpanded)}
+              isInDrawer={true}
+            />
+          )}
         </div>
       </div>
     );
@@ -188,11 +199,10 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
 
         {/* Tax Calendar and Documents - Side by side or Documents expanded */}
         {isDocumentsExpanded ? (
-          /* Documents expanded - takes full width */
+          /* Documents expanded - takes full width with infinite scroll */
           <div className="flex-1 min-h-0">
-            <RecentDocumentsCard
-              documents={documents}
-              loading={isInitialLoading}
+            <RecentDocumentsCardInfinite
+              companyId={activeCompanyId}
               scheme={scheme}
               isExpanded={isDocumentsExpanded}
               onToggleExpand={() => setIsDocumentsExpanded(!isDocumentsExpanded)}

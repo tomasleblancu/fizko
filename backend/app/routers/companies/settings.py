@@ -42,6 +42,8 @@ class CompanySettingsUpdate(BaseModel):
     has_imports: Optional[bool] = None
     has_exports: Optional[bool] = None
     has_lease_contracts: Optional[bool] = None
+    has_bank_loans: Optional[bool] = None
+    business_description: Optional[str] = None
 
 
 class CompanySettingsResponse(BaseModel):
@@ -52,6 +54,8 @@ class CompanySettingsResponse(BaseModel):
     has_imports: Optional[bool]
     has_exports: Optional[bool]
     has_lease_contracts: Optional[bool]
+    has_bank_loans: Optional[bool]
+    business_description: Optional[str]
     is_initial_setup_complete: bool
     initial_setup_completed_at: Optional[str]
     created_at: str
@@ -101,6 +105,8 @@ async def get_company_settings(
                 "has_imports": None,
                 "has_exports": None,
                 "has_lease_contracts": None,
+                "has_bank_loans": None,
+                "business_description": None,
                 "is_initial_setup_complete": False,
                 "initial_setup_completed_at": None,
             },
@@ -115,6 +121,8 @@ async def get_company_settings(
             "has_imports": settings.has_imports,
             "has_exports": settings.has_exports,
             "has_lease_contracts": settings.has_lease_contracts,
+            "has_bank_loans": settings.has_bank_loans,
+            "business_description": settings.business_description,
             "is_initial_setup_complete": settings.is_initial_setup_complete,
             "initial_setup_completed_at": settings.initial_setup_completed_at.isoformat() if settings.initial_setup_completed_at else None,
             "created_at": settings.created_at.isoformat(),
@@ -176,6 +184,8 @@ async def create_or_update_company_settings(
             existing_settings.has_imports is not None or update_data.get('has_imports') is not None,
             existing_settings.has_exports is not None or update_data.get('has_exports') is not None,
             existing_settings.has_lease_contracts is not None or update_data.get('has_lease_contracts') is not None,
+            existing_settings.has_bank_loans is not None or update_data.get('has_bank_loans') is not None,
+            existing_settings.business_description is not None or update_data.get('business_description') is not None,
         ])
 
         if has_any_setting:
@@ -190,6 +200,8 @@ async def create_or_update_company_settings(
             update_data.get('has_imports') is not None,
             update_data.get('has_exports') is not None,
             update_data.get('has_lease_contracts') is not None,
+            update_data.get('has_bank_loans') is not None,
+            update_data.get('business_description') is not None,
         ])
 
         if has_any_setting:
@@ -222,6 +234,8 @@ async def create_or_update_company_settings(
             "has_imports": settings.has_imports,
             "has_exports": settings.has_exports,
             "has_lease_contracts": settings.has_lease_contracts,
+            "has_bank_loans": settings.has_bank_loans,
+            "business_description": settings.business_description,
             "is_initial_setup_complete": settings.is_initial_setup_complete,
             "initial_setup_completed_at": settings.initial_setup_completed_at.isoformat() if settings.initial_setup_completed_at else None,
             "created_at": settings.created_at.isoformat(),

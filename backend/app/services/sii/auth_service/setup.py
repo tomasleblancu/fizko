@@ -3,7 +3,7 @@ Módulo de setup de Company, CompanyTaxInfo y Session
 """
 import logging
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -12,6 +12,35 @@ from app.db.models import Company, CompanyTaxInfo, CompanySettings, Profile, Ses
 from app.db.models.subscriptions import Subscription, SubscriptionPlan
 
 logger = logging.getLogger(__name__)
+
+
+def parse_chilean_date(date_str: Optional[str]) -> Optional[date]:
+    """
+    Parsea fecha en formato chileno DD/MM/YYYY o formato ISO YYYY-MM-DD a objeto date.
+
+    Args:
+        date_str: Fecha en formato "DD/MM/YYYY" (ej: "15/03/2020")
+                  o formato ISO "YYYY-MM-DD HH:MM:SS.f" (ej: "2020-03-31 00:00:00.0")
+
+    Returns:
+        Objeto date o None si no se puede parsear
+    """
+    if not date_str:
+        return None
+
+    try:
+        # Intentar formato ISO primero (YYYY-MM-DD con posible timestamp)
+        # Ejemplo: "2020-03-31 00:00:00.0" o "2020-03-31"
+        if '-' in date_str:
+            # Extraer solo la parte de fecha (ignorar timestamp)
+            date_part = date_str.split()[0]  # "2020-03-31"
+            return datetime.strptime(date_part, "%Y-%m-%d").date()
+        else:
+            # Formato chileno: DD/MM/YYYY
+            return datetime.strptime(date_str, "%d/%m/%Y").date()
+    except (ValueError, AttributeError) as e:
+        logger.warning(f"Could not parse date '{date_str}': {e}")
+        return None
 
 
 async def ensure_profile(
@@ -152,6 +181,13 @@ async def setup_tax_info(
     actividades = contribuyente_info.get('actividades', [])
     actividad_principal = actividades[0] if actividades else {}
 
+    # Parsear fecha de inicio de actividades
+    fecha_inicio_raw = contribuyente_info.get('fecha_inicio_actividades')
+    logger.info(f"[Setup] Raw fecha_inicio_actividades from SII: '{fecha_inicio_raw}' (type: {type(fecha_inicio_raw).__name__})")
+
+    start_date = parse_chilean_date(fecha_inicio_raw)
+    logger.info(f"[Setup] Parsed start_of_activities_date: {start_date}")
+
     # Buscar tax info existente
     stmt = select(CompanyTaxInfo).where(CompanyTaxInfo.company_id == company_id)
     result = await db.execute(stmt)
@@ -164,6 +200,7 @@ async def setup_tax_info(
             tax_regime='regimen_general',  # Default
             sii_activity_code=actividad_principal.get('codigo', None),
             sii_activity_name=actividad_principal.get('descripcion', None),
+            start_of_activities_date=start_date,  # Parsear y asignar fecha de inicio
             legal_representative_name=None,  # El SII no provee representante legal
             extra_data={
                 'sii_info': contribuyente_info,
@@ -185,6 +222,8 @@ async def setup_tax_info(
             'descripcion',
             company_tax_info.sii_activity_name
         )
+        # Actualizar fecha de inicio de actividades
+        company_tax_info.start_of_activities_date = start_date
 
         # Actualizar extra_data con nueva info del SII
         extra_data = company_tax_info.extra_data or {}

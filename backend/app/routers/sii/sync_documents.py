@@ -52,15 +52,16 @@ class SyncRecentRequest(BaseModel):
 
 
 class SyncResponse(BaseModel):
-    """Respuesta de sincronización completada"""
-    status: str = Field(..., description="Estado: 'completed' o 'error'")
+    """Respuesta de sincronización completada o despachada"""
+    status: str = Field(..., description="Estado: 'dispatched', 'completed' o 'error'")
     message: str = Field(..., description="Mensaje descriptivo")
     session_id: str = Field(..., description="ID de sesión SII")
     months: int = Field(..., description="Meses sincronizados")
-    compras: Dict[str, int] = Field(..., description="Estadísticas de compras")
-    ventas: Dict[str, int] = Field(..., description="Estadísticas de ventas")
-    duration_seconds: float = Field(..., description="Duración en segundos")
-    errors: int = Field(..., description="Número de errores")
+    task_id: str | None = Field(None, description="ID de tarea Celery (si está despachada)")
+    compras: Dict[str, int] | None = Field(None, description="Estadísticas de compras (si está completada)")
+    ventas: Dict[str, int] | None = Field(None, description="Estadísticas de ventas (si está completada)")
+    duration_seconds: float | None = Field(None, description="Duración en segundos (si está completada)")
+    errors: int | None = Field(None, description="Número de errores (si está completada)")
 
 
 @router.post("", response_model=SyncResponse)
@@ -70,13 +71,13 @@ async def sync_documents(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Sincroniza documentos tributarios de forma síncrona
+    Despacha sincronización de documentos tributarios a Celery
 
     Esta sincronización extrae documentos de compra y venta de los últimos
     N meses desde el SII y los almacena en la base de datos.
 
-    El proceso es síncrono, por lo que la respuesta se devuelve cuando
-    la sincronización ha finalizado completamente.
+    El proceso es ASÍNCRONO: la tarea se despacha a Celery y se retorna
+    inmediatamente con un task_id para tracking.
 
     Args:
         request: Parámetros de sincronización (session_id, months)
@@ -84,7 +85,7 @@ async def sync_documents(
         db: Sesión de base de datos
 
     Returns:
-        SyncResponse con resultado de la sincronización
+        SyncResponse con task_id de Celery
 
     Example:
         ```json
@@ -98,14 +99,11 @@ async def sync_documents(
         Response:
         ```json
         {
-            "status": "completed",
-            "message": "Sincronización completada exitosamente",
+            "status": "dispatched",
+            "message": "Sincronización de 3 mes(es) despachada exitosamente",
             "session_id": "550e8400-e29b-41d4-a716-446655440000",
             "months": 3,
-            "compras": {"total": 10, "nuevos": 8, "actualizados": 2},
-            "ventas": {"total": 15, "nuevos": 12, "actualizados": 3},
-            "duration_seconds": 12.5,
-            "errors": 0
+            "task_id": "abc123-task-id"
         }
         ```
     """
@@ -118,33 +116,37 @@ async def sync_documents(
     session = await validate_session_access(request.session_id, current_user_id, db)
 
     try:
-        # Ejecutar sincronización de forma síncrona
-        sync_service = SIISyncService(db)
-        result = await sync_service.sync_last_n_months(
-            session_id=request.session_id,
-            months=request.months
+        # Importar tarea de Celery
+        from app.infrastructure.celery.tasks.sii.documents import sync_documents as sync_documents_task
+
+        # Despachar tarea en background a Celery
+        task_result = sync_documents_task.apply_async(
+            kwargs={
+                "company_id": str(session.company_id),
+                "months": request.months,
+                "month_offset": 0  # Sync desde mes actual
+            },
+            queue="default"  # Cola rápida para sync manual
         )
 
-        # Commit de cambios
-        await db.commit()
+        logger.info(
+            f"✅ Document sync task dispatched: task_id={task_result.id}, "
+            f"company_id={session.company_id}, months={request.months}"
+        )
 
         return SyncResponse(
-            status="completed",
-            message=f"Sincronización de {request.months} meses completada exitosamente",
+            status="dispatched",
+            message=f"Sincronización de {request.months} mes(es) despachada exitosamente",
             session_id=str(request.session_id),
             months=request.months,
-            compras=result["compras"],
-            ventas=result["ventas"],
-            duration_seconds=result["duration_seconds"],
-            errors=len(result.get("errors", []))
+            task_id=task_result.id
         )
 
     except Exception as e:
-        await db.rollback()
-        logger.error(f"❌ Document sync failed: {e}", exc_info=True)
+        logger.error(f"❌ Failed to dispatch document sync task: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error en sincronización: {str(e)}"
+            detail=f"Error al despachar sincronización: {str(e)}"
         )
 
 

@@ -26,7 +26,7 @@ class PurchaseDocumentRepository(BaseRepository[PurchaseDocument]):
         status: Optional[str] = None,
         sender_rut: Optional[str] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: Optional[int] = 100
     ) -> List[PurchaseDocument]:
         """
         Find purchase documents by company with filters.
@@ -64,7 +64,11 @@ class PurchaseDocumentRepository(BaseRepository[PurchaseDocument]):
             query = query.where(PurchaseDocument.sender_rut == sender_rut)
 
         query = query.order_by(desc(PurchaseDocument.issue_date))
-        query = query.offset(skip).limit(limit)
+        query = query.offset(skip)
+
+        # Only apply limit if provided (None = fetch all)
+        if limit is not None:
+            query = query.limit(limit)
 
         result = await self.db.execute(query)
         return list(result.scalars().all())

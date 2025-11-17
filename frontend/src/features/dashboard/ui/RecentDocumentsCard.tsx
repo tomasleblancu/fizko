@@ -234,8 +234,17 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
       isInDrawer ? "" : "rounded-2xl border border-slate-200/70 bg-white/90 p-6 dark:border-slate-800/70 dark:bg-slate-900/70"
     )} style={{ boxSizing: 'border-box' }}>
       <div className="mb-4 flex flex-shrink-0 flex-col gap-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+        {/* Header - Clickeable para expandir/contraer */}
+        <div
+          className={clsx(
+            "flex items-center justify-between",
+            onToggleExpand && documents.length > 0 && "cursor-pointer group"
+          )}
+          onClick={onToggleExpand && documents.length > 0 ? onToggleExpand : undefined}
+          role={onToggleExpand && documents.length > 0 ? "button" : undefined}
+          aria-label={onToggleExpand && documents.length > 0 ? (isExpanded ? "Contraer lista" : "Expandir lista") : undefined}
+          title={onToggleExpand && documents.length > 0 ? (isExpanded ? "Ver menos" : hasMore ? `Ver todos (${filteredDocuments.length})` : "Expandir vista") : undefined}
+        >
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-emerald-500" />
             <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
@@ -249,18 +258,13 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
           </div>
           <div className="flex items-center gap-2">
             {onToggleExpand && documents.length > 0 && (
-              <button
-                onClick={onToggleExpand}
-                className="group rounded-lg p-1.5 transition-all duration-300 hover:bg-emerald-50 hover:scale-110 active:scale-95 dark:hover:bg-emerald-950/30"
-                aria-label={isExpanded ? "Contraer lista" : "Expandir lista"}
-                title={isExpanded ? "Ver menos" : hasMore ? `Ver todos (${filteredDocuments.length})` : "Expandir vista"}
-              >
+              <div className="transition-all duration-300">
                 {isExpanded ? (
                   <Minimize2 className="h-5 w-5 text-slate-600 dark:text-slate-400 transition-all duration-300 group-hover:text-emerald-600 group-hover:rotate-90 dark:group-hover:text-emerald-400" />
                 ) : (
-                  <Maximize2 className="h-5 w-5 text-slate-600 dark:text-slate-400 transition-all duration-300 group-hover:text-emerald-600 group-hover:rotate-90 dark:group-hover:text-emerald-400" />
+                  <Maximize2 className="h-5 w-5 text-slate-600 dark:text-slate-400 transition-all duration-300 group-hover:text-emerald-600 group-hover:rotate-180 dark:group-hover:text-emerald-400" />
                 )}
-              </button>
+              </div>
             )}
           </div>
         </div>
@@ -346,7 +350,7 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
               {groupDocumentsByDate(displayedDocuments).map(({ date, docs }) => (
                 <div key={date}>
                   {/* Date header */}
-                  <div className="sticky top-0 z-10 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 backdrop-blur-sm -mx-2 px-2 py-2 mb-3 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50">
+                  <div className="sticky top-0 z-10 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 backdrop-blur-sm -mx-2 px-4 py-2 mb-3 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50">
                     <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
                       {formatFullDate(date)}
                     </h4>
@@ -435,7 +439,7 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
               {groupDocumentsByDate(displayedDocuments).map(({ date, docs }) => (
                 <div key={date}>
                   {/* Date header */}
-                  <div className="sticky top-0 z-10 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 backdrop-blur-sm -mx-2 px-2 py-2 mb-3 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50">
+                  <div className="sticky top-0 z-10 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 backdrop-blur-sm -mx-2 px-4 py-2 mb-3 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50">
                     <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
                       {formatFullDate(date)}
                     </h4>
@@ -524,7 +528,7 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
               {groupDocumentsByDate(displayedDocuments).map(({ date, docs }) => (
                 <div key={date}>
                   {/* Date header */}
-                  <div className="sticky top-0 z-10 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 backdrop-blur-sm -mx-2 px-2 py-2 mb-3 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50">
+                  <div className="sticky top-0 z-10 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 backdrop-blur-sm -mx-2 px-4 py-2 mb-3 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50">
                     <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
                       {formatFullDate(date)}
                     </h4>

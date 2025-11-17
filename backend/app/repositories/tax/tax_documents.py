@@ -30,6 +30,7 @@ class TaxDocumentRepository:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         limit: int = 10,
+        offset: int = 0,
         contact_rut: Optional[str] = None
     ) -> List[dict]:
         """
@@ -40,35 +41,36 @@ class TaxDocumentRepository:
             start_date: Filter by date >= start_date
             end_date: Filter by date <= end_date
             limit: Max total results
+            offset: Number of documents to skip (for pagination)
             contact_rut: Filter by contact RUT (sender for purchases, recipient for sales)
 
         Returns:
             List of unified document dictionaries
         """
-        # Get purchases
+        # Get purchases (fetch all, pagination happens after merge+sort)
         purchases = await self.purchases.find_by_company(
             company_id=company_id,
             start_date=start_date,
             end_date=end_date,
-            limit=limit,
+            limit=None,  # Fetch all to enable proper pagination after sorting
             sender_rut=contact_rut  # Filter by provider RUT
         )
 
-        # Get sales
+        # Get sales (fetch all, pagination happens after merge+sort)
         sales = await self.sales.find_by_company(
             company_id=company_id,
             start_date=start_date,
             end_date=end_date,
-            limit=limit,
+            limit=None,  # Fetch all to enable proper pagination after sorting
             recipient_rut=contact_rut  # Filter by client RUT
         )
 
-        # Get honorarios
+        # Get honorarios (fetch all, pagination happens after merge+sort)
         honorarios = await self.honorarios.find_by_company(
             company_id=company_id,
             start_date=start_date,
             end_date=end_date,
-            limit=limit,
+            limit=None,  # Fetch all to enable proper pagination after sorting
             issuer_rut=contact_rut  # Filter by issuer RUT
         )
 
@@ -143,8 +145,8 @@ class TaxDocumentRepository:
         # Sort by issue date descending
         all_docs.sort(key=lambda x: x['issue_date'], reverse=True)
 
-        # Return limited results
-        return all_docs[:limit]
+        # Apply offset and limit for pagination
+        return all_docs[offset:offset + limit]
 
     async def get_period_summary(
         self,
