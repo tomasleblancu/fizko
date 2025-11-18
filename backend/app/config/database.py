@@ -81,8 +81,9 @@ if DATABASE_URL.count('/') < 3:
 # We'll pass SSL via connect_args instead
 import re
 
-# Determine if this is a localhost connection
+# Determine if this is a localhost connection OR local development environment
 is_local = "localhost" in DATABASE_URL or "127.0.0.1" in DATABASE_URL
+is_dev_environment = os.getenv("ENVIRONMENT", "production") == "development"
 
 # Detect if using pgbouncer connection pooler (port 6543) or direct connection (port 5432)
 # Port 6543 = transaction mode (incompatible with prepared statements)
@@ -160,9 +161,9 @@ if "pooler.supabase.com" in DATABASE_URL:
         async_max_overflow = 1  # Max 2 connections per Celery worker
         logger.warning("⚠️  Celery worker: Using minimal pool (1+1) to prioritize FastAPI")
     else:
-        async_pool_size = 2  # FastAPI: normal pool
-        async_max_overflow = 1  # Max 3 connections per FastAPI worker
-        logger.warning("⚠️  FastAPI: Using small connection pool (2+1) per process")
+        async_pool_size = 3  # FastAPI: moderate pool for concurrent requests
+        async_max_overflow = 5  # Allow up to 8 connections per worker under load
+        logger.warning("⚠️  FastAPI: Using moderate pool (3+5) per worker")
 
     logger.warning("⚠️  Session mode (port 5432) recommended over transaction mode (port 6543)")
 
@@ -228,9 +229,9 @@ if is_using_pooler:
         sync_max_overflow = 0  # No overflow for Celery
         logger.info("Sync engine (Celery): Minimal pool (1+0) for Selenium tasks")
     else:
-        sync_pool_size = 2  # FastAPI: unlikely to use sync, but keep small
-        sync_max_overflow = 1
-        logger.info("Sync engine (FastAPI): Small pool (2+1) for pgbouncer compatibility")
+        sync_pool_size = 3  # FastAPI: moderate pool (rarely used, but available)
+        sync_max_overflow = 5
+        logger.info("Sync engine (FastAPI): Moderate pool (3+5) for compatibility")
     sync_pool_recycle = 300
 else:
     logger.info("Sync engine: Using standard pool (5+10) for direct connection")
