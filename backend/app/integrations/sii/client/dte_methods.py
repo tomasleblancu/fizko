@@ -19,7 +19,8 @@ class DTEMethods(ContribuyenteMethods):
     def get_compras(
         self,
         periodo: str,
-        tipo_doc: str = "33"
+        tipo_doc: str = "33",
+        estado_contab: str = "REGISTRO"
     ) -> Dict[str, Any]:
         """
         Obtiene documentos de compra vía API del SII
@@ -27,6 +28,7 @@ class DTEMethods(ContribuyenteMethods):
         Args:
             periodo: Período tributario (formato YYYYMM, ej: "202501")
             tipo_doc: Código tipo documento (default "33" = factura electrónica)
+            estado_contab: Estado contable (default "REGISTRO", también puede ser "PENDIENTE")
 
         Returns:
             Dict con:
@@ -34,6 +36,7 @@ class DTEMethods(ContribuyenteMethods):
             - data: List[Dict] con documentos
             - extraction_method: str
             - periodo_tributario: str
+            - estado_contab: str
 
         Raises:
             ExtractionError: Si falla la extracción
@@ -48,7 +51,7 @@ class DTEMethods(ContribuyenteMethods):
         # Obtener cookies validadas
         cookies = self.get_cookies()
 
-        return self._dte_extractor.extract_compras(periodo, tipo_doc, cookies)
+        return self._dte_extractor.extract_compras(periodo, tipo_doc, cookies, estado_contab)
 
     def get_ventas(
         self,

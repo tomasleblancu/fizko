@@ -192,59 +192,75 @@ async def _sync_individual_purchases(
     period: str,
     tipo_doc: str
 ) -> Tuple[int, int]:
-    """Sincroniza documentos individuales de compra"""
+    """
+    Sincroniza documentos individuales de compra.
+
+    Extrae documentos en TODOS los estados (PENDIENTE, REGISTRO, NO_INCLUIR, RECLAMADO)
+    para detectar transiciones de estado y establecer accounting_date cuando corresponda.
+    """
     logger.info(f"  📤 Tipo {tipo_doc} tiene detalle - extrayendo documentos individuales")
 
-    result = await sii_service.extract_compras(
-        session_id=session_id,
-        periodo=period,
-        tipo_doc=tipo_doc
-    )
+    # Extraer documentos en todos los estados posibles
+    estados = ["PENDIENTE", "REGISTRO", "NO_INCLUIR", "RECLAMADO"]
+    docs_by_estado = {}
 
-    # Validar que tenemos datos
-    if not result.get("data"):
-        logger.info(f"  ℹ️ No documents found for tipo {tipo_doc}")
-        return 0, 0
+    for estado in estados:
+        try:
+            result = await sii_service.extract_compras(
+                session_id=session_id,
+                periodo=period,
+                tipo_doc=tipo_doc,
+                estado_contab=estado
+            )
+            docs_by_estado[estado] = result.get("data", [])
+        except Exception as e:
+            logger.warning(f"⚠️ Error extracting {estado} documents: {e}")
+            docs_by_estado[estado] = []
 
-    documents = result["data"]
-    logger.info(f"  ✅ Extracted {len(documents)} documents tipo {tipo_doc}")
+    # Log de totales por estado
+    totals_msg = ", ".join([f"{len(docs)} {estado}" for estado, docs in docs_by_estado.items()])
+    logger.info(f"  ✅ Extracted tipo {tipo_doc}: {totals_msg}")
 
     # Preparar datos de todos los documentos
     docs_to_upsert = []
-    for doc in documents:
-        try:
-            folio = doc.get('detNroDoc') or doc.get('folio')
-            if not folio:
-                logger.warning(f"⚠️ Skipping purchase doc without folio: {doc}")
-                continue
 
-            doc_data = parse_purchase_document(
-                company_id=company_id,
-                doc=doc,
-                tipo_doc=tipo_doc
-            )
+    # Procesar documentos de todos los estados
+    for estado, docs in docs_by_estado.items():
+        for doc in docs:
+            try:
+                folio = doc.get('detNroDoc') or doc.get('folio')
+                if not folio:
+                    logger.warning(f"⚠️ Skipping purchase doc without folio: {doc}")
+                    continue
 
-            # Crear o buscar contacto (proveedor) si hay RUT y nombre
-            sender_rut = doc_data.get('sender_rut')
-            sender_name = doc_data.get('sender_name')
-            if sender_rut and sender_name:
-                contact_id = await get_or_create_contact(
-                    db=db,
+                doc_data = parse_purchase_document(
                     company_id=company_id,
-                    rut=sender_rut,
-                    name=sender_name,
-                    contact_type='provider'
+                    doc=doc,
+                    tipo_doc=tipo_doc,
+                    estado_contab=estado
                 )
-                if contact_id:
-                    doc_data['contact_id'] = contact_id
 
-            doc_data['created_at'] = datetime.utcnow()
-            doc_data['updated_at'] = datetime.utcnow()
-            docs_to_upsert.append(doc_data)
+                # Crear o buscar contacto (proveedor) si hay RUT y nombre
+                sender_rut = doc_data.get('sender_rut')
+                sender_name = doc_data.get('sender_name')
+                if sender_rut and sender_name:
+                    contact_id = await get_or_create_contact(
+                        db=db,
+                        company_id=company_id,
+                        rut=sender_rut,
+                        name=sender_name,
+                        contact_type='provider'
+                    )
+                    if contact_id:
+                        doc_data['contact_id'] = contact_id
 
-        except Exception as e:
-            logger.error(f"❌ Error parsing purchase doc {doc.get('detNroDoc')}: {e}")
-            continue
+                doc_data['created_at'] = datetime.utcnow()
+                doc_data['updated_at'] = datetime.utcnow()
+                docs_to_upsert.append(doc_data)
+
+            except Exception as e:
+                logger.error(f"❌ Error parsing {estado} purchase doc {doc.get('detNroDoc')}: {e}")
+                continue
 
     if not docs_to_upsert:
         logger.warning("⚠️ No valid purchase documents to save")

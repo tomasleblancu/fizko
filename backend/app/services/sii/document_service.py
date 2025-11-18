@@ -118,6 +118,7 @@ class DocumentService(BaseSIIService):
         session_id: Union[str, UUID],
         periodo: str,
         tipo_doc: str = "33",
+        estado_contab: str = "REGISTRO",
         force_new_login: bool = False
     ) -> Dict[str, Any]:
         """
@@ -127,10 +128,11 @@ class DocumentService(BaseSIIService):
             session_id: ID de la sesión en la DB
             periodo: Período en formato YYYYMM (ej: "202510")
             tipo_doc: Tipo de documento (default: "33" = Factura Electrónica)
+            estado_contab: Estado contable (default: "REGISTRO", también puede ser "PENDIENTE")
             force_new_login: Si True, ignora cookies y hace login fresco
 
         Returns:
-            Dict con status, data, extraction_method
+            Dict con status, data, extraction_method, estado_contab
         """
         # Función sincrónica que ejecuta TODO en sync (Selenium + DB)
         def _run_extraction():
@@ -160,7 +162,7 @@ class DocumentService(BaseSIIService):
                     logger.debug(f"🍪 Reusing stored cookies for {creds['rut']}")
 
                 # Extraer compras (operación sincrónica de Selenium)
-                result = client.get_compras(periodo=periodo, tipo_doc=tipo_doc)
+                result = client.get_compras(periodo=periodo, tipo_doc=tipo_doc, estado_contab=estado_contab)
 
                 # Actualizar cookies de forma síncrona
                 updated_cookies = client.get_cookies()
@@ -177,7 +179,7 @@ class DocumentService(BaseSIIService):
             # Si falló con cookies almacenadas, reintentar con login fresco
             if not force_new_login and "401" in str(e):
                 logger.warning(f"⚠️ Cookies expired (401), retrying with fresh login...")
-                return await self.extract_compras(session_id, periodo, tipo_doc, force_new_login=True)
+                return await self.extract_compras(session_id, periodo, tipo_doc, estado_contab, force_new_login=True)
             raise
 
     # =============================================================================

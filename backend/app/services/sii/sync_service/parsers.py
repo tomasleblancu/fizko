@@ -235,7 +235,7 @@ def parse_honorarios_receipt(boleta: Dict, company_id: UUID, period: str) -> Dic
         raise
 
 
-def parse_purchase_document(company_id: UUID, doc: Dict, tipo_doc: str) -> Dict:
+def parse_purchase_document(company_id: UUID, doc: Dict, tipo_doc: str, estado_contab: str = None) -> Dict:
     """
     Parsea documento de compra del formato SII al formato DB
 
@@ -243,6 +243,7 @@ def parse_purchase_document(company_id: UUID, doc: Dict, tipo_doc: str) -> Dict:
         company_id: ID de la empresa
         doc: Documento raw del SII
         tipo_doc: Tipo de documento SII (33, 56, 61, etc.) - viene del parámetro de extracción
+        estado_contab: Estado contable del documento ("PENDIENTE" o "REGISTRO")
     """
     # Obtener RUT y convertir a string si es necesario
     sender_rut = doc.get('detRutDoc')
@@ -266,6 +267,7 @@ def parse_purchase_document(company_id: UUID, doc: Dict, tipo_doc: str) -> Dict:
         "exempt_amount": Decimal(str(doc.get('detMntExento', 0))),
         "total_amount": Decimal(str(doc.get('detMntTotal', 0))),
         "status": "pending",
+        "accounting_state": estado_contab,  # PENDIENTE o REGISTRO
         "extra_data": doc  # Guardar datos completos
     }
 

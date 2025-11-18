@@ -62,6 +62,7 @@ class SIIService(BaseSIIService):
         session_id: Union[str, UUID],
         periodo: str,
         tipo_doc: str = "33",
+        estado_contab: str = "REGISTRO",
         force_new_login: bool = False
     ) -> Dict[str, Any]:
         """Extrae DTEs de compra - Delega a DocumentService"""
@@ -69,6 +70,7 @@ class SIIService(BaseSIIService):
             session_id=session_id,
             periodo=periodo,
             tipo_doc=tipo_doc,
+            estado_contab=estado_contab,
             force_new_login=force_new_login
         )
 

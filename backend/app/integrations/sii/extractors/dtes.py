@@ -48,7 +48,8 @@ class DTEExtractor:
         self,
         periodo: str,
         tipo_doc: str = "33",
-        cookies: Optional[List[Dict]] = None
+        cookies: Optional[List[Dict]] = None,
+        estado_contab: str = "REGISTRO"
     ) -> Dict[str, Any]:
         """
         Extrae documentos de compra vía API
@@ -57,6 +58,7 @@ class DTEExtractor:
             periodo: Período tributario (formato YYYYMM, ej: "202501")
             tipo_doc: Código tipo documento (default "33" = factura electrónica)
             cookies: Lista de cookies de sesión
+            estado_contab: Estado contable (default "REGISTRO", también puede ser "PENDIENTE")
 
         Returns:
             Dict con:
@@ -72,7 +74,7 @@ class DTEExtractor:
             ExtractionError: Si falla la extracción
         """
         try:
-            logger.info(f"📥 Extracting purchase documents - Period: {periodo}, Type: {tipo_doc}")
+            logger.info(f"📥 Extracting purchase documents - Period: {periodo}, Type: {tipo_doc}, Estado: {estado_contab}")
 
             if not cookies:
                 raise ExtractionError(
@@ -84,7 +86,8 @@ class DTEExtractor:
                 cookies=cookies,
                 periodo_tributario=periodo,
                 cod_tipo_doc=tipo_doc,
-                operacion="COMPRA"
+                operacion="COMPRA",
+                estado_contab=estado_contab
             )
 
             # Manejar respuesta con data=null
@@ -97,6 +100,7 @@ class DTEExtractor:
                 'data': data,
                 'extraction_method': 'api_direct',
                 'periodo_tributario': periodo,
+                'estado_contab': estado_contab,
                 'timestamp': datetime.now().isoformat()
             }
 
@@ -220,6 +224,7 @@ class DTEExtractor:
         periodo_tributario: str,
         cod_tipo_doc: str = "33",
         operacion: str = "COMPRA",
+        estado_contab: str = "REGISTRO",
         token_recaptcha: str = "t-o-k-e-n-web"
     ) -> Dict[str, Any]:
         """
@@ -230,6 +235,7 @@ class DTEExtractor:
             periodo_tributario: Período en formato YYYYMM
             cod_tipo_doc: Código tipo documento
             operacion: "COMPRA" o "VENTA"
+            estado_contab: Estado contable ("REGISTRO", "PENDIENTE", or "" for VENTA)
             token_recaptcha: Token recaptcha
 
         Returns:
@@ -241,13 +247,13 @@ class DTEExtractor:
             accion_recaptcha = "RCV_DETV"
             namespace = "cl.sii.sdi.lob.diii.consdcv.data.api.interfaces.FacadeService/getDetalleVenta"
             operacion_param = ""
-            estado_contab = ""
+            estado_contab_param = ""
         else:
             url = f"{self.BASE_URL}/getDetalleCompra"
             accion_recaptcha = "RCV_DETC"
             namespace = "cl.sii.sdi.lob.diii.consdcv.data.api.interfaces.FacadeService/getDetalleCompra"
             operacion_param = operacion
-            estado_contab = "REGISTRO"
+            estado_contab_param = estado_contab
 
         # Construir headers con cookies
         logger.debug(f"🍪 Available cookies: {[c['name'] for c in cookies]}")
@@ -275,7 +281,7 @@ class DTEExtractor:
                 "ptributario": periodo_tributario,
                 "codTipoDoc": cod_tipo_doc,
                 "operacion": operacion_param,
-                "estadoContab": estado_contab,
+                "estadoContab": estado_contab_param,
                 "accionRecaptcha": accion_recaptcha,
                 "tokenRecaptcha": token_recaptcha
             }

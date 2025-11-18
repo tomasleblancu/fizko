@@ -131,6 +131,8 @@ async def bulk_upsert_purchases(
     """
     Guarda documentos de compra en DB usando bulk upsert
 
+    Detecta transiciones de estado PENDIENTE → REGISTRO y establece accounting_date.
+
     Args:
         db: Sesión de base de datos
         company_id: ID de la compañía
@@ -142,17 +144,33 @@ async def bulk_upsert_purchases(
     if not documents:
         return 0, 0
 
-    # Obtener folios existentes para contar nuevos vs actualizados
+    # Obtener documentos existentes con su estado contable
     folios = [doc['folio'] for doc in documents]
-    stmt = select(PurchaseDocument.folio).where(
+    stmt = select(
+        PurchaseDocument.folio,
+        PurchaseDocument.accounting_state
+    ).where(
         PurchaseDocument.company_id == company_id,
         PurchaseDocument.folio.in_(folios)
     )
     result = await db.execute(stmt)
-    existing_folios = set(row[0] for row in result.fetchall())
+    existing_docs = {row[0]: row[1] for row in result.fetchall()}
 
-    nuevos = sum(1 for doc in documents if doc['folio'] not in existing_folios)
+    nuevos = sum(1 for doc in documents if doc['folio'] not in existing_docs)
     actualizados = len(documents) - nuevos
+
+    # Detectar transiciones de estado y establecer accounting_date
+    today = datetime.utcnow().date()
+    for doc in documents:
+        folio = doc['folio']
+        new_state = doc.get('accounting_state')
+
+        # Si el documento existe y está cambiando de PENDIENTE a REGISTRO
+        if folio in existing_docs:
+            old_state = existing_docs[folio]
+            if old_state == 'PENDIENTE' and new_state == 'REGISTRO':
+                doc['accounting_date'] = today
+                logger.info(f"📅 Documento {folio}: PENDIENTE → REGISTRO (accounting_date: {today})")
 
     # Usar PostgreSQL INSERT ... ON CONFLICT para upsert en batch
     stmt = insert(PurchaseDocument).values(documents)
@@ -169,6 +187,8 @@ async def bulk_upsert_purchases(
             'exempt_amount': stmt.excluded.exempt_amount,
             'total_amount': stmt.excluded.total_amount,
             'status': stmt.excluded.status,
+            'accounting_state': stmt.excluded.accounting_state,
+            'accounting_date': stmt.excluded.accounting_date,
             'extra_data': stmt.excluded.extra_data,
             'updated_at': datetime.utcnow()
         }

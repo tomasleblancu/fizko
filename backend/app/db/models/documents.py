@@ -59,6 +59,14 @@ class PurchaseDocument(Base):
         Text, server_default=text("'pending'::text")
     )  # pending, approved, rejected, cancelled
 
+    # Accounting state (SII registro contable)
+    accounting_state: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )  # PENDIENTE, REGISTRO - tracks SII estadoContab field
+    accounting_date: Mapped[Optional[date]] = mapped_column(
+        Date, nullable=True
+    )  # Date when accounting_state changed from PENDIENTE to REGISTRO
+
     # SII integration
     dte_xml: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     sii_track_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
