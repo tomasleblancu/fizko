@@ -133,22 +133,30 @@ if is_using_pooler:
 
 # Create async engine with appropriate settings based on connection type
 if is_using_pooler:
-    # pgbouncer pooler: Use NullPool and disable prepared statements
+    # pgbouncer pooler: Use SMALL pool and disable prepared statements
     # NOTE: pgbouncer in transaction mode does NOT support prepared statements
     # For production use only - local development should use direct connection (port 5432)
-    from sqlalchemy.pool import NullPool
+
+    # CRITICAL: Even with pgbouncer, we MUST limit connections per process
+    # to prevent "max clients reached" errors in pgbouncer session mode.
+    # With multiple workers (Gunicorn/Celery), each worker gets its own pool.
+    # Example: 2 Gunicorn workers × 3 connections = 6 total connections to pgbouncer
 
     logger.warning("⚠️  Using pgbouncer pooler - prepared statements disabled")
+    logger.warning("⚠️  Using small connection pool (2+1) per process to prevent pgbouncer exhaustion")
     logger.warning("⚠️  For local development, use port 5432 (direct connection) instead")
 
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,
-        poolclass=NullPool,  # Let pgbouncer handle pooling
-        pool_pre_ping=False,  # Disable health checks (pgbouncer handles this)
+        pool_size=2,  # Small pool per process (worker)
+        max_overflow=1,  # Allow max 3 connections per process under load
+        pool_pre_ping=True,  # Check connection health before use
+        pool_recycle=300,  # Recycle connections after 5 minutes
+        pool_timeout=30,  # Wait up to 30s for a connection from pool
         connect_args={
             **connect_args,
-            "statement_cache_size": 0,  # Attempt to disable prepared statements
+            "statement_cache_size": 0,  # Disable prepared statements for pgbouncer
         },
         execution_options={
             "compiled_cache": None,  # Disable query cache
@@ -193,12 +201,26 @@ if not is_using_pooler:
     # Only set jit=off for direct connections
     sync_connect_args["options"] = "-c jit=off"
 
+# Sync engine: Use same conservative pool settings as async engine
+if is_using_pooler:
+    logger.info("Sync engine: Using small pool (2+1) for pgbouncer compatibility")
+    sync_pool_size = 2
+    sync_max_overflow = 1
+    sync_pool_recycle = 300
+else:
+    logger.info("Sync engine: Using standard pool (5+10) for direct connection")
+    sync_pool_size = 5
+    sync_max_overflow = 10
+    sync_pool_recycle = 1800
+
 sync_engine = create_engine(
     SYNC_DATABASE_URL,
     echo=False,
     pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=sync_pool_size,
+    max_overflow=sync_max_overflow,
+    pool_recycle=sync_pool_recycle,
+    pool_timeout=30,
     connect_args=sync_connect_args
 )
 

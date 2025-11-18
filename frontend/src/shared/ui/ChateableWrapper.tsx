@@ -41,13 +41,6 @@ export function ChateableWrapper({
   const { sendUserMessage, isReady } = useChat();
   const { hasActiveSubscription, subscription } = useHasActiveSubscription();
 
-  // Debug logging
-  console.log('[ChateableWrapper] Subscription check:', {
-    hasActiveSubscription,
-    subscription,
-    status: subscription?.status
-  });
-
   const generateMessage = useCallback((): string => {
     if (typeof message === 'function') {
       return message(contextData || {});

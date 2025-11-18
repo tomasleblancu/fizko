@@ -105,16 +105,6 @@ function HomeContent({
   // This prevents flash of "Cargando... RUT: ---" before company data loads
   const isLoading = authLoading || sessionLoading || !isInitialized || companyLoading;
 
-  // Debug logging
-  console.log('[Home] Render state:', {
-    authLoading,
-    sessionLoading,
-    isInitialized,
-    companyLoading,
-    isLoading,
-    hasAuthSession: !!authSession,
-  });
-
   const handleSendMessageReady = useCallback((sendFn: (text: string, metadata?: Record<string, any>) => Promise<void>) => {
     setSendMessage(() => sendFn);
     // Also register in ChatContext for chateable components

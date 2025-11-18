@@ -92,13 +92,11 @@ export function ChatKitPanel({
 
     const handleLoaded = () => {
       if (!isMountedRef.current) return;
-      console.log('[ChatKitPanel] Script loaded successfully');
       setScriptStatus("ready");
       setErrorState({ script: null });
     };
 
     const handleError = (event: Event) => {
-      console.error("Failed to load chatkit.js", event);
       if (!isMountedRef.current) return;
       setScriptStatus("error");
       const detail = (event as CustomEvent<unknown>)?.detail ?? "unknown error";
