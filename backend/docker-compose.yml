@@ -61,6 +61,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       # Puerto para desarrollo
       - PORT=8000
+      # Service type para priorizar pools
+      - SERVICE_TYPE=fastapi
     volumes:
       # Mount código para hot-reload
       - ./app:/app/app
@@ -107,6 +109,7 @@ services:
       - CELERY_WORKER_NAME=fast     # Nombre identificable
       - CELERY_CONCURRENCY=3        # Mayor concurrencia
       - CELERY_MAX_TASKS_PER_CHILD=100
+      - SERVICE_TYPE=celery-worker  # Para pool reducido
     volumes:
       - ./app:/app/app
       - ./sessions:/app/sessions
@@ -141,6 +144,7 @@ services:
       - CELERY_WORKER_NAME=slow     # Nombre identificable
       - CELERY_CONCURRENCY=1        # Una tarea a la vez
       - CELERY_MAX_TASKS_PER_CHILD=10  # Reiniciar frecuente (memory leaks de Selenium)
+      - SERVICE_TYPE=celery-worker  # Para pool reducido
     volumes:
       - ./app:/app/app
       - ./sessions:/app/sessions
@@ -201,6 +205,7 @@ services:
       - .env
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - SERVICE_TYPE=celery-beat  # Beat solo scheduling, no ejecuta tareas
     volumes:
       - ./app:/app/app
       - celery_beat_data:/app/celerybeat-schedule  # Persistir schedule
