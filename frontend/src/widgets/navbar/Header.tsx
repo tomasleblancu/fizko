@@ -1,14 +1,24 @@
 import clsx from 'clsx';
+import { RefreshCw } from 'lucide-react';
 import { ColorScheme } from "@/shared/hooks/useColorScheme";
 
 interface HeaderProps {
   scheme: ColorScheme;
   onThemeChange: (scheme: ColorScheme) => void;
   onNavigateToSettings?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
   currentView?: 'dashboard' | 'settings';
 }
 
-export function Header({ scheme, onThemeChange, onNavigateToSettings, currentView = 'dashboard' }: HeaderProps) {
+export function Header({
+  scheme,
+  onThemeChange,
+  onNavigateToSettings,
+  onRefresh,
+  isRefreshing = false,
+  currentView = 'dashboard'
+}: HeaderProps) {
   const toggleTheme = () => {
     onThemeChange(scheme === 'dark' ? 'light' : 'dark');
   };
@@ -51,8 +61,31 @@ export function Header({ scheme, onThemeChange, onNavigateToSettings, currentVie
           />
         </div>
 
-        {/* Right side - Theme toggle & Settings */}
+        {/* Right side - Refresh, Theme toggle & Settings */}
         <div className="flex items-center gap-2">
+          {/* Refresh Button */}
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className={clsx(
+                'rounded-lg p-2 transition-all',
+                'hover:bg-slate-100 dark:hover:bg-slate-800',
+                'text-slate-600 dark:text-slate-300',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
+              aria-label="Refrescar datos"
+              title="Refrescar datos"
+            >
+              <RefreshCw
+                className={clsx(
+                  'h-5 w-5',
+                  isRefreshing && 'animate-spin'
+                )}
+              />
+            </button>
+          )}
+
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}

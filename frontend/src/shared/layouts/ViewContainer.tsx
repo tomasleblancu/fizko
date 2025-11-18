@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import clsx from 'clsx';
+import { RefreshCw } from 'lucide-react';
 import type { ColorScheme } from "@/shared/hooks/useColorScheme";
 import { ViewHeader } from './ViewHeader';
 import { NavigationPills, type ViewType } from './NavigationPills';
@@ -21,6 +22,10 @@ interface ViewContainerProps {
   scheme: ColorScheme;
   onThemeChange?: (scheme: ColorScheme) => void;
   showThemeToggle?: boolean;
+
+  // Refresh
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 
   // Content
   children: React.ReactNode;
@@ -44,6 +49,8 @@ export function ViewContainer({
   scheme,
   onThemeChange,
   showThemeToggle = true,
+  onRefresh,
+  isRefreshing = false,
   children,
   isInDrawer = false,
   contentClassName = "flex-1 overflow-y-auto p-6",
@@ -88,6 +95,29 @@ export function ViewContainer({
         scheme={scheme}
         rightContent={
           <>
+            {/* Refresh Button */}
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                className={clsx(
+                  'rounded-lg p-2 transition-all',
+                  'hover:bg-slate-100 dark:hover:bg-slate-800',
+                  'text-slate-600 dark:text-slate-300',
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                )}
+                aria-label="Refrescar datos"
+                title="Refrescar datos"
+              >
+                <RefreshCw
+                  className={clsx(
+                    'h-5 w-5',
+                    isRefreshing && 'animate-spin'
+                  )}
+                />
+              </button>
+            )}
+
             {/* Theme Toggle */}
             {showThemeToggle && onThemeChange && (
               <ThemeToggleButton

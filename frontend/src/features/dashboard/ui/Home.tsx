@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import clsx from "clsx";
 import { Home as HomeIcon, Users, Settings, BookUser, Sun, Moon } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Header } from "@/widgets/navbar/Header";
 import { ChatKitPanel } from "@/widgets/chat-panel/ChatKitPanel";
@@ -48,6 +49,7 @@ function HomeContent({
   scheme: ColorScheme;
   handleThemeChange: (scheme: ColorScheme) => void;
 }) {
+  const queryClient = useQueryClient();
   const { session: authSession, loading: authLoading } = useAuth();
   const {
     loading: sessionLoading,
@@ -61,6 +63,9 @@ function HomeContent({
   const { data: subscription } = useSubscription();
   const { isInTrial, trialEndsAt } = useIsInTrial();
   const { isFreePlan } = useIsFreePlan();
+
+  // Refresh state
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Prefetch subscription plans for instant loading when user opens subscription settings
   useSubscriptionPlans();
@@ -212,6 +217,28 @@ function HomeContent({
     setIsPersonnelDrawerOpen(false);
     setIsContactsDrawerOpen(false);
   }, []);
+
+  // Handler to refresh all data
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      // Invalidate all relevant queries to force refetch
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['company'] }),
+        queryClient.invalidateQueries({ queryKey: ['tax-summary'] }),
+        queryClient.invalidateQueries({ queryKey: ['tax-documents'] }),
+        queryClient.invalidateQueries({ queryKey: ['calendar-events'] }),
+        queryClient.invalidateQueries({ queryKey: ['calendar-config'] }),
+        queryClient.invalidateQueries({ queryKey: ['contacts'] }),
+        queryClient.invalidateQueries({ queryKey: ['people'] }),
+        queryClient.invalidateQueries({ queryKey: ['forms'] }),
+        queryClient.invalidateQueries({ queryKey: ['subscription'] }),
+      ]);
+    } finally {
+      // Small delay to show the animation
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  }, [queryClient]);
 
   const containerClass = clsx(
     "fixed inset-0 overflow-hidden bg-gradient-to-br transition-colors duration-300 flex flex-col",
@@ -403,6 +430,8 @@ function HomeContent({
                 onNavigateToContacts={handleNavigateToContacts}
                 onNavigateToForms={handleNavigateToForms}
                 onNavigateToPersonnel={handleNavigateToPersonnel}
+                onRefresh={handleRefresh}
+                isRefreshing={isRefreshing}
                 currentView={currentView}
               />
             ) : currentView === 'contacts' ? (

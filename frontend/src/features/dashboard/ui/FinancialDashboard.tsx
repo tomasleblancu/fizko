@@ -24,10 +24,25 @@ interface FinancialDashboardProps {
   onNavigateToContacts?: () => void;
   onNavigateToForms?: () => void;
   onNavigateToPersonnel?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
   currentView?: ViewType;
 }
 
-export function FinancialDashboard({ scheme, companyId, isInDrawer = false, company, onThemeChange, onNavigateToSettings, onNavigateToContacts, onNavigateToForms, onNavigateToPersonnel, currentView = 'dashboard' }: FinancialDashboardProps) {
+export function FinancialDashboard({
+  scheme,
+  companyId,
+  isInDrawer = false,
+  company,
+  onThemeChange,
+  onNavigateToSettings,
+  onNavigateToContacts,
+  onNavigateToForms,
+  onNavigateToPersonnel,
+  onRefresh,
+  isRefreshing = false,
+  currentView = 'dashboard'
+}: FinancialDashboardProps) {
   // Company is now passed as prop to avoid multiple fetches
   const [isDocumentsExpanded, setIsDocumentsExpanded] = useState(false);
 
@@ -161,6 +176,8 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
       onNavigate={handleNavigate}
       scheme={scheme}
       onThemeChange={onThemeChange}
+      onRefresh={onRefresh}
+      isRefreshing={isRefreshing}
       isInDrawer={isInDrawer}
       contentClassName="flex-1 overflow-hidden"
     >

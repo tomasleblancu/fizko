@@ -63,7 +63,10 @@ export function useSIILogin() {
         throw new Error('No authenticated session');
       }
 
-      const response = await fetch(`${API_BASE_URL}/sii/auth/login`, {
+      console.log('[useSIILogin] Starting SII login with streaming...');
+
+      // Use SSE endpoint for streaming progress
+      const response = await fetch(`${API_BASE_URL}/sii/auth/login/stream`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -77,7 +80,59 @@ export function useSIILogin() {
         throw new Error(errorData.detail || `Failed to login to SII: ${response.statusText}`);
       }
 
-      return await response.json();
+      if (!response.body) {
+        throw new Error('No se pudo establecer conexión de streaming');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let result: SIILoginResponse | null = null;
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n\n');
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+
+            const [eventLine, dataLine] = line.split('\n');
+            if (!eventLine || !dataLine) continue;
+
+            const event = eventLine.replace('event: ', '');
+            const dataStr = dataLine.replace('data: ', '');
+
+            try {
+              const data = JSON.parse(dataStr);
+
+              switch (event) {
+                case 'progress':
+                  // Emit progress event for UI to consume
+                  window.dispatchEvent(new CustomEvent('sii-login-progress', { detail: data }));
+                  break;
+                case 'complete':
+                  result = data as SIILoginResponse;
+                  break;
+                case 'error':
+                  throw new Error(data.message || 'Error durante el proceso');
+              }
+            } catch (e) {
+              console.error('[useSIILogin] Error parsing SSE data:', e);
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      if (!result) {
+        throw new Error('No se recibió respuesta completa del servidor');
+      }
+
+      return result;
     },
     onSuccess: () => {
       // Invalidate sessions query to refetch and update company list
