@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Building2, FileText, Edit2, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
+import { Building2, FileText, Edit2, CheckCircle2, XCircle, HelpCircle, Plus } from 'lucide-react';
 import { ChateableWrapper } from '@/shared/ui/ChateableWrapper';
 import { useCompanySettings } from '@/shared/hooks/useCompanySettings';
+import { AddCompanyModal } from '../AddCompanyModal';
 import type { ColorScheme } from '@/shared/hooks/useColorScheme';
 import type { Company } from '@/shared/types/fizko';
 
@@ -26,6 +27,7 @@ export function CompanyTab({
   const [isEditing, setIsEditing] = useState(false);
   const [editedSettings, setEditedSettings] = useState(settings);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAddCompanyModalOpen, setIsAddCompanyModalOpen] = useState(false);
 
   useEffect(() => {
     setEditedSettings(settings);
@@ -78,14 +80,24 @@ export function CompanyTab({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Company Info */}
-      {company ? (
-        <>
-          <div>
-            <h3 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100">
-              Mi Empresa
-            </h3>
+    <>
+      <div className="space-y-6">
+        {/* Company Info */}
+        {company ? (
+          <>
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  Mi Empresa
+                </h3>
+                <button
+                  onClick={() => setIsAddCompanyModalOpen(true)}
+                  className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 transition-all duration-200 hover:shadow-lg hover:shadow-emerald-500/30 hover:scale-105 active:scale-95 dark:from-emerald-500 dark:to-teal-500"
+                >
+                  <Plus className="h-4 w-4" />
+                  Agregar Empresa
+                </button>
+              </div>
 
             <div className="space-y-4">
               {/* Company Header */}
@@ -259,5 +271,12 @@ export function CompanyTab({
         </div>
       )}
     </div>
+
+    {/* Add Company Modal */}
+    <AddCompanyModal
+      isOpen={isAddCompanyModalOpen}
+      onClose={() => setIsAddCompanyModalOpen(false)}
+    />
+    </>
   );
 }

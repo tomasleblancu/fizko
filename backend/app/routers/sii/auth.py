@@ -54,6 +54,7 @@ class SIILoginResponse(BaseModel):
     company_tax_info: dict
     session: dict
     contribuyente_info: dict
+    needs_initial_setup: bool
 
 
 # ============================================================================

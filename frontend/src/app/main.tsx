@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { AuthProvider } from "./providers/AuthContext";
+import { CompanyProvider } from "./providers/CompanyContext";
 import { ProtectedRoute } from "./providers/ProtectedRoute";
 import { HomePage } from "@/pages/home";
 import HowItWorks from "@/pages/home/ui/HowItWorks";
@@ -43,28 +44,30 @@ createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<HomePage />} />
-            <Route path="/como-funciona" element={<HowItWorks />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/terminos" element={<TermsOfService />} />
-            <Route path="/privacidad" element={<PrivacyPolicy />} />
+        <CompanyProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<HomePage />} />
+              <Route path="/como-funciona" element={<HowItWorks />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/terminos" element={<TermsOfService />} />
+              <Route path="/privacidad" element={<PrivacyPolicy />} />
 
-            {/* Onboarding routes - require auth but not full onboarding */}
-            <Route path="/onboarding/sii" element={<ProtectedRoute><SIIConnectionPage /></ProtectedRoute>} />
-            <Route path="/onboarding/setup" element={<ProtectedRoute><CompanySetupPage /></ProtectedRoute>} />
+              {/* Onboarding routes - require auth but not full onboarding */}
+              <Route path="/onboarding/sii" element={<ProtectedRoute><SIIConnectionPage /></ProtectedRoute>} />
+              <Route path="/onboarding/setup" element={<ProtectedRoute><CompanySetupPage /></ProtectedRoute>} />
 
-            {/* Admin routes - require auth */}
-            <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-            <Route path="/admin/companies" element={<ProtectedRoute><CompaniesTablePage /></ProtectedRoute>} />
-            <Route path="/admin/company/:companyId" element={<ProtectedRoute><CompanyDetailPage /></ProtectedRoute>} />
-            <Route path="/admin/event-templates" element={<ProtectedRoute><EventTemplatesPage /></ProtectedRoute>} />
-            <Route path="/admin/notification-templates" element={<ProtectedRoute><NotificationTemplatesPage /></ProtectedRoute>} />
-            <Route path="/admin/task-manager" element={<ProtectedRoute><TaskManagerPage /></ProtectedRoute>} />
-          </Routes>
-        </BrowserRouter>
+              {/* Admin routes - require auth */}
+              <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+              <Route path="/admin/companies" element={<ProtectedRoute><CompaniesTablePage /></ProtectedRoute>} />
+              <Route path="/admin/company/:companyId" element={<ProtectedRoute><CompanyDetailPage /></ProtectedRoute>} />
+              <Route path="/admin/event-templates" element={<ProtectedRoute><EventTemplatesPage /></ProtectedRoute>} />
+              <Route path="/admin/notification-templates" element={<ProtectedRoute><NotificationTemplatesPage /></ProtectedRoute>} />
+              <Route path="/admin/task-manager" element={<ProtectedRoute><TaskManagerPage /></ProtectedRoute>} />
+            </Routes>
+          </BrowserRouter>
+        </CompanyProvider>
       </AuthProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

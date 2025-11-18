@@ -1,14 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from "@/app/providers/AuthContext";
+import { useCompanyContext } from "@/app/providers/CompanyContext";
 import type { Company } from "@/shared/types/fizko";
 import { API_BASE_URL } from "@/shared/lib/config";
 import { apiFetch } from "@/shared/lib/api-client";
 import { queryKeys } from "@/shared/lib/query-keys";
 
 /**
- * React Query hook for fetching the user's company data.
+ * React Query hook for fetching the selected company's data.
  *
- * Query key: ['home', 'company', userId]
+ * Uses CompanyContext to get the currently selected company ID.
+ * Query key: ['home', 'company', companyId]
  * Stale time: 5 minutes
  *
  * @returns Query result with company data, loading and error states
@@ -20,12 +22,23 @@ import { queryKeys } from "@/shared/lib/query-keys";
  */
 export function useCompanyQuery() {
   const { session } = useAuth();
+  const { selectedCompanyId, selectedCompany } = useCompanyContext();
 
   return useQuery({
-    queryKey: queryKeys.company.byUser(session?.user.id),
+    queryKey: queryKeys.company.byId(selectedCompanyId),
     queryFn: async (): Promise<Company | null> => {
       if (!session?.access_token) {
         throw new Error('No authenticated session');
+      }
+
+      if (!selectedCompanyId) {
+        // No company selected yet, return basic info from context
+        return selectedCompany ? {
+          id: selectedCompany.id,
+          rut: selectedCompany.rut,
+          business_name: selectedCompany.business_name,
+          trade_name: selectedCompany.trade_name,
+        } as Company : null;
       }
 
       const response = await apiFetch(`${API_BASE_URL}/companies`, {
@@ -40,10 +53,11 @@ export function useCompanyQuery() {
       }
 
       const result = await response.json();
-      // Get first company from the list or null if empty
-      return result.data && result.data.length > 0 ? result.data[0] : null;
+      // Find the selected company from the response
+      const companies = result.data || [];
+      return companies.find((c: Company) => c.id === selectedCompanyId) || null;
     },
-    enabled: !!session?.access_token,
+    enabled: !!session?.access_token && !!selectedCompanyId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

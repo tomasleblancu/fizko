@@ -4,6 +4,7 @@ import type { ColorScheme } from "@/shared/hooks/useColorScheme";
 import { CompanyInfoCardSkeleton } from './CompanyInfoCardSkeleton';
 import { ChateableWrapper } from '@/shared/ui/ChateableWrapper';
 import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
+import { CompanySelector } from '@/shared/components/CompanySelector';
 import '@/app/styles/chateable.css';
 
 interface CompanyInfoCardProps {
@@ -45,12 +46,10 @@ export function CompanyInfoCard({ company, loading, scheme, isInDrawer = false }
           {/* Fizko Logo */}
           <FizkoLogo className="h-8 w-8 flex-shrink-0" />
 
-          {/* Company content */}
+          {/* Company Selector */}
           <div className="flex-1">
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-              {company.business_name}
-            </h3>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
+            <CompanySelector />
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
               RUT: {company.rut}
             </p>
           </div>

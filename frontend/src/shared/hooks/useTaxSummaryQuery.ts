@@ -1,30 +1,33 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from "@/app/providers/AuthContext";
+import { useCompanyContext } from "@/app/providers/CompanyContext";
 import type { TaxSummary } from "@/shared/types/fizko";
 import { API_BASE_URL } from "@/shared/lib/config";
 import { apiFetch } from "@/shared/lib/api-client";
 import { queryKeys } from "@/shared/lib/query-keys";
 
 /**
- * React Query hook for fetching tax summary data for a company.
+ * React Query hook for fetching tax summary data for the selected company.
  *
+ * Uses CompanyContext to get the currently selected company ID.
  * Query key: ['home', 'tax-summary', companyId, period]
  * Stale time: 3 minutes
  *
- * @param companyId - The company ID to fetch tax summary for
  * @param period - Optional period filter (e.g., '2024-01' for January 2024)
+ * @param enabled - Whether the query should run (default: true)
  * @returns Query result with tax summary data, loading and error states
  *
  * @example
  * ```tsx
- * const { data: taxSummary, isLoading } = useTaxSummaryQuery(companyId, '2024-01');
+ * const { data: taxSummary, isLoading } = useTaxSummaryQuery('2024-01');
  * ```
  */
-export function useTaxSummaryQuery(companyId?: string | null, period?: string, enabled: boolean = true) {
+export function useTaxSummaryQuery(period?: string, enabled: boolean = true) {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
 
   return useQuery({
-    queryKey: queryKeys.taxSummary.byPeriod(companyId, period),
+    queryKey: queryKeys.taxSummary.byPeriod(selectedCompanyId || null, period),
     queryFn: async (): Promise<TaxSummary | null> => {
       if (!session?.access_token) {
         throw new Error('No authenticated session');
@@ -34,8 +37,10 @@ export function useTaxSummaryQuery(companyId?: string | null, period?: string, e
       if (period) {
         params.append('period', period);
       }
+      if (selectedCompanyId) {
+        params.append('company_id', selectedCompanyId);
+      }
 
-      // Use new endpoint that doesn't require company_id - backend will resolve it from user session
       const url = `${API_BASE_URL}/tax-summary${params.toString() ? `?${params.toString()}` : ''}`;
 
       const response = await apiFetch(url, {
@@ -55,7 +60,7 @@ export function useTaxSummaryQuery(companyId?: string | null, period?: string, e
 
       return await response.json();
     },
-    enabled: !!session?.access_token && enabled,
+    enabled: !!session?.access_token && !!selectedCompanyId && enabled,
     staleTime: 3 * 60 * 1000, // 3 minutes
     refetchOnWindowFocus: true, // Refetch financial data when user returns to window
   });

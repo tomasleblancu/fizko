@@ -75,7 +75,7 @@ export function RecentDocumentsCardInfinite({
     isFetchingNextPage,
     isLoading,
     isError
-  } = useTaxDocumentsInfiniteQuery(companyId, 50, undefined, undefined, !!companyId);
+  } = useTaxDocumentsInfiniteQuery(50, undefined, undefined, !!companyId);
 
   // Flatten all pages into a single array
   const documents = data?.pages.flat() ?? [];
@@ -337,8 +337,8 @@ export function RecentDocumentsCardInfinite({
         {/* Header - Clickeable para expandir/contraer */}
         <div
           className={clsx(
-            "flex items-center justify-between",
-            onToggleExpand && documents.length > 0 && "cursor-pointer group"
+            "flex items-center justify-between transition-all duration-200",
+            onToggleExpand && documents.length > 0 && "cursor-pointer group hover:scale-[1.02] active:scale-[0.98]"
           )}
           onClick={onToggleExpand && documents.length > 0 ? onToggleExpand : undefined}
           role={onToggleExpand && documents.length > 0 ? "button" : undefined}

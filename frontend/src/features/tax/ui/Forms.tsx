@@ -384,7 +384,7 @@ export function Forms({
       scheme={scheme}
       onThemeChange={onThemeChange}
       isInDrawer={false}
-      contentClassName="flex-1 overflow-hidden flex flex-col px-4 sm:px-6"
+      contentClassName="flex-1 overflow-hidden flex flex-col"
     >
       {renderContent()}
     </ViewContainer>

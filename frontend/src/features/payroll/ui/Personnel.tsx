@@ -97,7 +97,7 @@ export function Personnel({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-6">
         {activeTab === 'employees' && (
           <PeopleList scheme={scheme} company={company} />
         )}

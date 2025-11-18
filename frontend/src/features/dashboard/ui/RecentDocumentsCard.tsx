@@ -230,15 +230,15 @@ export function RecentDocumentsCard({ documents, loading, scheme, isExpanded = f
 
   return (
     <div className={clsx(
-      "flex h-full w-full flex-col transition-all duration-300",
+      "flex h-full w-full flex-col min-h-0 transition-all duration-300",
       isInDrawer ? "" : "rounded-2xl border border-slate-200/70 bg-white/90 p-6 dark:border-slate-800/70 dark:bg-slate-900/70"
     )} style={{ boxSizing: 'border-box' }}>
       <div className="mb-4 flex flex-shrink-0 flex-col gap-4">
         {/* Header - Clickeable para expandir/contraer */}
         <div
           className={clsx(
-            "flex items-center justify-between",
-            onToggleExpand && documents.length > 0 && "cursor-pointer group"
+            "flex items-center justify-between transition-all duration-200",
+            onToggleExpand && documents.length > 0 && "cursor-pointer group hover:scale-[1.02] active:scale-[0.98]"
           )}
           onClick={onToggleExpand && documents.length > 0 ? onToggleExpand : undefined}
           role={onToggleExpand && documents.length > 0 ? "button" : undefined}

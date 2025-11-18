@@ -16,7 +16,7 @@ export function PeopleList({ scheme, company }: PeopleListProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch ALL people once, filter in frontend
-  const { data, isLoading: loading, error } = usePeopleQuery(company?.id || null);
+  const { data, isLoading: loading, error } = usePeopleQuery();
   const allPeople = data?.people || [];
 
   // Filter people in frontend

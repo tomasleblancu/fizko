@@ -165,7 +165,7 @@ export function DualPeriodSummary({
         isInDrawer ? "flex-col" : "flex-col xl:flex-row"
       )}>
         {/* Previous Month Skeleton */}
-        <div className="relative overflow-hidden rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50 to-red-50 p-3 shadow-sm dark:border-rose-900/40 dark:from-rose-950/20 dark:to-red-950/20 flex flex-col xl:w-[38%]">
+        <div className="relative overflow-hidden rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50 to-red-50 p-3 shadow-sm dark:border-rose-900/40 dark:from-rose-950/20 dark:to-red-950/20 flex flex-col flex-shrink-0 xl:w-[38%] max-w-full">
           {/* Header Skeleton */}
           <div className="mb-3 flex items-start justify-between">
             <div className="h-4 w-24 animate-pulse rounded bg-slate-300 dark:bg-slate-700" />
@@ -217,7 +217,7 @@ export function DualPeriodSummary({
         </div>
 
         {/* Current Month Skeleton */}
-        <div className="relative overflow-hidden rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 dark:border-emerald-700 dark:from-emerald-950/30 dark:to-teal-950/30 flex flex-col flex-1">
+        <div className="relative overflow-hidden rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 dark:border-emerald-700 dark:from-emerald-950/30 dark:to-teal-950/30 flex flex-col flex-1 max-w-full">
           {/* Header Skeleton */}
           <div className="mb-3 flex items-start justify-between">
             <div className="h-5 w-32 animate-pulse rounded bg-slate-300 dark:bg-slate-700" />
@@ -255,8 +255,8 @@ export function DualPeriodSummary({
 
   // Determine card styling based on payment status
   const previousCardClasses = isPaid
-    ? "relative overflow-hidden rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 shadow-sm dark:border-emerald-700 dark:from-emerald-950/30 dark:to-teal-950/30 flex flex-col xl:w-[38%]"
-    : "relative overflow-hidden rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50 to-red-50 p-3 shadow-sm dark:border-rose-900/40 dark:from-rose-950/20 dark:to-red-950/20 flex flex-col xl:w-[38%]";
+    ? "relative overflow-hidden rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 shadow-sm dark:border-emerald-700 dark:from-emerald-950/30 dark:to-teal-950/30 flex flex-col flex-shrink-0 xl:w-[38%] max-w-full"
+    : "relative overflow-hidden rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50 to-red-50 p-3 shadow-sm dark:border-rose-900/40 dark:from-rose-950/20 dark:to-red-950/20 flex flex-col flex-shrink-0 xl:w-[38%] max-w-full";
 
   const previousBadgeClasses = isPaid
     ? "flex-shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white dark:bg-emerald-500"
@@ -429,7 +429,7 @@ export function DualPeriodSummary({
       </div>
 
       {/* Current Month Card - In Progress (Larger) */}
-      <div className="relative overflow-hidden rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 dark:border-emerald-700 dark:from-emerald-950/30 dark:to-teal-950/30 flex flex-col flex-1">
+      <div className="relative overflow-hidden rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50 p-3 dark:border-emerald-700 dark:from-emerald-950/30 dark:to-teal-950/30 flex flex-col flex-1 max-w-full">
         {/* Header with Badge */}
         <div className="mb-2.5 flex items-start justify-between">
           <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">

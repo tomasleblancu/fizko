@@ -73,7 +73,7 @@ export function FormDetail({ form, onBack, scheme }: FormDetailProps) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/30 pb-4 pt-4 dark:border-slate-800/60 dark:bg-slate-900/30">
+      <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/30 pb-4 pt-4 px-4 sm:px-6 dark:border-slate-800/60 dark:bg-slate-900/30">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 mb-2">
@@ -137,7 +137,7 @@ export function FormDetail({ form, onBack, scheme }: FormDetailProps) {
       </div>
 
       {/* Summary Section */}
-      <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/30 py-4 dark:border-slate-800/60 dark:bg-slate-900/30">
+      <div className="flex-shrink-0 border-b border-slate-200/60 bg-white/30 py-4 px-4 sm:px-6 dark:border-slate-800/60 dark:bg-slate-900/30">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {/* Monto Total */}
           <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
@@ -195,7 +195,7 @@ export function FormDetail({ form, onBack, scheme }: FormDetailProps) {
       </div>
 
       {/* Content Section */}
-      <div className="flex-1 min-h-0 overflow-y-auto py-4 pb-4">
+      <div className="flex-1 min-h-0 overflow-y-auto py-4 pb-4 px-4 sm:px-6">
         <div className="space-y-4">
           {/* Basic Info */}
           <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">

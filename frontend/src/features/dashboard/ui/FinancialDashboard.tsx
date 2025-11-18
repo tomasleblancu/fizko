@@ -10,6 +10,7 @@ import { RecentDocumentsCardInfinite } from './RecentDocumentsCardInfinite';
 import { DualPeriodSummary } from './DualPeriodSummary';
 import { ViewContainer } from '@/shared/layouts/ViewContainer';
 import { FizkoLogo } from '@/shared/ui/branding/FizkoLogo';
+import { CompanySelector } from '@/shared/components/CompanySelector';
 import type { ViewType } from '@/shared/layouts/NavigationPills';
 import type { Company } from "@/shared/types/fizko";
 
@@ -54,16 +55,16 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
   }, []);
 
   // Fetch both periods for DualPeriodSummary
-  const { data: previousMonthData = null, isLoading: prevLoading, error: prevError } = useTaxSummaryQuery(activeCompanyId, previousMonthPeriod, shouldFetchData);
-  const { data: currentMonthData = null, isLoading: currentLoading, error: currentError } = useTaxSummaryQuery(activeCompanyId, currentMonthPeriod, shouldFetchData);
+  const { data: previousMonthData = null, isLoading: prevLoading, error: prevError } = useTaxSummaryQuery(previousMonthPeriod, shouldFetchData);
+  const { data: currentMonthData = null, isLoading: currentLoading, error: currentError } = useTaxSummaryQuery(currentMonthPeriod, shouldFetchData);
 
   // Documents list does NOT filter by period - always shows recent documents
   // This prevents re-fetching documents every time user changes period
   // Always fetch 50 documents upfront (pre-fetch) for instant expansion
-  const { data: documents = [], isLoading: docsLoading, error: docsError } = useTaxDocumentsQuery(activeCompanyId, 50, undefined, undefined, shouldFetchData);
+  const { data: documents = [], isLoading: docsLoading, error: docsError } = useTaxDocumentsQuery(50, undefined, undefined, shouldFetchData);
 
   // Calendar events for tax obligations
-  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useCalendarQuery(activeCompanyId, 30, false, shouldFetchData);
+  const { data: calendarData, isLoading: calendarLoading, error: calendarError } = useCalendarQuery(30, false, shouldFetchData);
   const events = calendarData?.events || [];
 
   // Handle navigation
@@ -154,15 +155,16 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
     <ViewContainer
       icon={<FizkoLogo className="h-8 w-8" />}
       iconGradient="from-white to-white"
-      title={company?.business_name || 'Cargando...'}
+      title={<CompanySelector />}
       subtitle={`RUT: ${company?.rut || '---'}`}
       currentView={currentView}
       onNavigate={handleNavigate}
       scheme={scheme}
       onThemeChange={onThemeChange}
       isInDrawer={isInDrawer}
-      contentClassName="flex h-full flex-col gap-6 overflow-y-auto px-6 py-6"
+      contentClassName="flex-1 overflow-hidden"
     >
+      <div className="flex h-full flex-col gap-6 px-4 py-4 sm:px-6 sm:py-6 max-w-full min-h-0">
         {hasError && (
           <div className="flex-shrink-0 rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/40 dark:bg-rose-900/20">
             <p className="text-sm text-rose-700 dark:text-rose-200">
@@ -210,14 +212,14 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
           </div>
         ) : (
           /* Tax Calendar and Documents side by side on large screens, stacked on small */
-          <div className="flex flex-1 min-h-0 flex-col gap-6 overflow-hidden xl:flex-row">
+          <div className="flex flex-1 flex-col gap-6 max-w-full min-h-0 xl:flex-row">
             {/* Tax Calendar - Left side (narrower) */}
-            <div className="flex min-w-0 flex-col overflow-hidden xl:w-[38%]">
+            <div className="flex flex-col min-w-0 max-w-full min-h-0 xl:w-[38%]">
               <TaxCalendar scheme={scheme} loading={isInitialLoading} events={events} error={calendarError} />
             </div>
 
             {/* Recent Documents - Right side (wider) */}
-            <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
+            <div className="flex flex-1 flex-col min-w-0 max-w-full min-h-0">
               <RecentDocumentsCard
                 documents={documents}
                 loading={isInitialLoading}
@@ -228,6 +230,7 @@ export function FinancialDashboard({ scheme, companyId, isInDrawer = false, comp
             </div>
           </div>
         )}
+      </div>
     </ViewContainer>
   );
 }

@@ -111,7 +111,7 @@ export function TaxCalendar({ scheme, loading = false, events = [], error, isInD
   );
 
   return (
-    <div className={isInDrawer ? "flex h-full w-full flex-col transition-all duration-300" : "flex h-full w-full flex-col rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70"} style={{ boxSizing: 'border-box' }}>
+    <div className={isInDrawer ? "flex h-full w-full flex-col min-h-0 transition-all duration-300" : "flex h-full w-full flex-col min-h-0 rounded-2xl border border-slate-200/70 bg-white/90 p-6 transition-all duration-300 dark:border-slate-800/70 dark:bg-slate-900/70"} style={{ boxSizing: 'border-box' }}>
       {/* Header */}
       <div className="mb-4 flex flex-shrink-0 items-center gap-2">
         <Calendar className="h-5 w-5 text-slate-600 dark:text-slate-400" />

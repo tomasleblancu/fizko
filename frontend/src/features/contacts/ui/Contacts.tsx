@@ -23,7 +23,7 @@ interface ContactsProps {
 }
 
 export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, onThemeChange, onNavigateToDashboard, onNavigateToForms, onNavigateToSettings, onNavigateToPersonnel, currentView = 'contacts' }: ContactsProps) {
-  const { data: contacts = [], isLoading: loading, error } = useContactsQuery(company?.id);
+  const { data: contacts = [], isLoading: loading, error } = useContactsQuery();
   const [filter, setFilter] = useState<'all' | 'provider' | 'client' | 'both'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -306,9 +306,11 @@ export function Contacts({ scheme, isInDrawer = false, onNavigateBack, company, 
       scheme={scheme}
       onThemeChange={onThemeChange}
       isInDrawer={false}
-      contentClassName="flex-1 overflow-y-auto flex flex-col px-4 sm:px-6"
+      contentClassName="flex-1 overflow-y-auto flex flex-col"
     >
-      {renderContent()}
+      <div className="px-4 sm:px-6">
+        {renderContent()}
+      </div>
     </ViewContainer>
   );
 }

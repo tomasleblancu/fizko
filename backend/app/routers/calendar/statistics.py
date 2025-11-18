@@ -3,12 +3,13 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config.database import get_db
 from ...dependencies import get_current_user_id, require_auth
 from ...repositories.calendar import CalendarRepository
+from ...utils.company_resolver import get_user_primary_company_id
 
 router = APIRouter(
     prefix="/stats",
@@ -19,15 +20,24 @@ router = APIRouter(
 
 @router.get("")
 async def get_calendar_stats(
-    company_id: UUID,
+    company_id: UUID | None = Query(None, description="Company ID (optional, resolved from user if not provided)"),
     db: AsyncSession = Depends(get_db),
-    user_id: UUID = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     """
     Obtener estadísticas del calendario de una empresa.
 
-    - **company_id**: ID de la empresa
+    - **company_id**: ID de la empresa (opcional, se resuelve automáticamente del usuario si no se proporciona)
     """
+    # Resolve company_id from user's active session if not provided
+    if company_id is None:
+        company_id = await get_user_primary_company_id(user_id, db)
+        if not company_id:
+            raise HTTPException(
+                status_code=404,
+                detail="No active company found for user"
+            )
+
     repo = CalendarRepository(db)
 
     # Eventos guardados (saved)

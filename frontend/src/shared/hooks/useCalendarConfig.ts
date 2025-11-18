@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from "@/app/providers/AuthContext";
+import { useCompanyContext } from "@/app/providers/CompanyContext";
 import { API_BASE_URL } from "@/shared/lib/config";
 import { apiFetch } from "@/shared/lib/api-client";
 
@@ -30,25 +31,27 @@ interface CalendarConfigData {
 }
 
 /**
- * Hook to fetch calendar configuration for a company
- * Uses React Query for caching and automatic refetching
+ * Hook to fetch calendar configuration for the selected company.
+ * Uses CompanyContext to get the currently selected company ID.
+ * Uses React Query for caching and automatic refetching.
  */
-export function useCalendarConfig(companyId: string | undefined) {
+export function useCalendarConfig() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
 
   return useQuery({
-    queryKey: ['admin', 'calendar-config', companyId],
+    queryKey: ['admin', 'calendar-config', selectedCompanyId],
     queryFn: async (): Promise<CalendarConfigData> => {
       if (!session?.access_token) {
         throw new Error('No authenticated session');
       }
 
-      if (!companyId) {
+      if (!selectedCompanyId) {
         throw new Error('Company ID is required');
       }
 
       const response = await apiFetch(
-        `${API_BASE_URL}/admin/companies/${companyId}/calendar-config`,
+        `${API_BASE_URL}/admin/companies/${selectedCompanyId}/calendar-config`,
         {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -63,17 +66,19 @@ export function useCalendarConfig(companyId: string | undefined) {
 
       return response.json();
     },
-    enabled: !!session?.access_token && !!companyId,
+    enabled: !!session?.access_token && !!selectedCompanyId,
     staleTime: 3 * 60 * 1000, // 3 minutes
   });
 }
 
 /**
- * Hook to toggle event template activation for a company
- * Uses optimistic updates for instant UI feedback
+ * Hook to toggle event template activation for the selected company.
+ * Uses CompanyContext to get the currently selected company ID.
+ * Uses optimistic updates for instant UI feedback.
  */
-export function useToggleEventTemplate(companyId: string | undefined) {
+export function useToggleEventTemplate() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -84,13 +89,13 @@ export function useToggleEventTemplate(companyId: string | undefined) {
       eventTemplateId: string;
       isActive: boolean;
     }) => {
-      if (!session?.access_token || !companyId) {
+      if (!session?.access_token || !selectedCompanyId) {
         throw new Error('Missing session or company ID');
       }
 
       const endpoint = isActive ? 'deactivate' : 'activate';
       const response = await apiFetch(
-        `${API_BASE_URL}/admin/companies/${companyId}/calendar-config/${endpoint}`,
+        `${API_BASE_URL}/admin/companies/${selectedCompanyId}/calendar-config/${endpoint}`,
         {
           method: 'POST',
           headers: {
@@ -111,20 +116,20 @@ export function useToggleEventTemplate(companyId: string | undefined) {
     onMutate: async ({ eventTemplateId, isActive }) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({
-        queryKey: ['admin', 'calendar-config', companyId],
+        queryKey: ['admin', 'calendar-config', selectedCompanyId],
       });
 
       // Snapshot the previous value
       const previousConfig = queryClient.getQueryData<CalendarConfigData>([
         'admin',
         'calendar-config',
-        companyId,
+        selectedCompanyId,
       ]);
 
       // Optimistically update to the new value
       if (previousConfig) {
         queryClient.setQueryData<CalendarConfigData>(
-          ['admin', 'calendar-config', companyId],
+          ['admin', 'calendar-config', selectedCompanyId],
           {
             ...previousConfig,
             event_templates: previousConfig.event_templates.map((template) =>
@@ -146,7 +151,7 @@ export function useToggleEventTemplate(companyId: string | undefined) {
     onError: (_err, _variables, context) => {
       if (context?.previousConfig) {
         queryClient.setQueryData(
-          ['admin', 'calendar-config', companyId],
+          ['admin', 'calendar-config', selectedCompanyId],
           context.previousConfig
         );
       }
@@ -157,13 +162,13 @@ export function useToggleEventTemplate(companyId: string | undefined) {
       const currentConfig = queryClient.getQueryData<CalendarConfigData>([
         'admin',
         'calendar-config',
-        companyId,
+        selectedCompanyId,
       ]);
 
       if (currentConfig) {
         // Server has confirmed the change, update with server data
         queryClient.setQueryData<CalendarConfigData>(
-          ['admin', 'calendar-config', companyId],
+          ['admin', 'calendar-config', selectedCompanyId],
           {
             ...currentConfig,
             event_templates: currentConfig.event_templates.map((template) =>
@@ -184,20 +189,22 @@ export function useToggleEventTemplate(companyId: string | undefined) {
 }
 
 /**
- * Hook to sync calendar events for a company
+ * Hook to sync calendar events for the selected company.
+ * Uses CompanyContext to get the currently selected company ID.
  */
-export function useSyncCalendar(companyId: string | undefined) {
+export function useSyncCalendar() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async () => {
-      if (!session?.access_token || !companyId) {
+      if (!session?.access_token || !selectedCompanyId) {
         throw new Error('Missing session or company ID');
       }
 
       const response = await apiFetch(
-        `${API_BASE_URL}/admin/companies/${companyId}/sync-calendar`,
+        `${API_BASE_URL}/admin/companies/${selectedCompanyId}/sync-calendar`,
         {
           method: 'POST',
           headers: {
@@ -217,10 +224,10 @@ export function useSyncCalendar(companyId: string | undefined) {
     onSuccess: () => {
       // Invalidate both calendar config and events to refetch
       queryClient.invalidateQueries({
-        queryKey: ['admin', 'calendar-config', companyId],
+        queryKey: ['admin', 'calendar-config', selectedCompanyId],
       });
       queryClient.invalidateQueries({
-        queryKey: ['admin', 'calendar-events', companyId],
+        queryKey: ['admin', 'calendar-events', selectedCompanyId],
       });
     },
   });

@@ -31,23 +31,24 @@ async def get_tax_documents_for_user(
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0, description="Number of documents to skip (for pagination)"),
     contact_rut: str | None = Query(None, description="Filter by contact RUT (provider or client)"),
+    company_id: UUID | None = Query(None, description="Company ID to get documents for"),
     current_user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get recent tax documents for the authenticated user's primary company.
+    Get recent tax documents for the authenticated user's company.
 
-    Automatically resolves the company_id from the user's active session.
+    If company_id is provided, uses that. Otherwise, resolves from user's active session.
     Returns both purchase and sales documents, sorted by date descending.
 
     Optional filters:
     - contact_rut: Filter documents by provider (purchases) or client (sales) RUT
     - offset: Number of documents to skip (for pagination/infinite scroll)
     """
-    # Resolve company_id from user's active session
-    company_id = await get_user_primary_company_id(current_user_id, db)
+    # Use provided company_id or resolve from user's active session
+    resolved_company_id = company_id or await get_user_primary_company_id(current_user_id, db)
 
-    if not company_id:
+    if not resolved_company_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No active company found for user"
@@ -55,7 +56,7 @@ async def get_tax_documents_for_user(
 
     # Repository injected via Depends
     documents = await repo.get_all_documents(
-        company_id=company_id,
+        company_id=resolved_company_id,
         limit=limit,
         offset=offset,
         contact_rut=contact_rut

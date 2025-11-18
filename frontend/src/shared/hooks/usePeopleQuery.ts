@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from "@/app/providers/AuthContext";
+import { useCompanyContext } from "@/app/providers/CompanyContext";
 import type { Person, PersonCreate, PersonUpdate, PersonListResponse } from "@/shared/types/fizko";
 import { API_BASE_URL } from "@/shared/lib/config";
 import { apiFetch } from "@/shared/lib/api-client";
+import { queryKeys } from "@/shared/lib/query-keys";
 
 export type { Person };
 
@@ -14,32 +16,33 @@ interface UsePeopleOptions {
 }
 
 /**
- * React Query hook for fetching people/personnel for a company.
+ * React Query hook for fetching people/personnel for the selected company.
  *
+ * Uses CompanyContext to get the currently selected company ID.
  * Query key: ['home', 'people', companyId, status, search, page, pageSize]
  * Stale time: 3 minutes
  *
- * @param companyId - The company ID to fetch people for
  * @param options - Query options (status filter, search, pagination)
  * @returns Query result with people array, total count, loading and error states
  *
  * @example
  * ```tsx
  * // Fetch all active people
- * const { data, isLoading } = usePeopleQuery(companyId, { status: 'active' });
+ * const { data, isLoading } = usePeopleQuery({ status: 'active' });
  * const people = data?.people || [];
  * const total = data?.total || 0;
  *
  * // With search and pagination
- * const { data } = usePeopleQuery(companyId, {
+ * const { data } = usePeopleQuery({
  *   search: 'juan',
  *   page: 2,
  *   pageSize: 20
  * });
  * ```
  */
-export function usePeopleQuery(companyId?: string | null, options: UsePeopleOptions = {}) {
+export function usePeopleQuery(options: UsePeopleOptions = {}) {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
   const {
     status,
     search,
@@ -48,13 +51,13 @@ export function usePeopleQuery(companyId?: string | null, options: UsePeopleOpti
   } = options;
 
   return useQuery({
-    queryKey: ['home', 'people', companyId, status, search, page, pageSize],
+    queryKey: ['home', 'people', selectedCompanyId, status, search, page, pageSize],
     queryFn: async (): Promise<{ people: Person[]; total: number }> => {
       if (!session?.access_token) {
         throw new Error('No authenticated session');
       }
 
-      // Build query params - don't include company_id, backend will resolve it from user session
+      // Build query params
       const params = new URLSearchParams({
         page: page.toString(),
         page_size: pageSize.toString(),
@@ -66,6 +69,10 @@ export function usePeopleQuery(companyId?: string | null, options: UsePeopleOpti
 
       if (search) {
         params.append('search', search);
+      }
+
+      if (selectedCompanyId) {
+        params.append('company_id', selectedCompanyId);
       }
 
       const url = `${API_BASE_URL}/personnel/people/?${params.toString()}`;
@@ -88,7 +95,7 @@ export function usePeopleQuery(companyId?: string | null, options: UsePeopleOpti
         total: data.total,
       };
     },
-    enabled: !!session?.access_token,
+    enabled: !!session?.access_token && !!selectedCompanyId,
     staleTime: 3 * 60 * 1000, // 3 minutes
   });
 }
@@ -96,14 +103,14 @@ export function usePeopleQuery(companyId?: string | null, options: UsePeopleOpti
 /**
  * React Query mutation hook for creating a new person.
  *
+ * Uses CompanyContext to get the currently selected company ID.
  * Automatically invalidates the people query on success.
  *
- * @param companyId - The company ID to create person for
  * @returns Mutation result with mutate function
  *
  * @example
  * ```tsx
- * const createMutation = useCreatePerson(companyId);
+ * const createMutation = useCreatePerson();
  *
  * const handleCreate = async () => {
  *   await createMutation.mutateAsync({
@@ -115,8 +122,9 @@ export function usePeopleQuery(companyId?: string | null, options: UsePeopleOpti
  * };
  * ```
  */
-export function useCreatePerson(companyId: string | null) {
+export function useCreatePerson() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -146,7 +154,7 @@ export function useCreatePerson(companyId: string | null) {
     onSuccess: () => {
       // Invalidate all people queries for this company
       queryClient.invalidateQueries({
-        queryKey: ['home', 'people', companyId],
+        queryKey: ['home', 'people', selectedCompanyId],
       });
     },
   });
@@ -155,14 +163,14 @@ export function useCreatePerson(companyId: string | null) {
 /**
  * React Query mutation hook for updating an existing person.
  *
+ * Uses CompanyContext to get the currently selected company ID.
  * Uses optimistic updates for instant UI feedback.
  *
- * @param companyId - The company ID
  * @returns Mutation result with mutate function
  *
  * @example
  * ```tsx
- * const updateMutation = useUpdatePerson(companyId);
+ * const updateMutation = useUpdatePerson();
  *
  * const handleUpdate = async () => {
  *   await updateMutation.mutateAsync({
@@ -172,8 +180,9 @@ export function useCreatePerson(companyId: string | null) {
  * };
  * ```
  */
-export function useUpdatePerson(companyId: string | null) {
+export function useUpdatePerson() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -204,14 +213,14 @@ export function useUpdatePerson(companyId: string | null) {
     onMutate: async ({ personId, data }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({
-        queryKey: ['home', 'people', companyId],
+        queryKey: ['home', 'people', selectedCompanyId],
       });
 
       // Snapshot previous values for all affected queries
       const previousQueries: Array<{ queryKey: any[]; data: any }> = [];
 
       queryClient.getQueryCache().findAll({
-        queryKey: ['home', 'people', companyId],
+        queryKey: ['home', 'people', selectedCompanyId],
       }).forEach((query) => {
         const queryData = query.state.data as { people: Person[]; total: number } | undefined;
         if (queryData) {
@@ -257,7 +266,7 @@ export function useUpdatePerson(companyId: string | null) {
     onSuccess: (updatedPerson, { personId }) => {
       // Update all people lists
       queryClient.getQueryCache().findAll({
-        queryKey: ['home', 'people', companyId],
+        queryKey: ['home', 'people', selectedCompanyId],
       }).forEach((query) => {
         const queryData = query.state.data as { people: Person[]; total: number } | undefined;
         if (queryData) {
@@ -279,22 +288,23 @@ export function useUpdatePerson(companyId: string | null) {
 /**
  * React Query mutation hook for deleting a person.
  *
+ * Uses CompanyContext to get the currently selected company ID.
  * Uses optimistic updates for instant UI feedback.
  *
- * @param companyId - The company ID
  * @returns Mutation result with mutate function
  *
  * @example
  * ```tsx
- * const deleteMutation = useDeletePerson(companyId);
+ * const deleteMutation = useDeletePerson();
  *
  * const handleDelete = async (personId: string) => {
  *   await deleteMutation.mutateAsync(personId);
  * };
  * ```
  */
-export function useDeletePerson(companyId: string | null) {
+export function useDeletePerson() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -321,14 +331,14 @@ export function useDeletePerson(companyId: string | null) {
     onMutate: async (personId) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({
-        queryKey: ['home', 'people', companyId],
+        queryKey: ['home', 'people', selectedCompanyId],
       });
 
       // Snapshot previous values for all affected queries
       const previousQueries: Array<{ queryKey: any[]; data: any }> = [];
 
       queryClient.getQueryCache().findAll({
-        queryKey: ['home', 'people', companyId],
+        queryKey: ['home', 'people', selectedCompanyId],
       }).forEach((query) => {
         const queryData = query.state.data as { people: Person[]; total: number } | undefined;
         if (queryData) {

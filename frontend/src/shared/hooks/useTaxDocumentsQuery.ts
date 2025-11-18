@@ -1,16 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from "@/app/providers/AuthContext";
+import { useCompanyContext } from "@/app/providers/CompanyContext";
 import type { TaxDocument } from "@/shared/types/fizko";
 import { API_BASE_URL } from "@/shared/lib/config";
 import { apiFetch } from "@/shared/lib/api-client";
+import { queryKeys } from "@/shared/lib/query-keys";
 
 /**
- * React Query hook for fetching tax documents for a company.
+ * React Query hook for fetching tax documents for the selected company.
  *
+ * Uses CompanyContext to get the currently selected company ID.
  * Query key: ['home', 'tax-documents', companyId, limit, period, contactRut]
  * Stale time: 2 minutes
  *
- * @param companyId - The company ID to fetch documents for
  * @param limit - Maximum number of documents to fetch (default: 10)
  * @param period - Optional period filter (e.g., '2024-01' for January 2024)
  * @param contactRut - Optional contact RUT filter (e.g., '12345678-9' to show only documents with this contact)
@@ -20,26 +22,26 @@ import { apiFetch } from "@/shared/lib/api-client";
  * @example
  * ```tsx
  * // Fetch recent 10 documents
- * const { data: documents = [], isLoading } = useTaxDocumentsQuery(companyId);
+ * const { data: documents = [], isLoading } = useTaxDocumentsQuery();
  *
  * // Fetch expanded 50 documents
- * const { data: documents = [] } = useTaxDocumentsQuery(companyId, 50);
+ * const { data: documents = [] } = useTaxDocumentsQuery(50);
  *
  * // Fetch documents for a specific contact
- * const { data: documents = [] } = useTaxDocumentsQuery(companyId, 50, undefined, '12345678-9');
+ * const { data: documents = [] } = useTaxDocumentsQuery(50, undefined, '12345678-9');
  * ```
  */
 export function useTaxDocumentsQuery(
-  companyId?: string | null,
   limit: number = 10,
   period?: string,
   contactRut?: string,
   enabled: boolean = true
 ) {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
 
   return useQuery({
-    queryKey: ['home', 'tax-documents', companyId, limit, period, contactRut],
+    queryKey: ['home', 'tax-documents', selectedCompanyId, limit, period, contactRut],
     queryFn: async (): Promise<TaxDocument[]> => {
       if (!session?.access_token) {
         throw new Error('No authenticated session');
@@ -53,8 +55,10 @@ export function useTaxDocumentsQuery(
       if (contactRut) {
         params.append('contact_rut', contactRut);
       }
+      if (selectedCompanyId) {
+        params.append('company_id', selectedCompanyId);
+      }
 
-      // Use new endpoint that doesn't require company_id - backend will resolve it from user session
       const url = `${API_BASE_URL}/tax-documents?${params.toString()}`;
 
       const response = await apiFetch(url, {
@@ -74,7 +78,7 @@ export function useTaxDocumentsQuery(
 
       return await response.json();
     },
-    enabled: !!session?.access_token && enabled,
+    enabled: !!session?.access_token && !!selectedCompanyId && Boolean(enabled),
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }

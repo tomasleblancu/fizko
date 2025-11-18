@@ -9,7 +9,7 @@ interface ViewContainerProps {
   // Header
   icon: React.ReactNode;
   iconGradient: string;
-  title: string;
+  title: React.ReactNode; // Changed from string to ReactNode to accept components
   subtitle: string;
 
   // Navigation

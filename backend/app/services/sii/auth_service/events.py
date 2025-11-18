@@ -199,20 +199,25 @@ async def trigger_sync_tasks(company_id: UUID, company_tax_info=None) -> None:
             f"delayed 20s on 'default' queue"
         )
 
-        # Sync 3: Historia completa (desde offset=2, N meses calculados)
-        # Va a cola 'low' para no impactar onboarding
-        sync_documents.apply_async(
-            kwargs={
-                "company_id": str(company_id),
-                "months": historical_months,  # Calculado dinámicamente
-                "month_offset": 2  # Empieza desde mes -2 (ya tenemos 0 y 1)
-            },
-            countdown=40,
-            queue="low"  # Cola lenta para historia
-        )
+        # Sync 3: Historia completa (desde offset=2, un mes a la vez)
+        # Dispara un task por cada mes histórico en cola 'low'
+        for i in range(historical_months):
+            month_offset = 2 + i  # Empieza desde offset=2 (ya tenemos 0 y 1)
+            delay = 10 + (i * 5)  # Stagger: 10s, 15s, 20s, 25s, ...
+
+            sync_documents.apply_async(
+                kwargs={
+                    "company_id": str(company_id),
+                    "months": 1,  # Un mes a la vez
+                    "month_offset": month_offset
+                },
+                countdown=delay,
+                queue="low"  # Cola lenta para historia
+            )
+
         logger.info(
-            f"[Events] 📥 Sync 3/3: Historical data ({historical_months} months, offset=2) - "
-            f"delayed 40s on 'low' queue"
+            f"[Events] 📥 Sync 3/3: Historical data ({historical_months} individual tasks, "
+            f"offset 2-{2 + historical_months - 1}) - staggered 10s-{10 + (historical_months - 1) * 5}s on 'low' queue"
         )
     except Exception as e:
         logger.error(f"[Events] ❌ Error triggering sync_documents: {e}")

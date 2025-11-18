@@ -16,11 +16,10 @@ interface ContactDetailProps {
 export function ContactDetail({ contact, onBack, scheme, companyId }: ContactDetailProps) {
   // Fetch documents for this specific contact using the RUT filter
   const { data: documents = [], isLoading: docsLoading } = useTaxDocumentsQuery(
-    companyId,
     100, // Fetch up to 100 documents for this contact
     undefined, // No period filter
     contact.rut, // Filter by contact RUT
-    true
+    true // enabled
   );
 
   const getContactTypeLabel = (type: string) => {

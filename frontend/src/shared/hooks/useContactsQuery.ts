@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from "@/app/providers/AuthContext";
+import { useCompanyContext } from "@/app/providers/CompanyContext";
 import { API_BASE_URL } from "@/shared/lib/config";
 import { apiFetch } from "@/shared/lib/api-client";
+import { queryKeys } from "@/shared/lib/query-keys";
 
 export interface Contact {
   id: string;
@@ -37,31 +39,31 @@ export interface ContactUpdate {
 }
 
 /**
- * React Query hook for fetching contacts for a company.
+ * React Query hook for fetching contacts for the selected company.
  *
+ * Uses CompanyContext to get the currently selected company ID.
  * Query key: ['home', 'contacts', companyId]
  * Stale time: 5 minutes
  *
- * @param companyId - The company ID to fetch contacts for
  * @returns Query result with contacts array, loading and error states
  *
  * @example
  * ```tsx
- * const { data: contacts = [], isLoading } = useContactsQuery(companyId);
+ * const { data: contacts = [], isLoading } = useContactsQuery();
  * ```
  */
-export function useContactsQuery(companyId?: string | null | undefined) {
+export function useContactsQuery() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
 
   return useQuery({
-    queryKey: ['home', 'contacts', companyId],
+    queryKey: queryKeys.contacts.byCompany(selectedCompanyId || ''),
     queryFn: async (): Promise<Contact[]> => {
       if (!session?.access_token) {
         throw new Error('No authenticated session');
       }
 
-      // Don't pass company_id - backend will resolve it from user session
-      const response = await apiFetch(`${API_BASE_URL}/contacts`, {
+      const response = await apiFetch(`${API_BASE_URL}/contacts?company_id=${selectedCompanyId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -74,7 +76,7 @@ export function useContactsQuery(companyId?: string | null | undefined) {
 
       return await response.json();
     },
-    enabled: !!session?.access_token,
+    enabled: !!session?.access_token && !!selectedCompanyId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -82,14 +84,14 @@ export function useContactsQuery(companyId?: string | null | undefined) {
 /**
  * React Query mutation hook for creating a new contact.
  *
+ * Uses CompanyContext to get the currently selected company ID.
  * Automatically invalidates the contacts query on success.
  *
- * @param companyId - The company ID to create contact for
  * @returns Mutation result with mutate function
  *
  * @example
  * ```tsx
- * const createMutation = useCreateContact(companyId);
+ * const createMutation = useCreateContact();
  *
  * const handleCreate = async () => {
  *   await createMutation.mutateAsync({
@@ -100,13 +102,14 @@ export function useContactsQuery(companyId?: string | null | undefined) {
  * };
  * ```
  */
-export function useCreateContact(companyId: string | null | undefined) {
+export function useCreateContact() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (contactData: ContactCreate): Promise<Contact> => {
-      if (!session?.access_token || !companyId) {
+      if (!session?.access_token || !selectedCompanyId) {
         throw new Error('No authenticated session or company ID');
       }
 
@@ -116,7 +119,7 @@ export function useCreateContact(companyId: string | null | undefined) {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ...contactData, company_id: companyId }),
+        body: JSON.stringify({ ...contactData, company_id: selectedCompanyId }),
       });
 
       if (!response.ok) {
@@ -129,7 +132,7 @@ export function useCreateContact(companyId: string | null | undefined) {
     onSuccess: () => {
       // Invalidate contacts query to refetch
       queryClient.invalidateQueries({
-        queryKey: ['home', 'contacts', companyId],
+        queryKey: queryKeys.contacts.byCompany(selectedCompanyId || ''),
       });
     },
   });
@@ -138,14 +141,14 @@ export function useCreateContact(companyId: string | null | undefined) {
 /**
  * React Query mutation hook for updating an existing contact.
  *
+ * Uses CompanyContext to get the currently selected company ID.
  * Automatically invalidates the contacts query on success.
  *
- * @param companyId - The company ID
  * @returns Mutation result with mutate function
  *
  * @example
  * ```tsx
- * const updateMutation = useUpdateContact(companyId);
+ * const updateMutation = useUpdateContact();
  *
  * const handleUpdate = async () => {
  *   await updateMutation.mutateAsync({
@@ -155,8 +158,9 @@ export function useCreateContact(companyId: string | null | undefined) {
  * };
  * ```
  */
-export function useUpdateContact(companyId: string | null | undefined) {
+export function useUpdateContact() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -184,7 +188,7 @@ export function useUpdateContact(companyId: string | null | undefined) {
     onSuccess: () => {
       // Invalidate contacts query to refetch
       queryClient.invalidateQueries({
-        queryKey: ['home', 'contacts', companyId],
+        queryKey: queryKeys.contacts.byCompany(selectedCompanyId || ''),
       });
     },
   });
@@ -193,22 +197,23 @@ export function useUpdateContact(companyId: string | null | undefined) {
 /**
  * React Query mutation hook for deleting a contact.
  *
+ * Uses CompanyContext to get the currently selected company ID.
  * Automatically invalidates the contacts query on success.
  *
- * @param companyId - The company ID
  * @returns Mutation result with mutate function
  *
  * @example
  * ```tsx
- * const deleteMutation = useDeleteContact(companyId);
+ * const deleteMutation = useDeleteContact();
  *
  * const handleDelete = async (contactId: string) => {
  *   await deleteMutation.mutateAsync(contactId);
  * };
  * ```
  */
-export function useDeleteContact(companyId: string | null | undefined) {
+export function useDeleteContact() {
   const { session } = useAuth();
+  const { selectedCompanyId } = useCompanyContext();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -232,7 +237,7 @@ export function useDeleteContact(companyId: string | null | undefined) {
     onSuccess: () => {
       // Invalidate contacts query to refetch
       queryClient.invalidateQueries({
-        queryKey: ['home', 'contacts', companyId],
+        queryKey: queryKeys.contacts.byCompany(selectedCompanyId || ''),
       });
     },
   });
