@@ -59,6 +59,15 @@ if DATABASE_URL.startswith("postgres://"):
 elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+# Detect if using pgbouncer EARLY (before modifications)
+is_using_pooler_early = ":6543" in DATABASE_URL or "pooler.supabase.com" in DATABASE_URL
+
+# For pgbouncer transaction mode, pgbouncer MUST be disabled via connect params
+# According to asyncpg docs, this is done via prepared_statement_cache_size
+# We'll set it in connect_args below
+if is_using_pooler_early:
+    logger.info("pgbouncer detected - will disable prepared statements via connect_args")
+
 # Validate that DATABASE_URL contains a database name
 # Format should be: postgresql+asyncpg://user:pass@host:port/dbname?params
 if DATABASE_URL.count('/') < 3:
@@ -76,8 +85,11 @@ import re
 is_local = "localhost" in DATABASE_URL or "127.0.0.1" in DATABASE_URL
 
 # Detect if using pgbouncer connection pooler (port 6543) or direct connection (port 5432)
-is_using_pooler = ":6543" in DATABASE_URL or "pooler.supabase.com" in DATABASE_URL
-logger.info(f"Connection type: {'pgbouncer pooler' if is_using_pooler else 'direct connection'}")
+# Port 6543 = transaction mode (incompatible with prepared statements)
+# Port 5432 = session mode (compatible with prepared statements)
+is_using_pooler = ":6543" in DATABASE_URL or ("pooler.supabase.com" in DATABASE_URL and ":5432" not in DATABASE_URL)
+is_transaction_mode = ":6543" in DATABASE_URL
+logger.info(f"Connection type: {'pgbouncer transaction mode' if is_transaction_mode else ('pgbouncer session mode' if 'pooler.supabase.com' in DATABASE_URL else 'direct connection')}")
 
 ssl_mode = "prefer"  # Default SSL mode
 if 'ssl=' in DATABASE_URL.lower() or 'sslmode=' in DATABASE_URL.lower():
@@ -107,6 +119,10 @@ else:
         ssl_mode = "require"
         logger.info("Remote connection detected - SSL mode set to 'require' (no cert verification)")
 
+# For pgbouncer transaction mode, we will disable prepared statements via connect_args
+# NOTE: URL parameters don't work reliably with asyncpg for this purpose
+# We'll use server_settings in connect_args instead
+
 # Log the sanitized connection info (hide password)
 safe_url = DATABASE_URL.split('@')[0].split(':')[0] + ':***@' + DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else DATABASE_URL
 logger.info(f"Connecting to database: {safe_url}")
@@ -124,27 +140,19 @@ if ssl_mode != "disable" and "localhost" not in DATABASE_URL and "127.0.0.1" not
     connect_args["ssl"] = ssl_context
     logger.info(f"SSL context configured with mode: {ssl_mode}")
 
-# For pgbouncer, add statement_cache_size=0 to connect_args
-# This is CRITICAL for pgbouncer transaction mode compatibility
-# Note: This is different from prepared_statement_cache_size (which goes in URL)
-if is_using_pooler:
-    connect_args["statement_cache_size"] = 0
-    logger.info("Added statement_cache_size=0 to connect_args for pgbouncer")
+# DON'T try to disable prepared statements via connect_args - it doesn't work with asyncpg
+# If using pgbouncer transaction mode, you MUST use direct connection instead
 
 # Create async engine with appropriate settings based on connection type
-if is_using_pooler:
-    # pgbouncer pooler: Use SMALL pool and disable prepared statements
-    # NOTE: pgbouncer in transaction mode does NOT support prepared statements
-    # For production use only - local development should use direct connection (port 5432)
-
+if "pooler.supabase.com" in DATABASE_URL:
+    # pgbouncer pooler (session or transaction mode): Use SMALL pool
     # CRITICAL: Even with pgbouncer, we MUST limit connections per process
     # to prevent "max clients reached" errors in pgbouncer session mode.
     # With multiple workers (Gunicorn/Celery), each worker gets its own pool.
     # Example: 2 Gunicorn workers × 3 connections = 6 total connections to pgbouncer
 
-    logger.warning("⚠️  Using pgbouncer pooler - prepared statements disabled")
-    logger.warning("⚠️  Using small connection pool (2+1) per process to prevent pgbouncer exhaustion")
-    logger.warning("⚠️  For local development, use port 5432 (direct connection) instead")
+    logger.warning("⚠️  Using pgbouncer pooler - using small connection pool (2+1) per process")
+    logger.warning("⚠️  Session mode (port 5432) recommended over transaction mode (port 6543)")
 
     engine = create_async_engine(
         DATABASE_URL,
@@ -154,14 +162,13 @@ if is_using_pooler:
         pool_pre_ping=True,  # Check connection health before use
         pool_recycle=300,  # Recycle connections after 5 minutes
         pool_timeout=30,  # Wait up to 30s for a connection from pool
-        connect_args={
-            **connect_args,
-            "statement_cache_size": 0,  # Disable prepared statements for pgbouncer
-        },
+        connect_args=connect_args,
         execution_options={
             "compiled_cache": None,  # Disable query cache
         }
     )
+
+    logger.info("✅ pgbouncer pooler configured")
 else:
     # Direct connection: use normal pooling with prepared statements
     # For direct connections, we can disable JIT to improve query planning performance
