@@ -88,7 +88,7 @@ export function CompanyTab({
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  Mi Empresa
+                  Empresa
                 </h3>
                 <button
                   onClick={() => setIsAddCompanyModalOpen(true)}

@@ -79,7 +79,6 @@ class FormService(BaseSIIService):
             from app.infrastructure.celery.tasks.sii.forms import save_single_f29
 
             try:
-                logger.info(f"📤 Encolando guardado de F29 {formulario['folio']} via Celery")
                 save_single_f29.apply_async(
                     args=[str(company_id), formulario, str(session_id)],
                     countdown=0  # Save immediately
@@ -118,12 +117,6 @@ class FormService(BaseSIIService):
             if updated_cookies:
                 await self.save_cookies(session_id, updated_cookies)
                 await self.db.commit()
-                logger.debug(f"💾 Fresh cookies persisted to database for session {session_id}")
-
-            logger.info(
-                f"✅ Extracción F29 completada: {len(result)} formularios\n"
-                f"   Los formularios se están guardando via Celery tasks en paralelo"
-            )
 
             return result
 
@@ -211,21 +204,10 @@ class FormService(BaseSIIService):
                     new_id_interno = formulario.get('id_interno_sii')
                     if new_id_interno is not None:
                         # Actualizar con nuevo valor
-                        if existing.sii_id_interno != new_id_interno:
-                            logger.debug(
-                                f"Updating sii_id_interno for folio {formulario['folio']}: "
-                                f"{existing.sii_id_interno} → {new_id_interno}"
-                            )
                         existing.sii_id_interno = new_id_interno
-                    elif existing.sii_id_interno is not None:
-                        # Preservar valor existente (no sobrescribir con None)
-                        logger.debug(
-                            f"Preserving existing sii_id_interno for folio {formulario['folio']}: "
-                            f"{existing.sii_id_interno} (new extraction returned None)"
-                        )
+                    # elif existing.sii_id_interno is not None: preservar valor existente
                     # else: ambos son None, dejar como está
 
-                    logger.debug(f"Updated F29 download: folio={formulario['folio']}")
                     saved_downloads.append(existing)
                 else:
                     # Crear nuevo registro
@@ -242,7 +224,6 @@ class FormService(BaseSIIService):
                         amount_cents=formulario['amount']
                     )
                     self.db.add(download)
-                    logger.debug(f"Created F29 download: folio={formulario['folio']}")
                     saved_downloads.append(download)
 
             except Exception as e:
@@ -255,7 +236,6 @@ class FormService(BaseSIIService):
         else:
             self.db.commit()
 
-        logger.info(f"✅ Saved {len(saved_downloads)} F29 downloads for company {company_id}")
         return saved_downloads
 
     # =============================================================================
@@ -294,11 +274,6 @@ class FormService(BaseSIIService):
 
         result = await self.db.execute(stmt)
         pending_downloads = result.scalars().all()
-
-        logger.info(
-            f"📋 Found {len(pending_downloads)} pending F29 PDFs for company {company_id} "
-            f"(limit: {limit})"
-        )
 
         return list(pending_downloads)
 
@@ -366,8 +341,6 @@ class FormService(BaseSIIService):
                     "error": "Cannot download PDF: missing id_interno_sii"
                 }
 
-            logger.info(f"📥 Downloading PDF for F29: folio={download.sii_folio}, period={download.period_display}")
-
             # 3. Descargar PDF desde SII (con reintentos)
             pdf_bytes = None
             last_error = None
@@ -383,12 +356,6 @@ class FormService(BaseSIIService):
                         # Usar cookies solo si existen en BD
                         cookies = creds.get("cookies")
 
-                        # Log para debugging
-                        if cookies:
-                            logger.info(f"📊 Found {len(cookies)} cookies in DB: {[c.get('name') for c in cookies]}")
-                        else:
-                            logger.info("📊 No cookies found in DB")
-
                         with SIIClient(
                             tax_id=creds["rut"],
                             password=creds["password"],
@@ -400,13 +367,11 @@ class FormService(BaseSIIService):
 
                             # Si tenemos cookies, verificar si son válidas
                             if cookies and len(cookies) > 2:
-                                logger.info(f"🔍 Verifying session validity for {creds['rut']}")
                                 try:
                                     session_status = client.verify_session()
 
                                     if session_status['refreshed']:
                                         # Cookies fueron refrescadas automáticamente
-                                        logger.info("🔄 Session refreshed, saving new cookies")
                                         new_cookies = session_status['cookies']
                                         self._save_cookies_sync(session_id, new_cookies)
                                         cookies = new_cookies
@@ -414,21 +379,15 @@ class FormService(BaseSIIService):
                                         # Sesión inválida, necesita login
                                         logger.warning("⚠️ Session invalid, will perform login")
                                         needs_login = True
-                                    else:
-                                        logger.info("✅ Session valid, reusing cookies")
                                 except Exception as e:
                                     logger.warning(f"⚠️ Session verification failed: {e}, will perform login")
                                     needs_login = True
 
                             if needs_login:
-                                logger.info(f"🔐 Performing login for {creds['rut']} (cookies: {len(cookies) if cookies else 0})")
                                 client.login()
                                 new_cookies = client.get_cookies()
-                                logger.info(f"✅ Login successful, got {len(new_cookies)} cookies: {[c.get('name') for c in new_cookies]}")
                                 # Guardar cookies de forma síncrona
                                 self._save_cookies_sync(session_id, new_cookies)
-                            else:
-                                logger.debug(f"🍪 Reusing stored cookies for {creds['rut']}")
 
                             # Descargar PDF
                             pdf = client.get_f29_compacto(
@@ -469,9 +428,6 @@ class FormService(BaseSIIService):
             is_valid, validation_msg = is_valid_f29_pdf(pdf_bytes)
             pdf_size_mb = get_pdf_size_mb(pdf_bytes)
 
-            logger.info(f"📄 PDF downloaded: {len(pdf_bytes)} bytes ({pdf_size_mb:.2f}MB)")
-            logger.info(f"🔍 Validation: {validation_msg}")
-
             if not is_valid:
                 error_msg = f"Invalid PDF: {validation_msg}"
                 download.pdf_download_status = "error"
@@ -488,23 +444,16 @@ class FormService(BaseSIIService):
             try:
                 from app.services.f29_enhanced_extractor import extract_f29_data_from_pdf
 
-                logger.info("📊 Extrayendo datos estructurados del PDF...")
                 extracted_data = extract_f29_data_from_pdf(pdf_bytes)
 
                 if extracted_data.get('extraction_success'):
-                    logger.info(f"✅ Datos extraídos: {extracted_data.get('codes_extracted')} códigos")
-
                     # Guardar datos extraídos en extra_data (JSONB)
                     download.extra_data = download.extra_data or {}
                     download.extra_data['f29_data'] = extracted_data
-
-                    logger.info("💾 Datos guardados en extra_data")
                 else:
-                    logger.warning(f"⚠️ Extracción falló: {extracted_data.get('error')}")
-                    # No bloqueamos el proceso si falla la extracción
+                    logger.warning(f"⚠️ Extracción de datos del PDF falló: {extracted_data.get('error')}")
             except Exception as e:
                 logger.warning(f"⚠️ Error extrayendo datos del PDF: {e}")
-                # No bloqueamos el proceso si falla la extracción
 
             # 6. Subir a Supabase Storage
             storage = get_pdf_storage()
@@ -535,8 +484,6 @@ class FormService(BaseSIIService):
             download.pdf_downloaded_at = datetime.utcnow()
 
             await self.db.commit()
-
-            logger.info(f"✅ PDF successfully downloaded and stored: {storage_url}")
 
             return {
                 "success": True,
@@ -608,8 +555,6 @@ class FormService(BaseSIIService):
 
         # 1. Si se proporciona company_id pero no session_id, buscar la sesión activa más reciente
         if company_id and not session_id:
-            logger.info(f"🔍 Finding most recent active session for company {company_id}")
-
             # Convertir company_id a UUID si es string
             if isinstance(company_id, str):
                 company_id = UUIDType(company_id)
@@ -625,7 +570,6 @@ class FormService(BaseSIIService):
 
             if session_row:
                 session_id = session_row[0]
-                logger.info(f"✅ Found session {session_id} for company {company_id}")
             else:
                 error_msg = f"No active session found for company {company_id}"
                 logger.error(f"❌ {error_msg}")
@@ -679,8 +623,6 @@ class FormService(BaseSIIService):
                     "errors": []
                 }
 
-        logger.info(f"📥 Starting F29 PDF download for company {company_id} (max: {max_per_company})")
-
         # 2. Obtener lista de PDFs pendientes
         pending_downloads = await self.get_pending_f29_downloads(
             company_id=company_id,
@@ -688,7 +630,6 @@ class FormService(BaseSIIService):
         )
 
         if not pending_downloads:
-            logger.info(f"ℹ️ No pending F29 PDFs for company {company_id}")
             return {
                 "success": True,
                 "company_id": str(company_id),
@@ -700,8 +641,6 @@ class FormService(BaseSIIService):
                 "message": "No pending PDFs to download"
             }
 
-        logger.info(f"📋 Found {len(pending_downloads)} pending PDFs")
-
         # 3. Descargar cada PDF
         downloaded = 0
         failed = 0
@@ -709,11 +648,6 @@ class FormService(BaseSIIService):
 
         for download in pending_downloads:
             try:
-                logger.info(
-                    f"📥 Downloading PDF for folio {download.sii_folio} "
-                    f"(period: {download.period_display})"
-                )
-
                 result = await self.download_and_save_f29_pdf(
                     download_id=str(download.id),
                     session_id=session_id
@@ -721,7 +655,6 @@ class FormService(BaseSIIService):
 
                 if result.get("success"):
                     downloaded += 1
-                    logger.info(f"✅ Downloaded PDF for folio {download.sii_folio}")
                 else:
                     failed += 1
                     error_msg = result.get("error", "Unknown error")
@@ -745,10 +678,6 @@ class FormService(BaseSIIService):
                     "period": download.period_display,
                     "error": str(e)
                 })
-
-        logger.info(
-            f"✅ F29 PDF download completed: {downloaded} downloaded, {failed} failed"
-        )
 
         return {
             "success": True,
@@ -810,8 +739,6 @@ class FormService(BaseSIIService):
                 return result, updated_cookies
 
         try:
-            logger.info(f"📊 Fetching F29 propuesta - Period: {periodo}")
-
             # Ejecutar en thread separado
             result, updated_cookies = await asyncio.to_thread(_run_extraction)
 
@@ -819,9 +746,7 @@ class FormService(BaseSIIService):
             if updated_cookies:
                 await self.save_cookies(session_id, updated_cookies)
                 await self.db.commit()
-                logger.debug(f"💾 Fresh cookies persisted to database for session {session_id}")
 
-            logger.info("✅ F29 propuesta retrieved successfully")
             return result
 
         except Exception as e:
@@ -882,8 +807,6 @@ class FormService(BaseSIIService):
                 return result, updated_cookies
 
         try:
-            logger.info(f"📊 Fetching PPMO tasa - Period: {periodo}")
-
             # Ejecutar en thread separado
             result, updated_cookies = await asyncio.to_thread(_run_extraction)
 
@@ -891,9 +814,7 @@ class FormService(BaseSIIService):
             if updated_cookies:
                 await self.save_cookies(session_id, updated_cookies)
                 await self.db.commit()
-                logger.debug(f"💾 Fresh cookies persisted to database for session {session_id}")
 
-            logger.info("✅ PPMO tasa retrieved successfully")
             return result
 
         except Exception as e:
@@ -936,11 +857,6 @@ class FormService(BaseSIIService):
         # Convertir a UUID si es string
         if isinstance(company_id, str):
             company_id = UUIDType(company_id)
-
-        logger.info(
-            f"📋 Listing F29 forms for company {company_id}: "
-            f"form_type={form_type}, year={year}, status={status}, pdf_status={pdf_status}"
-        )
 
         # 1. Construir query base
         query = select(Form29SIIDownload).where(

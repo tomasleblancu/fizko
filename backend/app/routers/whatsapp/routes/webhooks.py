@@ -55,13 +55,6 @@ async def handle_webhook(
     - X-Batch-Size: número (si batched)
     """
     try:
-        # Log para debug
-        client_ip = request.client.host if request.client else 'unknown'
-        logger.info(f"📥 Webhook recibido de IP: {client_ip}")
-        logger.info(f"📋 Evento: {x_webhook_event}")
-        logger.info(f"🔑 Idempotency Key: {x_idempotency_key}")
-        if x_webhook_batch:
-            logger.info(f"📦 Batch: {x_webhook_batch} (tamaño: {x_batch_size})")
 
         # Obtener el payload raw
         body = await request.body()
@@ -94,8 +87,6 @@ async def handle_webhook(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid webhook signature",
                 )
-
-            logger.info("✅ Firma del webhook validada correctamente")
         else:
             # Sin secreto configurado, permitir webhooks sin firma (modo desarrollo)
             logger.warning("⚠️ KAPSO_WEBHOOK_SECRET no configurado - webhook ACEPTADO sin validación")
@@ -104,33 +95,22 @@ async def handle_webhook(
         # Parsear el JSON
         data = json.loads(payload)
 
-        # DEBUG: Log del payload completo para ver la estructura
-        logger.info(f"📦 Payload recibido: {json.dumps(data, indent=2)[:500]}...")
-
         # Manejar webhooks batch (múltiples eventos en un solo request)
         events_to_process = []
         if x_webhook_batch == "true" or isinstance(data, list):
             events_to_process = data if isinstance(data, list) else [data]
-            logger.info(f"📦 Procesando batch de {len(events_to_process)} eventos")
         else:
             events_to_process = [data]
 
         processed_count = 0
         for event_data in events_to_process:
             try:
-                # DEBUG: Log de cada evento individual
-                logger.info(f"🔍 Event data keys: {list(event_data.keys())}")
-
                 # Extraer datos según la estructura de Kapso
                 event_type = event_data.get("event_type") or x_webhook_event
 
                 # Kapso usa esta estructura: {message: {...}, conversation: {...}}
                 message_data = event_data.get("message", {})
                 conversation_data = event_data.get("conversation", {})
-
-                # DEBUG: Log completo de message_data para entender estructura
-                logger.info(f"🔍 Message data keys: {list(message_data.keys())}")
-                logger.info(f"🔍 Conversation data keys: {list(conversation_data.keys())}")
 
                 # ============================================================
                 # SOPORTE PARA PAYLOAD V2 DE KAPSO
@@ -171,20 +151,12 @@ async def handle_webhook(
                 # Media flag (v2: kapso.has_media, v1: has_media)
                 has_media = kapso_data.get("has_media") or message_data.get("has_media", False)
 
-                # DEBUG: Log de los valores extraídos
-                logger.info(f"🔍 Direction: '{direction}' | Sender: {sender_phone} | Type: {message_type} | Content: {message_content[:50]}...")
-
-                logger.info(f"📥 Procesando evento: {event_type} | Conv: {conversation_id} | Msg: {message_id}")
-
                 # Procesar según tipo de evento
                 if event_type in ["message.received", "whatsapp.message.received"]:
                     # Solo procesar mensajes entrantes (inbound)
                     if direction != "inbound":
-                        logger.info(f"⏭️ Mensaje saliente, no procesando")
                         processed_count += 1
                         continue
-
-                    logger.info(f"💬 Mensaje {message_type} de {contact_name} ({sender_phone}): {message_content[:100]}")
 
                     # OPTIMIZACIÓN: AUTENTICACIÓN CON CACHÉ
                     # Primero intentar obtener auth desde metadata de conversación existente
@@ -219,42 +191,17 @@ async def handle_webhook(
                                     cached_auth_used = True
 
                                     # Obtener info de usuario (ligera - solo para display_name)
-                                    user_info_start = time.time()
                                     user_info = await get_user_info_by_whatsapp(db, sender_phone)
-                                    user_info_time = time.time() - user_info_start
-
-                                    auth_total_time = time.time() - auth_total_start
-                                    logger.info(f"⚡ Auth cacheada usada: user={authenticated_user_id}, company={company_id}")
-                                    logger.info(f"  ⏱️  DB: Cached auth total: {auth_total_time:.3f}s (lookup={lookup_time:.3f}s + user_info={user_info_time:.3f}s)")
-                                else:
-                                    logger.debug("ℹ️ Conversación existe pero sin auth cacheada")
 
                         # 2. Si no hay auth cacheada, hacer autenticación completa
                         if not cached_auth_used:
-                            full_auth_start = time.time()
-                            logger.info("🔍 Realizando autenticación completa (primera vez o cache incompleto)")
-
-                            auth_user_start = time.time()
                             authenticated_user_id = await authenticate_user_by_whatsapp(db, sender_phone)
-                            auth_user_time = time.time() - auth_user_start
 
                             if authenticated_user_id:
-                                user_info_start = time.time()
                                 user_info = await get_user_info_by_whatsapp(db, sender_phone)
-                                user_info_time = time.time() - user_info_start
-
-                                company_start = time.time()
                                 company_id = await WhatsAppConversationManager.get_user_company_id(db, authenticated_user_id)
-                                company_time = time.time() - company_start
 
-                                full_auth_time = time.time() - full_auth_start
-                                logger.info(f"👤 Usuario autenticado: {authenticated_user_id} - {user_info.get('full_name') or user_info.get('email')}")
-                                logger.info(f"  ⏱️  DB: Full auth total: {full_auth_time:.3f}s")
-                                logger.info(f"    └─ Breakdown: auth={auth_user_time:.3f}s + user_info={user_info_time:.3f}s + company={company_time:.3f}s")
-
-                                if company_id:
-                                    logger.info(f"🏢 Company ID obtenido: {company_id}")
-                                else:
+                                if not company_id:
                                     logger.warning(f"⚠️ No se encontró company_id para el usuario: {authenticated_user_id}")
                             else:
                                 logger.warning(f"⚠️ Usuario no encontrado para el número: {sender_phone}")
@@ -278,9 +225,6 @@ async def handle_webhook(
 
                             # USUARIO AUTENTICADO: Invocar agente de IA
                             if authenticated_user_id and company_id:
-                                logger.info(f"🤖 Invocando agente de IA para usuario autenticado")
-                                agent_start = time.time()
-
                                 try:
                                     from app.services.whatsapp.agent_runner import WhatsAppAgentRunner
 
@@ -293,8 +237,6 @@ async def handle_webhook(
                                     attachments = None
 
                                     if has_media and message_type != "text":
-                                        logger.info(f"📎 Media detectado: {message_type}")
-
                                         # Enviar mensaje de confirmación al usuario ANTES de procesar
                                         try:
                                             # Determinar mensaje según tipo de archivo
@@ -307,14 +249,11 @@ async def handle_webhook(
 
                                             processing_msg = processing_messages.get(message_type, "📎 Recibí tu archivo, lo estoy procesando...")
 
-                                            logger.info(f"💬 Enviando mensaje de procesamiento al usuario: {processing_msg}")
-
                                             # Enviar mensaje inmediato
                                             await whatsapp_service.send_text(
                                                 conversation_id=conversation_id,
                                                 message=processing_msg,
                                             )
-                                            logger.info(f"✅ Mensaje de procesamiento enviado")
                                         except Exception as e:
                                             logger.warning(f"⚠️ No se pudo enviar mensaje de procesamiento: {e}")
                                             # No fallar el flujo - continuar procesando
@@ -328,14 +267,6 @@ async def handle_webhook(
 
                                             if attachment:
                                                 attachments = [attachment]
-                                                logger.info(f"✅ Media procesado: {attachment['attachment_id']}")
-                                                logger.info(f"  Type: {attachment['mime_type']}")
-                                                logger.info(f"  File: {attachment['filename']}")
-                                                logger.info(f"  URL: {attachment['url']}")
-
-                                                # Log especial para PDFs con vector_store
-                                                if "vector_store_id" in attachment:
-                                                    logger.info(f"  📄 PDF con FileSearch habilitado: {attachment['vector_store_id']}")
                                             else:
                                                 logger.warning(f"⚠️ No se pudo procesar media (puede ser error de descarga o tipo no soportado)")
 
@@ -355,9 +286,6 @@ async def handle_webhook(
                                         save_assistant_message=False,  # Guardamos después de enviar
                                         attachments=attachments,  # Pass processed media attachments
                                     )
-
-                                    agent_time = time.time() - agent_start
-                                    logger.info(f"✅ Agente generó respuesta ({len(response_message)} chars) en {agent_time:.3f}s")
 
                                 except Exception as e:
                                     logger.error(f"❌ Error ejecutando agente: {e}")
@@ -399,26 +327,17 @@ async def handle_webhook(
                                 )
 
                                 if is_test_conversation:
-                                    logger.info(f"🧪 Conversación de prueba detectada: {conversation_id}")
-                                    logger.info(f"📝 Respuesta generada (no enviada): {response_message[:100]}...")
-                                    # No enviar mensaje real, solo loguearlo
-                                    total_time = time.time() - processing_start
-                                    logger.info(f"✅ Webhook de prueba procesado correctamente en {total_time:.3f}s")
+                                    # No enviar mensaje real en conversaciones de prueba
+                                    pass
                                 else:
                                     # Conversación real - enviar mensaje
                                     try:
-                                        send_start = time.time()
                                         await whatsapp_service.send_text(
                                             conversation_id=conversation_id,
                                             message=response_message
                                         )
-                                        send_time = time.time() - send_start
-                                        total_time = time.time() - processing_start
-                                        logger.info(f"✅ Respuesta enviada a {contact_name} (envío: {send_time:.3f}s)")
-                                        logger.info(f"⏱️  TIEMPO TOTAL (procesamiento + envío): {total_time:.3f}s")
                                     except KapsoNotFoundError:
                                         logger.warning(f"⚠️ Conversación no encontrada en Kapso: {conversation_id}")
-                                        logger.info(f"📝 Respuesta generada (no enviada): {response_message[:100]}...")
                                     except Exception as e:
                                         logger.error(f"❌ Error enviando respuesta: {e}")
                                         raise
@@ -445,7 +364,6 @@ async def handle_webhook(
                                                     role="user",
                                                     metadata={"message_id": _user_msg_id},
                                                 )
-                                                logger.info(f"💾 User message saved in background")
 
                                                 # Guardar mensaje del asistente
                                                 await WhatsAppConversationManager.add_message(
@@ -455,7 +373,6 @@ async def handle_webhook(
                                                     content=_assistant_content,
                                                     role="assistant",
                                                 )
-                                                logger.info(f"💾 Assistant message saved in background")
                                         except Exception as e:
                                             logger.error(f"❌ Error guardando mensajes en background: {e}")
                                             import traceback
@@ -470,12 +387,9 @@ async def handle_webhook(
                         logger.error(traceback.format_exc())
 
                 elif event_type in ["message.sent", "whatsapp.message.sent"]:
-                    logger.info(f"✅ Mensaje enviado confirmado: {message_id}")
-
                     # Guardar mensaje manual en contexto para que el agente tenga historial completo
                     # Solo procesar si fue enviado manualmente (outbound) y tiene contenido
                     if direction == "outbound" and message_content.strip():
-                        logger.info(f"📝 Guardando mensaje manual en contexto: {message_content[:50]}...")
 
                         # Obtener auth info del usuario que envió (si existe)
                         async with AsyncSessionLocal() as db:
@@ -510,21 +424,14 @@ async def handle_webhook(
                                                 role="assistant",  # Es un mensaje del asistente (outbound)
                                                 metadata={"message_id": message_id, "manual": True},
                                             )
-                                            logger.info(f"💾 Mensaje manual guardado en contexto: {manual_msg_content[:50]}...")
                                         except Exception as e:
                                             logger.error(f"❌ Error guardando mensaje manual: {e}")
-                                    else:
-                                        logger.debug(f"ℹ️ No se encontró auth cacheada para guardar mensaje manual")
-                                else:
-                                    logger.debug(f"ℹ️ No se encontró conversación para guardar mensaje manual")
-                            else:
-                                logger.debug(f"ℹ️ No hay conversation_id para guardar mensaje manual")
 
                 elif event_type in ["message.delivered", "whatsapp.message.delivered"]:
-                    logger.info(f"📬 Mensaje entregado: {message_id}")
+                    pass
 
                 elif event_type in ["message.read", "whatsapp.message.read"]:
-                    logger.info(f"👁️ Mensaje leído: {message_id}")
+                    pass
 
                 elif event_type in ["message.failed", "whatsapp.message.failed"]:
                     error = event_data.get("error", {})

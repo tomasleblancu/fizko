@@ -76,8 +76,6 @@ class WhatsAppAgentRunner:
 
     def __init__(self):
         """Inicializa el runner con sistema multi-agente."""
-        logger.info("🤖 WhatsAppAgentRunner initialized (multi-agent mode)")
-
         # Directorio para sesiones del agente
         sessions_dir = os.path.join(
             os.path.dirname(__file__), "..", "..", "sessions"
@@ -121,17 +119,8 @@ class WhatsAppAgentRunner:
         Returns:
             tuple[str, Optional[UUID]]: (respuesta del agente, conversation_id en DB)
         """
-        import time
-        process_start = time.time()
-        logger.info("=" * 80)
-        logger.info(f"🚀 WhatsApp Agent | user={user_id}")
-
         async with AsyncSessionLocal() as db:
-            # 1. Setup: conversation + messages + context (con timing detallado)
-            setup_start = time.time()
-
-            # Operación 1: Buscar/crear conversación
-            conv_start = time.time()
+            # 1. Setup: conversation + messages + context
             conversation = await WhatsAppConversationManager.get_or_create_conversation(
                 db=db,
                 user_id=user_id,
@@ -139,24 +128,9 @@ class WhatsAppAgentRunner:
                 conversation_id=conversation_id,
                 phone_number=phone_number,
             )
-            conv_time = time.time() - conv_start
-            logger.info(f"  ⏱️  DB: get_or_create_conversation: {conv_time:.3f}s")
 
-            # Operación 2: Guardar mensaje del usuario → MOVIDO A BACKGROUND
-            # Se guardará después de enviar respuesta al usuario para reducir latencia
-            logger.info(f"  ⏱️  DB: add_message(user): skipped (will save in background)")
-
-            # Operación 3: Cargar user_info
-            # NOTE: NO LONGER LOADING company_info - agents use search_company_memory() on-demand
-            user_start = time.time()
+            # Cargar user_info
             user_info = await load_user_info_cached(db, user_id)
-            user_time = time.time() - user_start
-            cache_hit_user = user_time < 0.05
-            logger.info(f"  ⏱️  DB: load_user_info_cached: {user_time:.3f}s (cache_hit: {cache_hit_user})")
-
-            setup_time = time.time() - setup_start
-            logger.info(f"⏱️  Setup total: {setup_time:.3f}s | conv_id={conversation.id}")
-            logger.info(f"    └─ Breakdown: conv={conv_time:.3f}s + user={user_time:.3f}s")
 
             # 2. Preparar mensaje (sin inyectar company_context aquí - se hace en session_input_callback)
             vector_store_ids = []
@@ -172,19 +146,12 @@ class WhatsAppAgentRunner:
                     user_info, message_content, attachments
                 )
                 agent_input = [{"role": "user", "content": content_parts}]
-
-                att_summary = f"{len(attachments)} files"
-                if vector_store_ids:
-                    att_summary += f" ({len(vector_store_ids)} PDFs)"
-                logger.info(f"📎 Message with attachments: {att_summary}")
             else:
                 # Construir mensaje simple con user_info (NO company_info)
                 user_message = self._build_message_simple(user_info, message_content)
                 agent_input = user_message
 
             # 3. Crear agente (multi-agent system)
-            agent_start = time.time()
-
             agent = await handoffs_manager.get_supervisor_agent(
                 thread_id=str(conversation.id), db=db, user_id=str(user_id),
                 vector_store_ids=vector_store_ids, channel="whatsapp"
@@ -193,12 +160,6 @@ class WhatsAppAgentRunner:
                 thread_id=str(conversation.id), db=db, user_id=str(user_id),
                 vector_store_ids=vector_store_ids, channel="whatsapp"
             )
-
-            if vector_store_ids:
-                logger.info(f"📄 Multi-agent with {len(vector_store_ids)} PDF(s)")
-
-            agent_time = time.time() - agent_start
-            logger.info(f"⏱️  Agent init: {agent_time:.3f}s")
 
             # 4. Contexto
             from app.agents.core import FizkoContext
@@ -222,11 +183,7 @@ class WhatsAppAgentRunner:
             # Usar conversation.id para mantener historial persistente entre mensajes
             session = SQLiteSession(str(conversation.id), self.session_file)
 
-            logger.info(f"📝 Session created with conversation_id: {conversation.id}")
-
             # 6. Ejecutar agente con session_input_callback
-            runner_start = time.time()
-            logger.info(f"⏱️  [+{time.time() - process_start:.3f}s] Runner.run() started")
 
             # Formatear user_info una sola vez para inyectar en el primer mensaje
             # NOTE: NO LONGER INJECTING company_context - agents use search_company_memory() on-demand
@@ -252,7 +209,6 @@ Email: {user_info.get('email', 'N/A')}
                         "role": "user",
                         "content": [{"type": "input_text", "text": user_context}]
                     }]
-                    logger.info(f"📋 Injected user_context into session history ({len(user_context)} chars)")
 
                 # Merge new input
                 if isinstance(new_input, list) and len(new_input) > 0:
@@ -272,24 +228,14 @@ Email: {user_info.get('email', 'N/A')}
                 session=session, max_turns=10, run_config=run_config
             )
 
-            runner_time = time.time() - runner_start
-            logger.info(f"⏱️  Runner.run(): {runner_time:.3f}s")
-
             # 7. Extraer y guardar respuesta
             response_text = self._extract_text_from_result(result)
 
             if save_assistant_message:
-                save_start = time.time()
                 await WhatsAppConversationManager.add_message(
                     db=db, conversation_id=conversation.id, user_id=user_id,
                     content=response_text, role="assistant", conversation=conversation
                 )
-                save_time = time.time() - save_start
-                logger.info(f"  ⏱️  DB: add_message(assistant): {save_time:.3f}s")
-
-            total_time = time.time() - process_start
-            logger.info(f"✅ Complete: {total_time:.3f}s | response={len(response_text)} chars")
-            logger.info("=" * 80)
 
             # Retornar datos adicionales para guardar mensaje del usuario en background
             return (response_text, conversation.id, message_content, message_id)
@@ -331,7 +277,6 @@ Email: {user_info.get('email', 'N/A')}
 
             if not result:
                 # No hay sesión previa, no hay nada que limpiar
-                logger.debug(f"📭 No previous session found for {conversation_id}")
                 return
 
             # Parsear el timestamp (SQLite almacena como string)
@@ -349,23 +294,11 @@ Email: {user_info.get('email', 'N/A')}
 
             if time_since_last_activity > threshold:
                 # Han pasado más de 2 horas, limpiar el historial
-                hours_passed = time_since_last_activity.total_seconds() / 3600
-                logger.info(f"🧹 Cleaning session history for {conversation_id}")
-                logger.info(f"   Time since last activity: {hours_passed:.1f} hours (threshold: 2h)")
-
-                # Limpiar el historial de SQLite usando el método correcto
                 session.clear_session()
-
-                logger.info(f"✅ Session history cleared (fresh context started)")
-            else:
-                # Todavía dentro de las 2 horas, mantener el historial
-                minutes_passed = time_since_last_activity.total_seconds() / 60
-                logger.debug(f"⏱️  Time since last activity: {minutes_passed:.1f} minutes (keeping history)")
 
         except Exception as e:
             # Si hay error consultando SQLite, no bloquear - solo log
             logger.warning(f"⚠️ Failed to check session history age: {e}")
-            logger.debug(f"   Continuing without cleanup")
 
     def _build_message_simple(
         self, user_info: dict, message: str

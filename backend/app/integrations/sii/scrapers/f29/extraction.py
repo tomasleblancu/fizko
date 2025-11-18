@@ -42,7 +42,6 @@ def _cerrar_overlays(driver) -> None:
                 overlays = driver.driver.find_elements(By.XPATH, overlay_selector)
                 for overlay in overlays:
                     if overlay.is_displayed():
-                        logger.debug(f"   ⚠️ Overlay detectado, intentando ocultar: {overlay_selector}")
                         # Ocultar con JavaScript
                         driver.driver.execute_script(
                             "arguments[0].style.display = 'none';",
@@ -52,7 +51,7 @@ def _cerrar_overlays(driver) -> None:
             except:
                 pass
     except Exception as overlay_error:
-        logger.debug(f"   No se pudo detectar/cerrar overlays: {overlay_error}")
+        pass
 
 
 def _analizar_interceptor(driver, element, folio: str) -> None:
@@ -110,7 +109,6 @@ def _click_con_retry(driver, element, folio: str, button_name: str, max_retries:
             # ESTRATEGIA 1: Esperar más tiempo inicial en cada reintento
             if attempt > 0:
                 wait_time = 1.0 + (attempt * 0.5)
-                logger.debug(f"   Esperando {wait_time}s antes de reintento {attempt + 1}...")
                 time.sleep(wait_time)
 
             # ESTRATEGIA 2: Cerrar overlays antes del click
@@ -129,18 +127,15 @@ def _click_con_retry(driver, element, folio: str, button_name: str, max_retries:
                     EC.element_to_be_clickable(element)
                 )
             except TimeoutException:
-                logger.debug(f"   ⚠️ Timeout esperando elemento clickable, intentando de todas formas")
+                pass
 
             # ESTRATEGIA 4: Intentar click según el intento
             if attempt < 3:
                 # Primeros 3 intentos: click normal
                 element.click()
-                logger.debug(f"✓ Click normal exitoso en '{button_name}' (intento {attempt + 1})")
             else:
                 # Últimos intentos: JavaScript click directo
-                logger.debug(f"   Usando JavaScript click directo (intento {attempt + 1})")
                 driver.driver.execute_script("arguments[0].click();", element)
-                logger.debug(f"✓ JavaScript click exitoso en '{button_name}' (intento {attempt + 1})")
 
             # Si llegamos aquí, el click fue exitoso
             return
@@ -153,21 +148,14 @@ def _click_con_retry(driver, element, folio: str, button_name: str, max_retries:
             except:
                 pass
 
-            if attempt < max_retries - 1:
-                logger.debug(
-                    f"⚠️ Click en '{button_name}' bloqueado (intento {attempt + 1}/{max_retries}): "
-                    f"{str(click_error)[:100]}"
-                )
-            else:
+            if attempt >= max_retries - 1:
                 logger.error(
                     f"❌ Click en '{button_name}' bloqueado después de {max_retries} intentos para folio {folio}"
                 )
                 raise
 
         except Exception as e:
-            if attempt < max_retries - 1:
-                logger.debug(f"⚠️ Error en intento {attempt + 1} de click en '{button_name}': {type(e).__name__}")
-            else:
+            if attempt >= max_retries - 1:
                 logger.error(f"❌ Error final en click de '{button_name}' después de {max_retries} intentos: {e}")
                 raise
 
@@ -195,11 +183,6 @@ def extraer_codint_from_formulario_compacto(driver, folio_text: str) -> Optional
         return None
 
     try:
-        logger.debug(f"🔍 Iniciando extracción de codInt para folio {folio_text}")
-
-        # Paso 1: Buscar el botón "Formulario Compacto"
-        logger.debug(f"   [1/6] Buscando botón 'Formulario Compacto'...")
-
         # Esperar a que el botón esté presente
         formulario_compacto_btn = WebDriverWait(driver.driver, 10).until(
             EC.presence_of_element_located((
@@ -207,47 +190,34 @@ def extraer_codint_from_formulario_compacto(driver, folio_text: str) -> Optional
                 "//button[contains(text(), 'Formulario Compacto')]"
             ))
         )
-        logger.debug(f"   [1/6] ✓ Botón encontrado")
 
-        # Paso 2: Guardar ventanas actuales
-        logger.debug(f"   [2/6] Obteniendo ventanas actuales...")
+        # Guardar ventanas actuales
         ventanas_antes = driver.driver.window_handles
-        logger.debug(f"   [2/6] ✓ Ventanas antes: {len(ventanas_antes)}")
 
-        # Paso 3: Click en Formulario Compacto con retry anti-interceptor
-        logger.debug(f"   [3/6] Haciendo click en 'Formulario Compacto' (con anti-interceptor)...")
+        # Click en Formulario Compacto con retry anti-interceptor
         _click_con_retry(driver, formulario_compacto_btn, folio_text, "Formulario Compacto")
-        logger.debug(f"   [3/6] ✓ Click realizado, esperando 3s...")
         time.sleep(3)  # Aumentado a 3s para dar más tiempo en Docker
 
-        # Paso 4: Verificar sesión después del click
-        logger.debug(f"   [4/6] Verificando sesión después del click...")
+        # Verificar sesión después del click
         if not check_session_valid(driver):
-            logger.error(f"   [4/6] ❌ SESIÓN SE INVALIDÓ DESPUÉS DEL CLICK en 'Formulario Compacto'")
+            logger.error(f"SESIÓN SE INVALIDÓ DESPUÉS DEL CLICK en 'Formulario Compacto' para folio {folio_text}")
             return None
-        logger.debug(f"   [4/6] ✓ Sesión sigue válida")
 
-        # Paso 5: Verificar si se abrió nueva pestaña
-        logger.debug(f"   [5/6] Verificando nuevas ventanas...")
+        # Verificar si se abrió nueva pestaña
         ventanas_despues = driver.driver.window_handles
-        logger.debug(f"   [5/6] ✓ Ventanas después: {len(ventanas_despues)}")
 
         if len(ventanas_despues) > len(ventanas_antes):
-            # Paso 6a: Cambiar a la nueva pestaña
-            logger.debug(f"   [6a] Cambiando a nueva ventana...")
+            # Cambiar a la nueva pestaña
             nueva_ventana = ventanas_despues[-1]
             driver.driver.switch_to.window(nueva_ventana)
-            logger.debug(f"   [6a] ✓ Cambiado a ventana nueva")
 
             # Verificar sesión después del switch
             if not check_session_valid(driver):
-                logger.error(f"   [6a] ❌ SESIÓN SE INVALIDÓ DESPUÉS DE switch_to.window()")
+                logger.error(f"SESIÓN SE INVALIDÓ DESPUÉS DE switch_to.window() para folio {folio_text}")
                 return None
 
             # Obtener la URL (contiene el codInt)
-            logger.debug(f"   [6b] Obteniendo URL del formulario compacto...")
             url_compacto = driver.driver.current_url
-            logger.debug(f"   [6b] ✓ URL Formulario Compacto: {url_compacto}")
 
             # Extraer codInt de la URL usando regex
             # Formato: ...?folio=XXX&rut=YYY&form=029&codInt=ZZZ
@@ -256,31 +226,23 @@ def extraer_codint_from_formulario_compacto(driver, folio_text: str) -> Optional
             cod_int = None
             if match:
                 cod_int = match.group(1)
-                logger.debug(f"   [6c] ✅ codInt extraído de URL: {cod_int}")
             else:
-                logger.warning(f"   [6c] ⚠️ No se encontró codInt en URL: {url_compacto}")
+                logger.warning(f"No se encontró codInt en URL para folio {folio_text}: {url_compacto}")
 
             # Cerrar la pestaña del PDF y volver a la anterior
-            logger.debug(f"   [6d] Cerrando ventana del PDF...")
             driver.driver.close()
-            logger.debug(f"   [6d] ✓ Ventana cerrada")
 
             # Volver a la ventana original
-            # NOTA: No verificamos la sesión aquí porque window_handles puede fallar temporalmente
-            # después de close(), pero switch_to.window() funciona correctamente
-            logger.debug(f"   [6e] Volviendo a ventana original...")
             try:
                 driver.driver.switch_to.window(ventanas_antes[0])
-                logger.debug(f"   [6e] ✓ Vuelto a ventana original")
             except Exception as e:
-                logger.warning(f"   [6e] ⚠️ Error al volver a ventana: {e}")
+                logger.warning(f"Error al volver a ventana para folio {folio_text}: {e}")
                 # Aún así, devolver el codInt que ya extrajimos
                 return cod_int
 
-            logger.debug(f"   ✅ Extracción completada exitosamente: codInt={cod_int}")
             return cod_int
         else:
-            logger.warning("⚠️ No se abrió nueva pestaña al hacer click en Formulario Compacto")
+            logger.warning(f"No se abrió nueva pestaña al hacer click en Formulario Compacto para folio {folio_text}")
             return None
 
     except InvalidSessionIdException as e:
@@ -435,8 +397,6 @@ def extraer_resultados(driver, save_callback: Optional[callable] = None) -> List
                     resultados.append(formulario)
                     continue
 
-                logger.debug(f"🔍 Procesando folio {datos['folio']} (índice {datos['row_index']})")
-
                 # Re-obtener la tabla actualizada
                 tabla = driver.wait_for_element(
                     By.CLASS_NAME,
@@ -455,7 +415,6 @@ def extraer_resultados(driver, save_callback: Optional[callable] = None) -> List
                     ver_link = ultima_celda.find_element(By.LINK_TEXT, "Ver")
 
                     # Click en Ver para abrir vista de detalle
-                    logger.debug(f"👁️  Click en 'Ver' para folio {datos['folio']}")
                     ver_link.click()
                     time.sleep(1.5)
 
@@ -527,7 +486,6 @@ def extraer_resultados(driver, save_callback: Optional[callable] = None) -> List
                 # Continuar sin codInt si falla
 
             resultados.append(formulario)
-            logger.debug(f"F29: {formulario['folio']} - {formulario['period']}")
 
     except TimeoutException:
         logger.warning("No se encontraron resultados")
@@ -548,34 +506,14 @@ def _volver_a_tabla_principal(driver, folio: str) -> None:
             logger.error("❌ Sesión inválida, no se puede hacer click en 'Volver'")
             return
 
-        # 📊 LOGGING DE ESTADO ANTES DE INTENTAR VOLVER
-        try:
-            logger.debug(f"📊 Estado antes de click 'Volver' para folio {folio}:")
-            logger.debug(f"   - URL actual: {driver.driver.current_url}")
-            logger.debug(f"   - Ventanas abiertas: {len(driver.driver.window_handles)}")
-            logger.debug(f"   - Document readyState: {driver.driver.execute_script('return document.readyState')}")
-
-            # Verificar si hay overlays visibles con z-index alto
-            overlay_count = driver.driver.execute_script("""
-                return Array.from(document.querySelectorAll('div')).filter(el => {
-                    const style = window.getComputedStyle(el);
-                    const zIndex = parseInt(style.zIndex);
-                    return zIndex > 1000 && style.display !== 'none' && style.visibility !== 'hidden';
-                }).length;
-            """)
-            logger.debug(f"   - Overlays con z-index > 1000: {overlay_count}")
-        except Exception as log_error:
-            logger.warning(f"⚠️ Error obteniendo estado: {log_error}")
-
         max_retries = 5
         for attempt in range(max_retries):
             try:
-                # ESTRATEGIA 1: Esperar más tiempo inicial para que se cargue la página
-                wait_time = 1.5 + (attempt * 0.5)  # Aumentar tiempo en cada reintento
-                logger.debug(f"   Esperando {wait_time}s antes de buscar botón 'Volver'...")
+                # Esperar más tiempo inicial para que se cargue la página
+                wait_time = 1.5 + (attempt * 0.5)
                 time.sleep(wait_time)
 
-                # ESTRATEGIA 2: Buscar el botón con múltiples selectores
+                # Buscar el botón con múltiples selectores
                 volver_selectors = [
                     "//button[contains(text(), 'Volver')]",
                     "//button[contains(@class, 'gw-button') and contains(text(), 'Volver')]",
@@ -589,7 +527,6 @@ def _volver_a_tabla_principal(driver, folio: str) -> None:
                             EC.presence_of_element_located((By.XPATH, selector))
                         )
                         if volver_btn:
-                            logger.debug(f"   Botón 'Volver' encontrado con selector: {selector}")
                             break
                     except:
                         continue
@@ -597,10 +534,10 @@ def _volver_a_tabla_principal(driver, folio: str) -> None:
                 if not volver_btn:
                     raise Exception("No se encontró el botón 'Volver' con ningún selector")
 
-                # ESTRATEGIA 3: Detectar y cerrar overlays explícitamente
+                # Detectar y cerrar overlays explícitamente
                 _cerrar_overlays(driver)
 
-                # ESTRATEGIA 4: Scroll y esperar que el elemento sea clickable
+                # Scroll y esperar que el elemento sea clickable
                 try:
                     driver.driver.execute_script(
                         "arguments[0].scrollIntoView({block: 'center', inline: 'center'});",
@@ -613,18 +550,13 @@ def _volver_a_tabla_principal(driver, folio: str) -> None:
                         EC.element_to_be_clickable(volver_btn)
                     )
                 except TimeoutException:
-                    logger.debug(f"   ⚠️ Timeout esperando elemento clickable, intentando de todas formas")
+                    pass
 
-                # ESTRATEGIA 5: Intentar click según el intento
+                # Intentar click según el intento
                 if attempt < 3:
-                    # Primeros 3 intentos: click normal
                     volver_btn.click()
-                    logger.debug(f"🔙 Click normal exitoso en 'Volver' (intento {attempt + 1})")
                 else:
-                    # Últimos 2 intentos: JavaScript click directo
-                    logger.debug(f"   Usando JavaScript click directo (intento {attempt + 1})")
                     driver.driver.execute_script("arguments[0].click();", volver_btn)
-                    logger.debug(f"🔙 JavaScript click exitoso en 'Volver' (intento {attempt + 1})")
 
                 # Si llegamos aquí, el click fue exitoso
                 time.sleep(0.5)
@@ -635,23 +567,15 @@ def _volver_a_tabla_principal(driver, folio: str) -> None:
                 take_debug_screenshot(driver, "click_intercepted", folio)
                 _analizar_interceptor(driver, volver_btn, folio)
 
-                if attempt < max_retries - 1:
-                    logger.debug(
-                        f"⚠️ Click bloqueado (intento {attempt + 1}/{max_retries}): {str(click_error)[:100]}"
-                    )
-                else:
-                    # ESTRATEGIA 6: Último recurso - navegar directamente
+                if attempt >= max_retries - 1:
+                    # Último recurso - navegar directamente
                     _navegar_directo_a_tabla(driver)
                     break
 
             except Exception as e:
-                if attempt < max_retries - 1:
-                    logger.debug(f"⚠️ Error en intento {attempt + 1}: {type(e).__name__}: {str(e)[:100]}")
-                else:
-                    logger.warning(f"⚠️ Error final después de {max_retries} intentos: {e}")
+                if attempt >= max_retries - 1:
+                    logger.warning(f"Error final después de {max_retries} intentos al volver a tabla: {e}")
                     raise
-
-        logger.debug(f"🔙 Volviendo a tabla principal")
 
     except Exception as e:
         logger.warning(
@@ -664,19 +588,16 @@ def _volver_a_tabla_principal(driver, folio: str) -> None:
 
 def _navegar_directo_a_tabla(driver) -> None:
     """Último recurso: navega directamente de vuelta a la tabla de búsqueda"""
-    logger.warning("⚠️ Click bloqueado después de todos los intentos, usando estrategia de navegación directa")
     try:
         # Usar history.back() de JavaScript
         driver.driver.execute_script("window.history.back();")
         time.sleep(1)
-        logger.debug("✅ Navegación con history.back() exitosa")
     except Exception as nav_error:
-        logger.warning(f"⚠️ Navegación también falló: {nav_error}")
+        logger.warning(f"Navegación con history.back() falló: {nav_error}")
         # Última alternativa: navegar a la URL de búsqueda
         try:
             driver.navigate_to(SEARCH_URL)
             time.sleep(2)
-            logger.debug("✅ Navegación directa a SEARCH_URL exitosa")
         except Exception as url_error:
-            logger.error(f"❌ Todas las estrategias de navegación fallaron: {url_error}")
+            logger.error(f"Todas las estrategias de navegación fallaron: {url_error}")
             raise

@@ -67,7 +67,7 @@ export function ProfileSettings({ scheme, isInDrawer = false, onNavigateBack, co
 
   const tabs = [
     { id: 'profile' as const, label: 'Perfil', icon: User },
-    { id: 'company' as const, label: 'Mi Empresa', icon: Building2 },
+    { id: 'company' as const, label: 'Empresa', icon: Building2 },
     { id: 'preferences' as const, label: 'Preferencias', icon: Bell },
     { id: 'subscription' as const, label: 'Suscripción', icon: CreditCard },
   ];
