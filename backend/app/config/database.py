@@ -143,22 +143,34 @@ if ssl_mode != "disable" and "localhost" not in DATABASE_URL and "127.0.0.1" not
 # DON'T try to disable prepared statements via connect_args - it doesn't work with asyncpg
 # If using pgbouncer transaction mode, you MUST use direct connection instead
 
+# Detect service type to prioritize FastAPI over Celery
+service_type = os.getenv("SERVICE_TYPE", "fastapi")  # fastapi, celery-worker, celery-beat
+is_celery = service_type.startswith("celery")
+
 # Create async engine with appropriate settings based on connection type
 if "pooler.supabase.com" in DATABASE_URL:
     # pgbouncer pooler (session or transaction mode): Use SMALL pool
     # CRITICAL: Even with pgbouncer, we MUST limit connections per process
     # to prevent "max clients reached" errors in pgbouncer session mode.
     # With multiple workers (Gunicorn/Celery), each worker gets its own pool.
-    # Example: 2 Gunicorn workers × 3 connections = 6 total connections to pgbouncer
 
-    logger.warning("⚠️  Using pgbouncer pooler - using small connection pool (2+1) per process")
+    # Prioritize FastAPI: Give it more connections than Celery
+    if is_celery:
+        async_pool_size = 1  # Celery: minimal pool
+        async_max_overflow = 1  # Max 2 connections per Celery worker
+        logger.warning("⚠️  Celery worker: Using minimal pool (1+1) to prioritize FastAPI")
+    else:
+        async_pool_size = 2  # FastAPI: normal pool
+        async_max_overflow = 1  # Max 3 connections per FastAPI worker
+        logger.warning("⚠️  FastAPI: Using small connection pool (2+1) per process")
+
     logger.warning("⚠️  Session mode (port 5432) recommended over transaction mode (port 6543)")
 
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,
-        pool_size=2,  # Small pool per process (worker)
-        max_overflow=1,  # Allow max 3 connections per process under load
+        pool_size=async_pool_size,  # Varies by service
+        max_overflow=async_max_overflow,  # Varies by service
         pool_pre_ping=True,  # Check connection health before use
         pool_recycle=300,  # Recycle connections after 5 minutes
         pool_timeout=30,  # Wait up to 30s for a connection from pool
@@ -208,11 +220,17 @@ if not is_using_pooler:
     # Only set jit=off for direct connections
     sync_connect_args["options"] = "-c jit=off"
 
-# Sync engine: Use same conservative pool settings as async engine
+# Sync engine: Prioritize FastAPI over Celery (sync is used for Selenium)
 if is_using_pooler:
-    logger.info("Sync engine: Using small pool (2+1) for pgbouncer compatibility")
-    sync_pool_size = 2
-    sync_max_overflow = 1
+    # Celery uses sync engine for Selenium - minimal pool
+    if is_celery:
+        sync_pool_size = 1  # Celery: 1 connection (Selenium is single-threaded anyway)
+        sync_max_overflow = 0  # No overflow for Celery
+        logger.info("Sync engine (Celery): Minimal pool (1+0) for Selenium tasks")
+    else:
+        sync_pool_size = 2  # FastAPI: unlikely to use sync, but keep small
+        sync_max_overflow = 1
+        logger.info("Sync engine (FastAPI): Small pool (2+1) for pgbouncer compatibility")
     sync_pool_recycle = 300
 else:
     logger.info("Sync engine: Using standard pool (5+10) for direct connection")

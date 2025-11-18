@@ -11,6 +11,7 @@ from chatkit.server import StreamingResult
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 from starlette.responses import JSONResponse
+from starlette.requests import ClientDisconnect
 
 from ...agents import create_chatkit_server
 from app.integrations.chatkit import ChatKitServerAdapter
@@ -206,7 +207,13 @@ async def chatkit_endpoint(
     if not company_id:
         company_id = user.get("company_id") if user else None
 
-    payload = await request.body()
+    # Handle client disconnect gracefully
+    try:
+        payload = await request.body()
+    except ClientDisconnect:
+        logger.warning(f"Client disconnected before request body could be read (user: {user_id})")
+        # Return empty response - client already disconnected anyway
+        return Response(status_code=499)  # 499 = Client Closed Request (nginx convention)
 
     # Extract message and thread_id from payload
     user_message = ""
