@@ -101,8 +101,13 @@ case "$1" in
         echo -e "${GREEN}🚀 Starting FastAPI (Production)${NC}"
         check_env_vars "DATABASE_URL" "REDIS_URL" "OPENAI_API_KEY" "SUPABASE_URL"
 
+        # Configurable workers via WORKERS env var (default: 2)
+        # Set WORKERS=1 in Railway to reduce database connections
+        WORKERS=${WORKERS:-2}
+        echo -e "${BLUE}ℹ${NC}  Using ${WORKERS} Gunicorn worker(s)"
+
         exec gunicorn app.main:app \
-            --workers 2 \
+            --workers ${WORKERS} \
             --worker-class uvicorn.workers.UvicornWorker \
             --bind 0.0.0.0:${PORT:-8000} \
             --timeout 120 \
