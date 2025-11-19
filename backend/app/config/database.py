@@ -223,15 +223,18 @@ if not is_using_pooler:
 
 # Sync engine: Prioritize FastAPI over Celery (sync is used for Selenium)
 if is_using_pooler:
-    # Celery uses sync engine for Selenium - minimal pool
+    # FastAPI uses sync engine for SII service calls (document extraction, etc.)
+    # These run Selenium inside async endpoints using sync sessions
     if is_celery:
-        sync_pool_size = 1  # Celery: 1 connection (Selenium is single-threaded anyway)
-        sync_max_overflow = 0  # No overflow for Celery
-        logger.info("Sync engine (Celery): Minimal pool (1+0) for Selenium tasks")
+        sync_pool_size = 0  # Celery: NullPool - creates connections on demand
+        sync_max_overflow = 0  # No pool at all
+        logger.info("Sync engine (Celery): NullPool (0+0) - creates connections on demand")
     else:
-        sync_pool_size = 2  # FastAPI: small pool (rarely used, but available)
-        sync_max_overflow = 3
-        logger.info("Sync engine (FastAPI): Small pool (2+3) for compatibility")
+        # FastAPI needs more sync connections because SII services use SyncSessionLocal()
+        # With 2 Gunicorn workers and concurrent requests, need bigger pool
+        sync_pool_size = 2  # FastAPI: small pool for SII services
+        sync_max_overflow = 3  # Allow up to 5 connections per worker under load
+        logger.info("Sync engine (FastAPI): Small pool (2+3) for SII services")
     sync_pool_recycle = 300
 else:
     logger.info("Sync engine: Using standard pool (5+10) for direct connection")
