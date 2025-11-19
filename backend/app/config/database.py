@@ -156,14 +156,15 @@ if "pooler.supabase.com" in DATABASE_URL:
     # With multiple workers (Gunicorn/Celery), each worker gets its own pool.
 
     # Prioritize FastAPI: Give it more connections than Celery
+    # CRITICAL: Supabase Small plan has ~15 connection limit in session mode
     if is_celery:
         async_pool_size = 1  # Celery: minimal pool
-        async_max_overflow = 1  # Max 2 connections per Celery worker
-        logger.warning("⚠️  Celery worker: Using minimal pool (1+1) to prioritize FastAPI")
+        async_max_overflow = 0  # Max 1 connection per Celery worker (reduced for Small plan)
+        logger.warning("⚠️  Celery worker: Using minimal pool (1+0) for Small plan")
     else:
-        async_pool_size = 2  # FastAPI: small pool for concurrent requests
-        async_max_overflow = 3  # Allow up to 5 connections per worker under load
-        logger.warning("⚠️  FastAPI: Using small pool (2+3) per worker")
+        async_pool_size = 1  # FastAPI: minimal pool for Small plan (2 workers = 2 connections)
+        async_max_overflow = 1  # Allow up to 2 connections per worker under load
+        logger.warning("⚠️  FastAPI: Using minimal pool (1+1) per worker for Small plan")
 
     logger.warning("⚠️  Session mode (port 5432) recommended over transaction mode (port 6543)")
 
@@ -225,16 +226,17 @@ if not is_using_pooler:
 if is_using_pooler:
     # FastAPI uses sync engine for SII service calls (document extraction, etc.)
     # These run Selenium inside async endpoints using sync sessions
+    # CRITICAL: Supabase Small plan has ~15 connection limit in session mode
     if is_celery:
         sync_pool_size = 0  # Celery: NullPool - creates connections on demand
         sync_max_overflow = 0  # No pool at all
         logger.info("Sync engine (Celery): NullPool (0+0) - creates connections on demand")
     else:
-        # FastAPI needs more sync connections because SII services use SyncSessionLocal()
-        # With 2 Gunicorn workers and concurrent requests, need bigger pool
-        sync_pool_size = 2  # FastAPI: small pool for SII services
-        sync_max_overflow = 3  # Allow up to 5 connections per worker under load
-        logger.info("Sync engine (FastAPI): Small pool (2+3) for SII services")
+        # FastAPI needs sync connections for SII services, but must minimize for Small plan
+        # With 2 Gunicorn workers: 2 workers × 2 connections = 4 sync connections max
+        sync_pool_size = 1  # FastAPI: minimal pool for Small plan
+        sync_max_overflow = 1  # Allow up to 2 connections per worker under load
+        logger.info("Sync engine (FastAPI): Minimal pool (1+1) for Small plan")
     sync_pool_recycle = 300
 else:
     logger.info("Sync engine: Using standard pool (5+10) for direct connection")
