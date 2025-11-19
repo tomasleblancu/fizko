@@ -161,9 +161,9 @@ if "pooler.supabase.com" in DATABASE_URL:
         async_max_overflow = 1  # Max 2 connections per Celery worker
         logger.warning("⚠️  Celery worker: Using minimal pool (1+1) to prioritize FastAPI")
     else:
-        async_pool_size = 3  # FastAPI: moderate pool for concurrent requests
-        async_max_overflow = 5  # Allow up to 8 connections per worker under load
-        logger.warning("⚠️  FastAPI: Using moderate pool (3+5) per worker")
+        async_pool_size = 2  # FastAPI: small pool for concurrent requests
+        async_max_overflow = 3  # Allow up to 5 connections per worker under load
+        logger.warning("⚠️  FastAPI: Using small pool (2+3) per worker")
 
     logger.warning("⚠️  Session mode (port 5432) recommended over transaction mode (port 6543)")
 
@@ -229,9 +229,9 @@ if is_using_pooler:
         sync_max_overflow = 0  # No overflow for Celery
         logger.info("Sync engine (Celery): Minimal pool (1+0) for Selenium tasks")
     else:
-        sync_pool_size = 3  # FastAPI: moderate pool (rarely used, but available)
-        sync_max_overflow = 5
-        logger.info("Sync engine (FastAPI): Moderate pool (3+5) for compatibility")
+        sync_pool_size = 2  # FastAPI: small pool (rarely used, but available)
+        sync_max_overflow = 3
+        logger.info("Sync engine (FastAPI): Small pool (2+3) for compatibility")
     sync_pool_recycle = 300
 else:
     logger.info("Sync engine: Using standard pool (5+10) for direct connection")
