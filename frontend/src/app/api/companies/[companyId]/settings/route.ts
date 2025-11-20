@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import type { CompanySettings, CompanySettingsRequest } from '@/types/company-settings'
 
+// Type for company_settings row from database
+type CompanySettingsRow = Database['public']['Tables']['company_settings']['Row']
+
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
@@ -22,7 +25,7 @@ export async function GET(
       .from('company_settings')
       .select('*')
       .eq('company_id', companyId)
-      .single()
+      .single() as { data: CompanySettingsRow | null; error: any }
 
     if (error && error.code !== 'PGRST116') { // Not found is ok
       console.error('Error fetching company settings:', error)
@@ -93,7 +96,7 @@ export async function POST(
       .from('company_settings')
       .select('id, is_initial_setup_complete')
       .eq('company_id', companyId)
-      .single()
+      .single() as { data: { id: string; is_initial_setup_complete: boolean } | null; error: any }
 
     const hasAnyField = Object.values(body).some(val => val !== null && val !== undefined)
     const shouldMarkSetupComplete = !existing?.is_initial_setup_complete && hasAnyField
@@ -112,7 +115,7 @@ export async function POST(
         .update(updateData)
         .eq('company_id', companyId)
         .select()
-        .single()
+        .single() as { data: CompanySettingsRow | null; error: any }
 
       if (error) throw error
       result = data
@@ -125,7 +128,7 @@ export async function POST(
           ...updateData,
         })
         .select()
-        .single()
+        .single() as { data: CompanySettingsRow | null; error: any }
 
       if (error) throw error
       result = data
