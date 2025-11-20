@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const drawerRef = useRef<HTMLDivElement>(null);
   const startY = useRef<number>(0);
   const currentY = useRef<number>(0);
+  const isDraggingRef = useRef<boolean>(false);
   const router = useRouter();
   const redirectInitiated = useRef(false);
 
@@ -87,36 +88,89 @@ export default function DashboardPage() {
     router.push("/");
   };
 
-  // Handle swipe down to close drawer (only from handle bar)
+  // Handle drag to close drawer (supports both touch and mouse)
+  const handleDragStart = (clientY: number) => {
+    startY.current = clientY;
+    currentY.current = clientY;
+    isDraggingRef.current = true;
+  };
+
+  const handleDragMove = (clientY: number) => {
+    if (!isDraggingRef.current) return;
+
+    currentY.current = clientY;
+    const diff = currentY.current - startY.current;
+
+    // Only allow dragging down from the handle bar
+    if (diff > 0 && drawerRef.current) {
+      drawerRef.current.style.transform = `translateY(${diff}px)`;
+      drawerRef.current.style.transition = 'none';
+    }
+  };
+
+  const handleDragEnd = () => {
+    if (!isDraggingRef.current) return;
+
+    const diff = currentY.current - startY.current;
+    isDraggingRef.current = false;
+
+    if (drawerRef.current) {
+      // Close if dragged more than 150px down
+      if (diff > 150) {
+        // Animate drawer closing
+        drawerRef.current.style.transition = 'transform 0.3s ease-out';
+        drawerRef.current.style.transform = 'translateY(100%)';
+
+        // Close after animation
+        setTimeout(() => {
+          setActiveTab(null);
+          if (drawerRef.current) {
+            drawerRef.current.style.transform = '';
+            drawerRef.current.style.transition = '';
+          }
+        }, 300);
+      } else {
+        // Snap back to original position
+        drawerRef.current.style.transition = 'transform 0.3s ease-out';
+        drawerRef.current.style.transform = '';
+      }
+    }
+  };
+
+  // Touch event handlers
   const handleTouchStart = (e: React.TouchEvent) => {
-    // Store initial touch position
-    startY.current = e.touches[0].clientY;
-    currentY.current = startY.current;
+    e.preventDefault();
+    handleDragStart(e.touches[0].clientY);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    currentY.current = e.touches[0].clientY;
-    const diff = currentY.current - startY.current;
-
-    // Only allow dragging down and only apply transform
-    if (diff > 0 && drawerRef.current) {
-      // Prevent scroll while dragging from handle
-      e.preventDefault();
-      drawerRef.current.style.transform = `translateY(${diff}px)`;
-    }
+    e.preventDefault();
+    handleDragMove(e.touches[0].clientY);
   };
 
-  const handleTouchEnd = () => {
-    const diff = currentY.current - startY.current;
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    handleDragEnd();
+  };
 
-    if (drawerRef.current) {
-      drawerRef.current.style.transform = '';
-    }
+  // Mouse event handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleDragStart(e.clientY);
 
-    // Close if dragged more than 100px down
-    if (diff > 100) {
-      setActiveTab(null);
-    }
+    // Add global mouse event listeners
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      handleDragMove(e.clientY);
+    };
+
+    const handleGlobalMouseUp = () => {
+      handleDragEnd();
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
   };
 
   // Combined loading state
@@ -387,23 +441,24 @@ export default function DashboardPage() {
               className="absolute bottom-0 left-0 right-0 flex h-[85vh] flex-col transform rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Handle Bar - Touch events only here */}
+              {/* Handle Bar - Supports both touch and mouse */}
               <div
-                className="flex flex-shrink-0 items-center justify-center py-3"
+                className="flex flex-shrink-0 items-center justify-center py-4 cursor-grab active:cursor-grabbing"
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
+                onMouseDown={handleMouseDown}
               >
-                <div className="h-1.5 w-12 rounded-full bg-slate-300 dark:bg-slate-700" />
+                <div className="h-1.5 w-16 rounded-full bg-slate-300 dark:bg-slate-600" />
               </div>
 
               {/* Close Button */}
               <button
                 onClick={() => setActiveTab(null)}
-                className="absolute right-4 top-4 z-20 rounded-full bg-slate-100 p-2 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+                className="absolute right-4 top-4 z-20 rounded-full bg-slate-100 p-2.5 shadow-md transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
                 aria-label="Cerrar"
               >
-                <X className="h-5 w-5 text-slate-600 dark:text-slate-300" />
+                <X className="h-6 w-6 text-slate-700 dark:text-slate-200" />
               </button>
 
               {/* Content - Now with proper flex-1 and overflow */}
