@@ -83,6 +83,19 @@ export default function DashboardPage() {
     }
   }, [sessions, sessionsLoading]);
 
+  // Disable pull-to-refresh when drawer is open on mobile
+  useEffect(() => {
+    if (activeTab && !isDesktop) {
+      // Prevent pull-to-refresh on mobile when drawer is open
+      document.body.style.overscrollBehavior = 'none';
+
+      return () => {
+        // Re-enable pull-to-refresh when drawer closes
+        document.body.style.overscrollBehavior = '';
+      };
+    }
+  }, [activeTab, isDesktop]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/");
@@ -438,18 +451,20 @@ export default function DashboardPage() {
             {/* Drawer */}
             <div
               ref={drawerRef}
-              className="absolute bottom-0 left-0 right-0 flex h-[85vh] flex-col transform rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900"
+              className="absolute bottom-0 left-0 right-0 flex h-[90vh] flex-col transform rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900"
               onClick={(e) => e.stopPropagation()}
+              style={{ touchAction: 'pan-y' }}
             >
               {/* Handle Bar - Supports both touch and mouse */}
               <div
-                className="flex flex-shrink-0 items-center justify-center py-4 cursor-grab active:cursor-grabbing"
+                className="flex flex-shrink-0 items-center justify-center py-5 cursor-grab active:cursor-grabbing"
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onMouseDown={handleMouseDown}
+                style={{ touchAction: 'none' }}
               >
-                <div className="h-1.5 w-16 rounded-full bg-slate-300 dark:bg-slate-600" />
+                <div className="h-1.5 w-20 rounded-full bg-slate-400 dark:bg-slate-500" />
               </div>
 
               {/* Close Button */}
