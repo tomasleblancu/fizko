@@ -5,28 +5,10 @@
 
 import { Calendar, Receipt, Clock } from "lucide-react";
 import { ChateableWrapper } from "@/components/ui/ChateableWrapper";
-
-interface CalendarEvent {
-  id: string;
-  due_date: string;
-  status: string;
-  days_until_due: number;
-  event_template: {
-    name: string;
-    category: string;
-  };
-}
+import type { UpcomingEventsResponse } from "@/types/calendar";
 
 interface CalendarWidgetProps {
-  upcomingEvents: {
-    data: CalendarEvent[];
-    total: number;
-    period: {
-      start: string;
-      end: string;
-      days: number;
-    };
-  } | undefined;
+  upcomingEvents: UpcomingEventsResponse | undefined;
   isLoading: boolean;
   formatDueDate: (date: string) => string;
   formatDaysLeft: (days: number) => string;
@@ -69,7 +51,7 @@ export function CalendarWidget({
                 eventTitle: event.event_template.name,
                 dueDate: event.due_date,
                 status: event.status,
-                category: event.event_template.category,
+                eventCode: event.event_template.code,
                 daysUntil: event.days_until_due,
               }}
               uiComponent="tax_calendar_event"

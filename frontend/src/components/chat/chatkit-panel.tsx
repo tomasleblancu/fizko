@@ -32,30 +32,30 @@ export function ChatKitPanel({ companyId, className }: ChatKitPanelProps) {
   // Memoize theme configuration
   const themeConfig = useMemo(
     () => ({
-      colorScheme: theme,
+      colorScheme: theme as 'light' | 'dark',
       color: {
         grayscale: {
-          hue: 220,
-          tint: 6,
-          shade: theme === 'dark' ? -1 : -4,
+          hue: 220 as const,
+          tint: 6 as const,
+          shade: (theme === 'dark' ? -1 : -4) as -1 | -4,
         },
         accent: {
           primary: theme === 'dark' ? '#f1f5f9' : '#0f172a',
-          level: 1,
+          level: 1 as const,
         },
       },
       radius: 'round' as const,
       typography: {
-        baseSize: 16,
+        baseSize: 16 as const,
         fontFamily: 'Questrial, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         fontFamilyMono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
         fontSources: [
           {
             family: 'Questrial',
             src: 'https://fonts.gstatic.com/s/questrial/v19/QdVUSTchPBm7nuUeVf7EuQ.ttf',
-            weight: '400',
-            style: 'normal',
-            display: 'swap',
+            weight: '400' as const,
+            style: 'normal' as const,
+            display: 'swap' as const,
           },
         ],
       },
@@ -71,22 +71,22 @@ export function ChatKitPanel({ companyId, className }: ChatKitPanelProps) {
         {
           label: 'Quiero agregar un gasto',
           prompt: 'Quiero registrar un gasto manual',
-          icon: 'notebook-pencil',
+          icon: 'notebook-pencil' as const,
         },
         {
           label: 'Dame un resumen de ventas',
           prompt: 'Muéstrame un resumen de las ventas del mes',
-          icon: 'notebook',
+          icon: 'notebook' as const,
         },
         {
           label: 'Agrega un nuevo colaborador',
           prompt: 'Quiero agregar un nuevo colaborador a la nómina',
-          icon: 'user',
+          icon: 'user' as const,
         },
         {
           label: 'Quiero darte feedback',
           prompt: 'Quiero reportar un problema o darte feedback sobre la plataforma',
-          icon: 'circle-question',
+          icon: 'circle-question' as const,
         },
       ],
     }),

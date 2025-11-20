@@ -8,6 +8,9 @@ import type {
 } from '@/types/notification-subscription'
 import type { NotificationTemplate } from '@/types/notification-template'
 
+// Type for notification_subscriptions row from database
+type NotificationSubscriptionRow = Database['public']['Tables']['notification_subscriptions']['Row']
+
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
@@ -36,7 +39,7 @@ export async function GET(request: NextRequest) {
         *,
         template:notification_templates(*)
       `)
-      .eq('company_id', companyId)
+      .eq('company_id', companyId) as { data: any[] | null; error: any }
 
     if (error) {
       console.error('Error fetching subscriptions:', error)
@@ -102,7 +105,7 @@ export async function POST(request: NextRequest) {
     const body: NotificationSubscriptionRequest = await request.json()
     const supabase = getSupabaseClient()
 
-    const { data: subscription, error } = await supabase
+    const { data: subscription, error } = await (supabase as any)
       .from('notification_subscriptions')
       .insert({
         company_id: companyId,
@@ -164,7 +167,7 @@ export async function PUT(request: NextRequest) {
     const body: NotificationSubscriptionUpdateRequest = await request.json()
     const supabase = getSupabaseClient()
 
-    const { data: subscription, error } = await supabase
+    const { data: subscription, error } = await (supabase as any)
       .from('notification_subscriptions')
       .update(body)
       .eq('id', subscriptionId)
