@@ -337,7 +337,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
       )}
 
       {/* Calendar and Movements */}
-      <div className={`grid gap-4 ${showAllMovements ? 'flex-1 overflow-hidden' : 'lg:grid-cols-[38%_1fr] lg:flex-1 lg:overflow-hidden'}`}>
+      <div className={`grid gap-4 ${showAllMovements ? 'flex-1 overflow-hidden' : 'lg:grid-cols-[45%_1fr] lg:flex-1 lg:overflow-hidden'}`}>
         {/* Calendar - Hidden when movements expanded */}
         {!showAllMovements && (
           <CalendarWidget

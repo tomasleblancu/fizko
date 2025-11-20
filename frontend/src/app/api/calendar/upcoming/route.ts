@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       id: string
       due_date: string
       status: string
-      event_template: { code: string; name: string } | Array<{ code: string; name: string }>
+      event_template: { code: string; name: string; display_days_before: number } | Array<{ code: string; name: string; display_days_before: number }>
     }
 
     const { data: events, error } = await supabase
@@ -56,7 +56,8 @@ export async function GET(request: NextRequest) {
         status,
         event_template:event_templates!inner(
           code,
-          name
+          name,
+          display_days_before
         )
       `)
       .eq('company_id', companyId)
@@ -72,28 +73,34 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Transform response to match expected format
-    const transformedEvents = (events || []).map(event => {
-      const dueDate = new Date(event.due_date)
-      const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    // Transform and filter events based on display_days_before
+    const transformedEvents = (events || [])
+      .map(event => {
+        const dueDate = new Date(event.due_date)
+        const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 
-      // Handle the event_template which could be an array or object
-      const template = Array.isArray(event.event_template)
-        ? event.event_template[0]
-        : event.event_template
+        // Handle the event_template which could be an array or object
+        const template = Array.isArray(event.event_template)
+          ? event.event_template[0]
+          : event.event_template
 
-      return {
-        id: event.id,
-        title: template?.name || 'Sin título',
-        event_template: {
-          code: template?.code || '',
-          name: template?.name || ''
-        },
-        due_date: event.due_date,
-        days_until_due: daysUntilDue,
-        status: event.status as any
-      }
-    })
+        return {
+          id: event.id,
+          title: template?.name || 'Sin título',
+          event_template: {
+            code: template?.code || '',
+            name: template?.name || '',
+            display_days_before: template?.display_days_before || 30
+          },
+          due_date: event.due_date,
+          days_until_due: daysUntilDue,
+          status: event.status as any
+        }
+      })
+      .filter(event => {
+        // Only show events if they are within the display_days_before threshold
+        return event.days_until_due <= event.event_template.display_days_before
+      })
 
     const response: UpcomingEventsResponse = {
       data: transformedEvents,
