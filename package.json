@@ -7,7 +7,14 @@
     "start": "concurrently --kill-others-on-fail --names backend,frontend \"npm run backend\" \"npm run frontend\"",
     "frontend": "npm --prefix frontend install && npm --prefix frontend run dev",
     "backend": "uv sync --directory backend && uv run --directory backend python -m uvicorn app.main:app --reload --port 8089",
-    "impor-ai": "npm --prefix impor-ai start"
+    "impor-ai": "npm --prefix impor-ai start",
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
+    "postinstall": "cd frontend && npm install"
+  },
+  "dependencies": {
+    "next": "latest",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
