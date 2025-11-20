@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import clsx from 'clsx';
 import { setupQuestions, getInitialAnswers, type SettingValue } from '@/config/setup-questions';
@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import { CalendarService } from '@/services/calendar/calendar.service';
 import Image from 'next/image';
 
-export default function CompanySetupPage() {
+function CompanySetupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: sessions } = useUserSessions();
@@ -430,5 +430,30 @@ export default function CompanySetupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CompanySetupPage() {
+  return (
+    <Suspense fallback={
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950">
+        <div className="text-center">
+          <div className="mb-6 flex justify-center">
+            <Image
+              src="/encabezado.png"
+              alt="Fizko Icon"
+              width={64}
+              height={64}
+              className="h-16 w-auto animate-pulse"
+            />
+          </div>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Cargando...
+          </p>
+        </div>
+      </div>
+    }>
+      <CompanySetupContent />
+    </Suspense>
   );
 }
