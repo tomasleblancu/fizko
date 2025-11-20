@@ -101,8 +101,7 @@ export async function POST(
     const hasAnyField = Object.values(body).some(val => val !== null && val !== undefined)
     const shouldMarkSetupComplete = !existing?.is_initial_setup_complete && hasAnyField
 
-    type UpdateData = Partial<Database['public']['Tables']['company_settings']['Update']>
-    const updateData: UpdateData = { ...body }
+    const updateData = { ...body } as Record<string, any>
     if (shouldMarkSetupComplete) {
       updateData.is_initial_setup_complete = true
       updateData.initial_setup_completed_at = new Date().toISOString()
@@ -113,7 +112,7 @@ export async function POST(
       // Update existing
       const { data, error } = await supabase
         .from('company_settings')
-        .update(updateData)
+        .update(updateData as any)
         .eq('company_id', companyId)
         .select()
         .single() as { data: CompanySettingsRow | null; error: any }
@@ -127,7 +126,7 @@ export async function POST(
         .insert({
           company_id: companyId,
           ...updateData,
-        })
+        } as any)
         .select()
         .single() as { data: CompanySettingsRow | null; error: any }
 
