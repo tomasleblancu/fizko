@@ -21,8 +21,8 @@ export function CalendarWidget({
   formatDaysLeft,
 }: CalendarWidgetProps) {
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
-      <div className="mb-4 flex items-center gap-2">
+    <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex flex-shrink-0 items-center gap-2 p-6 pb-4">
         <Calendar className="h-5 w-5 text-slate-600 dark:text-slate-400" />
         <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
           Calendario Tributario
@@ -41,7 +41,7 @@ export function CalendarWidget({
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="flex-1 space-y-3 overflow-y-auto px-6 pb-6">
           {upcomingEvents.data.map((event) => (
             <ChateableWrapper
               key={event.id}

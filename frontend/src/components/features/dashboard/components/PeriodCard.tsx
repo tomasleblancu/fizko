@@ -93,14 +93,14 @@ export function PeriodCard({
 
   if (isPrevious) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-900/50 dark:bg-red-900/10">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-900/10">
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-6">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
             </div>
           ) : (
             <>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-medium text-red-900 dark:text-red-200">
                   {formatMonthYear(year, month)}
                 </h3>
@@ -110,7 +110,7 @@ export function PeriodCard({
               </div>
 
               {/* Steps */}
-              <div className="mb-4 flex items-center gap-2">
+              <div className="mb-3 flex items-center gap-2">
                 {[
                   { id: 1, label: "Declarado", completed: !!f29Form },
                   { id: 2, label: "Guardado", completed: isSubmitted },
@@ -138,32 +138,32 @@ export function PeriodCard({
               </div>
 
               {/* Tax Amount - Chateable */}
-              <div className="mb-4">
-                <p className="text-sm text-red-700 dark:text-red-300">Impuesto</p>
+              <div className="mb-3">
+                <p className="text-xs text-red-700 dark:text-red-300">Impuesto</p>
                 <p
                   {...ivaClickProps}
-                  className="chateable-element text-3xl font-bold text-red-900 dark:text-red-100"
+                  className="chateable-element text-2xl font-bold text-red-900 dark:text-red-100"
                 >
                   {formatCurrency(monthlyTax)}
                 </p>
               </div>
 
               {/* Sales and Purchases - Chateable */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <p className="text-sm text-red-700 dark:text-red-300">Ventas</p>
+                  <p className="text-xs text-red-700 dark:text-red-300">Ventas</p>
                   <p
                     {...revenueClickProps}
-                    className="chateable-element text-lg font-semibold text-red-900 dark:text-red-100"
+                    className="chateable-element text-base font-semibold text-red-900 dark:text-red-100"
                   >
                     {formatCurrency(totalRevenue)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-red-700 dark:text-red-300">Compras</p>
+                  <p className="text-xs text-red-700 dark:text-red-300">Compras</p>
                   <p
                     {...expensesClickProps}
-                    className="chateable-element text-lg font-semibold text-red-900 dark:text-red-100"
+                    className="chateable-element text-base font-semibold text-red-900 dark:text-red-100"
                   >
                     {formatCurrency(totalExpenses)}
                   </p>
@@ -173,7 +173,7 @@ export function PeriodCard({
               {/* Pay Button */}
               <button
                 {...payClickProps}
-                className="mt-4 w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span className="flex items-center justify-center gap-2">
                   <FileText className="h-4 w-4" />
