@@ -246,8 +246,8 @@ export default function DashboardPage() {
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Desktop: Split View Layout */}
       <div className="hidden lg:flex lg:flex-1 lg:overflow-hidden">
-        {/* Left Side: Chat (35%) - Always visible */}
-        <div className="flex w-[35%] flex-col border-r border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+        {/* Left Side: Chat (30%) - Always visible */}
+        <div className="flex w-[30%] flex-col border-r border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
           {isDesktop && (
             <ChatKitPanel
               companyId={company.id}
@@ -256,7 +256,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Right Side: Dashboard Views (65%) - Only visible when a tab is selected */}
+        {/* Right Side: Dashboard Views (70%) - Only visible when a tab is selected */}
         {activeTab && (
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Header with integrated tabs */}
@@ -441,9 +441,9 @@ export default function DashboardPage() {
             className="fixed inset-0 z-40"
             style={{ pointerEvents: activeTab ? 'auto' : 'none' }}
           >
-            {/* Backdrop */}
+            {/* Transparent Backdrop - Click to close */}
             <div
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+              className="absolute inset-0"
               onClick={() => setActiveTab(null)}
               aria-hidden="true"
             />
@@ -451,9 +451,11 @@ export default function DashboardPage() {
             {/* Drawer */}
             <div
               ref={drawerRef}
-              className="absolute bottom-0 left-0 right-0 flex h-[80vh] flex-col transform rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900"
-              onClick={(e) => e.stopPropagation()}
-              style={{ touchAction: 'pan-y' }}
+              className="absolute bottom-0 left-0 right-0 flex h-[80vh] flex-col transform rounded-t-2xl bg-white transition-transform duration-300 ease-out dark:bg-slate-900"
+              style={{
+                touchAction: 'pan-y',
+                boxShadow: '0 -8px 32px rgba(0, 0, 0, 0.15), 0 -4px 16px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)'
+              }}
             >
               {/* Handle Bar - Supports both touch and mouse */}
               <div
