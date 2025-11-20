@@ -52,7 +52,12 @@ class BaseRepository:
             Extracted data dict or None if no data
         """
         if hasattr(response, 'data'):
-            return response.data
+            data = response.data
+            # Supabase upsert can return a list when inserting (HTTP 201)
+            # or a dict when updating (HTTP 200). Normalize to dict.
+            if isinstance(data, list):
+                return data[0] if len(data) > 0 else None
+            return data
         else:
             logger.warning(f"Unexpected response format in {operation}: {type(response)}")
             return None
