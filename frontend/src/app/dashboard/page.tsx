@@ -441,9 +441,9 @@ export default function DashboardPage() {
             className="fixed inset-0 z-40"
             style={{ pointerEvents: activeTab ? 'auto' : 'none' }}
           >
-            {/* Backdrop */}
+            {/* Transparent Backdrop - Click to close */}
             <div
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+              className="absolute inset-0"
               onClick={() => setActiveTab(null)}
               aria-hidden="true"
             />
@@ -451,9 +451,11 @@ export default function DashboardPage() {
             {/* Drawer */}
             <div
               ref={drawerRef}
-              className="absolute bottom-0 left-0 right-0 flex h-[80vh] flex-col transform rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900"
-              onClick={(e) => e.stopPropagation()}
-              style={{ touchAction: 'pan-y' }}
+              className="absolute bottom-0 left-0 right-0 flex h-[80vh] flex-col transform rounded-t-2xl bg-white transition-transform duration-300 ease-out dark:bg-slate-900"
+              style={{
+                touchAction: 'pan-y',
+                boxShadow: '0 -8px 32px rgba(0, 0, 0, 0.15), 0 -4px 16px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)'
+              }}
             >
               {/* Handle Bar - Supports both touch and mouse */}
               <div
