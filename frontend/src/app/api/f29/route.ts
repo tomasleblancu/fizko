@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import type { F29Form, F29Status, FormType } from '@/types/f29'
 
+// Type for form29 row from database
+type Form29Row = Database['public']['Tables']['form29']['Row']
+
 // Create Supabase client for server-side operations
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -48,7 +51,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Execute query
-    const { data: forms, error, count } = await query
+    const { data: forms, error, count } = await query as { data: Form29Row[] | null; error: any; count: number | null }
 
     if (error) {
       console.error('Error fetching F29 forms:', error)
@@ -59,7 +62,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform to response format with type assertion
-    const response: F29Form[] = (forms || []).map((form: any) => ({
+    const response: F29Form[] = (forms || []).map((form) => ({
       id: form.id,
       company_id: form.company_id,
       period_year: form.period_year,
