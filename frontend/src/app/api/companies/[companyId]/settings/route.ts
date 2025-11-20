@@ -110,9 +110,10 @@ export async function POST(
     let result
     if (existing) {
       // Update existing
+      // @ts-ignore - Supabase type inference issue with dynamic update objects
       const { data, error } = await supabase
         .from('company_settings')
-        .update(updateData as any)
+        .update(updateData)
         .eq('company_id', companyId)
         .select()
         .single() as { data: CompanySettingsRow | null; error: any }
@@ -121,12 +122,13 @@ export async function POST(
       result = data
     } else {
       // Create new
+      // @ts-ignore - Supabase type inference issue with dynamic insert objects
       const { data, error } = await supabase
         .from('company_settings')
         .insert({
           company_id: companyId,
           ...updateData,
-        } as any)
+        })
         .select()
         .single() as { data: CompanySettingsRow | null; error: any }
 
