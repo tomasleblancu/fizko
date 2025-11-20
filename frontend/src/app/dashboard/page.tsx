@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { Bell, Sun, Home, Building2, UsersRound, FileText, Settings } from "lucide-react";
+import { Bell, Sun, Home, Building2, UsersRound, FileText, Settings, X } from "lucide-react";
 import { Header, type TabType } from "@/components/layout/Header";
 import { DashboardView } from "@/components/features/dashboard/DashboardView";
 import { ContactsView } from "@/components/features/dashboard/ContactsView";
@@ -19,6 +19,10 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabType | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const startY = useRef<number>(0);
+  const currentY = useRef<number>(0);
+  const isDraggingRef = useRef<boolean>(false);
   const router = useRouter();
   const redirectInitiated = useRef(false);
 
@@ -82,6 +86,91 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/");
+  };
+
+  // Handle drag to close drawer (supports both touch and mouse)
+  const handleDragStart = (clientY: number) => {
+    startY.current = clientY;
+    currentY.current = clientY;
+    isDraggingRef.current = true;
+  };
+
+  const handleDragMove = (clientY: number) => {
+    if (!isDraggingRef.current) return;
+
+    currentY.current = clientY;
+    const diff = currentY.current - startY.current;
+
+    // Only allow dragging down from the handle bar
+    if (diff > 0 && drawerRef.current) {
+      drawerRef.current.style.transform = `translateY(${diff}px)`;
+      drawerRef.current.style.transition = 'none';
+    }
+  };
+
+  const handleDragEnd = () => {
+    if (!isDraggingRef.current) return;
+
+    const diff = currentY.current - startY.current;
+    isDraggingRef.current = false;
+
+    if (drawerRef.current) {
+      // Close if dragged more than 150px down
+      if (diff > 150) {
+        // Animate drawer closing
+        drawerRef.current.style.transition = 'transform 0.3s ease-out';
+        drawerRef.current.style.transform = 'translateY(100%)';
+
+        // Close after animation
+        setTimeout(() => {
+          setActiveTab(null);
+          if (drawerRef.current) {
+            drawerRef.current.style.transform = '';
+            drawerRef.current.style.transition = '';
+          }
+        }, 300);
+      } else {
+        // Snap back to original position
+        drawerRef.current.style.transition = 'transform 0.3s ease-out';
+        drawerRef.current.style.transform = '';
+      }
+    }
+  };
+
+  // Touch event handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    handleDragStart(e.touches[0].clientY);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    handleDragMove(e.touches[0].clientY);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    handleDragEnd();
+  };
+
+  // Mouse event handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleDragStart(e.clientY);
+
+    // Add global mouse event listeners
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      handleDragMove(e.clientY);
+    };
+
+    const handleGlobalMouseUp = () => {
+      handleDragEnd();
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
   };
 
   // Combined loading state
@@ -336,20 +425,44 @@ export default function DashboardPage() {
         {/* Mobile Drawer - Shows when any tab is active */}
         {activeTab && (
           <div
-            className="fixed inset-0 z-40 bg-black/50"
-            onClick={() => setActiveTab(null)}
+            className="fixed inset-0 z-40"
+            style={{ pointerEvents: activeTab ? 'auto' : 'none' }}
           >
+            {/* Backdrop */}
             <div
-              className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-slate-900"
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+              onClick={() => setActiveTab(null)}
+              aria-hidden="true"
+            />
+
+            {/* Drawer */}
+            <div
+              ref={drawerRef}
+              className="absolute bottom-0 left-0 right-0 flex h-[85vh] flex-col transform rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Drawer Handle */}
-              <div className="flex justify-center py-3">
-                <div className="h-1 w-12 rounded-full bg-slate-300 dark:bg-slate-600" />
+              {/* Handle Bar - Supports both touch and mouse */}
+              <div
+                className="flex flex-shrink-0 items-center justify-center py-4 cursor-grab active:cursor-grabbing"
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onMouseDown={handleMouseDown}
+              >
+                <div className="h-1.5 w-16 rounded-full bg-slate-300 dark:bg-slate-600" />
               </div>
 
-              {/* Drawer Content */}
-              <div className="px-4 pb-24">
+              {/* Close Button */}
+              <button
+                onClick={() => setActiveTab(null)}
+                className="absolute right-4 top-4 z-20 rounded-full bg-slate-100 p-2.5 shadow-md transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+                aria-label="Cerrar"
+              >
+                <X className="h-6 w-6 text-slate-700 dark:text-slate-200" />
+              </button>
+
+              {/* Content - Now with proper flex-1 and overflow */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-24">
                 {renderView()}
               </div>
             </div>

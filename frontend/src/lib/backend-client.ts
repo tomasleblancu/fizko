@@ -15,7 +15,7 @@ export class BackendClient {
    * Get the backend URL from environment or use default
    */
   static getBaseUrl(): string {
-    return process.env.NEXT_PUBLIC_BACKEND_V2_URL || this.DEFAULT_URL;
+    return process.env.NEXT_PUBLIC_BACKEND_URL || this.DEFAULT_URL;
   }
 
   /**

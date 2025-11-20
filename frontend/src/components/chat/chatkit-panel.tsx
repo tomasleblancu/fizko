@@ -96,7 +96,7 @@ export function ChatKitPanel({ companyId, className }: ChatKitPanelProps) {
   // Memoize composer configuration
   const composerConfig = useMemo(
     () => ({
-      placeholder: 'Pregúntame sobre impuestos, facturas, F29...',
+      placeholder: 'Pregúntame algo...',
       attachments: {
         enabled: true,
         maxCount: 5,
@@ -195,7 +195,7 @@ export function ChatKitPanel({ companyId, className }: ChatKitPanelProps) {
   const chatkit = useChatKit({
     api: {
       url: apiUrl,
-      domainKey: 'domain_pk_localhost_dev', // For local dev
+      domainKey: process.env.NEXT_PUBLIC_CHATKIT_API_DOMAIN_KEY || 'domain_pk_localhost_dev',
       fetch: customFetch,
       uploadStrategy: { type: 'two_phase' },
     },
