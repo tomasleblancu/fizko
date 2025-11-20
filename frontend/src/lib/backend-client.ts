@@ -9,7 +9,7 @@
  * Backend client configuration
  */
 export class BackendClient {
-  private static readonly DEFAULT_URL = 'http://localhost:8089';
+  private static readonly DEFAULT_URL = 'http://localhost:8000';
 
   /**
    * Get the backend URL from environment or use default
