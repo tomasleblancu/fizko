@@ -9,6 +9,13 @@ import {
   PURCHASES_CREDIT_TYPES,
 } from '@/types/tax'
 
+// Types for database rows
+type SalesDocumentRow = { total_amount: number; tax_amount: number }
+type PurchaseDocumentRow = { total_amount: number; tax_amount: number }
+type HonorariosReceiptRow = { recipient_retention: number }
+type Form29Row = Database['public']['Tables']['form29']['Row']
+type Form29SiiDownloadRow = Database['public']['Tables']['form29_sii_downloads']['Row']
+
 // Create Supabase client for server-side operations
 // Using publishable key with RLS for security
 function getSupabaseClient() {
@@ -66,7 +73,7 @@ async function calculateSales(
     .eq('company_id', companyId)
     .gte('issue_date', periodStart.toISOString().split('T')[0])
     .lt('issue_date', periodEnd.toISOString().split('T')[0])
-    .in('document_type', [...SALES_POSITIVE_TYPES])
+    .in('document_type', [...SALES_POSITIVE_TYPES]) as { data: SalesDocumentRow[] | null; error: any }
 
   if (positiveError) throw positiveError
 
@@ -77,7 +84,7 @@ async function calculateSales(
     .eq('company_id', companyId)
     .gte('issue_date', periodStart.toISOString().split('T')[0])
     .lt('issue_date', periodEnd.toISOString().split('T')[0])
-    .in('document_type', [...SALES_CREDIT_TYPES])
+    .in('document_type', [...SALES_CREDIT_TYPES]) as { data: SalesDocumentRow[] | null; error: any }
 
   if (creditError) throw creditError
 
@@ -109,7 +116,7 @@ async function calculatePurchases(
     .eq('company_id', companyId)
     .gte('issue_date', periodStart.toISOString().split('T')[0])
     .lt('issue_date', periodEnd.toISOString().split('T')[0])
-    .in('document_type', [...PURCHASES_POSITIVE_TYPES])
+    .in('document_type', [...PURCHASES_POSITIVE_TYPES]) as { data: PurchaseDocumentRow[] | null; error: any }
 
   if (positiveError) throw positiveError
 
@@ -120,7 +127,7 @@ async function calculatePurchases(
     .eq('company_id', companyId)
     .gte('issue_date', periodStart.toISOString().split('T')[0])
     .lt('issue_date', periodEnd.toISOString().split('T')[0])
-    .in('document_type', [...PURCHASES_CREDIT_TYPES])
+    .in('document_type', [...PURCHASES_CREDIT_TYPES]) as { data: PurchaseDocumentRow[] | null; error: any }
 
   if (creditError) throw creditError
 
@@ -157,7 +164,7 @@ async function getPreviousMonthCredit(
     .in('status', ['saved', 'paid'])
     .order('created_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
+    .maybeSingle() as { data: { net_iva: number } | null; error: any }
 
   if (draftData && draftData.net_iva < 0) {
     return Math.abs(draftData.net_iva)
@@ -173,7 +180,7 @@ async function getPreviousMonthCredit(
     .eq('status', 'Vigente')
     .order('created_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
+    .maybeSingle() as { data: { extra_data: any } | null; error: any }
 
   if (siiData?.extra_data) {
     const extraData = siiData.extra_data as any
@@ -215,7 +222,7 @@ async function getRetencion(
     .eq('company_id', companyId)
     .eq('receipt_type', 'received')
     .gte('issue_date', periodStart.toISOString().split('T')[0])
-    .lt('issue_date', periodEnd.toISOString().split('T')[0])
+    .lt('issue_date', periodEnd.toISOString().split('T')[0]) as { data: HonorariosReceiptRow[] | null; error: any }
 
   if (error) {
     console.error('Error fetching honorarios receipts:', error)
@@ -245,7 +252,7 @@ async function getGeneratedF29(
     .order('revision_number', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(1)
-    .single()
+    .single() as { data: Form29Row | null; error: any }
 
   if (!data) return null
 
@@ -296,7 +303,7 @@ export async function GET(request: NextRequest) {
       .from('companies')
       .select('id')
       .eq('id', companyId)
-      .single()
+      .single() as { data: { id: string } | null; error: any }
 
     if (companyError || !company) {
       return NextResponse.json(

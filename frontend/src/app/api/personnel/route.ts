@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import type { Person, PersonStatus } from '@/types/personnel'
 
+// Type for people row from database
+type PersonRow = Database['public']['Tables']['people']['Row']
+
 // Create Supabase client for server-side operations
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -56,7 +59,7 @@ export async function GET(request: NextRequest) {
       .order('first_name', { ascending: true })
 
     // Execute query
-    const { data: people, error, count } = await query
+    const { data: people, error, count } = await query as { data: PersonRow[] | null; error: any; count: number | null }
 
     if (error) {
       console.error('Error fetching people:', error)

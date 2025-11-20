@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import type { Profile, ProfileUpdateRequest } from '@/types/profile'
 
+// Type for profiles row from database
+type ProfileRow = Database['public']['Tables']['profiles']['Row']
+
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
@@ -30,7 +33,7 @@ export async function GET(request: NextRequest) {
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single()
+      .single() as { data: ProfileRow | null; error: any }
 
     if (error) {
       console.error('Error fetching profile:', error)
@@ -95,7 +98,7 @@ export async function PATCH(request: NextRequest) {
       .from('profiles')
       .select('phone')
       .eq('id', userId)
-      .single()
+      .single() as { data: { phone: string | null } | null; error: any }
 
     const updateData: any = { ...body }
 
@@ -105,7 +108,7 @@ export async function PATCH(request: NextRequest) {
       updateData.phone_verified_at = null
     }
 
-    const { data: updatedProfile, error } = await supabase
+    const { data: updatedProfile, error } = await (supabase as any)
       .from('profiles')
       .update(updateData)
       .eq('id', userId)

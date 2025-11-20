@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import type { CompanySettings, CompanySettingsRequest } from '@/types/company-settings'
 
+// Type for company_settings row from database
+type CompanySettingsRow = Database['public']['Tables']['company_settings']['Row']
+
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
@@ -22,7 +25,7 @@ export async function GET(
       .from('company_settings')
       .select('*')
       .eq('company_id', companyId)
-      .single()
+      .single() as { data: CompanySettingsRow | null; error: any }
 
     if (error && error.code !== 'PGRST116') { // Not found is ok
       console.error('Error fetching company settings:', error)
@@ -93,21 +96,21 @@ export async function POST(
       .from('company_settings')
       .select('id, is_initial_setup_complete')
       .eq('company_id', companyId)
-      .single()
+      .single() as { data: { id: string; is_initial_setup_complete: boolean } | null; error: any }
 
     const hasAnyField = Object.values(body).some(val => val !== null && val !== undefined)
     const shouldMarkSetupComplete = !existing?.is_initial_setup_complete && hasAnyField
 
-    const updateData: any = { ...body }
+    const updateData = { ...body } as Record<string, any>
     if (shouldMarkSetupComplete) {
       updateData.is_initial_setup_complete = true
       updateData.initial_setup_completed_at = new Date().toISOString()
     }
 
-    let result
+    let result: CompanySettingsRow
     if (existing) {
-      // Update existing
-      const { data, error } = await supabase
+      // Update existing - Using any cast to bypass Supabase type inference issue
+      const { data, error } = await (supabase as any)
         .from('company_settings')
         .update(updateData)
         .eq('company_id', companyId)
@@ -117,8 +120,8 @@ export async function POST(
       if (error) throw error
       result = data
     } else {
-      // Create new
-      const { data, error } = await supabase
+      // Create new - Using any cast to bypass Supabase type inference issue
+      const { data, error } = await (supabase as any)
         .from('company_settings')
         .insert({
           company_id: companyId,

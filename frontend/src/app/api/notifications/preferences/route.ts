@@ -6,6 +6,9 @@ import type {
   NotificationPreferencesRequest,
 } from '@/types/notification-subscription'
 
+// Type for user_notification_preferences row from database
+type NotificationPreferencesRow = Database['public']['Tables']['user_notification_preferences']['Row']
+
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
@@ -50,7 +53,7 @@ export async function GET(request: NextRequest) {
       query = query.is('company_id', null)
     }
 
-    const { data: preferences, error } = await query.single()
+    const { data: preferences, error } = await query.single() as { data: NotificationPreferencesRow | null; error: any }
 
     if (error && error.code !== 'PGRST116') { // Not found is ok
       console.error('Error fetching preferences:', error)
@@ -74,7 +77,7 @@ export async function GET(request: NextRequest) {
     const response: NotificationPreferences = {
       id: preferences.id,
       user_id: preferences.user_id,
-      company_id: preferences.company_id,
+      company_id: preferences.company_id ?? undefined,
       notifications_enabled: preferences.notifications_enabled,
       quiet_hours_start: preferences.quiet_hours_start,
       quiet_hours_end: preferences.quiet_hours_end,
@@ -124,7 +127,7 @@ export async function PUT(request: NextRequest) {
       query = query.is('company_id', null)
     }
 
-    const { data: existing } = await query.single()
+    const { data: existing } = await query.single() as { data: { id: string } | null; error: any }
 
     const updateData: any = {}
     if (body.notifications_enabled !== undefined) updateData.notifications_enabled = body.notifications_enabled
@@ -136,10 +139,10 @@ export async function PUT(request: NextRequest) {
     if (body.max_notifications_per_day !== undefined) updateData.max_notifications_per_day = body.max_notifications_per_day
     if (body.min_interval_minutes !== undefined) updateData.min_interval_minutes = body.min_interval_minutes
 
-    let result
+    let result: NotificationPreferencesRow
     if (existing) {
-      // Update existing
-      const { data, error } = await supabase
+      // Update existing - Using any cast to bypass Supabase type inference issue
+      const { data, error } = await (supabase as any)
         .from('user_notification_preferences')
         .update(updateData)
         .eq('id', existing.id)
@@ -149,8 +152,8 @@ export async function PUT(request: NextRequest) {
       if (error) throw error
       result = data
     } else {
-      // Create new
-      const { data, error } = await supabase
+      // Create new - Using any cast to bypass Supabase type inference issue
+      const { data, error } = await (supabase as any)
         .from('user_notification_preferences')
         .insert({
           user_id: userId,
@@ -168,7 +171,7 @@ export async function PUT(request: NextRequest) {
     const response: NotificationPreferences = {
       id: result.id,
       user_id: result.user_id,
-      company_id: result.company_id,
+      company_id: result.company_id ?? undefined,
       notifications_enabled: result.notifications_enabled,
       quiet_hours_start: result.quiet_hours_start,
       quiet_hours_end: result.quiet_hours_end,

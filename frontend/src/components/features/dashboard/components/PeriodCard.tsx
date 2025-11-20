@@ -4,7 +4,6 @@
  */
 
 import { CheckCircle, FileText } from "lucide-react";
-import { ChateableWrapper } from "@/components/ui/ChateableWrapper";
 import { useChateableClick } from "@/hooks/useChateableClick";
 
 interface PeriodCardProps {
@@ -94,20 +93,7 @@ export function PeriodCard({
 
   if (isPrevious) {
     return (
-      <ChateableWrapper
-        message={`Dame información sobre mi período tributario de ${period}, incluyendo ventas, compras e impuestos a pagar`}
-        contextData={{
-          period,
-          monthlyTax,
-          totalRevenue,
-          totalExpenses,
-          isPaid,
-        }}
-        uiComponent="tax_period_card"
-        entityId={`${year}-${month}`}
-        entityType="tax_period"
-      >
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-900/50 dark:bg-red-900/10">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-900/50 dark:bg-red-900/10">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
@@ -196,28 +182,13 @@ export function PeriodCard({
               </button>
             </>
           )}
-        </div>
-      </ChateableWrapper>
+      </div>
     );
   }
 
   // Current month card (compact)
   return (
-    <ChateableWrapper
-      className="flex-1"
-      message={`Muéstrame el resumen del período actual ${period}, con proyección de impuestos, ventas y compras`}
-      contextData={{
-        period,
-        monthlyTax,
-        totalRevenue,
-        totalExpenses,
-        isCurrent: true,
-      }}
-      uiComponent="tax_period_card_current"
-      entityId={`${year}-${month}`}
-      entityType="tax_period"
-    >
-      <div className="flex h-full flex-col justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-900/10">
+    <div className="flex-1 flex h-full flex-col justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-900/10">
         {isLoading ? (
           <div className="flex items-center justify-center py-6">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
@@ -269,7 +240,6 @@ export function PeriodCard({
             </div>
           </>
         )}
-      </div>
-    </ChateableWrapper>
+    </div>
   );
 }
