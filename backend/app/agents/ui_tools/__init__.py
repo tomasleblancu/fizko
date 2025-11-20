@@ -1,5 +1,5 @@
 """
-UI Tools Module - Pre-loads context for UI components.
+UI Tools Module - Pre-loads context for UI components (Supabase Version).
 
 This module provides a system to automatically fetch and prepare
 relevant context when a user interacts with specific UI components,
@@ -10,13 +10,17 @@ Architecture:
 - Tools implement the BaseUITool interface (in core/)
 - The UIToolDispatcher (in core/) automatically routes to the right tool
 - Context is pre-loaded before the agent processes the message
+- **Uses Supabase client instead of SQLAlchemy for database access**
 
 Example:
     When user clicks on a contact card in the frontend:
     1. Frontend sends: ui_component="contact_card"
     2. Backend dispatches to ContactCardTool
-    3. Tool fetches contact info from DB
+    3. Tool fetches contact info from Supabase
     4. Agent receives enriched context with contact data
+
+TEMPORARY: Only ContactCardTool is enabled.
+Other tools need migration to Supabase.
 """
 
 # Export core infrastructure
@@ -31,11 +35,13 @@ from .core import (
 
 # Import tools to trigger auto-registration
 # The @ui_tool_registry.register decorator runs when modules are imported
+# TEMPORARY: Only ContactCardTool is migrated to Supabase
 from .tools import (
     ContactCardTool,
-    TaxSummaryIVATool,
-    TaxSummaryRevenueTool,
-    TaxSummaryExpensesTool,
+    # TODO: Migrate these to Supabase
+    # TaxSummaryIVATool,
+    # TaxSummaryRevenueTool,
+    # TaxSummaryExpensesTool,
 )
 
 __all__ = [
@@ -46,9 +52,10 @@ __all__ = [
     "UIToolDispatcher",
     "UIToolRegistry",
     "ui_tool_registry",
-    # Specific tools
+    # Specific tools (only migrated ones)
     "ContactCardTool",
-    "TaxSummaryIVATool",
-    "TaxSummaryRevenueTool",
-    "TaxSummaryExpensesTool",
+    # TODO: Add back after migration
+    # "TaxSummaryIVATool",
+    # "TaxSummaryRevenueTool",
+    # "TaxSummaryExpensesTool",
 ]

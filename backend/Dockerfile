@@ -1,8 +1,8 @@
 # ============================================
-# Dockerfile para Backend Fizko
+# Dockerfile para Backend V2 - SII Integration Service
 # ============================================
-# FastAPI + Celery + Selenium + Chrome para SII scraping
-# Multi-stage build optimizado para desarrollo y producción
+# FastAPI + Celery + Selenium + Chrome
+# Multi-stage build optimizado
 
 # ============================================
 # Stage 1: Builder - Instalar dependencias
@@ -17,8 +17,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Install ALL dependencies (including dev for local development)
-# Production will use --no-dev
+# Install dependencies (no dev dependencies for production)
 ARG INSTALL_DEV=false
 RUN echo "================================" && \
     echo "INSTALL_DEV value: $INSTALL_DEV" && \
@@ -42,14 +41,13 @@ WORKDIR /app
 # - Chromium + ChromeDriver para Selenium (SII scraping)
 # - curl para healthchecks
 # - netcat-openbsd para wait_for_service checks
-# - postgresql-client para migrations (opcional)
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
     wget \
     curl \
     netcat-openbsd \
-    postgresql-client \
+    redis-tools \
     && rm -rf /var/lib/apt/lists/* \
     && chromium --version \
     && chromedriver --version
@@ -62,9 +60,6 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy application code
 COPY app ./app
-
-# Copy scripts (including seed scripts)
-COPY scripts ./scripts
 
 # Copy tests (for running tests in container)
 COPY tests ./tests
@@ -91,17 +86,15 @@ ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 ENV CHROME_BINARY_PATH=/usr/bin/chromium
 
 # Expose port
-# - 8080: FastAPI (production/Railway)
-# - 8000: FastAPI (development)
-EXPOSE 8080 8000
+# - 8000: FastAPI (backend-v2 default)
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Use entrypoint for flexible command execution
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
-# Default command: FastAPI with Gunicorn (production)
-# Override in docker-compose.yml for different services
+# Default command: FastAPI with Uvicorn
 CMD ["fastapi"]

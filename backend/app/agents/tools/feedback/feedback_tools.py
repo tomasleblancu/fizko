@@ -5,15 +5,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
 from agents import RunContextWrapper, function_tool
-from sqlalchemy import select, and_
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config.database import AsyncSessionLocal
-from app.db.models.feedback import Feedback
 from app.agents.core import FizkoContext
+from app.agents.tools.utils import get_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -146,61 +142,60 @@ async def submit_feedback(
         priority = "medium"  # Default to medium if invalid
 
     try:
-        async with AsyncSessionLocal() as session:
-            # Create feedback
-            new_feedback = Feedback(
-                profile_id=UUID(user_id),
-                company_id=UUID(company_id) if company_id else None,
-                category=category,
-                priority=priority,
-                title=title,
-                feedback=feedback,
-                conversation_context=conversation_context,
-                channel=channel,
-                thread_id=thread_id,
-                status="new",
-            )
+        supabase = get_supabase()
 
-            session.add(new_feedback)
-            await session.commit()
-            await session.refresh(new_feedback)
+        # Create feedback
+        new_feedback = await supabase.feedback.create(
+            profile_id=user_id,
+            company_id=company_id if company_id else None,
+            category=category,
+            priority=priority,
+            title=title,
+            feedback=feedback,
+            conversation_context=conversation_context,
+            channel=channel,
+            thread_id=thread_id,
+        )
 
-            # Map category to Spanish for user response
-            category_labels = {
-                "bug": "Error/Bug",
-                "feature_request": "Solicitud de funcionalidad",
-                "improvement": "Mejora",
-                "question": "Pregunta",
-                "complaint": "Queja",
-                "praise": "Comentario positivo",
-                "other": "Otro",
-            }
+        if not new_feedback:
+            return {"error": "Error al crear feedback"}
 
-            priority_labels = {
-                "urgent": "Urgente",
-                "high": "Alta",
-                "medium": "Media",
-                "low": "Baja",
-            }
+        # Map category to Spanish for user response
+        category_labels = {
+            "bug": "Error/Bug",
+            "feature_request": "Solicitud de funcionalidad",
+            "improvement": "Mejora",
+            "question": "Pregunta",
+            "complaint": "Queja",
+            "praise": "Comentario positivo",
+            "other": "Otro",
+        }
 
-            return {
-                "success": True,
-                "feedback_id": str(new_feedback.id),
-                "category": category,
-                "category_label": category_labels.get(category, category),
-                "priority": priority,
-                "priority_label": priority_labels.get(priority, priority),
-                "title": title,
-                "status": "new",
-                "message": (
-                    f"✅ Feedback registrado exitosamente!\n\n"
-                    f"📋 **{title}**\n"
-                    f"Categoría: {category_labels.get(category, category)}\n"
-                    f"Prioridad: {priority_labels.get(priority, priority)}\n\n"
-                    f"Gracias por tu feedback. Nuestro equipo lo revisará pronto.\n\n"
-                    f"Si necesitas agregar más detalles, puedes decirme y actualizaré este feedback."
-                ),
-            }
+        priority_labels = {
+            "urgent": "Urgente",
+            "high": "Alta",
+            "medium": "Media",
+            "low": "Baja",
+        }
+
+        return {
+            "success": True,
+            "feedback_id": new_feedback.get("id"),
+            "category": category,
+            "category_label": category_labels.get(category, category),
+            "priority": priority,
+            "priority_label": priority_labels.get(priority, priority),
+            "title": title,
+            "status": "new",
+            "message": (
+                f"✅ Feedback registrado exitosamente!\n\n"
+                f"📋 **{title}**\n"
+                f"Categoría: {category_labels.get(category, category)}\n"
+                f"Prioridad: {priority_labels.get(priority, priority)}\n\n"
+                f"Gracias por tu feedback. Nuestro equipo lo revisará pronto.\n\n"
+                f"Si necesitas agregar más detalles, puedes decirme y actualizaré este feedback."
+            ),
+        }
 
     except Exception as e:
         logger.error(f"Error creating feedback: {e}")
@@ -257,61 +252,63 @@ async def update_feedback(
         return {"error": "Usuario no autenticado"}
 
     try:
-        async with AsyncSessionLocal() as session:
-            # Get existing feedback
-            result = await session.execute(
-                select(Feedback).where(
-                    and_(
-                        Feedback.id == UUID(feedback_id),
-                        Feedback.profile_id == UUID(user_id),
-                    )
-                )
-            )
-            existing_feedback = result.scalar_one_or_none()
+        supabase = get_supabase()
 
-            if not existing_feedback:
-                return {
-                    "error": "Feedback no encontrado",
-                    "message": (
-                        "❌ No pude encontrar ese feedback. "
-                        "Solo puedes actualizar feedback que hayas enviado recientemente en esta conversación."
-                    ),
-                }
+        # Get existing feedback
+        existing_feedback = await supabase.feedback.get_by_id(
+            feedback_id=feedback_id,
+            profile_id=user_id
+        )
 
-            # Can only update feedback that's not yet resolved
-            if existing_feedback.status not in ["new", "acknowledged"]:
-                return {
-                    "error": "No se puede actualizar",
-                    "message": (
-                        f"❌ Este feedback ya fue {existing_feedback.status} "
-                        f"y no se puede actualizar. Si tienes nuevo feedback, "
-                        f"puedo crear uno nuevo."
-                    ),
-                }
-
-            # Append additional info to existing feedback
-            updated_content = (
-                f"{existing_feedback.feedback}\n\n"
-                f"**Información adicional:**\n{additional_info}"
-            )
-            existing_feedback.feedback = updated_content
-            existing_feedback.updated_at = datetime.now()
-
-            await session.commit()
-            await session.refresh(existing_feedback)
-
+        if not existing_feedback:
             return {
-                "success": True,
-                "feedback_id": str(existing_feedback.id),
-                "title": existing_feedback.title,
-                "updated_content": updated_content,
+                "error": "Feedback no encontrado",
                 "message": (
-                    f"✅ Feedback actualizado!\n\n"
-                    f"📋 **{existing_feedback.title}**\n\n"
-                    f"Agregué la información adicional. "
-                    f"Si necesitas agregar más detalles, avísame."
+                    "❌ No pude encontrar ese feedback. "
+                    "Solo puedes actualizar feedback que hayas enviado recientemente en esta conversación."
                 ),
             }
+
+        # Can only update feedback that's not yet resolved
+        status = existing_feedback.get("status")
+        if status not in ["new", "acknowledged"]:
+            return {
+                "error": "No se puede actualizar",
+                "message": (
+                    f"❌ Este feedback ya fue {status} "
+                    f"y no se puede actualizar. Si tienes nuevo feedback, "
+                    f"puedo crear uno nuevo."
+                ),
+            }
+
+        # Append additional info to existing feedback
+        updated_content = (
+            f"{existing_feedback.get('feedback')}\n\n"
+            f"**Información adicional:**\n{additional_info}"
+        )
+
+        # Update feedback
+        updated = await supabase.feedback.update(
+            feedback_id=feedback_id,
+            feedback=updated_content,
+            updated_at=datetime.now().isoformat()
+        )
+
+        if not updated:
+            return {"error": "Error al actualizar feedback"}
+
+        return {
+            "success": True,
+            "feedback_id": updated.get("id"),
+            "title": updated.get("title"),
+            "updated_content": updated_content,
+            "message": (
+                f"✅ Feedback actualizado!\n\n"
+                f"📋 **{updated.get('title')}**\n\n"
+                f"Agregué la información adicional. "
+                f"Si necesitas agregar más detalles, avísame."
+            ),
+        }
 
     except ValueError:
         return {"error": "ID de feedback inválido"}
@@ -360,79 +357,77 @@ async def get_my_feedback(
         limit = 50
 
     try:
-        async with AsyncSessionLocal() as session:
-            # Build query
-            query = select(Feedback).where(
-                Feedback.profile_id == UUID(user_id)
-            )
+        supabase = get_supabase()
 
-            if status:
-                valid_statuses = ["new", "acknowledged", "in_progress", "resolved", "wont_fix"]
-                if status not in valid_statuses:
-                    return {
-                        "error": "Estado inválido",
-                        "message": f"Estado debe ser uno de: {', '.join(valid_statuses)}",
-                    }
-                query = query.where(Feedback.status == status)
-
-            query = query.order_by(Feedback.created_at.desc()).limit(limit)
-
-            result = await session.execute(query)
-            feedback_list = result.scalars().all()
-
-            if not feedback_list:
+        # Validate status
+        if status:
+            valid_statuses = ["new", "acknowledged", "in_progress", "resolved", "wont_fix"]
+            if status not in valid_statuses:
                 return {
-                    "feedback": [],
-                    "total_count": 0,
-                    "message": (
-                        "No tienes feedback registrado aún.\n\n"
-                        "Si encuentras algún problema o tienes sugerencias, "
-                        "¡no dudes en contármelo!"
-                    ),
+                    "error": "Estado inválido",
+                    "message": f"Estado debe ser uno de: {', '.join(valid_statuses)}",
                 }
 
-            # Format feedback for response
-            category_labels = {
-                "bug": "Error/Bug",
-                "feature_request": "Solicitud de funcionalidad",
-                "improvement": "Mejora",
-                "question": "Pregunta",
-                "complaint": "Queja",
-                "praise": "Comentario positivo",
-                "other": "Otro",
-            }
+        # Get feedback list
+        feedback_list = await supabase.feedback.list_by_profile(
+            profile_id=user_id,
+            status=status,
+            limit=limit
+        )
 
-            status_labels = {
-                "new": "Nuevo",
-                "acknowledged": "Recibido",
-                "in_progress": "En proceso",
-                "resolved": "Resuelto",
-                "wont_fix": "No se implementará",
-            }
-
-            formatted_feedback = []
-            for fb in feedback_list:
-                formatted_feedback.append({
-                    "id": str(fb.id),
-                    "title": fb.title,
-                    "category": fb.category,
-                    "category_label": category_labels.get(fb.category, fb.category),
-                    "priority": fb.priority,
-                    "status": fb.status,
-                    "status_label": status_labels.get(fb.status, fb.status),
-                    "created_at": fb.created_at.isoformat(),
-                    "response": fb.response_to_user if fb.response_to_user else None,
-                })
-
+        if not feedback_list:
             return {
-                "feedback": formatted_feedback,
-                "total_count": len(formatted_feedback),
-                "filters_applied": {"status": status} if status else {},
+                "feedback": [],
+                "total_count": 0,
                 "message": (
-                    f"📋 Tienes {len(formatted_feedback)} feedback registrado(s).\n\n"
-                    f"Usa este historial para revisar el estado de tus reportes anteriores."
+                    "No tienes feedback registrado aún.\n\n"
+                    "Si encuentras algún problema o tienes sugerencias, "
+                    "¡no dudes en contármelo!"
                 ),
             }
+
+        # Format feedback for response
+        category_labels = {
+            "bug": "Error/Bug",
+            "feature_request": "Solicitud de funcionalidad",
+            "improvement": "Mejora",
+            "question": "Pregunta",
+            "complaint": "Queja",
+            "praise": "Comentario positivo",
+            "other": "Otro",
+        }
+
+        status_labels = {
+            "new": "Nuevo",
+            "acknowledged": "Recibido",
+            "in_progress": "En proceso",
+            "resolved": "Resuelto",
+            "wont_fix": "No se implementará",
+        }
+
+        formatted_feedback = []
+        for fb in feedback_list:
+            formatted_feedback.append({
+                "id": fb.get("id"),
+                "title": fb.get("title"),
+                "category": fb.get("category"),
+                "category_label": category_labels.get(fb.get("category"), fb.get("category")),
+                "priority": fb.get("priority"),
+                "status": fb.get("status"),
+                "status_label": status_labels.get(fb.get("status"), fb.get("status")),
+                "created_at": fb.get("created_at"),
+                "response": fb.get("response_to_user"),
+            })
+
+        return {
+            "feedback": formatted_feedback,
+            "total_count": len(formatted_feedback),
+            "filters_applied": {"status": status} if status else {},
+            "message": (
+                f"📋 Tienes {len(formatted_feedback)} feedback registrado(s).\n\n"
+                f"Usa este historial para revisar el estado de tus reportes anteriores."
+            ),
+        }
 
     except Exception as e:
         logger.error(f"Error getting feedback: {e}")

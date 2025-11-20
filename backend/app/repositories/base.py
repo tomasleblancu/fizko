@@ -1,203 +1,76 @@
 """
-Base Repository Pattern Implementation.
+Base Repository - Common functionality for all repositories.
 
-Provides a generic repository class with common CRUD operations for SQLAlchemy models.
-This eliminates code duplication and provides a consistent interface for data access.
+Provides shared Supabase client access and error handling patterns.
 """
 
-from typing import Generic, TypeVar, Type, Optional, List, Any, Dict
-from uuid import UUID
+import logging
+from typing import Any, TYPE_CHECKING
 
-from sqlalchemy import select, func, update, delete
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import Select
+if TYPE_CHECKING:
+    from supabase import Client
 
-
-# Generic type variable for the model
-T = TypeVar('T')
+logger = logging.getLogger(__name__)
 
 
-class BaseRepository(Generic[T]):
-    """
-    Base repository providing common database operations.
+class BaseRepository:
+    """Base class for all Supabase repositories."""
 
-    Usage:
-        class PersonRepository(BaseRepository[Person]):
-            def __init__(self, db: AsyncSession):
-                super().__init__(Person, db)
-
-    Benefits:
-        - Eliminates SQL query duplication
-        - Provides consistent data access patterns
-        - Easy to test with mocks
-        - Centralized query optimization
-    """
-
-    def __init__(self, model: Type[T], db: AsyncSession):
+    def __init__(self, client: "Client"):
         """
-        Initialize repository.
+        Initialize repository with Supabase client.
 
         Args:
-            model: SQLAlchemy model class
-            db: Async database session
+            client: Supabase Python client instance
         """
-        self.model = model
-        self.db = db
+        self._client = client
 
-    async def get(self, id: UUID) -> Optional[T]:
+    def _log_error(self, operation: str, error: Exception, **context: Any) -> None:
         """
-        Get a single record by ID.
+        Log repository errors with context.
 
         Args:
-            id: Record UUID
-
-        Returns:
-            Model instance or None if not found
+            operation: Name of the operation that failed
+            error: The exception that occurred
+            **context: Additional context to log
         """
-        result = await self.db.execute(
-            select(self.model).where(self.model.id == id)
+        logger.error(
+            f"Repository error in {operation}: {str(error)}",
+            extra={"context": context},
+            exc_info=True
         )
-        return result.scalar_one_or_none()
 
-    async def get_multi(
-        self,
-        skip: int = 0,
-        limit: int = 100,
-        filters: Optional[Dict[str, Any]] = None
-    ) -> List[T]:
+    def _extract_data(self, response: Any, operation: str) -> dict[str, Any] | None:
         """
-        Get multiple records with pagination and optional filters.
+        Extract data from Supabase response with error handling.
 
         Args:
-            skip: Number of records to skip (offset)
-            limit: Maximum number of records to return
-            filters: Dictionary of field:value filters
+            response: Supabase response object
+            operation: Name of the operation (for logging)
 
         Returns:
-            List of model instances
+            Extracted data dict or None if no data
         """
-        query = select(self.model)
-
-        # Apply filters if provided
-        if filters:
-            for field, value in filters.items():
-                if hasattr(self.model, field):
-                    query = query.where(getattr(self.model, field) == value)
-
-        query = query.offset(skip).limit(limit)
-        result = await self.db.execute(query)
-        return list(result.scalars().all())
-
-    async def create(self, **kwargs) -> T:
-        """
-        Create a new record.
-
-        Args:
-            **kwargs: Field values for the new record
-
-        Returns:
-            Created model instance
-        """
-        instance = self.model(**kwargs)
-        self.db.add(instance)
-        await self.db.flush()
-        await self.db.refresh(instance)
-        return instance
-
-    async def update(self, id: UUID, **kwargs) -> Optional[T]:
-        """
-        Update an existing record.
-
-        Args:
-            id: Record UUID
-            **kwargs: Field values to update
-
-        Returns:
-            Updated model instance or None if not found
-        """
-        instance = await self.get(id)
-        if not instance:
+        if hasattr(response, 'data'):
+            return response.data
+        else:
+            logger.warning(f"Unexpected response format in {operation}: {type(response)}")
             return None
 
-        for field, value in kwargs.items():
-            if hasattr(instance, field):
-                setattr(instance, field, value)
-
-        await self.db.flush()
-        await self.db.refresh(instance)
-        return instance
-
-    async def delete(self, id: UUID) -> bool:
+    def _extract_data_list(self, response: Any, operation: str) -> list[dict[str, Any]]:
         """
-        Delete a record by ID.
+        Extract list data from Supabase response with error handling.
 
         Args:
-            id: Record UUID
+            response: Supabase response object
+            operation: Name of the operation (for logging)
 
         Returns:
-            True if deleted, False if not found
+            List of data dicts (empty list if no data)
         """
-        instance = await self.get(id)
-        if not instance:
-            return False
-
-        await self.db.delete(instance)
-        await self.db.flush()
-        return True
-
-    async def count(self, filters: Optional[Dict[str, Any]] = None) -> int:
-        """
-        Count records with optional filters.
-
-        Args:
-            filters: Dictionary of field:value filters
-
-        Returns:
-            Number of matching records
-        """
-        query = select(func.count(self.model.id))
-
-        # Apply filters if provided
-        if filters:
-            for field, value in filters.items():
-                if hasattr(self.model, field):
-                    query = query.where(getattr(self.model, field) == value)
-
-        result = await self.db.execute(query)
-        return result.scalar_one()
-
-    async def exists(self, id: UUID) -> bool:
-        """
-        Check if a record exists by ID.
-
-        Args:
-            id: Record UUID
-
-        Returns:
-            True if exists, False otherwise
-        """
-        result = await self.db.execute(
-            select(func.count(self.model.id)).where(self.model.id == id)
-        )
-        return result.scalar_one() > 0
-
-    def _build_query(self, **filters) -> Select:
-        """
-        Build a base query with filters.
-
-        Helper method for subclasses to build custom queries.
-
-        Args:
-            **filters: Field:value filters
-
-        Returns:
-            SQLAlchemy Select statement
-        """
-        query = select(self.model)
-
-        for field, value in filters.items():
-            if hasattr(self.model, field):
-                if value is not None:
-                    query = query.where(getattr(self.model, field) == value)
-
-        return query
+        data = self._extract_data(response, operation)
+        if data is None:
+            return []
+        if isinstance(data, list):
+            return data
+        return [data]

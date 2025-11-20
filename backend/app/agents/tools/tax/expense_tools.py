@@ -5,15 +5,13 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime
 from typing import Any
-from uuid import UUID
 from decimal import Decimal
 
 from agents import RunContextWrapper, function_tool
 
-from app.config.database import AsyncSessionLocal
-from app.repositories.expenses import ExpenseRepository
 from app.agents.core import FizkoContext
 from app.agents.tools.decorators import require_subscription_tool
+from app.agents.tools.utils import get_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +135,6 @@ async def create_expense(
     logger.info(f"Creating expense with attachment: {receipt_file_name}")
 
     # Category mapping: Spanish -> English
-    # This allows agents to use Spanish terms naturally
     category_mapping = {
         # English (already valid)
         "transport": "transport",
@@ -176,12 +173,11 @@ async def create_expense(
         "otro": "other",
     }
 
-    # Normalize category (lowercase for matching)
+    # Normalize category
     category_normalized = category.lower().strip()
     category_english = category_mapping.get(category_normalized)
 
     if not category_english:
-        # Category not found - provide helpful error with Spanish examples
         return {
             "error": "Categoría no reconocida",
             "message": (
@@ -200,7 +196,6 @@ async def create_expense(
             ),
         }
 
-    # Use the normalized English category for database
     category = category_english
 
     # Parse expense date
@@ -217,76 +212,76 @@ async def create_expense(
         return {"error": "El monto debe ser mayor a 0"}
 
     try:
-        async with AsyncSessionLocal() as session:
-            repo = ExpenseRepository(session)
+        # Get Supabase client
+        supabase = get_supabase()
 
-            # Create expense with receipt file metadata
-            expense = await repo.create(
-                company_id=UUID(company_id),
-                created_by_user_id=UUID(user_id),
-                expense_category=category,
-                expense_date=expense_date_obj,
-                description=description,
-                vendor_name=vendor_name,
-                vendor_rut=vendor_rut,
-                receipt_number=receipt_number,
-                total_amount=Decimal(str(amount)),
-                has_tax=has_tax,
-                is_reimbursable=is_reimbursable,
-                notes=notes,
-                receipt_file_url=receipt_file_url,
-                receipt_file_name=receipt_file_name,
-                receipt_mime_type=receipt_mime_type,
-            )
+        # Create expense using repository
+        expense = await supabase.expenses.create(
+            company_id=company_id,
+            created_by_user_id=user_id,
+            expense_category=category,
+            expense_date=expense_date_obj,
+            description=description,
+            vendor_name=vendor_name,
+            vendor_rut=vendor_rut,
+            receipt_number=receipt_number,
+            total_amount=Decimal(str(amount)),
+            has_tax=has_tax,
+            is_reimbursable=is_reimbursable,
+            notes=notes,
+            receipt_file_url=receipt_file_url,
+            receipt_file_name=receipt_file_name,
+            receipt_mime_type=receipt_mime_type,
+        )
 
-            # Map category to Spanish for user response
-            category_labels = {
-                "transport": "Transporte",
-                "parking": "Estacionamiento",
-                "meals": "Alimentación",
-                "office_supplies": "Útiles de oficina",
-                "utilities": "Servicios básicos",
-                "representation": "Gastos de representación",
-                "travel": "Viajes",
-                "professional_services": "Servicios profesionales",
-                "maintenance": "Mantención",
-                "other": "Otros",
-            }
+        if not expense:
+            return {"error": "Error al crear el gasto en la base de datos"}
 
-            return {
-                "success": True,
-                "expense_id": str(expense.id),
-                "category": category,
-                "category_label": category_labels.get(category, category),
-                "description": expense.description,
-                "expense_date": expense.expense_date.isoformat(),
-                "vendor_name": expense.vendor_name,
-                "total_amount": float(expense.total_amount),
-                "net_amount": float(expense.net_amount),
-                "tax_amount": float(expense.tax_amount),
-                "has_tax": expense.has_tax,
-                "is_reimbursable": expense.is_reimbursable,
-                "status": expense.status,
-                "receipt_file_name": receipt_file_name,
-                "message": (
-                    f"✅ Gasto registrado exitosamente:\n"
-                    f"- Categoría: {category_labels.get(category, category)}\n"
-                    f"- Monto total: ${expense.total_amount:,.0f}\n"
-                    f"- Monto neto: ${expense.net_amount:,.0f}\n"
-                    f"- IVA: ${expense.tax_amount:,.0f}\n"
-                    f"- Estado: Borrador (draft)\n"
-                    f"- Recibo adjunto: {receipt_file_name}\n\n"
-                    f"El gasto fue registrado y está en estado borrador. "
-                    f"Puedes editarlo o enviarlo para aprobación cuando estés listo."
-                ),
-            }
+        # Category labels for response
+        category_labels = {
+            "transport": "Transporte",
+            "parking": "Estacionamiento",
+            "meals": "Alimentación",
+            "office_supplies": "Útiles de oficina",
+            "utilities": "Servicios básicos",
+            "representation": "Gastos de representación",
+            "travel": "Viajes",
+            "professional_services": "Servicios profesionales",
+            "maintenance": "Mantención",
+            "other": "Otros",
+        }
 
-    except ValueError as e:
-        logger.error(f"Error creating expense: {e}")
-        return {"error": f"Error al crear gasto: {str(e)}"}
+        return {
+            "success": True,
+            "expense_id": expense.get("id"),
+            "category": category,
+            "category_label": category_labels.get(category, category),
+            "description": expense.get("description"),
+            "expense_date": expense.get("expense_date"),
+            "vendor_name": expense.get("vendor_name"),
+            "total_amount": float(expense.get("total_amount", 0)),
+            "net_amount": float(expense.get("net_amount", 0)),
+            "tax_amount": float(expense.get("tax_amount", 0)),
+            "has_tax": expense.get("has_tax"),
+            "is_reimbursable": expense.get("is_reimbursable"),
+            "status": expense.get("status"),
+            "receipt_file_name": receipt_file_name,
+            "message": (
+                f"✅ Gasto registrado exitosamente:\n"
+                f"- Categoría: {category_labels.get(category, category)}\n"
+                f"- Monto total: ${expense.get('total_amount', 0):,.0f}\n"
+                f"- Monto neto: ${expense.get('net_amount', 0):,.0f}\n"
+                f"- IVA: ${expense.get('tax_amount', 0):,.0f}\n"
+                f"- Estado: Borrador (draft)\n"
+                f"- Recibo adjunto: {receipt_file_name}\n\n"
+                f"El gasto fue registrado y está en estado borrador. "
+                f"Puedes editarlo o enviarlo para aprobación cuando estés listo."
+            ),
+        }
+
     except Exception as e:
-        logger.error(f"Unexpected error creating expense: {e}")
-        return {"error": f"Error inesperado al crear gasto: {str(e)}"}
+        logger.error(f"Error creating expense: {e}", exc_info=True)
+        return {"error": f"Error al crear gasto: {str(e)}"}
 
 
 @function_tool(strict_mode=False)
@@ -345,69 +340,68 @@ async def get_expenses(
         return {"error": "Formato de fecha inválido. Use YYYY-MM-DD"}
 
     # Validate limit
-    if limit > 100:
-        limit = 100
+    limit = min(limit, 100)
 
     try:
-        async with AsyncSessionLocal() as session:
-            repo = ExpenseRepository(session)
+        # Get Supabase client
+        supabase = get_supabase()
 
-            # Get expenses
-            expenses, total = await repo.list(
-                company_id=UUID(company_id),
-                status=status,
-                category=category,
-                date_from=start_dt,
-                date_to=end_dt,
-                limit=limit,
-                offset=0,
-            )
+        # Get expenses using repository
+        expenses, total = await supabase.expenses.list(
+            company_id=company_id,
+            status=status,
+            category=category,
+            date_from=start_dt,
+            date_to=end_dt,
+            limit=limit,
+            offset=0,
+        )
 
-            # Format expenses for response
-            formatted_expenses = []
-            for expense in expenses:
-                formatted_expenses.append({
-                    "id": str(expense.id),
-                    "category": expense.expense_category,
-                    "description": expense.description,
-                    "expense_date": expense.expense_date.isoformat(),
-                    "vendor_name": expense.vendor_name,
-                    "total_amount": float(expense.total_amount),
-                    "net_amount": float(expense.net_amount),
-                    "tax_amount": float(expense.tax_amount),
-                    "status": expense.status,
-                    "is_reimbursable": expense.is_reimbursable,
-                    "created_at": expense.created_at.isoformat(),
-                })
+        # Format expenses for response
+        formatted_expenses = []
+        for expense in expenses:
+            formatted_expenses.append({
+                "id": expense.get("id"),
+                "category": expense.get("expense_category"),
+                "description": expense.get("description"),
+                "expense_date": expense.get("expense_date"),
+                "vendor_name": expense.get("vendor_name"),
+                "total_amount": float(expense.get("total_amount", 0)),
+                "net_amount": float(expense.get("net_amount", 0)),
+                "tax_amount": float(expense.get("tax_amount", 0)),
+                "status": expense.get("status"),
+                "is_reimbursable": expense.get("is_reimbursable"),
+                "created_at": expense.get("created_at"),
+            })
 
-            # Get summary for the filtered period
-            summary = await repo.get_summary(
-                company_id=UUID(company_id),
-                date_from=start_dt,
-                date_to=end_dt,
-                category=category,
-                status=status,
-            )
+        # Get summary
+        summary = await supabase.expenses.get_summary(
+            company_id=company_id,
+            date_from=start_dt,
+            date_to=end_dt,
+            category=category,
+            status=status,
+        )
 
-            return {
-                "expenses": formatted_expenses,
-                "total_count": total,
-                "showing": len(formatted_expenses),
-                "summary": {
-                    "total_expenses": summary["total_count"],
-                    "total_amount": summary["total_amount"],
-                    "total_net": summary["total_net"],
-                    "total_tax": summary["total_tax"],
-                },
-                "filters_applied": {
-                    "status": status,
-                    "category": category,
-                    "date_range": f"{start_date} to {end_date}" if start_date and end_date else None,
-                },
-            }
+        return {
+            "expenses": formatted_expenses,
+            "total_count": total,
+            "showing": len(formatted_expenses),
+            "summary": {
+                "total_expenses": summary["total_count"],
+                "total_amount": summary["total_amount"],
+                "total_net": summary["total_net"],
+                "total_tax": summary["total_tax"],
+            },
+            "filters_applied": {
+                "status": status,
+                "category": category,
+                "date_range": f"{start_date} to {end_date}" if start_date and end_date else None,
+            },
+        }
 
     except Exception as e:
-        logger.error(f"Error getting expenses: {e}")
+        logger.error(f"Error getting expenses: {e}", exc_info=True)
         return {"error": f"Error al obtener gastos: {str(e)}"}
 
 
@@ -467,37 +461,37 @@ async def get_expense_summary(
         return {"error": "Formato de fecha inválido. Use YYYY-MM-DD"}
 
     try:
-        async with AsyncSessionLocal() as session:
-            repo = ExpenseRepository(session)
+        # Get Supabase client
+        supabase = get_supabase()
 
-            # Get summary
-            summary = await repo.get_summary(
-                company_id=UUID(company_id),
-                date_from=start_dt,
-                date_to=end_dt,
-                status=status,
-            )
+        # Get summary using repository
+        summary = await supabase.expenses.get_summary(
+            company_id=company_id,
+            date_from=start_dt,
+            date_to=end_dt,
+            status=status,
+        )
 
-            return {
-                "period": {
-                    "start_date": start_dt.isoformat(),
-                    "end_date": end_dt.isoformat(),
-                },
-                "status_filter": status,
-                "total_expenses": summary["total_count"],
-                "total_amount": summary["total_amount"],
-                "total_net": summary["total_net"],
-                "total_tax": summary["total_tax"],
-                "message": (
-                    f"📊 Resumen de gastos:\n"
-                    f"Período: {start_dt.strftime('%d/%m/%Y')} - {end_dt.strftime('%d/%m/%Y')}\n"
-                    f"Total gastos: {summary['total_count']}\n"
-                    f"Monto total: ${summary['total_amount']:,.0f}\n"
-                    f"Monto neto: ${summary['total_net']:,.0f}\n"
-                    f"IVA recuperable: ${summary['total_tax']:,.0f}"
-                ),
-            }
+        return {
+            "period": {
+                "start_date": start_dt.isoformat(),
+                "end_date": end_dt.isoformat(),
+            },
+            "status_filter": status,
+            "total_expenses": summary["total_count"],
+            "total_amount": summary["total_amount"],
+            "total_net": summary["total_net"],
+            "total_tax": summary["total_tax"],
+            "message": (
+                f"📊 Resumen de gastos:\n"
+                f"Período: {start_dt.strftime('%d/%m/%Y')} - {end_dt.strftime('%d/%m/%Y')}\n"
+                f"Total gastos: {summary['total_count']}\n"
+                f"Monto total: ${summary['total_amount']:,.0f}\n"
+                f"Monto neto: ${summary['total_net']:,.0f}\n"
+                f"IVA recuperable: ${summary['total_tax']:,.0f}"
+            ),
+        }
 
     except Exception as e:
-        logger.error(f"Error getting expense summary: {e}")
+        logger.error(f"Error getting expense summary: {e}", exc_info=True)
         return {"error": f"Error al obtener resumen: {str(e)}"}

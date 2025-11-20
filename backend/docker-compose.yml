@@ -1,46 +1,24 @@
 # ============================================
-# Docker Compose - Fizko Backend (Desarrollo)
+# Docker Compose - Backend V2
 # ============================================
-# Servicios locales: FastAPI, Celery Worker, Celery Beat, Redis, Flower, ngrok
-# Servicios externos: PostgreSQL (Supabase), OpenAI, Kapso
+# Servicios: FastAPI + Celery + Redis + ngrok
 #
 # Servicios incluidos:
-#   - backend:       FastAPI + Gunicorn (http://localhost:8000)
-#   - celery-worker: Procesamiento de tareas asíncronas
-#   - celery-beat:   Scheduler de tareas programadas
-#   - flower:        Monitoring de Celery (http://localhost:5555)
-#   - ngrok:         Tunnel público para webhooks (http://localhost:4040)
-#   - redis:         Broker para Celery
+#   - backend:      FastAPI (http://localhost:8000)
+#   - celery-worker: Worker de Celery (tareas SII)
+#   - celery-beat:  Beat scheduler (tareas periódicas)
+#   - redis:        Message broker para Celery
+#   - ngrok:        Tunnel público para webhooks (http://localhost:4040)
 #
 # Uso:
 #   docker-compose up              # Iniciar todos los servicios
 #   docker-compose up backend      # Solo FastAPI
 #   docker-compose up -d           # En background
-#   docker-compose logs -f backend # Ver logs
+#   docker-compose logs -f celery-worker # Ver logs del worker
 #   docker-compose down            # Detener todo
 #
 
 services:
-  # ==========================================
-  # Redis - Broker para Celery + Cache
-  # ==========================================
-  redis:
-    image: redis:7-alpine
-    container_name: fizko-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      - fizko-network
-
   # ==========================================
   # Backend - FastAPI + Uvicorn
   # ==========================================
@@ -50,28 +28,21 @@ services:
       dockerfile: Dockerfile
       args:
         INSTALL_DEV: "true"  # Incluir dependencias de desarrollo
-    container_name: fizko-backend
+    container_name: fizko-v2-backend
     command: ["fastapi-dev"]  # Hot-reload para desarrollo
     ports:
-      - "8000:8000"  # Puerto de desarrollo
+      - "8000:8000"  # Puerto de backend-v2
     env_file:
       - .env
     environment:
-      # Override para conexión a Redis local
-      - REDIS_URL=redis://redis:6379/0
       # Puerto para desarrollo
       - PORT=8000
-      # Service type para priorizar pools
-      - SERVICE_TYPE=fastapi
     volumes:
       # Mount código para hot-reload
       - ./app:/app/app
       - ./sessions:/app/sessions
       - ./chrome-data:/app/chrome-data
       - ./screenshots:/app/screenshots
-    depends_on:
-      redis:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -79,119 +50,59 @@ services:
       start_period: 40s
       retries: 3
     restart: unless-stopped
-    networks:
-      - fizko-network
-
-  # ==========================================
-  # Celery Workers - Separación por prioridad
-  # ==========================================
-  # Por defecto: 2 workers (FAST + SLOW)
-  # Para rollback a worker único: docker-compose --profile single-worker up
-
-  # ==========================================
-  # Celery Worker FAST - High + Default priority
-  # ==========================================
-  # Procesa notificaciones críticas y tareas normales
-  # Concurrency: 3 (puede manejar varias tareas simultáneas)
-  celery-worker-fast:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        INSTALL_DEV: "true"
-    container_name: fizko-celery-worker-fast
-    command: ["celery-worker"]
-    env_file:
-      - .env
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_QUEUES=high,default  # Solo colas rápidas
-      - CELERY_WORKER_NAME=fast     # Nombre identificable
-      - CELERY_CONCURRENCY=3        # Mayor concurrencia
-      - CELERY_MAX_TASKS_PER_CHILD=100
-      - SERVICE_TYPE=celery-worker  # Para pool reducido
-    volumes:
-      - ./app:/app/app
-      - ./sessions:/app/sessions
-      - ./chrome-data:/app/chrome-data
-      - ./screenshots:/app/screenshots
     depends_on:
-      redis:
-        condition: service_healthy
+      - redis
+    networks:
+      - fizko-v2-network
+
+  # ==========================================
+  # Redis - Message Broker para Celery
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: fizko-v2-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
     networks:
-      - fizko-network
-    # NO PROFILE: Se inicia por defecto
+      - fizko-v2-network
 
   # ==========================================
-  # Celery Worker SLOW - Low priority
+  # Celery Worker - Tareas SII en background
   # ==========================================
-  # Procesa scraping pesado de SII (Selenium)
-  # Concurrency: 1 (tareas largas y resource-intensive)
-  celery-worker-slow:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        INSTALL_DEV: "true"
-    container_name: fizko-celery-worker-slow
-    command: ["celery-worker"]
-    env_file:
-      - .env
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_QUEUES=low           # Solo cola lenta (SII)
-      - CELERY_WORKER_NAME=slow     # Nombre identificable
-      - CELERY_CONCURRENCY=1        # Una tarea a la vez
-      - CELERY_MAX_TASKS_PER_CHILD=10  # Reiniciar frecuente (memory leaks de Selenium)
-      - SERVICE_TYPE=celery-worker  # Para pool reducido
-    volumes:
-      - ./app:/app/app
-      - ./sessions:/app/sessions
-      - ./chrome-data:/app/chrome-data
-      - ./screenshots:/app/screenshots
-    depends_on:
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - fizko-network
-    # NO PROFILE: Se inicia por defecto
-
-  # ==========================================
-  # Celery Worker ÚNICO - Todas las colas (ROLLBACK)
-  # ==========================================
-  # Worker único para rollback si hay problemas
-  # Solo se inicia con: docker-compose --profile single-worker up
   celery-worker:
     build:
       context: .
       dockerfile: Dockerfile
       args:
         INSTALL_DEV: "true"
-    container_name: fizko-celery-worker
+    container_name: fizko-v2-celery-worker
     command: ["celery-worker"]
     env_file:
       - .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      # Procesa todas las colas (default)
     volumes:
       - ./app:/app/app
       - ./sessions:/app/sessions
       - ./chrome-data:/app/chrome-data
       - ./screenshots:/app/screenshots
     depends_on:
-      redis:
-        condition: service_healthy
+      - redis
     restart: unless-stopped
     networks:
-      - fizko-network
-    profiles:
-      - single-worker  # Solo para rollback
+      - fizko-v2-network
 
   # ==========================================
-  # Celery Beat - Scheduler para tareas programadas
+  # Celery Beat - Scheduler para tareas periódicas
   # ==========================================
   celery-beat:
     build:
@@ -199,58 +110,28 @@ services:
       dockerfile: Dockerfile
       args:
         INSTALL_DEV: "true"
-    container_name: fizko-celery-beat
+    container_name: fizko-v2-celery-beat
     command: ["celery-beat"]
     env_file:
       - .env
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - SERVICE_TYPE=celery-beat  # Beat solo scheduling, no ejecuta tareas
     volumes:
       - ./app:/app/app
-      - celery_beat_data:/app/celerybeat-schedule  # Persistir schedule
-    depends_on:
-      redis:
-        condition: service_healthy
-      celery-worker-fast:
-        condition: service_started
-      celery-worker-slow:
-        condition: service_started
-    restart: unless-stopped
-    networks:
-      - fizko-network
-
-  # ==========================================
-  # Flower - Monitoring de Celery (Opcional)
-  # ==========================================
-  flower:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        INSTALL_DEV: "true"
-    container_name: fizko-flower
-    command: ["flower"]
-    ports:
-      - "5555:5555"
-    env_file:
-      - .env
-    environment:
-      - REDIS_URL=redis://redis:6379/0
+      - celerybeat-schedule:/app/celerybeat-schedule
     depends_on:
       - redis
-      - celery-worker-fast
-      - celery-worker-slow
+      - celery-worker
     restart: unless-stopped
     networks:
-      - fizko-network
+      - fizko-v2-network
 
   # ==========================================
   # ngrok - Tunnel público para desarrollo local
   # ==========================================
   ngrok:
     image: ngrok/ngrok:latest
-    container_name: fizko-ngrok
+    container_name: fizko-v2-ngrok
     command:
       - "start"
       - "--all"
@@ -266,20 +147,20 @@ services:
       - backend
     restart: unless-stopped
     networks:
-      - fizko-network
+      - fizko-v2-network
 
 # ==========================================
 # Networks
 # ==========================================
 networks:
-  fizko-network:
+  fizko-v2-network:
     driver: bridge
 
 # ==========================================
 # Volumes
 # ==========================================
 volumes:
-  redis_data:
+  redis-data:
     driver: local
-  celery_beat_data:
+  celerybeat-schedule:
     driver: local

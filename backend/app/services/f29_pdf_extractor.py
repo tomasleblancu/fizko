@@ -1,10 +1,23 @@
 """
-Servicio para extraer datos estructurados de PDFs del Formulario 29 (F29)
+Extractor mejorado para Formulario 29 (F29) del SII
+
+Este extractor captura TODOS los códigos y campos del F29 de forma estructurada,
+incluyendo:
+- Encabezado (folio, RUT, período, razón social, etc.)
+- Todos los códigos de débitos (502, 111, 759, etc.)
+- Todos los códigos de créditos (511, 520, 504, etc.)
+- Cantidades de documentos (503, 110, 758, etc.)
+- Impuestos determinados (089, 062, 547, etc.)
+- Totales a pagar
+
+Los datos extraídos se almacenan en un diccionario estructurado que luego
+se guarda en el campo extra_data (JSONB) del modelo form29_sii_downloads.
 """
+
 import logging
 import re
 from decimal import Decimal
-from typing import Dict, Optional, Any, List
+from typing import Dict, Any, Optional, List
 from io import BytesIO
 
 try:
@@ -18,414 +31,538 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+# Mapeo de códigos del F29 según especificación del SII
+# Formato: código -> (nombre_campo, descripción)
+F29_CODIGO_MAP = {
+    # Encabezado
+    "07": ("folio", "Folio"),
+    "03": ("rut", "RUT"),
+    "15": ("periodo", "Período"),
+    "01": ("razon_social", "Razón Social"),
+    "06": ("direccion_calle", "Calle"),
+    "610": ("direccion_numero", "Número"),
+    "08": ("comuna", "Comuna"),
+    "09": ("telefono", "Teléfono"),
+    "55": ("correo", "Correo Electrónico"),
+    "314": ("rut_representante", "RUT Representante"),
+
+    # Cantidades de documentos emitidos
+    "503": ("cant_facturas_emitidas", "Cantidad Facturas Emitidas"),
+    "110": ("cant_boletas", "Cantidad Boletas"),
+    "758": ("cant_recibos_electronicos", "Cantidad Recibos de Pago Medios Electrónicos"),
+    "509": ("cant_notas_credito_emitidas", "Cantidad Notas de Crédito Emitidas"),
+    "708": ("cant_notas_cred_vales_maq", "Cantidad Notas Crédito Vales Máquinas"),
+    "584": ("cant_int_ex_no_grav", "Cantidad Intereses Exentos No Gravados"),
+
+    # Cantidades de documentos recibidos
+    "500": ("cant_facturas_recibidas", "Cantidad Facturas Recibidas"),
+    "519": ("cant_fact_recibidas_giro", "Cantidad Facturas Recibidas del Giro"),
+    "527": ("cant_notas_credito_recibidas", "Cantidad Notas de Crédito Recibidas"),
+    "531": ("cant_notas_debito_recibidas", "Cantidad Notas de Débito Recibidas"),
+    "534": ("cant_form_pago_imp_giro", "Cantidad Formularios Pago Impuesto del Giro"),
+
+    # DÉBITOS (montos)
+    "502": ("debitos_facturas", "Débitos Facturas Emitidas"),
+    "111": ("debitos_boletas", "Débitos Boletas"),
+    "759": ("debitos_recibos_electronicos", "Débitos Recibos de Pago Medios Electrónicos"),
+    "510": ("debitos_notas_credito", "Débitos Notas de Crédito Emitidas"),
+    "709": ("debitos_notas_cred_vales", "Débitos Notas Crédito Vales Máquinas IVA"),
+    "501": ("liquidacion_facturas", "Liquidación de Facturas"),
+    "538": ("total_debitos", "Total Débitos"),
+    "562": ("monto_sin_der_cred_fiscal", "Monto Sin Derecho a Crédito Fiscal"),
+
+    # CRÉDITOS (montos)
+    "511": ("credito_iva_documentos_electronicos", "Crédito IVA por Documentos Electrónicos"),
+    "520": ("credito_facturas_giro", "Crédito Recuperado y Reintegros Facturas del Giro"),
+    "528": ("credito_notas_credito", "Crédito Recuperado y Reintegros Notas de Crédito"),
+    "532": ("credito_notas_debito", "Crédito Notas de Débito"),
+    "535": ("credito_pago_imp_giro", "Crédito Recuperado y Reintegros Pago Impuesto del Giro"),
+    "504": ("remanente_mes_anterior", "Remanente Crédito Mes Anterior"),
+    "077": ("remanente_credito_fisc", "Remanente de Crédito Fiscal"),
+    "544": ("recup_imp_diesel", "Recuperación Impuesto Especial Diesel"),
+    "779": ("iva_postergado", "Monto de IVA Postergado 6 o 12 Cuotas"),
+    "537": ("total_creditos", "Total Créditos"),
+
+    # Impuestos determinados
+    "089": ("iva_determinado", "IVA Determinado"),
+    "062": ("ppm_neto", "PPM Neto Determinado"),
+    "048": ("retencion_imp_unico", "Retención Impuesto Único Trabajadores Art. 74 N°1 LIR"),
+    "151": ("retencion_tasa_ley_21133", "Retención Tasa Ley 21.133 Sobre Rentas"),
+    "563": ("base_imponible", "Base Imponible"),
+    "115": ("tasa_ppm", "Tasa PPM 1ra Categoría"),
+    "595": ("subtotal_imp_determinado", "Sub Total Impuestos Determinado Anverso"),
+    "547": ("total_determinado", "Total Determinado"),
+
+    # Totales a pagar
+    "91": ("total_pagar_plazo_legal", "Total a Pagar Dentro del Plazo Legal"),
+    "92": ("mas_ipc", "Más IPC"),
+    "93": ("mas_interes_multas", "Más Intereses y Multas"),
+    "795": ("condonacion", "Condonación"),
+    "94": ("total_pagar_recargo", "Total a Pagar con Recargo"),
+
+    # Detalles de condonación
+    "60": ("codigo_condonacion", "Código de Condonación"),
+    "922": ("porc_condonacion", "% Condonación"),
+    "915": ("fecha_condonacion", "Fecha de la Condonación"),
+}
+
+
 class F29PDFExtractor:
     """
-    Extractor de datos estructurados desde PDFs del Formulario 29
-
-    Extrae campos clave del F29 como:
-    - Ventas y débito fiscal
-    - Compras y crédito fiscal
-    - IVA determinado
-    - Período y folio
+    Extractor mejorado que captura TODOS los códigos del F29
     """
 
     def __init__(self):
         if PdfReader is None:
             raise ImportError(
-                "pypdf o PyPDF2 es requerido para extraer datos de PDFs. "
-                "Instala con: pip install pypdf"
+                "pypdf o PyPDF2 es requerido. Instala con: pip install pypdf"
             )
 
     def extract_from_pdf(self, pdf_bytes: bytes) -> Dict[str, Any]:
         """
-        Extrae el 100% del contenido estructurado del PDF del F29
+        Extrae TODOS los datos estructurados del PDF del F29
 
         Args:
             pdf_bytes: Contenido del PDF en bytes
 
         Returns:
-            Diccionario con TODO el contenido extraído:
+            Diccionario completo con todos los datos extraídos:
             {
-                'period_year': int,
-                'period_month': int,
-                'folio': str,
-                'total_sales': Decimal,
-                'taxable_sales': Decimal,
-                'exempt_sales': Decimal,
-                'sales_tax': Decimal (débito fiscal),
-                'total_purchases': Decimal,
-                'taxable_purchases': Decimal,
-                'purchases_tax': Decimal (crédito fiscal),
-                'iva_to_pay': Decimal,
-                'iva_credit': Decimal,
-                'net_iva': Decimal (IVA determinado),
-                'raw_content': {
-                    'full_text': str,  # Texto completo extraído
-                    'pages': list,     # Texto por página
-                    'lines': list,     # Todas las líneas
-                    'parsed_fields': dict,  # TODOS los campos parseados
+                'header': {  # Información del encabezado
+                    'folio': str,
+                    'rut': str,
+                    'periodo': str,
+                    'razon_social': str,
+                    'direccion': str,
+                    'tipo_declaracion': str,
+                    'fecha_presentacion': str,
+                    'banco': str,
+                    'medio_pago': str
                 },
-                'extra_data': dict  # Campos adicionales
+                'codes': {  # Todos los códigos con sus valores
+                    '502': {'value': float, 'glosa': str, 'field_name': str},
+                    '503': {'value': int, 'glosa': str, 'field_name': str},
+                    ...
+                },
+                'grouped': {  # Datos agrupados por categoría
+                    'debitos': {...},
+                    'creditos': {...},
+                    'cantidades': {...},
+                    'impuestos': {...}
+                },
+                'summary': {  # Resumen con totales principales
+                    'total_debitos': float,
+                    'total_creditos': float,
+                    'iva_determinado': float,
+                    'total_pagar': float
+                },
+                'raw_text': str  # Texto completo para referencia
             }
         """
         try:
-            # Leer PDF
+            # 1. Extraer texto del PDF
             pdf_file = BytesIO(pdf_bytes)
             pdf_reader = PdfReader(pdf_file)
 
-            # Extraer TODO el texto página por página
-            pages_text = []
             full_text = ""
-            for i, page in enumerate(pdf_reader.pages):
-                page_text = page.extract_text()
-                pages_text.append({
-                    'page_number': i + 1,
-                    'text': page_text,
-                    'char_count': len(page_text)
-                })
-                full_text += page_text
+            for page in pdf_reader.pages:
+                full_text += page.extract_text()
 
-            logger.info(f"Texto extraído del PDF: {len(full_text)} caracteres en {len(pages_text)} páginas")
+            logger.info(f"📄 Texto extraído: {len(full_text)} caracteres")
 
-            # Dividir en líneas para análisis completo
-            lines = [line.strip() for line in full_text.split('\n') if line.strip()]
+            # 2. Extraer encabezado
+            header = self._extract_header(full_text)
 
-            # Parsear datos estructurados
-            extracted_data = self._parse_f29_text(full_text)
+            # 3. Extraer todos los códigos con sus valores
+            codes = self._extract_all_codes(full_text)
 
-            # Agregar TODO el contenido raw
-            extracted_data['raw_content'] = {
-                'full_text': full_text,
-                'pages': pages_text,
-                'lines': lines,
-                'line_count': len(lines),
-                'char_count': len(full_text),
-                'parsed_fields': self._extract_all_fields(full_text, lines)
+            # 4. Agrupar códigos por categoría
+            grouped = self._group_codes(codes)
+
+            # 5. Calcular resumen con totales principales
+            summary = self._calculate_summary(codes)
+
+            # 6. Compilar resultado final
+            result = {
+                'header': header,
+                'codes': codes,
+                'grouped': grouped,
+                'summary': summary,
+                'raw_text': full_text[:1000],  # Primeros 1000 chars para referencia
+                'extraction_success': True,
+                'codes_extracted': len(codes)
             }
 
-            return extracted_data
+            logger.info(f"✅ Extracción completada: {len(codes)} códigos extraídos")
+            return result
 
         except Exception as e:
-            logger.error(f"Error extrayendo datos del PDF: {e}")
-            raise
+            logger.error(f"❌ Error extrayendo datos del PDF: {e}", exc_info=True)
+            return {
+                'extraction_success': False,
+                'error': str(e),
+                'codes': {},
+                'header': {},
+                'grouped': {},
+                'summary': {}
+            }
 
-    def _parse_f29_text(self, text: str) -> Dict[str, Any]:
-        """
-        Parsea el texto extraído del PDF para obtener los campos del F29
+    def _extract_header(self, text: str) -> Dict[str, Any]:
+        """Extrae información del encabezado del F29"""
+        header = {}
 
-        Args:
-            text: Texto completo extraído del PDF
+        # Folio
+        folio_match = re.search(r'FOLIO\s+\[07\]\s+(\d+)', text)
+        if folio_match:
+            header['folio'] = folio_match.group(1)
 
-        Returns:
-            Diccionario con datos parseados
-        """
-        data = {
-            'extra_data': {}
-        }
-
-        # 1. Extraer período (mes y año)
-        period = self._extract_period(text)
-        if period:
-            data['period_year'] = period['year']
-            data['period_month'] = period['month']
-
-        # 2. Extraer folio
-        folio = self._extract_folio(text)
-        if folio:
-            data['folio'] = folio
-
-        # 3. Extraer ventas y débito fiscal
-        # Buscar patrones como:
-        # - "DEBITO FISCAL" seguido de números
-        # - "Total Ventas" o "Ventas Netas"
-        # - "IVA Débito"
-
-        sales_data = self._extract_sales_data(text)
-        data.update(sales_data)
-
-        # 4. Extraer compras y crédito fiscal
-        purchases_data = self._extract_purchases_data(text)
-        data.update(purchases_data)
-
-        # 5. Extraer IVA determinado
-        iva_data = self._extract_iva_calculation(text)
-        data.update(iva_data)
-
-        # 6. Guardar texto completo en extra_data para referencia
-        data['extra_data']['full_text_preview'] = text[:500]  # Primeros 500 chars
-
-        return data
-
-    def _extract_period(self, text: str) -> Optional[Dict[str, int]]:
-        """Extrae el período (mes y año) del F29"""
-        # Patrones comunes:
-        # - "PERIODO TRIBUTARIO: 01/2024"
-        # - "MES: 01 AÑO: 2024"
-        # - "ENERO 2024"
-
-        patterns = [
-            r'PERIODO\s+TRIBUTARIO[:\s]+(\d{2})/(\d{4})',
-            r'MES[:\s]+(\d{2})\s+A[ÑN]O[:\s]+(\d{4})',
-            r'(\d{2})/(\d{4})',  # Formato simple MM/YYYY
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                month = int(match.group(1))
-                year = int(match.group(2))
-                logger.debug(f"Período extraído: {month}/{year}")
-                return {'month': month, 'year': year}
-
-        logger.warning("No se pudo extraer el período del PDF")
-        return None
-
-    def _extract_folio(self, text: str) -> Optional[str]:
-        """Extrae el número de folio del F29"""
-        # Patrones: "FOLIO: 123456789" o "Nº FOLIO: 123456789"
-        patterns = [
-            r'FOLIO[:\s]+(\d{8,10})',
-            r'N[°º]\s*FOLIO[:\s]+(\d{8,10})',
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                folio = match.group(1)
-                logger.debug(f"Folio extraído: {folio}")
-                return folio
-
-        logger.warning("No se pudo extraer el folio del PDF")
-        return None
-
-    def _extract_sales_data(self, text: str) -> Dict[str, Decimal]:
-        """Extrae datos de ventas y débito fiscal"""
-        data = {
-            'total_sales': Decimal('0'),
-            'taxable_sales': Decimal('0'),
-            'exempt_sales': Decimal('0'),
-            'sales_tax': Decimal('0'),  # Débito fiscal
-        }
-
-        # Buscar débito fiscal (IVA de ventas)
-        # Patrones: "DEBITO FISCAL" o "IVA DEBITO" seguido de monto
-        debito_patterns = [
-            r'DEBITO\s+FISCAL[:\s]+\$?\s*([\d.,]+)',
-            r'IVA\s+DEBITO[:\s]+\$?\s*([\d.,]+)',
-            r'TOTAL\s+DEBITO[:\s]+\$?\s*([\d.,]+)',
-        ]
-
-        for pattern in debito_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                amount_str = match.group(1).replace('.', '').replace(',', '.')
-                data['sales_tax'] = Decimal(amount_str)
-                logger.debug(f"Débito fiscal extraído: {data['sales_tax']}")
-                break
-
-        # Calcular ventas afectas aproximadas (débito / 0.19)
-        if data['sales_tax'] > 0:
-            data['taxable_sales'] = (data['sales_tax'] / Decimal('0.19')).quantize(Decimal('0.01'))
-
-        return data
-
-    def _extract_purchases_data(self, text: str) -> Dict[str, Decimal]:
-        """Extrae datos de compras y crédito fiscal"""
-        data = {
-            'total_purchases': Decimal('0'),
-            'taxable_purchases': Decimal('0'),
-            'purchases_tax': Decimal('0'),  # Crédito fiscal
-        }
-
-        # Buscar crédito fiscal (IVA de compras)
-        # Patrones: "CREDITO FISCAL" o "IVA CREDITO" seguido de monto
-        credito_patterns = [
-            r'CREDITO\s+FISCAL[:\s]+\$?\s*([\d.,]+)',
-            r'IVA\s+CREDITO[:\s]+\$?\s*([\d.,]+)',
-            r'TOTAL\s+CREDITO[:\s]+\$?\s*([\d.,]+)',
-        ]
-
-        for pattern in credito_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                amount_str = match.group(1).replace('.', '').replace(',', '.')
-                data['purchases_tax'] = Decimal(amount_str)
-                logger.debug(f"Crédito fiscal extraído: {data['purchases_tax']}")
-                break
-
-        # Calcular compras afectas aproximadas (crédito / 0.19)
-        if data['purchases_tax'] > 0:
-            data['taxable_purchases'] = (data['purchases_tax'] / Decimal('0.19')).quantize(Decimal('0.01'))
-
-        return data
-
-    def _extract_iva_calculation(self, text: str) -> Dict[str, Decimal]:
-        """Extrae el cálculo de IVA (determinación)"""
-        data = {
-            'iva_to_pay': Decimal('0'),
-            'iva_credit': Decimal('0'),
-            'net_iva': Decimal('0'),
-        }
-
-        # Buscar IVA determinado o IVA a pagar
-        # Patrones: "IVA DETERMINADO", "IVA A PAGAR", "REMANENTE"
-        iva_patterns = [
-            r'IVA\s+DETERMINADO[:\s]+\$?\s*([\d.,]+)',
-            r'IVA\s+A\s+PAGAR[:\s]+\$?\s*([\d.,]+)',
-            r'TOTAL\s+A\s+PAGAR[:\s]+\$?\s*([\d.,]+)',
-        ]
-
-        for pattern in iva_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                amount_str = match.group(1).replace('.', '').replace(',', '.')
-                amount = Decimal(amount_str)
-
-                if amount > 0:
-                    data['net_iva'] = amount
-                    data['iva_to_pay'] = amount
-                else:
-                    data['net_iva'] = amount
-                    data['iva_credit'] = abs(amount)
-
-                logger.debug(f"IVA determinado extraído: {data['net_iva']}")
-                break
-
-        return data
-
-    def _extract_all_fields(self, text: str, lines: List[str]) -> Dict[str, Any]:
-        """
-        Extrae TODOS los campos posibles del F29 usando múltiples patrones
-
-        Args:
-            text: Texto completo del PDF
-            lines: Lista de líneas del PDF
-
-        Returns:
-            Diccionario con todos los campos encontrados
-        """
-        all_fields = {}
-
-        # Lista completa de campos del F29 (basado en el formulario oficial)
-        # Usaremos patrones genéricos para capturar todo
-
-        # 1. Números de casillas (el F29 tiene casillas numeradas)
-        # Patrón: "[número] ... [valor]"
-        casilla_pattern = r'\[(\d+)\]\s*([^\[]*?)(?=\[|$)'
-        casillas = re.findall(casilla_pattern, text, re.DOTALL)
-        if casillas:
-            all_fields['casillas'] = {}
-            for casilla_num, casilla_valor in casillas:
-                all_fields['casillas'][casilla_num] = casilla_valor.strip()
-
-        # 2. Buscar todos los montos (números con formato chileno)
-        # Patrón: $123.456 o 123.456
-        monto_pattern = r'\$?\s*([\d]{1,3}(?:\.[\d]{3})*(?:,[\d]{2})?)'
-        montos = re.findall(monto_pattern, text)
-        all_fields['montos_encontrados'] = montos[:50]  # Primeros 50 montos
-
-        # 3. Extraer todas las etiquetas y sus valores
-        # Buscar patrones como "ETIQUETA: VALOR" o "ETIQUETA VALOR"
-        label_pattern = r'([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+[A-ZÁÉÍÓÚÑ])\s*[:\-]?\s*\$?\s*([\d.,]+|[A-Z0-9\-]+)'
-        labels = re.findall(label_pattern, text)
-        if labels:
-            all_fields['campos_etiquetados'] = {}
-            for label, valor in labels:
-                label_clean = label.strip()
-                if len(label_clean) > 3:  # Filtrar labels muy cortas
-                    all_fields['campos_etiquetados'][label_clean] = valor.strip()
-
-        # 4. Información del contribuyente
-        rut_pattern = r'RUT[:\s]+(\d{1,2}\.\d{3}\.\d{3}-[\dK])'
-        rut_match = re.search(rut_pattern, text, re.IGNORECASE)
+        # RUT
+        rut_match = re.search(r'RUT\s+\[03\]\s+([\d.-K]+)', text)
         if rut_match:
-            all_fields['rut_contribuyente'] = rut_match.group(1)
+            header['rut'] = rut_match.group(1)
 
-        nombre_pattern = r'(?:NOMBRE|RAZ[ÓO]N SOCIAL)[:\s]+([A-ZÁÉÍÓÚÑ\s]+(?:[A-ZÁÉÍÓÚÑ]|S\.A\.|LTDA\.|SPA))'
-        nombre_match = re.search(nombre_pattern, text, re.IGNORECASE)
-        if nombre_match:
-            all_fields['nombre_contribuyente'] = nombre_match.group(1).strip()
+        # Período
+        period_match = re.search(r'PERIODO\s+\[15\]\s+(\d{6})', text)
+        if period_match:
+            period = period_match.group(1)
+            header['periodo'] = period
+            header['periodo_year'] = int(period[:4])
+            header['periodo_month'] = int(period[4:6])
+            header['periodo_display'] = f"{period[:4]}-{period[4:6]}"
 
-        # 5. Fecha de presentación
-        fecha_pattern = r'(?:FECHA|PRESENTACI[ÓO]N)[:\s]+(\d{2}/\d{2}/\d{4})'
-        fecha_match = re.search(fecha_pattern, text, re.IGNORECASE)
+        # Razón Social
+        razon_match = re.search(r'01\s+Apellido.*?02\s+Apellido.*?05\s+Nombres\s+(.+?)\s+06', text, re.DOTALL)
+        if razon_match:
+            header['razon_social'] = razon_match.group(1).strip()
+
+        # Dirección
+        dir_match = re.search(r'06\s+Calle\s+610\s+Número\s+08\s+Comuna\s+(.+?)\s+09', text, re.DOTALL)
+        if dir_match:
+            header['direccion'] = dir_match.group(1).strip().replace('\n', ' ')
+
+        # Tipo de declaración
+        tipo_match = re.search(r'Tipo de Declaración\s+Corrige a Folio.*?\s+Banco.*?\s+Medio de Pago.*?\s+Fecha de Presentación\s+(\w+)', text)
+        if tipo_match:
+            header['tipo_declaracion'] = tipo_match.group(1)
+
+        # Fecha de presentación
+        fecha_match = re.search(r'Fecha de Presentación\s+(\d{2}/\d{2}/\d{4})', text)
         if fecha_match:
-            all_fields['fecha_presentacion'] = fecha_match.group(1)
+            header['fecha_presentacion'] = fecha_match.group(1)
 
-        # 6. Detectar secciones del formulario
-        secciones = {
-            'ventas_servicios': r'VENTAS?\s+Y\s+SERVICIOS|D[ÉE]BITO\s+FISCAL',
-            'compras': r'COMPRAS?\s+Y\s+SERVICIOS|CR[ÉE]DITO\s+FISCAL',
-            'remanente': r'REMANENTE|SALDO\s+A\s+FAVOR',
-            'determinacion_iva': r'DETERMINACI[ÓO]N\s+(?:DEL\s+)?IVA|IVA\s+DETERMINADO',
-            'otros_impuestos': r'OTROS\s+IMPUESTOS|IMPUESTOS\s+ADICIONALES'
+        # Banco
+        banco_match = re.search(r'Banco\s+Medio de Pago\s+Fecha\s+\w+\s+(\w+)', text)
+        if banco_match:
+            header['banco'] = banco_match.group(1)
+
+        # Medio de pago
+        medio_match = re.search(r'Medio de Pago\s+Fecha.*?\s+(\w+)\s+\d{2}/\d{2}/\d{4}', text)
+        if medio_match:
+            header['medio_pago'] = medio_match.group(1)
+
+        return header
+
+    def _clean_numeric_value(self, value_str: str) -> str:
+        """
+        Limpia un valor numérico distinguiendo entre puntos decimales y separadores de miles
+
+        Reglas:
+        - Comas siempre son decimales (formato chileno alternativo)
+        - Múltiples puntos son separadores de miles (1.234.567)
+        - Un solo punto: determinar por contexto
+          * Si empieza con 0 o un dígito < 10 y tiene 3 decimales -> es decimal (0.250, 1.500)
+          * Si tiene 3 decimales y primer número > 9 -> es miles (123.456)
+          * Si tiene != 3 decimales -> es decimal (0.25, 123.5)
+
+        Ejemplos:
+        - "0.250" -> "0.250" (decimal)
+        - "1.234.567" -> "1234567" (miles)
+        - "123.456" -> "123456" (miles)
+        - "16.959" -> "16959" (miles)
+        """
+        # Si tiene coma decimal, convertirla a punto
+        if ',' in value_str:
+            value_str = value_str.replace(',', '.')
+
+        # Si tiene punto, determinar si es decimal o miles
+        if '.' in value_str:
+            parts = value_str.split('.')
+
+            # Múltiples puntos: definitivamente miles (1.234.567)
+            if len(parts) > 2:
+                return value_str.replace('.', '')
+
+            # Un solo punto: verificar contexto
+            elif len(parts) == 2:
+                first_part = parts[0]
+                second_part = parts[1]
+
+                # Si la última parte tiene 3 dígitos
+                if len(second_part) == 3:
+                    # Si primera parte es "0" o un solo dígito pequeño, es decimal
+                    if first_part == '0' or (len(first_part) == 1 and int(first_part) < 10):
+                        # Es decimal: 0.250, 1.500, 2.125
+                        return value_str
+                    else:
+                        # Es miles: 123.456, 16.959
+                        return value_str.replace('.', '')
+                else:
+                    # No tiene 3 dígitos: definitivamente decimal (0.25, 123.5, 16.9)
+                    return value_str
+
+        return value_str
+
+    def _extract_all_codes(self, text: str) -> Dict[str, Any]:
+        """
+        Extrae TODOS los códigos del F29 con sus valores
+
+        Soporta dos formatos:
+        Formato 1 (código al inicio): 503 CANTIDAD FACTURAS EMITIDAS 49
+        Formato 2 (código al final):  Más IPC 92 0 +
+        """
+        codes = {}
+
+        # Patrón 1: Código al inicio + glosa + valor
+        pattern1 = r'^(\d{2,3})\s+(.+?)\s+([\d.,]+)(?:\s*[+\-=])?$'
+
+        # Patrón 2: Glosa + código + valor (para sección de totales)
+        pattern2 = r'^(.+?)\s+(\d{2,3})\s+([\d.,]+)(?:\s*[+\-=])?$'
+
+        # Patrón 3: Glosa específica para códigos de pago (más flexible)
+        pattern3 = r'(Más\s+IPC|Más\s+Interes(?:es)?\s+y\s+Multas|CONDONACIÓN|Condonación|TOTAL\s+A\s+PAGAR\s+CON\s+RECARGO|Total\s+a\s+Pagar\s+con\s+Recargo)\s+(\d{2,3})\s+([\d.,]+)'
+
+        # Patrón 4: Códigos de pago sin valor (cuando está vacío)
+        pattern4 = r'(Más\s+IPC|Más\s+Interes(?:es)?\s+y\s+Multas|CONDONACIÓN|Condonación|TOTAL\s+A\s+PAGAR\s+CON\s+RECARGO|Total\s+a\s+Pagar\s+con\s+Recargo)\s+(\d{2,3})\s*[+\-=]'
+
+        for line in text.split('\n'):
+            line = line.strip()
+
+            # Primero intentar detectar códigos de la sección de pagos (92, 93, 795, 94)
+            special_match = re.search(pattern3, line, re.IGNORECASE)
+            if special_match:
+                glosa = special_match.group(1).strip()
+                code = special_match.group(2)
+                value_str = special_match.group(3)
+
+                # Normalizar glosa
+                if 'IPC' in glosa.upper():
+                    glosa = 'Más IPC'
+                elif 'INTERES' in glosa.upper() or 'MULTAS' in glosa.upper():
+                    glosa = 'Más Intereses y Multas'
+                elif 'CONDONACIÓN' in glosa.upper() or 'CONDONACION' in glosa.upper():
+                    glosa = 'Condonación'
+                elif 'PAGAR CON RECARGO' in glosa.upper():
+                    glosa = 'Total a Pagar con Recargo'
+            else:
+                # Intentar detectar códigos de pago sin valor (vacíos)
+                empty_match = re.search(pattern4, line, re.IGNORECASE)
+                if empty_match:
+                    glosa = empty_match.group(1).strip()
+                    code = empty_match.group(2)
+                    value_str = '0'  # Asignar 0 cuando no hay valor
+
+                    # Normalizar glosa
+                    if 'IPC' in glosa.upper():
+                        glosa = 'Más IPC'
+                    elif 'INTERES' in glosa.upper() or 'MULTAS' in glosa.upper():
+                        glosa = 'Más Intereses y Multas'
+                    elif 'CONDONACIÓN' in glosa.upper() or 'CONDONACION' in glosa.upper():
+                        glosa = 'Condonación'
+                    elif 'PAGAR CON RECARGO' in glosa.upper():
+                        glosa = 'Total a Pagar con Recargo'
+                else:
+                    # Intentar con patrón 1 (código al inicio)
+                    match = re.match(pattern1, line, re.IGNORECASE)
+                    if match:
+                        code = match.group(1)
+                        glosa = match.group(2).strip()
+                        value_str = match.group(3)
+                    else:
+                        # Intentar con patrón 2 (código al final)
+                        match = re.match(pattern2, line, re.IGNORECASE)
+                        if match:
+                            glosa = match.group(1).strip()
+                            code = match.group(2)
+                            value_str = match.group(3)
+                        else:
+                            # No match con ningún patrón
+                            continue
+
+            # Limpiar el valor con lógica mejorada para distinguir decimales de miles
+            clean_value = self._clean_numeric_value(value_str)
+
+            # Intentar convertir a número
+            try:
+                # Si tiene decimales, usar float (JSON-serializable)
+                if '.' in clean_value:
+                    value = float(clean_value)
+                else:
+                    # Si es entero, mantener como int
+                    value = int(clean_value)
+
+                codes[code] = {
+                    'value': value,
+                    'glosa': glosa,
+                    'field_name': F29_CODIGO_MAP.get(code, (f"codigo_{code}", glosa))[0]
+                }
+
+                logger.debug(f"Código {code}: {glosa} = {value}")
+
+            except (ValueError, Decimal.InvalidOperation):
+                logger.warning(f"No se pudo convertir valor para código {code}: {value_str}")
+
+        # Extraer códigos de tabla de condonación (formato especial)
+        self._extract_condonacion_table(text, codes)
+
+        return codes
+
+    def _extract_condonacion_table(self, text: str, codes: Dict[str, Any]) -> None:
+        """
+        Extrae códigos de la tabla de condonación (formato especial con múltiples columnas)
+
+        Formato en el PDF:
+        60 | % Condonación | 922 | Número de la Resolución | 915 | Fecha de la Condonación
+           |      70       |     |       013-2015          |     |      31/12/2025
+        """
+        # Buscar línea con "% Condonación" y "Número de la Resolución"
+        for i, line in enumerate(text.split('\n')):
+            if '% Condonación' in line or '% Condonacion' in line:
+                # Extraer código 60 si está en el encabezado
+                header_match = re.search(r'(\d{2,3})\s+%\s+Condonaci[oó]n', line)
+                if header_match and '60' not in codes:
+                    codes['60'] = {
+                        'value': None,  # Código 60 es solo indicador de sección
+                        'glosa': 'Código de Condonación',
+                        'field_name': 'codigo_condonacion'
+                    }
+                    logger.debug("Código 60: Código de Condonación (sección detectada)")
+                # Buscar la siguiente línea con los valores
+                lines = text.split('\n')
+                if i + 1 < len(lines):
+                    value_line = lines[i + 1].strip()
+
+                    # Extraer valores usando regex más flexible
+                    parts = value_line.split()
+
+                    # Intentar extraer valores en orden
+                    for part in parts:
+                        part = part.strip()
+
+                        # Código 60 o 922: porcentaje de condonación (número simple)
+                        if part.isdigit() and len(part) <= 3:
+                            valor = int(part)
+                            # Si es un porcentaje razonable, asignarlo al código 922
+                            if 1 <= valor <= 100 and '922' not in codes:
+                                codes['922'] = {
+                                    'value': valor,
+                                    'glosa': '% Condonación',
+                                    'field_name': 'porc_condonacion'
+                                }
+                                logger.debug(f"Código 922: % Condonación = {valor}")
+
+                        # Código 915: número de resolución (formato: XXX-XXXX)
+                        elif re.match(r'\d{3}-\d{4}', part):
+                            codes['915'] = {
+                                'value': part,
+                                'glosa': 'Número de la Resolución',
+                                'field_name': 'numero_resolucion'
+                            }
+                            logger.debug(f"Código 915: Número de la Resolución = {part}")
+
+                        # Código 915 (fecha): formato DD/MM/YYYY
+                        elif re.match(r'\d{2}/\d{2}/\d{4}', part):
+                            if '915' in codes and isinstance(codes['915']['value'], str) and '-' in codes['915']['value']:
+                                # Ya tenemos el número de resolución, esto es la fecha de condonación
+                                pass
+
+                break
+
+    def _group_codes(self, codes: Dict[str, Any]) -> Dict[str, Dict]:
+        """Agrupa códigos por categoría para facilitar acceso"""
+
+        # Códigos de cantidades (documentos)
+        cantidad_codes = ['503', '110', '758', '509', '708', '584', '500', '519', '527', '531', '534']
+
+        # Códigos de débitos (montos)
+        debito_codes = ['502', '111', '759', '510', '709', '501', '538', '562']
+
+        # Códigos de créditos (montos)
+        credito_codes = ['511', '520', '528', '532', '535', '504', '077', '544', '779', '537']
+
+        # Códigos de impuestos
+        impuesto_codes = ['089', '062', '048', '563', '115', '595', '547', '151']
+
+        # Códigos de totales a pagar
+        pago_codes = ['91', '92', '93', '795', '94', '60', '922', '915']
+
+        grouped = {
+            'cantidades': {},
+            'debitos': {},
+            'creditos': {},
+            'impuestos': {},
+            'pagos': {}
         }
 
-        all_fields['secciones_encontradas'] = {}
-        for seccion, pattern in secciones.items():
-            if re.search(pattern, text, re.IGNORECASE):
-                all_fields['secciones_encontradas'][seccion] = True
+        for code, data in codes.items():
+            if code in cantidad_codes:
+                grouped['cantidades'][code] = data
+            elif code in debito_codes:
+                grouped['debitos'][code] = data
+            elif code in credito_codes:
+                grouped['creditos'][code] = data
+            elif code in impuesto_codes:
+                grouped['impuestos'][code] = data
+            elif code in pago_codes:
+                grouped['pagos'][code] = data
 
-        # 7. Capturar tablas (líneas que parecen tener estructura tabular)
-        # Buscar líneas con múltiples números separados por espacios
-        tabla_lines = []
-        for line in lines:
-            # Si la línea tiene 2 o más números, podría ser parte de una tabla
-            numeros_en_linea = re.findall(r'[\d.,]+', line)
-            if len(numeros_en_linea) >= 2:
-                tabla_lines.append({
-                    'line': line,
-                    'values': numeros_en_linea
-                })
+        return grouped
 
-        if tabla_lines:
-            all_fields['posibles_tablas'] = tabla_lines[:20]  # Primeras 20 líneas tabulares
+    def _calculate_summary(self, codes: Dict[str, Any]) -> Dict[str, Any]:
+        """Calcula resumen con los totales más importantes"""
+        summary = {}
 
-        # 8. Totales y subtotales
-        total_patterns = {
-            'total_debito_fiscal': r'TOTAL\s+D[ÉE]BITO\s+FISCAL[:\s]+\$?\s*([\d.,]+)',
-            'total_credito_fiscal': r'TOTAL\s+CR[ÉE]DITO\s+FISCAL[:\s]+\$?\s*([\d.,]+)',
-            'total_a_pagar': r'TOTAL\s+A\s+PAGAR[:\s]+\$?\s*([\d.,]+)',
-            'total_remanente': r'TOTAL\s+REMANENTE[:\s]+\$?\s*([\d.,]+)',
-        }
+        # Total débitos (código 538)
+        if '538' in codes:
+            summary['total_debitos'] = codes['538']['value']
 
-        all_fields['totales'] = {}
-        for key, pattern in total_patterns.items():
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                all_fields['totales'][key] = match.group(1)
+        # Total créditos (código 537)
+        if '537' in codes:
+            summary['total_creditos'] = codes['537']['value']
 
-        # 9. Códigos de actividad económica
-        codigo_actividad_pattern = r'C[ÓO]DIGO\s+ACTIVIDAD[:\s]+(\d+)'
-        codigo_match = re.search(codigo_actividad_pattern, text, re.IGNORECASE)
-        if codigo_match:
-            all_fields['codigo_actividad_economica'] = codigo_match.group(1)
+        # IVA determinado (código 089)
+        if '089' in codes:
+            summary['iva_determinado'] = codes['089']['value']
 
-        # 10. Guardar líneas que contienen palabras clave importantes
-        keywords = ['IVA', 'DÉBITO', 'CRÉDITO', 'TOTAL', 'SUBTOTAL', 'VENTAS', 'COMPRAS',
-                   'EXENTA', 'AFECTA', 'EXPORTACIÓN', 'REMANENTE', 'PAGAR']
+        # PPM neto (código 062)
+        if '062' in codes:
+            summary['ppm_neto'] = codes['062']['value']
 
-        all_fields['lineas_importantes'] = []
-        for line in lines:
-            if any(keyword in line.upper() for keyword in keywords):
-                all_fields['lineas_importantes'].append(line)
+        # Total determinado (código 547)
+        if '547' in codes:
+            summary['total_determinado'] = codes['547']['value']
 
-        # Limitar a 100 líneas para no saturar
-        all_fields['lineas_importantes'] = all_fields['lineas_importantes'][:100]
+        # Total a pagar (código 91)
+        if '91' in codes:
+            summary['total_pagar'] = codes['91']['value']
 
-        return all_fields
+        # Calcular diferencia débito-crédito
+        if 'total_debitos' in summary and 'total_creditos' in summary:
+            summary['diferencia_debito_credito'] = summary['total_debitos'] - summary['total_creditos']
+
+        return summary
 
 
-# Función helper para uso rápido
 def extract_f29_data_from_pdf(pdf_bytes: bytes) -> Dict[str, Any]:
     """
-    Función helper para extraer datos de un PDF F29
+    Función helper para extraer datos del F29 desde PDF
+
+    Esta es la función principal que se llama desde otros servicios.
 
     Args:
         pdf_bytes: Contenido del PDF en bytes
 
     Returns:
-        Diccionario con datos extraídos
+        Diccionario con todos los datos extraídos
     """
     extractor = F29PDFExtractor()
     return extractor.extract_from_pdf(pdf_bytes)

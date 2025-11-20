@@ -1,3 +1,1 @@
-"""Fizko backend application."""
-
-__version__ = "0.1.0"
+# backend-v2: Simplified SII integration service

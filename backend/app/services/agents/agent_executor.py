@@ -1,55 +1,201 @@
 """
-Agent Executor Service - Business logic for agent execution.
+Agent Executor Service - Simplified for Backend V2.
 
-Coordinates between database, UI tools, attachments, and agent runner.
-Used by both ChatKit (web) and WhatsApp channels.
+Stateless version without database dependencies.
+Coordinates agent execution with provided context.
 """
 from __future__ import annotations
 
 import logging
 from typing import Any, AsyncIterator, Dict, List, Optional
-from uuid import UUID
-
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.runner import AgentRunner, AgentExecutionRequest, AgentExecutionResult
-from .context_builder import ContextBuilder
 
 logger = logging.getLogger(__name__)
 
 
 class AgentService:
     """
-    Business logic service for agent execution.
+    Simplified business logic service for agent execution.
 
-    This service orchestrates the execution of agents across different channels
-    (ChatKit web, WhatsApp, etc.) by:
-    - Loading company context
-    - Processing UI tools
-    - Handling attachments
-    - Coordinating with AgentRunner
-    - Managing database operations
+    This is a stateless version designed for backend-v2.
+    Unlike the full backend, this service:
+    - Does NOT connect to database
+    - Does NOT load company context from DB
+    - Does NOT handle UI tools (no ChatKit integration)
+    - Accepts company info as parameter
+    - Focuses on SII-related agent tasks
 
-    This is the main entry point for executing agents from any channel.
+    Used for executing agents with pre-loaded context.
     """
 
     def __init__(self):
         """Initialize agent service with multi-agent system."""
         self.runner = AgentRunner()
-        self.context_builder = ContextBuilder()
-        logger.info("🎯 AgentService initialized (multi-agent mode)")
+        logger.info("🎯 AgentService initialized (stateless mode)")
+
+    async def execute(
+        self,
+        user_id: str,
+        company_id: str,
+        thread_id: str,
+        message: str | List[Dict[str, Any]],
+        company_info: Optional[Dict[str, Any]] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        channel: str = "api",
+        stream: bool = False,
+    ) -> AgentExecutionResult:
+        """
+        Execute agent with provided context (stateless).
+
+        Args:
+            user_id: User identifier
+            company_id: Company identifier
+            thread_id: Thread/conversation ID
+            message: Message text or content_parts
+            company_info: Pre-loaded company information (optional)
+            attachments: List of processed attachments (optional)
+            metadata: Additional metadata (optional)
+            channel: Channel name (default: "api")
+            stream: Whether to stream response (default: False)
+
+        Returns:
+            AgentExecutionResult with response_text and metadata
+
+        Example:
+            ```python
+            service = AgentService()
+
+            # Minimal execution
+            result = await service.execute(
+                user_id="user123",
+                company_id="77794858-k",
+                thread_id="thread_1",
+                message="¿Qué documentos tengo pendientes?"
+            )
+            print(result.response_text)
+
+            # With company context
+            company_info = {
+                "rut": "77794858-k",
+                "razon_social": "EMPRESA DEMO SPA",
+                "actividad_economica": "Servicios de software"
+            }
+            result = await service.execute(
+                user_id="user123",
+                company_id="77794858-k",
+                thread_id="thread_1",
+                message="Dame un resumen de mi empresa",
+                company_info=company_info
+            )
+            ```
+        """
+
+        # Build execution request
+        request = AgentExecutionRequest(
+            user_id=user_id,
+            company_id=company_id,
+            thread_id=thread_id,
+            message=message,
+            attachments=attachments,
+            ui_context=None,  # No UI tools in stateless mode
+            company_info=company_info or {},
+            metadata=metadata or {},
+            channel=channel,
+        )
+
+        # Execute via runner
+        logger.info(f"🚀 Executing agent for company {company_id}, thread {thread_id}")
+        result: AgentExecutionResult = await self.runner.execute(
+            request=request,
+            db=None,  # No database in stateless mode
+            stream=stream,
+            run_config=None,
+        )
+
+        logger.info(f"✅ Agent execution completed: {len(result.response_text)} chars")
+        return result
+
+    async def execute_with_sii_context(
+        self,
+        user_id: str,
+        rut: str,
+        thread_id: str,
+        message: str,
+        contribuyente_info: Dict[str, Any],
+        attachments: Optional[List[Dict[str, Any]]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> AgentExecutionResult:
+        """
+        Execute agent with SII contribuyente context.
+
+        This is a specialized method for backend-v2 that accepts
+        contribuyente info from the SII integration and formats it
+        as company context for the agent.
+
+        Args:
+            user_id: User identifier
+            rut: Company RUT (used as company_id)
+            thread_id: Thread/conversation ID
+            message: User message
+            contribuyente_info: Information from SII (from /verify endpoint)
+            attachments: Optional attachments
+            metadata: Additional metadata
+
+        Returns:
+            AgentExecutionResult
+
+        Example:
+            ```python
+            # After calling /api/sii/verify
+            verify_response = requests.post("/api/sii/verify", json={
+                "rut": "77794858",
+                "dv": "k",
+                "password": "******"
+            })
+
+            contribuyente_info = verify_response.json()["contribuyente_info"]
+
+            # Execute agent with SII context
+            service = AgentService()
+            result = await service.execute_with_sii_context(
+                user_id="user123",
+                rut="77794858-k",
+                thread_id="thread_1",
+                message="¿Cuál es mi razón social?",
+                contribuyente_info=contribuyente_info
+            )
+            ```
+        """
+
+        # Format contribuyente info as company context
+        company_info = self._format_contribuyente_as_company_info(
+            rut=rut,
+            contribuyente_info=contribuyente_info
+        )
+
+        # Execute with formatted context
+        return await self.execute(
+            user_id=user_id,
+            company_id=rut,
+            thread_id=thread_id,
+            message=message,
+            company_info=company_info,
+            attachments=attachments,
+            metadata=metadata,
+            channel="sii",
+        )
 
     async def execute_from_chatkit(
         self,
-        db: AsyncSession,
         user_id: str,
         company_id: str,
         thread_id: str,
         message: str | List[Dict[str, Any]],
         attachments: Optional[List[Dict[str, Any]]] = None,
-        ui_component: Optional[str] = None,
-        entity_id: Optional[str] = None,
-        entity_type: Optional[str] = None,
+        ui_context: Optional[str] = None,
+        company_info: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         run_config = None,
         store = None,
@@ -57,46 +203,26 @@ class AgentService:
         """
         Execute agent from ChatKit request (streaming).
 
+        This method is designed for ChatKit integration and returns a streaming result
+        compatible with chatkit.agents.stream_agent_response().
+
         Args:
-            db: Database session
             user_id: User UUID
             company_id: Company UUID
             thread_id: Thread/conversation ID
             message: Message text or content_parts
             attachments: List of processed attachments
-            ui_component: UI component name (from metadata)
-            entity_id: Entity ID (from metadata)
-            entity_type: Entity type (from metadata)
+            ui_context: UI context text (from UI tools)
+            company_info: Pre-loaded company information
             metadata: Additional metadata
             run_config: RunConfig for session_input_callback
+            store: ChatKit store (needed for widget streaming in tools)
 
         Returns:
-            StreamedRunResult object with .stream_events() method
-            (used by ChatKit's stream_agent_response)
+            Tuple of (StreamedRunResult, FizkoContext) for use with stream_agent_response()
         """
 
-        # 1. Load company context
-        company_info = await self.context_builder.load_company_context(
-            db=db,
-            company_id=company_id,
-            use_cache=True,
-        )
-
-        # 2. Load UI Tool context if ui_component provided
-        ui_context = None
-        if ui_component:
-            message_text = message if isinstance(message, str) else ""
-            ui_context = await self.context_builder.load_ui_tool_context(
-                db=db,
-                ui_component=ui_component,
-                entity_id=entity_id,
-                entity_type=entity_type,
-                user_id=user_id,
-                company_id=company_id,
-                user_message=message_text,
-            )
-
-        # 3. Build execution request
+        # Build execution request
         request = AgentExecutionRequest(
             user_id=user_id,
             company_id=company_id,
@@ -104,22 +230,24 @@ class AgentService:
             message=message,
             attachments=attachments,
             ui_context=ui_context,
-            company_info=company_info,
+            company_info=company_info or {},
             metadata=metadata or {},
             channel="web",
         )
 
-        # 4. Execute via runner (streaming)
-        # IMPORTANT: We need to call the async parts first, then return the sync streaming result
-
         # Get agent (async) - also creates/returns session for active agent detection
-        agent, _, session = await self.runner._get_agent(request, db)
+        agent, _, session = await self.runner._get_agent(request, db=None)
 
         # Build context (async) - pass store for widget streaming in tools
-        context = await self.runner._build_context(request, db, store=store)
+        context = await self.runner._build_context(request, db=None, store=store)
 
-        # Prepare input (sync)
-        agent_input = self.runner._prepare_input(request)
+        # For ChatKit with session memory, pass string directly (not list)
+        # This avoids the session_input_callback requirement
+        if isinstance(message, str):
+            agent_input = message
+        else:
+            # If it's a list, extract the text from first part
+            agent_input = message[0].get("text", "") if message else ""
 
         # Execute agent (sync - returns StreamedRunResult immediately)
         from agents import Runner
@@ -128,84 +256,41 @@ class AgentService:
             agent_input,
             context=context,
             session=session,
-            max_turns=request.max_turns,
+            max_turns=request.max_turns or 10,
             run_config=run_config,
         )
 
         # Return both the result and context (context is needed for stream_agent_response to capture tool widgets)
         return (result, context)
 
-    async def execute_from_whatsapp(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        company_id: UUID,
-        conversation_id: str,
-        message: str,
-        attachments: Optional[List[Dict[str, Any]]] = None,
-        ui_context: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        run_config = None,
-    ) -> tuple[str, str]:
+    @staticmethod
+    def _format_contribuyente_as_company_info(
+        rut: str,
+        contribuyente_info: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
-        Execute agent from WhatsApp request (non-streaming).
+        Format contribuyente info from SII as company context.
 
         Args:
-            db: Database session
-            user_id: User UUID
-            company_id: Company UUID
-            conversation_id: Conversation ID (used as thread_id)
-            message: Message text
-            attachments: List of processed attachments
-            ui_context: Pre-loaded UI context (from notification detection)
-            metadata: Additional metadata
-            run_config: RunConfig for session_input_callback
+            rut: Company RUT
+            contribuyente_info: Raw contribuyente info from SII
 
         Returns:
-            (response_text, conversation_id) tuple
+            Formatted company info dict
         """
-
-        # 1. Load company context
-        company_info = await self.context_builder.load_company_context(
-            db=db,
-            company_id=str(company_id),
-            use_cache=True,
-        )
-
-        # 2. Build execution request
-        request = AgentExecutionRequest(
-            user_id=str(user_id),
-            company_id=str(company_id),
-            thread_id=conversation_id,
-            message=message,
-            attachments=attachments,
-            ui_context=ui_context,  # Already loaded by WhatsApp webhook
-            company_info=company_info,
-            metadata=metadata or {},
-            channel="whatsapp",
-        )
-
-        # 3. Execute via runner (non-streaming)
-        result: AgentExecutionResult = await self.runner.execute(
-            request=request,
-            db=db,
-            stream=False,
-            run_config=run_config,
-        )
-
-        return (result.response_text, conversation_id)
-
-    def get_store(self):
-        """
-        Get store instance for ChatKit integration.
-
-        This is used by ChatKitServerAdapter to initialize ChatKitServer.
-        """
-        try:
-            from app.stores import HybridStore, SupabaseStore
-            supabase_store = SupabaseStore()
-            return HybridStore(supabase_store=supabase_store)
-        except Exception as e:
-            logger.warning(f"Supabase not available, using MemoryStore: {e}")
-            from app.stores import MemoryStore
-            return MemoryStore()
+        return {
+            "rut": rut,
+            "razon_social": contribuyente_info.get("razon_social", ""),
+            "nombre_fantasia": contribuyente_info.get("nombre_fantasia", ""),
+            "actividad_economica": contribuyente_info.get("actividad_economica", ""),
+            "direccion": contribuyente_info.get("direccion", ""),
+            "comuna": contribuyente_info.get("comuna", ""),
+            "email": contribuyente_info.get("email", ""),
+            "telefono": contribuyente_info.get("telefono", ""),
+            "actividades": contribuyente_info.get("actividades", []),
+            "representante_legal": contribuyente_info.get("representante_legal", {}),
+            "tipo_contribuyente": contribuyente_info.get("tipo_contribuyente", ""),
+            # Metadata
+            "_source": "sii_verification",
+            "_raw_data": contribuyente_info,
+        }

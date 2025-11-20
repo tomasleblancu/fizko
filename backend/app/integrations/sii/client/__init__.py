@@ -47,6 +47,7 @@ class SIIClient(BoletasMethods):
     - get_ventas(periodo, tipo_doc="33")
     - get_resumen(periodo)
     - get_boletas_diarias(periodo, tipo_doc)
+    - ingresar_aceptacion_reclamo_docs(documentos, max_retries=3)
 
     **Formulario 29:**
     - get_f29_lista(anio, folio=None)

@@ -1,13 +1,11 @@
 # ============================================
-# ngrok Configuration - Fizko Backend
+# ngrok Configuration - Backend V2
 # ============================================
-# Configuración para exponer el backend local a través de ngrok
-# permitiendo recibir webhooks de servicios externos (Kapso, SII, etc.)
+# Configuración para exponer backend-v2 a través de ngrok
+# permitiendo recibir webhooks externos
 #
 # Uso:
-#   docker-compose --profile dev up ngrok
-#   o
-#   docker-compose --profile dev --profile monitoring up
+#   docker-compose up ngrok
 #
 # Dashboard: http://localhost:4040
 # ============================================
@@ -25,20 +23,12 @@ region: sa  # South America
 tunnels:
   backend:
     proto: http
-    addr: backend:8000  # Apunta al servicio backend en la red Docker
+    addr: backend:8000  # Apunta al servicio backend-v2 en la red Docker
     schemes:
       - https
     inspect: true
     # Dominio custom (solo para planes pagos de ngrok)
     # domain: tu-dominio.ngrok.app
-
-  # Flower (opcional - comentado por defecto)
-  # flower:
-  #   proto: http
-  #   addr: flower:5555
-  #   schemes:
-  #     - https
-  #   inspect: false
 
 # Configuración web interface
 web_addr: 0.0.0.0:4040

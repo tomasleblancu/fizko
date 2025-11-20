@@ -1,0 +1,243 @@
+{
+  "version": "1.0",
+  "name": "Paso a paso SII",
+  "template": "{\"type\":\"Card\",\"size\":\"sm\",\"children\":[{\"type\":\"Col\",\"gap\":1,\"children\":[{\"type\":\"Title\",\"value\":{{ (title) | tojson }},\"size\":\"sm\"},{\"type\":\"Text\",\"value\":{{ ((\"Sigue estos \" ~ total ~ \" pasos.\")) | tojson }},\"size\":\"sm\",\"color\":\"secondary\"}]},{\"type\":\"Row\",\"children\":[{\"type\":\"Button\",\"label\":\"Abrir SII\",\"iconStart\":\"external-link\",\"onClickAction\":{\"type\":\"open.url\",\"payload\":{\"url\":{{ (url) | tojson }}}}}]},{\"type\":\"Divider\",\"flush\":true},{\"type\":\"ListView\",\"children\":[{%- set _c -%}{%-for item in steps -%},{\"type\":\"ListViewItem\",\"key\":{{ (item.id) | tojson }},\"gap\":2,\"align\":\"start\",\"children\":[{\"type\":\"Badge\",\"label\":{{ ((\"Paso \" ~ item.num)) | tojson }},\"color\":\"info\"},{\"type\":\"Text\",\"value\":{{ (item.text) | tojson }},\"size\":\"sm\"}]}{%-endfor-%}{%- endset -%}{{- (_c[1:] if _c and _c[0] == ',' else _c) -}}]}]}",
+  "jsonSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      },
+      "total": {
+        "type": "number"
+      },
+      "steps": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "num": {
+              "type": "number"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "num",
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "title",
+      "url",
+      "total",
+      "steps"
+    ],
+    "additionalProperties": false
+  },
+  "outputJsonPreview": {
+    "type": "Card",
+    "size": "sm",
+    "children": [
+      {
+        "type": "Col",
+        "gap": 1,
+        "children": [
+          {
+            "type": "Title",
+            "value": "Paso a paso: pago en SII",
+            "size": "sm"
+          },
+          {
+            "type": "Text",
+            "value": "Sigue estos 8 pasos.",
+            "size": "sm",
+            "color": "secondary"
+          }
+        ]
+      },
+      {
+        "type": "Row",
+        "children": [
+          {
+            "type": "Button",
+            "label": "Abrir SII",
+            "iconStart": "external-link",
+            "onClickAction": {
+              "type": "open.url",
+              "payload": {
+                "url": "https://zeusr.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?https://www4.sii.cl/propuestaf29ui/#/default"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "Divider",
+        "flush": true
+      },
+      {
+        "type": "ListView",
+        "children": [
+          {
+            "type": "ListViewItem",
+            "key": "1",
+            "gap": 2,
+            "align": "start",
+            "children": [
+              {
+                "type": "Badge",
+                "label": "Paso 1",
+                "color": "info"
+              },
+              {
+                "type": "Text",
+                "value": "Visita el enlace inicial.",
+                "size": "sm"
+              }
+            ]
+          },
+          {
+            "type": "ListViewItem",
+            "key": "2",
+            "gap": 2,
+            "align": "start",
+            "children": [
+              {
+                "type": "Badge",
+                "label": "Paso 2",
+                "color": "info"
+              },
+              {
+                "type": "Text",
+                "value": "Ingresa tus credenciales.",
+                "size": "sm"
+              }
+            ]
+          },
+          {
+            "type": "ListViewItem",
+            "key": "3",
+            "gap": 2,
+            "align": "start",
+            "children": [
+              {
+                "type": "Badge",
+                "label": "Paso 3",
+                "color": "info"
+              },
+              {
+                "type": "Text",
+                "value": "Haz clic en \"Aceptar\".",
+                "size": "sm"
+              }
+            ]
+          },
+          {
+            "type": "ListViewItem",
+            "key": "4",
+            "gap": 2,
+            "align": "start",
+            "children": [
+              {
+                "type": "Badge",
+                "label": "Paso 4",
+                "color": "info"
+              },
+              {
+                "type": "Text",
+                "value": "Haz clic en \"Continuar desde declaración guardada\".",
+                "size": "sm"
+              }
+            ]
+          },
+          {
+            "type": "ListViewItem",
+            "key": "5",
+            "gap": 2,
+            "align": "start",
+            "children": [
+              {
+                "type": "Badge",
+                "label": "Paso 5",
+                "color": "info"
+              },
+              {
+                "type": "Text",
+                "value": "Haz clic en \"Continuar desde datos guardados\".",
+                "size": "sm"
+              }
+            ]
+          },
+          {
+            "type": "ListViewItem",
+            "key": "6",
+            "gap": 2,
+            "align": "start",
+            "children": [
+              {
+                "type": "Badge",
+                "label": "Paso 6",
+                "color": "info"
+              },
+              {
+                "type": "Text",
+                "value": "Haz clic en \"Enviar declaración\".",
+                "size": "sm"
+              }
+            ]
+          },
+          {
+            "type": "ListViewItem",
+            "key": "7",
+            "gap": 2,
+            "align": "start",
+            "children": [
+              {
+                "type": "Badge",
+                "label": "Paso 7",
+                "color": "info"
+              },
+              {
+                "type": "Text",
+                "value": "Haz clic en \"Continuar\".",
+                "size": "sm"
+              }
+            ]
+          },
+          {
+            "type": "ListViewItem",
+            "key": "8",
+            "gap": 2,
+            "align": "start",
+            "children": [
+              {
+                "type": "Badge",
+                "label": "Paso 8",
+                "color": "info"
+              },
+              {
+                "type": "Text",
+                "value": "Elige tu método de pago y paga.",
+                "size": "sm"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "encodedWidget": "eyJpZCI6IjE1NDM5ZmJiLTIzMjgtNDAxMy1hMzg2LTlkNWFkY2Y1YTYzZiIsIm5hbWUiOiJQYXNvIGEgcGFzbyBTSUkiLCJ2aWV3IjoiPENhcmQgc2l6ZT1cInNtXCI-XG4gIDxDb2wgZ2FwPXsxfT5cbiAgICA8VGl0bGUgdmFsdWU9e3RpdGxlfSBzaXplPVwic21cIiAvPlxuICAgIDxUZXh0IHZhbHVlPXtgU2lndWUgZXN0b3MgJHt0b3RhbH0gcGFzb3MuYH0gc2l6ZT1cInNtXCIgY29sb3I9XCJzZWNvbmRhcnlcIiAvPlxuICA8L0NvbD5cbiAgPFJvdz5cbiAgICA8QnV0dG9uXG4gICAgICBsYWJlbD1cIkFicmlyIFNJSVwiXG4gICAgICBpY29uU3RhcnQ9XCJleHRlcm5hbC1saW5rXCJcbiAgICAgIG9uQ2xpY2tBY3Rpb249e3sgdHlwZTogXCJvcGVuLnVybFwiLCBwYXlsb2FkOiB7IHVybCB9IH19XG4gICAgLz5cbiAgPC9Sb3c-XG4gIDxEaXZpZGVyIGZsdXNoIC8-XG4gIDxMaXN0Vmlldz5cbiAgICB7c3RlcHMubWFwKChpdGVtKSA9PiAoXG4gICAgICA8TGlzdFZpZXdJdGVtIGtleT17aXRlbS5pZH0gZ2FwPXsyfSBhbGlnbj1cInN0YXJ0XCI-XG4gICAgICAgIDxCYWRnZSBsYWJlbD17YFBhc28gJHtpdGVtLm51bX1gfSBjb2xvcj1cImluZm9cIiAvPlxuICAgICAgICA8VGV4dCB2YWx1ZT17aXRlbS50ZXh0fSBzaXplPVwic21cIiAvPlxuICAgICAgPC9MaXN0Vmlld0l0ZW0-XG4gICAgKSl9XG4gIDwvTGlzdFZpZXc-XG48L0NhcmQ-IiwiZGVmYXVsdFN0YXRlIjp7InRpdGxlIjoiUGFzbyBhIHBhc286IHBhZ28gZW4gU0lJIiwidXJsIjoiaHR0cHM6Ly96ZXVzci5zaWkuY2wvQVVUMjAwMC9JbmljaW9BdXRlbnRpY2FjaW9uL0luZ3Jlc29SdXRDbGF2ZS5odG1sP2h0dHBzOi8vd3d3NC5zaWkuY2wvcHJvcHVlc3RhZjI5dWkvIy9kZWZhdWx0IiwidG90YWwiOjgsInN0ZXBzIjpbeyJpZCI6IjEiLCJudW0iOjEsInRleHQiOiJWaXNpdGEgZWwgZW5sYWNlIGluaWNpYWwuIn0seyJpZCI6IjIiLCJudW0iOjIsInRleHQiOiJJbmdyZXNhIHR1cyBjcmVkZW5jaWFsZXMuIn0seyJpZCI6IjMiLCJudW0iOjMsInRleHQiOiJIYXogY2xpYyBlbiBcIkFjZXB0YXJcIi4ifSx7ImlkIjoiNCIsIm51bSI6NCwidGV4dCI6IkhheiBjbGljIGVuIFwiQ29udGludWFyIGRlc2RlIGRlY2xhcmFjacOzbiBndWFyZGFkYVwiLiJ9LHsiaWQiOiI1IiwibnVtIjo1LCJ0ZXh0IjoiSGF6IGNsaWMgZW4gXCJDb250aW51YXIgZGVzZGUgZGF0b3MgZ3VhcmRhZG9zXCIuIn0seyJpZCI6IjYiLCJudW0iOjYsInRleHQiOiJIYXogY2xpYyBlbiBcIkVudmlhciBkZWNsYXJhY2nDs25cIi4ifSx7ImlkIjoiNyIsIm51bSI6NywidGV4dCI6IkhheiBjbGljIGVuIFwiQ29udGludWFyXCIuIn0seyJpZCI6IjgiLCJudW0iOjgsInRleHQiOiJFbGlnZSB0dSBtw6l0b2RvIGRlIHBhZ28geSBwYWdhLiJ9XX0sInN0YXRlcyI6W10sInNjaGVtYSI6ImltcG9ydCB7IHogfSBmcm9tIFwiem9kXCJcblxuY29uc3QgU3RlcCA9IHouc3RyaWN0T2JqZWN0KHtcbiAgaWQ6IHouc3RyaW5nKCksXG4gIG51bTogei5udW1iZXIoKSxcbiAgdGV4dDogei5zdHJpbmcoKSxcbn0pXG5cbmNvbnN0IFdpZGdldFN0YXRlID0gei5zdHJpY3RPYmplY3Qoe1xuICB0aXRsZTogei5zdHJpbmcoKSxcbiAgdXJsOiB6LnN0cmluZygpLFxuICB0b3RhbDogei5udW1iZXIoKSxcbiAgc3RlcHM6IHouYXJyYXkoU3RlcCksXG59KVxuXG5leHBvcnQgZGVmYXVsdCBXaWRnZXRTdGF0ZSIsInNjaGVtYVZhbGlkaXR5IjoidmFsaWQiLCJ2aWV3VmFsaWRpdHkiOiJ2YWxpZCIsImRlZmF1bHRTdGF0ZVZhbGlkaXR5IjoidmFsaWQifQ"
+}

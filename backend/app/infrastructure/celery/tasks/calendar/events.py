@@ -1,158 +1,187 @@
 """
-Celery tasks for calendar events and notifications activation.
+Calendar Event Celery Tasks
 
-These tasks are thin wrappers that delegate to services for business logic.
+Tasks for syncing calendar events from company_events.
 """
 import logging
 from typing import Dict, Any
-from uuid import UUID
 
 from app.infrastructure.celery import celery_app
-from app.config.database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
 
 @celery_app.task(
     bind=True,
-    name="calendar.activate_mandatory_events",
-    max_retries=3,
+    name="calendar.sync_company_calendar",
+    max_retries=2,
     default_retry_delay=60,
 )
-def activate_mandatory_events_task(
+def sync_company_calendar(
     self,
     company_id: str
 ) -> Dict[str, Any]:
     """
-    Celery task wrapper for activating mandatory events.
+    Celery task to synchronize calendar events for a specific company.
 
-    Delegates business logic to EventActivationService.
+    This task:
+    1. Gets active company_events for the company
+    2. For each company_event, generates missing calendar_events
+    3. Updates event statuses (first event -> in_progress, rest -> pending)
+    4. Is idempotent - can be run multiple times without duplicating events
 
     Args:
         company_id: UUID of the company (str format)
 
     Returns:
-        Dict with result
+        Dict with sync results:
+        {
+            "success": bool,
+            "company_id": str,
+            "company_name": str,
+            "active_company_events": list[str],  # event codes
+            "created_events": list[str],  # labels
+            "updated_events": list[str],
+            "total_created": int,
+            "total_updated": int,
+            "message": str,
+            "error": str  # only if failed
+        }
+
+    Example:
+        >>> sync_company_calendar.delay("123e4567-e89b-12d3-a456-426614174000")
     """
-    import asyncio
+    try:
+        import asyncio
+        from app.config.supabase import get_supabase_client
+        from app.services.calendar_sync_service import CalendarSyncService
 
-    async def _activate():
-        async with AsyncSessionLocal() as db:
-            try:
-                from app.services.calendar.event_activation_service import EventActivationService
+        logger.info(
+            f"📅 [CELERY TASK] Calendar sync started: company_id={company_id}"
+        )
 
-                company_uuid = UUID(company_id)
+        # Get Supabase client and service
+        supabase = get_supabase_client()
+        service = CalendarSyncService(supabase)
 
-                logger.info(
-                    f"[Events Task] 🎯 Starting mandatory events activation for {company_id}"
-                )
+        # Run async service method synchronously
+        result = asyncio.run(
+            service.sync_company_calendar(company_id=company_id)
+        )
 
-                # Delegate to service
-                service = EventActivationService(db)
-                activated_events = await service.activate_mandatory_events(company_uuid)
+        # Log result
+        if result.get("success"):
+            logger.info(
+                f"✅ [CELERY TASK] Calendar sync completed: "
+                f"company_id={company_id}, "
+                f"created={result.get('total_created', 0)}, "
+                f"updated={result.get('total_updated', 0)}"
+            )
+        else:
+            logger.error(
+                f"❌ [CELERY TASK] Calendar sync failed: "
+                f"company_id={company_id}, "
+                f"error={result.get('error')}"
+            )
 
-                await db.commit()
+        return result
 
-                logger.info(
-                    f"[Events Task] 🎉 Completed: {len(activated_events)} events activated"
-                )
+    except ValueError as e:
+        # Validation errors (company not found, no active events, etc.)
+        error_msg = str(e)
+        logger.error(
+            f"❌ [CELERY TASK] Validation error: {error_msg}"
+        )
+        return {
+            "success": False,
+            "company_id": company_id,
+            "error": error_msg
+        }
 
-                return {
-                    "success": True,
-                    "company_id": company_id,
-                    "activated_events": activated_events
-                }
+    except Exception as e:
+        logger.error(
+            f"❌ [CELERY TASK] Calendar sync failed: {e}",
+            exc_info=True
+        )
 
-            except Exception as e:
-                logger.error(
-                    f"[Events Task] ❌ Error: {e}",
-                    exc_info=True
-                )
+        # Retry on unexpected errors
+        if self.request.retries < self.max_retries:
+            logger.info(
+                f"🔄 Retrying... (attempt {self.request.retries + 1}/{self.max_retries})"
+            )
+            raise self.retry(exc=e)
 
-                # Retry on transient errors
-                if self.request.retries < self.max_retries:
-                    raise self.retry(exc=e, countdown=self.default_retry_delay)
-
-                return {
-                    "success": False,
-                    "company_id": company_id,
-                    "activated_events": [],
-                    "error": str(e)
-                }
-
-    return asyncio.run(_activate())
+        return {
+            "success": False,
+            "company_id": company_id,
+            "error": str(e)
+        }
 
 
 @celery_app.task(
     bind=True,
-    name="calendar.assign_auto_notifications",
-    max_retries=3,
-    default_retry_delay=60,
+    name="calendar.sync_all_calendars",
+    max_retries=1,
 )
-def assign_auto_notifications_task(
-    self,
-    company_id: str,
-    is_new_company: bool = True
-) -> Dict[str, Any]:
+def sync_all_calendars(self) -> Dict[str, Any]:
     """
-    Celery task wrapper for auto-assigning notifications.
+    Celery task to synchronize calendar events for ALL companies with active events.
 
-    Delegates business logic to EventActivationService.
+    This is a batch task that:
+    1. Finds all companies with at least one active company_event
+    2. For each company, syncs their calendar events
+    3. Returns statistics about the batch operation
 
-    Args:
-        company_id: UUID of the company (str format)
-        is_new_company: Whether this is a newly created company
+    Useful for:
+    - Scheduled batch processing (e.g., nightly job)
+    - Initial calendar population
+    - Recovery after system issues
 
     Returns:
-        Dict with result
+        Dict with batch sync results:
+        {
+            "success": bool,
+            "total_companies": int,
+            "synced_companies": int,
+            "failed_companies": int,
+            "results": list[dict]  # Per-company results
+        }
+
+    Example:
+        >>> sync_all_calendars.delay()
     """
-    import asyncio
+    try:
+        import asyncio
+        from app.config.supabase import get_supabase_client
+        from app.services.calendar_sync_service import CalendarSyncService
 
-    async def _assign():
-        async with AsyncSessionLocal() as db:
-            try:
-                from app.services.calendar.event_activation_service import EventActivationService
+        logger.info("🚀 [CELERY TASK] Batch calendar sync started for ALL companies")
 
-                company_uuid = UUID(company_id)
+        # Get Supabase client and service
+        supabase = get_supabase_client()
+        service = CalendarSyncService(supabase)
 
-                logger.info(
-                    f"[Events Task] 📢 Starting auto-notification assignment for {company_id}"
-                )
+        # Run async service method synchronously
+        result = asyncio.run(service.sync_all_companies())
 
-                # Delegate to service
-                service = EventActivationService(db)
-                assigned_notifications = await service.assign_auto_notifications(
-                    company_uuid,
-                    is_new_company
-                )
+        logger.info(
+            f"✅ [CELERY TASK] Batch calendar sync completed: "
+            f"{result.get('synced_companies', 0)}/{result.get('total_companies', 0)} companies synced, "
+            f"{result.get('failed_companies', 0)} failed"
+        )
 
-                await db.commit()
+        return result
 
-                logger.info(
-                    f"[Events Task] 🎉 Completed: {len(assigned_notifications)} notifications assigned"
-                )
-
-                return {
-                    "success": True,
-                    "company_id": company_id,
-                    "assigned_notifications": assigned_notifications
-                }
-
-            except Exception as e:
-                logger.error(
-                    f"[Events Task] ❌ Error: {e}",
-                    exc_info=True
-                )
-
-                # Retry on transient errors
-                if self.request.retries < self.max_retries:
-                    raise self.retry(exc=e, countdown=self.default_retry_delay)
-
-                return {
-                    "success": False,
-                    "company_id": company_id,
-                    "assigned_notifications": [],
-                    "error": str(e)
-                }
-
-    return asyncio.run(_assign())
+    except Exception as e:
+        logger.error(
+            f"❌ [CELERY TASK] Batch calendar sync failed: {e}",
+            exc_info=True
+        )
+        return {
+            "success": False,
+            "error": str(e),
+            "total_companies": 0,
+            "synced_companies": 0,
+            "failed_companies": 0,
+            "results": []
+        }

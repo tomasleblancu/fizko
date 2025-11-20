@@ -1,4 +1,4 @@
-"""Base classes for UI Tools system."""
+"""Base classes for UI Tools system - Supabase Version."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +29,8 @@ class UIToolContext(BaseModel):
     user_id: str | None = None
     """User ID from the request context"""
 
-    db: AsyncSession | None = None
-    """Database session for data fetching"""
+    supabase: Any = None
+    """Supabase client for data fetching"""
 
     additional_data: dict[str, Any] = {}
     """Any additional context data from the request"""

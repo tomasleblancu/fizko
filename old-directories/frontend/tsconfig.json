@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/app/*": ["./src/app/*"],
+      "@/features/*": ["./src/features/*"],
+      "@/widgets/*": ["./src/widgets/*"],
+      "@/shared/*": ["./src/shared/*"],
+      "@/entities/*": ["./src/entities/*"],
+      "@/pages/*": ["./src/pages/*"]
+    }
+  },
+  "include": ["src", "src/types/chatkit.d.ts", "src/types/chatkit-tools.d.ts"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

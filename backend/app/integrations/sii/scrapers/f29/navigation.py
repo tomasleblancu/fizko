@@ -1,350 +1,251 @@
 """
-Navigation logic for F29 scraper
+Navigation logic for F29 scraper - SIMPLIFIED VERSION
 
-Handles page navigation, button clicks, form selection, and search configuration.
+Uses the rectificar F29 page which is much simpler and more reliable.
 """
 import logging
 import time
+import os
+import re
 from typing import Optional
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 from ...exceptions import ScrapingException
 
 logger = logging.getLogger(__name__)
 
 
-SEARCH_URL = "https://www4.sii.cl/sifmConsultaInternet/index.html?dest=cifxx&form=29"
-FORM_CODE = "29"
+# Nueva URL más simple y directa
+SEARCH_URL = "https://www4.sii.cl/rfiInternet/rectificarF29/index.html#rfiBusquedaDeclaracionForm"
 
 
-def navegar_a_busqueda(driver, max_retries: int) -> None:
+def _take_debug_screenshot(driver, step_name: str, error_msg: str = "") -> None:
     """
-    Navega a la pagina de busqueda con reintentos
+    Toma screenshot y guarda HTML para debugging
 
     Args:
         driver: WebDriver instance
-        max_retries: Número máximo de reintentos
-    """
-    for attempt in range(max_retries):
-        try:
-            logger.info(f"Navegando a busqueda (intento {attempt + 1}/{max_retries})")
-
-            driver.navigate_to(SEARCH_URL)
-            time.sleep(3)
-
-            # Verificar URL después de navegar (para detectar redirects al login)
-            current_url = driver.driver.current_url
-
-            # Detectar si fuimos redirigidos al login
-            if "AUT2000" in current_url or "IngresoRutClave" in current_url:
-                logger.error(f"❌ Redirigido al login - sesión no válida")
-                raise ScrapingException(
-                    "Redirigido a página de login - sesión no válida. "
-                    "Las cookies de autenticación no se están propagando correctamente"
-                )
-
-            # Verificar múltiples indicadores de que la página cargó
-            page_source = driver.driver.page_source
-
-            # Verificar si ya estamos en el formulario de búsqueda
-            try:
-                listboxes = driver.driver.find_elements(By.CLASS_NAME, "gwt-ListBox")
-                if len(listboxes) >= 2:
-                    logger.info("✅ Formulario de búsqueda ya cargado directamente")
-                    return
-            except:
-                pass
-
-            # Verificar si aparece el botón o texto de búsqueda
-            if "Buscar Formulario" in page_source or "buscar" in page_source.lower() or "gwt-" in page_source:
-                logger.info("Pagina de busqueda cargada")
-                return
-
-            if attempt < max_retries - 1:
-                logger.warning(f"Pagina no cargo correctamente (intento {attempt + 1})")
-                # Refrescar la página puede ayudar
-                driver.driver.refresh()
-                time.sleep(3)
-                continue
-            else:
-                logger.warning("Continuando a pesar de no detectar pagina...")
-                return  # Continuar de todas formas
-
-        except Exception as e:
-            if attempt < max_retries - 1:
-                logger.warning(f"Error navegando (intento {attempt + 1}): {str(e)}")
-                time.sleep(3)
-                continue
-            else:
-                raise ScrapingException(f"No se pudo navegar a busqueda: {str(e)}") from e
-
-
-def click_buscar_formulario(driver) -> None:
-    """
-    Click en boton 'Buscar Formulario' o verifica si ya está en el formulario
-
-    Args:
-        driver: WebDriver instance
+        step_name: Nombre del paso donde ocurrió el error
+        error_msg: Mensaje de error opcional
     """
     try:
-        # Esperar un poco más para que cargue completamente (GWT es lento)
-        time.sleep(3)
+        timestamp = int(time.time())
+        screenshot_dir = "/app/screenshots"
 
-        # Primero verificar si ya estamos en el formulario de búsqueda
+        # Crear directorio si no existe
+        os.makedirs(screenshot_dir, exist_ok=True)
+
+        screenshot_path = f"{screenshot_dir}/f29_nav_{step_name}_{timestamp}.png"
+        html_path = f"{screenshot_dir}/f29_nav_{step_name}_{timestamp}.html"
+
+        # Guardar screenshot
         try:
-            listboxes = driver.driver.find_elements(By.CLASS_NAME, "gwt-ListBox")
-            if len(listboxes) >= 2:
-                logger.info("✅ Formulario de búsqueda ya está cargado")
-                return
-        except:
-            pass  # Continuar con el click normal
+            driver.driver.save_screenshot(screenshot_path)
+            logger.error(f"📸 Screenshot guardado: backend/screenshots/f29_nav_{step_name}_{timestamp}.png")
+        except Exception as screenshot_error:
+            logger.warning(f"⚠️ No se pudo guardar screenshot: {screenshot_error}")
 
-        # Intentar con múltiples selectores para el botón
-        button_selectors = [
-            "//button[contains(@class, 'gw-button-blue-bootstrap') and contains(text(), 'Buscar Formulario')]",
-            "//button[contains(text(), 'Buscar Formulario')]",
-            "//button[contains(@class, 'gw-button-blue')]",
-            "//a[contains(text(), 'Buscar Formulario')]",
-            "//*[contains(text(), 'Buscar Formulario')]"
-        ]
+        # Guardar HTML
+        try:
+            with open(html_path, 'w', encoding='utf-8') as f:
+                f.write(f"<!-- ERROR: {error_msg} -->\n")
+                f.write(f"<!-- URL: {driver.driver.current_url} -->\n")
+                f.write(driver.driver.page_source)
+            logger.error(f"📄 HTML guardado: backend/screenshots/f29_nav_{step_name}_{timestamp}.html")
+        except Exception as html_error:
+            logger.warning(f"⚠️ No se pudo guardar HTML: {html_error}")
 
-        buscar_button = None
-        last_error = None
+    except Exception as e:
+        logger.warning(f"⚠️ Error en _take_debug_screenshot: {e}")
 
-        for i, selector in enumerate(button_selectors, 1):
-            try:
-                buscar_button = driver.wait_for_clickable(
-                    By.XPATH,
-                    selector,
-                    timeout=15
-                )
-                if buscar_button:
-                    logger.debug(f"Botón encontrado con selector {i}")
-                    break
-            except Exception as e:
-                last_error = e
-                continue
 
-        if not buscar_button:
-            # Tomar screenshot para debugging
-            import os
-            timestamp = int(time.time())
-            screenshot_dir = "/app/screenshots"
-            os.makedirs(screenshot_dir, exist_ok=True)
+def navegar_a_busqueda(driver, max_retries: int = 3) -> None:
+    """
+    Navega a la página de búsqueda de F29 (rectificar)
 
-            screenshot_path = f"{screenshot_dir}/f29_error_{timestamp}.png"
-            html_path = f"{screenshot_dir}/f29_error_{timestamp}.html"
+    Args:
+        driver: WebDriver instance
+        max_retries: No usado (mantener por compatibilidad)
+    """
+    try:
+        logger.info(f"Navegando a página de búsqueda F29 (rectificar)")
+        driver.navigate_to(SEARCH_URL)
 
-            logger.error(f"❌ No se pudo encontrar el botón 'Buscar Formulario'")
-
-            try:
-                driver.driver.save_screenshot(screenshot_path)
-                logger.error(f"📸 Screenshot: backend/screenshots/f29_error_{timestamp}.png")
-            except Exception as screenshot_error:
-                logger.warning(f"⚠️ No se pudo guardar screenshot: {screenshot_error}")
-
-            try:
-                with open(html_path, 'w', encoding='utf-8') as f:
-                    f.write(driver.driver.page_source)
-                logger.error(f"📄 HTML: backend/screenshots/f29_error_{timestamp}.html")
-            except Exception as html_error:
-                logger.warning(f"⚠️ No se pudo guardar HTML: {html_error}")
-
-            raise ScrapingException(
-                f"No se pudo encontrar el botón 'Buscar Formulario'. "
-                f"Último error: {str(last_error)}"
-            )
-
-        buscar_button.click()
+        # DELAY: Esperar para copiar body después de navegar
+        logger.info("⏸️  DELAY 2s después de navegar - puedes copiar page body")
         time.sleep(2)
-        logger.debug("Click en 'Buscar Formulario' exitoso")
 
-    except Exception as e:
-        if "No se pudo encontrar el botón" in str(e):
-            raise
-        raise ScrapingException(f"Error en click 'Buscar Formulario': {str(e)}") from e
+        # Verificar URL después de navegar (para detectar redirects al login)
+        current_url = driver.driver.current_url
 
-
-def seleccionar_tipo_formulario(driver) -> None:
-    """
-    Selecciona el tipo de formulario (DPS) y codigo (29)
-
-    Args:
-        driver: WebDriver instance
-    """
-    try:
-        # Seleccionar tipo DPS (Formularios de Impuesto)
-        tipo_select = driver.wait_for_element(
-            By.CLASS_NAME,
-            "gwt-ListBox",
-            timeout=30
-        )
-        driver.select_option_by_value(tipo_select, "DPS")
-        time.sleep(0.5)
-        logger.debug("Tipo DPS seleccionado")
-
-        # Seleccionar codigo 29
-        listboxes = driver.wait_for_elements(
-            By.CLASS_NAME,
-            "gwt-ListBox",
-            timeout=30
-        )
-
-        if len(listboxes) < 2:
-            raise ScrapingException("No se encontraron suficientes dropdowns")
-
-        codigo_select = listboxes[1]
-
-        # Verificar que el codigo esta disponible
-        opciones = [
-            opt.get_attribute("value")
-            for opt in codigo_select.find_elements(By.TAG_NAME, "option")
-        ]
-        logger.debug(f"Opciones disponibles: {opciones}")
-
-        if FORM_CODE not in opciones:
+        # Detectar si fuimos redirigidos al login
+        if "AUT2000" in current_url or "IngresoRutClave" in current_url:
+            logger.error(f"❌ Redirigido al login - sesión no válida")
+            _take_debug_screenshot(driver, "redirect_to_login", "Redirigido a página de login")
             raise ScrapingException(
-                f"Codigo '{FORM_CODE}' no disponible. Opciones: {opciones}"
+                "Redirigido a página de login - sesión no válida. "
+                "Las cookies de autenticación no se están propagando correctamente"
             )
 
-        driver.select_option_by_value(codigo_select, FORM_CODE)
-        time.sleep(0.5)
-        logger.debug("Codigo F29 seleccionado")
+        logger.info("✅ Navegación completada")
 
     except Exception as e:
-        raise ScrapingException(f"Error seleccionando tipo de formulario: {str(e)}") from e
+        if "Redirigido a página de login" in str(e):
+            raise
+        raise ScrapingException(f"No se pudo navegar a búsqueda: {str(e)}") from e
 
 
-def configurar_criterios_busqueda(driver, anio: Optional[str], folio: Optional[str]) -> None:
+def seleccionar_anio(driver, anio: str) -> None:
     """
-    Configura los criterios de busqueda (folio o anual)
+    Selecciona el año en el dropdown de búsqueda
 
     Args:
         driver: WebDriver instance
-        anio: Año a consultar
-        folio: Folio específico
+        anio: Año a seleccionar (YYYY)
     """
     try:
-        if folio:
-            _busqueda_por_folio(driver, folio)
-        else:
-            _busqueda_anual(driver, anio)
+        logger.info(f"🔍 Seleccionando año {anio} del dropdown")
+
+        # DELAY: Esperar para que cargue la página
+        logger.info("⏸️  DELAY 2s para que cargue la página - puedes copiar page body")
+        time.sleep(2)
+
+        # Buscar TODOS los dropdowns (hay varios: formulario, año, etc.)
+        dropdowns = driver.wait_for_elements(
+            By.CSS_SELECTOR,
+            "select.gwt-ListBox",
+            timeout=10
+        )
+
+        logger.info(f"✅ Encontrados {len(dropdowns)} dropdowns totales")
+
+        # Filtrar solo los dropdowns VISIBLES (no hidden)
+        dropdowns_visibles = [d for d in dropdowns if d.is_displayed()]
+        logger.info(f"✅ Dropdowns visibles: {len(dropdowns_visibles)}")
+
+        # 1. Primero buscar y seleccionar "Formulario 29" en el dropdown de tipo de formulario
+        dropdown_formulario = None
+        for dropdown in dropdowns_visibles:
+            opciones = dropdown.find_elements(By.TAG_NAME, "option")
+            opciones_texto = [opt.get_attribute("textContent") or opt.get_attribute("value") or opt.text for opt in opciones]
+
+            # El dropdown de formulario contiene "Formulario 29" o "Formulario 50"
+            tiene_formularios = any(texto and "Formulario" in texto for texto in opciones_texto)
+
+            if tiene_formularios:
+                dropdown_formulario = dropdown
+                logger.info(f"✅ Dropdown de tipo de formulario encontrado: {opciones_texto}")
+
+                # Seleccionar "Formulario 29"
+                for opcion in opciones:
+                    texto = opcion.get_attribute("textContent") or opcion.get_attribute("value") or opcion.text
+                    if texto and "Formulario 29" in texto:
+                        opcion.click()
+                        logger.info("✅ 'Formulario 29' seleccionado")
+                        time.sleep(0.5)  # Pequeña espera después de seleccionar
+                        break
+                break
+
+        if not dropdown_formulario:
+            logger.warning("⚠️ No se encontró dropdown de tipo de formulario (puede ser opcional)")
+
+        # 2. Ahora buscar el dropdown que contiene años (el que tiene opciones como "2024", "2023", etc.)
+        dropdown_anio = None
+        for dropdown in dropdowns_visibles:
+            opciones = dropdown.find_elements(By.TAG_NAME, "option")
+            opciones_texto = [opt.get_attribute("textContent") or opt.get_attribute("value") or opt.text for opt in opciones]
+
+            # El dropdown de año contendrá números de 4 dígitos (2024, 2023, etc.)
+            tiene_anios = any(texto and texto.strip().isdigit() and len(texto.strip()) == 4 for texto in opciones_texto)
+
+            if tiene_anios:
+                dropdown_anio = dropdown
+                logger.info(f"✅ Dropdown de año encontrado con opciones: {opciones_texto[:5]}...")
+                break
+
+        if not dropdown_anio:
+            raise ScrapingException("No se encontró dropdown de año en la página")
+
+        # Ahora seleccionar el año del dropdown correcto
+        opciones = dropdown_anio.find_elements(By.TAG_NAME, "option")
+        opciones_texto = [opt.get_attribute("textContent") or opt.get_attribute("value") or opt.text for opt in opciones]
+        logger.info(f"📋 Años disponibles: {opciones_texto}")
+
+        # Buscar y seleccionar el año por texto interno
+        found = False
+        for opcion in opciones:
+            # Intentar múltiples formas de obtener el texto
+            texto = opcion.get_attribute("textContent") or opcion.get_attribute("value") or opcion.text
+            if texto and texto.strip() == anio:
+                opcion.click()
+                logger.info(f"✅ Año {anio} seleccionado")
+                found = True
+                break
+
+        if not found:
+            raise ScrapingException(
+                f"Año {anio} no disponible en dropdown. Opciones: {opciones_texto}"
+            )
+
+        # DELAY: Esperar después de seleccionar
+        logger.info("⏸️  DELAY 2s después de seleccionar año - puedes copiar page body")
+        time.sleep(2)
 
     except Exception as e:
-        raise ScrapingException(f"Error configurando criterios: {str(e)}") from e
+        _take_debug_screenshot(
+            driver,
+            "error_seleccionar_anio",
+            str(e)
+        )
+        raise ScrapingException(f"Error seleccionando año: {str(e)}") from e
 
 
-def _busqueda_por_folio(driver, folio: str) -> None:
-    """Configura busqueda por folio"""
-    folio_radio = driver.wait_for_element(
-        By.XPATH,
-        "//label[contains(text(), 'Folio')]/..//input",
-        timeout=30
-    )
-    folio_radio.click()
-
-    folio_input = driver.wait_for_element(
-        By.CLASS_NAME,
-        "gwt-TextBox",
-        timeout=30
-    )
-    folio_input.send_keys(folio)
-    logger.debug(f"Busqueda por folio: {folio}")
-
-
-def _busqueda_anual(driver, anio: str) -> None:
-    """Configura busqueda anual"""
-    anual_radio = driver.wait_for_element(
-        By.XPATH,
-        "//label[contains(text(), 'Anual')]/..//input",
-        timeout=30
-    )
-    anual_radio.click()
-
-    selects = driver.wait_for_elements(
-        By.CLASS_NAME,
-        "gwt-ListBox",
-        timeout=30
-    )
-
-    # El select de ano anual esta en posicion 2
-    anio_select = selects[2]
-    driver.select_option_by_value(anio_select, anio)
-    logger.debug(f"Busqueda anual: {anio}")
-
-
-def ejecutar_consulta(driver) -> str:
+def ejecutar_consulta(driver) -> None:
     """
-    Ejecuta la consulta haciendo click en 'Consultar' y captura el response GWT
+    Ejecuta la consulta haciendo click en 'Consultar'
 
     Args:
         driver: WebDriver instance
-
-    Returns:
-        Response body del request GWT-RPC automático, o string vacío si no se captura
     """
     try:
+        # Buscar el botón "Consultar"
         consultar_button = driver.wait_for_clickable(
             By.XPATH,
             "//button[contains(text(), 'Consultar')]",
-            timeout=30
+            timeout=10
         )
+
+        logger.info("✅ Botón 'Consultar' encontrado")
+
+        # DELAY: Esperar para copiar body antes de click
+        logger.info("⏸️  DELAY 2s antes de click en 'Consultar' - puedes copiar page body")
+        time.sleep(2)
+
         consultar_button.click()
+        logger.info("✅ Click en 'Consultar' exitoso")
 
-        # Esperar a que se ejecute el request GWT-RPC automático
-        time.sleep(2)  # Aumentado para dar tiempo al request
+        # Esperar a que aparezca la tabla de resultados
+        try:
+            WebDriverWait(driver.driver, 10).until(
+                EC.presence_of_element_located((
+                    By.CSS_SELECTOR,
+                    "table.tabla_internet"
+                ))
+            )
+            logger.info("✅ Tabla de resultados cargada")
+        except Exception as e:
+            logger.warning(f"⚠️ Tabla de resultados no apareció: {e}")
 
-        # Capturar el response GWT del performance log
-        # Filtrar por el método específico getDocumentosBusqueda
-        from ...core.auth_handler import capture_gwt_response
-        gwt_response = capture_gwt_response(
+        # DELAY: Esperar para copiar body después de click
+        logger.info("⏸️  DELAY 2s después de click en 'Consultar' - puedes copiar page body")
+        time.sleep(2)
+
+    except Exception as e:
+        _take_debug_screenshot(
             driver,
-            url_filter="svcConsulta",
-            method_filter="getDocumentosBusqueda"
+            "error_ejecutar_consulta",
+            str(e)
         )
-
-        logger.debug("Consulta ejecutada")
-        return gwt_response
-
-    except Exception as e:
         raise ScrapingException(f"Error ejecutando consulta: {str(e)}") from e
-
-
-def cerrar_modal(driver):
-    """
-    Intenta cerrar cualquier modal abierto
-
-    Args:
-        driver: WebDriver instance
-    """
-    try:
-        # Buscar botón de cerrar (X, Cerrar, etc.)
-        close_selectors = [
-            "//button[contains(@class, 'close')]",
-            "//button[contains(text(), '×')]",
-            "//button[contains(text(), 'Cerrar')]",
-            "//a[contains(@class, 'close')]",
-            "//*[contains(@class, 'modal')]//button",
-        ]
-
-        for selector in close_selectors:
-            try:
-                close_button = driver.driver.find_element(By.XPATH, selector)
-                close_button.click()
-                time.sleep(0.5)
-                logger.debug("✅ Modal cerrado")
-                return
-            except:
-                continue
-
-        # Si no hay botón, intentar presionar ESC
-        from selenium.webdriver.common.keys import Keys
-        from selenium.webdriver.common.action_chains import ActionChains
-
-        actions = ActionChains(driver.driver)
-        actions.send_keys(Keys.ESCAPE).perform()
-        time.sleep(0.5)
-        logger.debug("✅ Modal cerrado con ESC")
-
-    except Exception as e:
-        logger.debug(f"No se pudo cerrar modal: {e}")

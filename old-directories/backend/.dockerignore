@@ -1,0 +1,95 @@
+# ============================================
+# .dockerignore - Excluir archivos del build
+# ============================================
+# Optimiza el build y reduce el tamaño de la imagen
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files (se pasan via docker-compose)
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Chrome/Selenium data (se crean en runtime)
+sessions/
+chrome-data/
+screenshots/
+
+# Database migrations (aplicar manualmente)
+migrations/
+supabase/
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+ngrok.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Local development scripts
+start_*.sh
+test_*.py
+debug_*.py
+
+# Celery
+celerybeat-schedule*
+celerybeat.pid
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride

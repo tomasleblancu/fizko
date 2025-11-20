@@ -1,8 +1,11 @@
 """
-Celery configuration for Fizko backend.
+Celery configuration for Backend V2.
 
 This module contains all Celery-related configuration including
 broker settings, result backend, task routing, and worker settings.
+
+Unlike the original backend, this configuration is designed to work
+with Supabase client instead of SQLAlchemy.
 """
 import os
 from dotenv import load_dotenv
@@ -43,52 +46,21 @@ result_extended = True  # Store extended task metadata
 # Task routing - different queues for different priorities
 # NOTE: Task names are the 'name' parameter from @celery_app.task decorator
 # Pattern matching: "exact.name" or "prefix.*" for wildcards
+#
+# Backend V2 is focused on SII tasks only
 task_routes = {
-    # ========== HIGH PRIORITY ==========
-    # Critical, time-sensitive notifications (< 10s execution)
-    # User-facing: delays directly impact UX
-    "notifications.process_pending": {"queue": "high"},
-    "notifications.sync_calendar": {"queue": "high"},
-
-    # ========== DEFAULT PRIORITY (MEDIUM) ==========
-    # Background operations that tolerate moderate delays (< 5min execution)
-    # Important but not latency-critical
-    "notifications.process_template_notification": {"queue": "default"},
-    "calendar.sync_company": {"queue": "default"},
-    "calendar.sync_all_companies": {"queue": "default"},
-    "calendar.activate_mandatory_events": {"queue": "default"},
-    "calendar.assign_auto_notifications": {"queue": "default"},
-    "memory.save_user_memories": {"queue": "default"},
-    "memory.save_company_memories": {"queue": "default"},
-    "memory.save_onboarding_memories": {"queue": "default"},
-    "whatsapp.cleanup_old_sessions": {"queue": "default"},
-
     # ========== LOW PRIORITY ==========
     # Heavy, long-running operations (5-30+ min execution)
     # Selenium-based scraping: resource-intensive, can tolerate delays
-    #
-    # NOTA IMPORTANTE: Durante el onboarding de SII, sync_documents inicial
-    # es despachado explícitamente a la cola 'default' usando
-    # apply_async(queue="default") para mejorar la experiencia del usuario.
-    # Ver: app/services/sii/auth_service/events.py:trigger_sync_tasks()
-    #
-    # Las rutas aquí definidas se aplican SOLO cuando las tareas son despachadas
-    # sin especificar una cola explícita (ej: syncs periódicos programados por Beat).
     "sii.sync_documents": {"queue": "low"},
     "sii.sync_documents_all_companies": {"queue": "low"},
     "sii.sync_f29": {"queue": "low"},
     "sii.sync_f29_all_companies": {"queue": "low"},
-    "sii.sync_f29_pdfs_missing": {"queue": "low"},
-    "sii.sync_f29_pdfs_missing_all_companies": {"queue": "low"},
-
-    # Form29 draft generation: background processing, can tolerate delays
-    "forms.generate_f29_draft_for_company": {"queue": "low"},
-    "forms.generate_f29_drafts_all_companies": {"queue": "low"},
 }
 
 # Define queues with priorities
+# Backend V2 uses only 'low' and 'default' queues for SII tasks
 task_queues = (
-    Queue("high", routing_key="high"),
     Queue("default", routing_key="default"),
     Queue("low", routing_key="low"),
 )
@@ -107,10 +79,16 @@ task_default_routing_key = "default"
 beat_scheduler = "sqlalchemy_celery_beat.schedulers:DatabaseScheduler"
 
 # Database URL for beat scheduler (same as main database)
+# IMPORTANT: Supabase provides both direct connection and pooler
+# For Beat (sync operations), use the TRANSACTION pooler (port 6543)
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
-    # SQLAlchemy-celery-beat uses sync connection, convert asyncpg to psycopg2
-    beat_dburi = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+    # SQLAlchemy-celery-beat uses sync connection
+    # If using asyncpg format, convert to psycopg2
+    if "postgresql+asyncpg://" in DATABASE_URL:
+        beat_dburi = DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+    else:
+        beat_dburi = DATABASE_URL
 else:
     beat_dburi = None
 
@@ -120,7 +98,20 @@ beat_sync_every = 0  # Number of tasks beat executes before syncing (0 = always 
 
 # Schema configuration for sqlalchemy-celery-beat
 # The library will create tables in this schema automatically
+# NOTE: The schema will be created if it doesn't exist
 beat_schema = "celery_schema"  # Database schema where Beat tables will be created
+
+# Database engine options for sqlalchemy-celery-beat
+# This ensures tables are created automatically on first run
+beat_engine_options = {
+    "echo": False,  # Set to True for SQL debugging
+}
+
+# Tell sqlalchemy-celery-beat to create tables if they don't exist
+# This is used by the DatabaseScheduler
+beat_scheduler_kwargs = {
+    "schema": beat_schema,
+}
 
 # Logging
 worker_log_format = "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"

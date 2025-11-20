@@ -1,5 +1,9 @@
-"""Chat routers for conversations and chatkit AI agent."""
+"""
+Chat routers module - Simplified for Backend V2.
 
-from . import chatkit, conversations
+Provides stateless chat, ChatKit integration, and in-memory conversation management.
+"""
 
-__all__ = ["chatkit", "conversations"]
+from . import agent, chatkit, conversations
+
+__all__ = ["agent", "chatkit", "conversations"]

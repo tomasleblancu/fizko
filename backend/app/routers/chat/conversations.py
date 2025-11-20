@@ -1,157 +1,352 @@
-"""REST API endpoints for conversations resource."""
+"""
+Conversations Router - In-Memory Implementation for Backend V2.
 
-from typing import Optional
-from uuid import UUID
+Provides conversation management WITHOUT database persistence.
+Conversations are stored in memory and lost on restart.
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+This is a simplified version for demonstration and testing purposes.
+For production use with persistence, consider:
+- External state management (Redis, etc.)
+- Client-side conversation storage
+- Migrate to full backend with database
+"""
+from __future__ import annotations
 
-from ...config.database import get_db
-from ...db.models import Conversation, Message
-from ...dependencies import get_current_user_id, require_auth
+import logging
+from datetime import datetime
+from typing import Dict, List, Optional
+from uuid import uuid4
+
+from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api/conversations",
+    prefix="/conversations",
     tags=["conversations"],
-    dependencies=[Depends(require_auth)]
 )
+
+
+# ============================================================================
+# In-Memory Storage (lost on restart)
+# ============================================================================
+
+# Structure: {conversation_id: ConversationData}
+_conversations_store: Dict[str, "ConversationData"] = {}
+
+
+# ============================================================================
+# Models
+# ============================================================================
+
+class MessageData(BaseModel):
+    """Message data model."""
+    id: str
+    role: str  # "user" or "assistant"
+    content: str
+    created_at: str
+
+
+class ConversationData(BaseModel):
+    """Conversation data model."""
+    id: str
+    user_id: str
+    company_id: Optional[str] = None
+    title: Optional[str] = None
+    messages: List[MessageData] = Field(default_factory=list)
+    metadata: Optional[Dict] = None
+    created_at: str
+    updated_at: str
+
+
+class CreateConversationRequest(BaseModel):
+    """Request to create a conversation."""
+    user_id: str = Field(..., description="User identifier")
+    company_id: Optional[str] = Field(None, description="Company RUT")
+    title: Optional[str] = Field(None, description="Conversation title")
+    metadata: Optional[Dict] = Field(None, description="Additional metadata")
+
+
+class AddMessageRequest(BaseModel):
+    """Request to add a message to a conversation."""
+    role: str = Field(..., description="Message role: 'user' or 'assistant'")
+    content: str = Field(..., description="Message content")
+
+
+# ============================================================================
+# Endpoints
+# ============================================================================
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_conversation(request: CreateConversationRequest):
+    """
+    Create a new conversation (in-memory).
+
+    **Note**: Conversations are stored in memory and will be lost on server restart.
+
+    Example:
+        ```python
+        response = requests.post("/api/conversations", json={
+            "user_id": "user_123",
+            "company_id": "77794858-k",
+            "title": "Consultas tributarias Enero 2025"
+        })
+        conversation_id = response.json()["data"]["id"]
+        ```
+    """
+    conversation_id = str(uuid4())
+    now = datetime.utcnow().isoformat()
+
+    conversation = ConversationData(
+        id=conversation_id,
+        user_id=request.user_id,
+        company_id=request.company_id,
+        title=request.title or f"Conversation {conversation_id[:8]}",
+        messages=[],
+        metadata=request.metadata,
+        created_at=now,
+        updated_at=now,
+    )
+
+    _conversations_store[conversation_id] = conversation
+
+    logger.info(f"✅ Created conversation {conversation_id} for user {request.user_id}")
+
+    return {
+        "data": conversation.model_dump(),
+        "message": "Conversation created successfully (in-memory)"
+    }
 
 
 @router.get("")
 async def list_conversations(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    status: Optional[str] = None,
-    user_id: Optional[UUID] = None,
-    db: AsyncSession = Depends(get_db),
+    user_id: Optional[str] = Query(None, description="Filter by user ID"),
+    company_id: Optional[str] = Query(None, description="Filter by company ID"),
+    skip: int = Query(0, ge=0, description="Skip N conversations"),
+    limit: int = Query(50, ge=1, le=100, description="Max conversations to return"),
 ):
     """
-    Get a list of conversations with optional filtering.
+    List conversations (in-memory).
 
-    - **skip**: Number of records to skip (pagination)
-    - **limit**: Maximum number of records to return
-    - **status**: Filter by conversation status (active, archived, completed)
-    - **user_id**: Filter by user ID
+    Supports filtering by user_id and company_id.
+
+    **Note**: Only returns conversations from current server session.
+
+    Example:
+        ```python
+        response = requests.get("/api/conversations?user_id=user_123&limit=10")
+        conversations = response.json()["data"]
+        ```
     """
-    query = select(Conversation).options(selectinload(Conversation.messages))
+    # Filter conversations
+    conversations = list(_conversations_store.values())
 
-    if status:
-        query = query.where(Conversation.status == status)
     if user_id:
-        query = query.where(Conversation.user_id == user_id)
+        conversations = [c for c in conversations if c.user_id == user_id]
 
-    query = query.offset(skip).limit(limit).order_by(Conversation.updated_at.desc())
+    if company_id:
+        conversations = [c for c in conversations if c.company_id == company_id]
 
-    result = await db.execute(query)
-    conversations = result.scalars().all()
+    # Sort by updated_at (most recent first)
+    conversations.sort(key=lambda c: c.updated_at, reverse=True)
+
+    # Pagination
+    total = len(conversations)
+    conversations = conversations[skip:skip + limit]
 
     return {
-        "data": [
-            {
-                "id": str(c.id),
-                "user_id": str(c.user_id),
-                "chatkit_session_id": c.chatkit_session_id,
-                "title": c.title,
-                "status": c.status,
-                "message_count": len(c.messages),
-                "created_at": c.created_at.isoformat(),
-                "updated_at": c.updated_at.isoformat(),
-            }
-            for c in conversations
-        ],
+        "data": [c.model_dump() for c in conversations],
         "pagination": {
             "skip": skip,
             "limit": limit,
-            "total": len(conversations),
+            "total": total,
         }
     }
 
 
 @router.get("/{conversation_id}")
-async def get_conversation(
-    conversation_id: UUID,
-    db: AsyncSession = Depends(get_db),
-):
+async def get_conversation(conversation_id: str):
     """
-    Get a single conversation by ID with all messages.
-    """
-    query = select(Conversation).options(
-        selectinload(Conversation.messages)
-    ).where(Conversation.id == conversation_id)
+    Get a conversation by ID (in-memory).
 
-    result = await db.execute(query)
-    conversation = result.scalar_one_or_none()
+    Returns the conversation with all messages.
+
+    Example:
+        ```python
+        response = requests.get(f"/api/conversations/{conversation_id}")
+        conversation = response.json()["data"]
+        messages = conversation["messages"]
+        ```
+    """
+    conversation = _conversations_store.get(conversation_id)
 
     if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Conversation {conversation_id} not found (may have been lost on server restart)"
+        )
+
+    return {"data": conversation.model_dump()}
+
+
+@router.post("/{conversation_id}/messages", status_code=status.HTTP_201_CREATED)
+async def add_message(conversation_id: str, request: AddMessageRequest):
+    """
+    Add a message to a conversation (in-memory).
+
+    Example:
+        ```python
+        # Add user message
+        requests.post(f"/api/conversations/{conversation_id}/messages", json={
+            "role": "user",
+            "content": "¿Qué es el IVA?"
+        })
+
+        # Add assistant response
+        requests.post(f"/api/conversations/{conversation_id}/messages", json={
+            "role": "assistant",
+            "content": "El IVA es el Impuesto al Valor Agregado..."
+        })
+        ```
+    """
+    conversation = _conversations_store.get(conversation_id)
+
+    if not conversation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Conversation {conversation_id} not found"
+        )
+
+    message = MessageData(
+        id=str(uuid4()),
+        role=request.role,
+        content=request.content,
+        created_at=datetime.utcnow().isoformat(),
+    )
+
+    conversation.messages.append(message)
+    conversation.updated_at = datetime.utcnow().isoformat()
+
+    logger.info(f"✅ Added {request.role} message to conversation {conversation_id}")
 
     return {
-        "data": {
-            "id": str(conversation.id),
-            "user_id": str(conversation.user_id),
-            "chatkit_session_id": conversation.chatkit_session_id,
-            "title": conversation.title,
-            "status": conversation.status,
-            "messages": [
-                {
-                    "id": str(m.id),
-                    "role": m.role,
-                    "content": m.content,
-                    "metadata": m.message_metadata,
-                    "created_at": m.created_at.isoformat(),
-                }
-                for m in sorted(conversation.messages, key=lambda x: x.created_at)
-            ],
-            "created_at": conversation.created_at.isoformat(),
-            "updated_at": conversation.updated_at.isoformat(),
-        }
+        "data": message.model_dump(),
+        "message": "Message added successfully"
     }
 
 
 @router.get("/{conversation_id}/messages")
-async def list_conversation_messages(
-    conversation_id: UUID,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=200),
-    db: AsyncSession = Depends(get_db),
+async def list_messages(
+    conversation_id: str,
+    skip: int = Query(0, ge=0, description="Skip N messages"),
+    limit: int = Query(100, ge=1, le=200, description="Max messages to return"),
 ):
     """
-    Get messages for a specific conversation with pagination.
+    Get messages for a conversation (in-memory).
+
+    Returns messages in chronological order.
+
+    Example:
+        ```python
+        response = requests.get(f"/api/conversations/{conversation_id}/messages")
+        messages = response.json()["data"]
+        ```
     """
-    # First check if conversation exists
-    conv_query = select(Conversation).where(Conversation.id == conversation_id)
-    conv_result = await db.execute(conv_query)
-    conversation = conv_result.scalar_one_or_none()
+    conversation = _conversations_store.get(conversation_id)
 
     if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Conversation {conversation_id} not found"
+        )
 
-    # Get messages
-    query = select(Message).where(
-        Message.conversation_id == conversation_id
-    ).order_by(Message.created_at).offset(skip).limit(limit)
-
-    result = await db.execute(query)
-    messages = result.scalars().all()
+    # Pagination
+    total = len(conversation.messages)
+    messages = conversation.messages[skip:skip + limit]
 
     return {
-        "data": [
-            {
-                "id": str(m.id),
-                "conversation_id": str(m.conversation_id),
-                "user_id": str(m.user_id),
-                "role": m.role,
-                "content": m.content,
-                "metadata": m.message_metadata,
-                "created_at": m.created_at.isoformat(),
-            }
-            for m in messages
-        ],
+        "data": [m.model_dump() for m in messages],
         "pagination": {
             "skip": skip,
             "limit": limit,
-            "total": len(messages),
+            "total": total,
         }
+    }
+
+
+@router.delete("/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_conversation(conversation_id: str):
+    """
+    Delete a conversation (in-memory).
+
+    Example:
+        ```python
+        requests.delete(f"/api/conversations/{conversation_id}")
+        ```
+    """
+    if conversation_id not in _conversations_store:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Conversation {conversation_id} not found"
+        )
+
+    del _conversations_store[conversation_id]
+    logger.info(f"🗑️  Deleted conversation {conversation_id}")
+
+    return None
+
+
+@router.get("/stats/summary")
+async def get_stats():
+    """
+    Get conversation statistics (in-memory).
+
+    Returns summary stats about current conversations.
+
+    Example:
+        ```python
+        response = requests.get("/api/conversations/stats/summary")
+        stats = response.json()["data"]
+        print(f"Total conversations: {stats['total_conversations']}")
+        ```
+    """
+    total_conversations = len(_conversations_store)
+    total_messages = sum(len(c.messages) for c in _conversations_store.values())
+
+    unique_users = len(set(c.user_id for c in _conversations_store.values()))
+    unique_companies = len(set(c.company_id for c in _conversations_store.values() if c.company_id))
+
+    return {
+        "data": {
+            "total_conversations": total_conversations,
+            "total_messages": total_messages,
+            "unique_users": unique_users,
+            "unique_companies": unique_companies,
+            "storage": "in-memory (volatile)",
+        }
+    }
+
+
+@router.post("/clear", status_code=status.HTTP_200_OK)
+async def clear_all_conversations():
+    """
+    Clear all conversations from memory.
+
+    **Warning**: This deletes ALL conversations permanently.
+    Use only for testing/development.
+
+    Example:
+        ```python
+        requests.post("/api/conversations/clear")
+        ```
+    """
+    count = len(_conversations_store)
+    _conversations_store.clear()
+
+    logger.warning(f"⚠️  Cleared all {count} conversations from memory")
+
+    return {
+        "message": f"Cleared {count} conversations from memory",
+        "warning": "All conversation data has been permanently deleted"
     }

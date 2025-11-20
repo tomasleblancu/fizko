@@ -12,14 +12,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 from datetime import date
-from uuid import UUID
 
 from agents import RunContextWrapper, function_tool
-from sqlalchemy import select, or_
-from sqlalchemy.orm import selectinload
 
-from app.config.database import AsyncSessionLocal
 from app.agents.core import FizkoContext
+from app.agents.tools.utils import get_supabase
 from app.utils.rut import normalize_rut, validate_rut
 from app.agents.tools.decorators import require_subscription_tool
 
@@ -45,8 +42,6 @@ async def get_people(
         - List all: get_people()
         - List first 10: get_people(limit=10)
     """
-    from app.db.models import Person
-
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
         return {"error": "Usuario no autenticado"}
@@ -56,37 +51,33 @@ async def get_people(
         return {"error": "company_id no disponible en el contexto"}
 
     try:
-        async with AsyncSessionLocal() as session:
-            # Limit to max 100
-            limit = min(limit, 100)
+        supabase = get_supabase()
 
-            stmt = (
-                select(Person)
-                .where(Person.company_id == UUID(company_id))
-                .order_by(Person.last_name, Person.first_name)
-                .limit(limit)
-            )
+        # Limit to max 100
+        limit = min(limit, 100)
 
-            result = await session.execute(stmt)
-            people = result.scalars().all()
+        people = await supabase.people.get_people_by_company(
+            company_id=company_id,
+            limit=limit
+        )
 
-            return {
-                "total_count": len(people),
-                "limit": limit,
-                "people": [
-                    {
-                        "id": str(person.id),
-                        "rut": person.rut,
-                        "full_name": person.full_name,
-                        "position": person.position_title,
-                        "status": person.status,
-                        "hire_date": person.hire_date.isoformat() if person.hire_date else None,
-                        "email": person.email,
-                        "phone": person.phone,
-                    }
-                    for person in people
-                ],
-            }
+        return {
+            "total_count": len(people),
+            "limit": limit,
+            "people": [
+                {
+                    "id": person.get("id"),
+                    "rut": person.get("rut"),
+                    "full_name": f"{person.get('first_name', '')} {person.get('last_name', '')}".strip(),
+                    "position": person.get("position_title"),
+                    "status": person.get("status"),
+                    "hire_date": person.get("hire_date"),
+                    "email": person.get("email"),
+                    "phone": person.get("phone"),
+                }
+                for person in people
+            ],
+        }
 
     except Exception as e:
         logger.exception("Error fetching people")
@@ -115,8 +106,6 @@ async def get_person(
         - By ID: get_person(person_id="123e4567-...")
         - By RUT: get_person(rut="12345678-9")
     """
-    from app.db.models import Person
-
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
         return {"error": "Usuario no autenticado"}
@@ -129,63 +118,67 @@ async def get_person(
         return {"error": "Debes proporcionar person_id o rut"}
 
     try:
-        async with AsyncSessionLocal() as session:
-            # Build query
-            conditions = [Person.company_id == UUID(company_id)]
+        supabase = get_supabase()
 
-            if person_id:
-                conditions.append(Person.id == UUID(person_id))
-            elif rut:
-                normalized_rut = normalize_rut(rut)
-                conditions.append(Person.rut == normalized_rut)
+        # Fetch person
+        if person_id:
+            person = await supabase.people.get_person_by_id(person_id)
+        else:
+            normalized_rut = normalize_rut(rut)
+            person = await supabase.people.get_person_by_rut(company_id, normalized_rut)
 
-            stmt = select(Person).where(*conditions)
-            result = await session.execute(stmt)
-            person = result.scalar_one_or_none()
+        if not person:
+            return {"error": "Colaborador no encontrado"}
 
-            if not person:
-                return {"error": "Colaborador no encontrado"}
+        # Helper to safely convert to float
+        def to_float(value):
+            if value is None:
+                return None
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return None
 
-            return {
-                "person": {
-                    "id": str(person.id),
-                    # Personal Information
-                    "rut": person.rut,
-                    "first_name": person.first_name,
-                    "last_name": person.last_name,
-                    "full_name": person.full_name,
-                    "email": person.email,
-                    "phone": person.phone,
-                    "birth_date": person.birth_date.isoformat() if person.birth_date else None,
-                    # Position and Contract
-                    "position_title": person.position_title,
-                    "contract_type": person.contract_type,
-                    "hire_date": person.hire_date.isoformat() if person.hire_date else None,
-                    # Salary Information
-                    "base_salary": float(person.base_salary),
-                    # AFP (Pension)
-                    "afp_provider": person.afp_provider,
-                    "afp_percentage": float(person.afp_percentage) if person.afp_percentage else None,
-                    # Health Insurance
-                    "health_provider": person.health_provider,
-                    "health_plan": person.health_plan,
-                    "health_percentage": float(person.health_percentage) if person.health_percentage else None,
-                    "health_fixed_amount": float(person.health_fixed_amount) if person.health_fixed_amount else None,
-                    # Bank Information
-                    "bank_name": person.bank_name,
-                    "bank_account_type": person.bank_account_type,
-                    "bank_account_number": person.bank_account_number,
-                    # Employment Status
-                    "status": person.status,
-                    "termination_date": person.termination_date.isoformat() if person.termination_date else None,
-                    "termination_reason": person.termination_reason,
-                    # Additional
-                    "notes": person.notes,
-                    "photo_url": person.photo_url,
-                    "created_at": person.created_at.isoformat(),
-                    "updated_at": person.updated_at.isoformat(),
-                }
+        return {
+            "person": {
+                "id": person.get("id"),
+                # Personal Information
+                "rut": person.get("rut"),
+                "first_name": person.get("first_name"),
+                "last_name": person.get("last_name"),
+                "full_name": f"{person.get('first_name', '')} {person.get('last_name', '')}".strip(),
+                "email": person.get("email"),
+                "phone": person.get("phone"),
+                "birth_date": person.get("birth_date"),
+                # Position and Contract
+                "position_title": person.get("position_title"),
+                "contract_type": person.get("contract_type"),
+                "hire_date": person.get("hire_date"),
+                # Salary Information
+                "base_salary": to_float(person.get("base_salary")),
+                # AFP (Pension)
+                "afp_provider": person.get("afp_provider"),
+                "afp_percentage": to_float(person.get("afp_percentage")),
+                # Health Insurance
+                "health_provider": person.get("health_provider"),
+                "health_plan": person.get("health_plan"),
+                "health_percentage": to_float(person.get("health_percentage")),
+                "health_fixed_amount": to_float(person.get("health_fixed_amount")),
+                # Bank Information
+                "bank_name": person.get("bank_name"),
+                "bank_account_type": person.get("bank_account_type"),
+                "bank_account_number": person.get("bank_account_number"),
+                # Employment Status
+                "status": person.get("status"),
+                "termination_date": person.get("termination_date"),
+                "termination_reason": person.get("termination_reason"),
+                # Additional
+                "notes": person.get("notes"),
+                "photo_url": person.get("photo_url"),
+                "created_at": person.get("created_at"),
+                "updated_at": person.get("updated_at"),
             }
+        }
 
     except Exception as e:
         logger.exception("Error fetching person")
@@ -271,70 +264,60 @@ async def create_person(
         return {"error": f"RUT inválido: {rut}"}
 
     try:
-        async with AsyncSessionLocal() as session:
-            # Check if person with this RUT already exists
-            existing_stmt = select(Person).where(
-                Person.company_id == UUID(company_id),
-                Person.rut == normalized_rut
-            )
-            existing_result = await session.execute(existing_stmt)
-            if existing_result.scalar_one_or_none():
-                return {"error": f"Ya existe un colaborador con RUT {normalized_rut}"}
+        supabase = get_supabase()
 
-            # Parse dates
-            birth_date_obj = date.fromisoformat(birth_date) if birth_date else None
-            hire_date_obj = date.fromisoformat(hire_date) if hire_date else None
+        # Check if person with this RUT already exists
+        existing = await supabase.people.get_person_by_rut(company_id, normalized_rut)
+        if existing:
+            return {"error": f"Ya existe un colaborador con RUT {normalized_rut}"}
 
-            # Create person
-            person = Person(
-                company_id=UUID(company_id),
-                # Personal Information
-                rut=normalized_rut,
-                first_name=first_name,
-                last_name=last_name,
-                email=email,
-                phone=phone,
-                birth_date=birth_date_obj,
-                # Position and Contract
-                position_title=position_title,
-                contract_type=contract_type,
-                hire_date=hire_date_obj,
-                # Salary Information
-                base_salary=base_salary,
-                # AFP
-                afp_provider=afp_provider,
-                afp_percentage=afp_percentage,
-                # Health
-                health_provider=health_provider,
-                health_plan=health_plan,
-                health_percentage=health_percentage,
-                health_fixed_amount=health_fixed_amount,
-                # Bank
-                bank_name=bank_name,
-                bank_account_type=bank_account_type,
-                bank_account_number=bank_account_number,
-                # Additional
-                notes=notes,
-                photo_url=photo_url,
-                status="active",
-            )
+        # Create person with all fields
+        person_data = {
+            "email": email,
+            "phone": phone,
+            "birth_date": birth_date,
+            "position_title": position_title,
+            "contract_type": contract_type,
+            "hire_date": hire_date,
+            "base_salary": base_salary,
+            "afp_provider": afp_provider,
+            "afp_percentage": afp_percentage,
+            "health_provider": health_provider,
+            "health_plan": health_plan,
+            "health_percentage": health_percentage,
+            "health_fixed_amount": health_fixed_amount,
+            "bank_name": bank_name,
+            "bank_account_type": bank_account_type,
+            "bank_account_number": bank_account_number,
+            "notes": notes,
+            "photo_url": photo_url,
+        }
 
-            session.add(person)
-            await session.commit()
-            await session.refresh(person)
+        person = await supabase.people.create(
+            company_id=company_id,
+            rut=normalized_rut,
+            first_name=first_name,
+            last_name=last_name,
+            **person_data
+        )
 
-            return {
-                "success": True,
-                "message": f"Colaborador {person.full_name} creado exitosamente",
-                "person": {
-                    "id": str(person.id),
-                    "rut": person.rut,
-                    "full_name": person.full_name,
-                    "position": person.position_title,
-                    "hire_date": person.hire_date.isoformat() if person.hire_date else None,
-                    "base_salary": float(person.base_salary),
-                }
+        if not person:
+            return {"error": "Error al crear colaborador"}
+
+        full_name = f"{person.get('first_name', '')} {person.get('last_name', '')}".strip()
+
+        return {
+            "success": True,
+            "message": f"Colaborador {full_name} creado exitosamente",
+            "person": {
+                "id": person.get("id"),
+                "rut": person.get("rut"),
+                "full_name": full_name,
+                "position": person.get("position_title"),
+                "hire_date": person.get("hire_date"),
+                "base_salary": float(person.get("base_salary", 0)),
             }
+        }
 
     except ValueError as e:
         return {"error": f"Error en formato de datos: {str(e)}"}
@@ -410,81 +393,81 @@ async def update_person(
         return {"error": "company_id no disponible en el contexto"}
 
     try:
-        async with AsyncSessionLocal() as session:
-            # Fetch person
-            stmt = select(Person).where(
-                Person.company_id == UUID(company_id),
-                Person.id == UUID(person_id)
-            )
-            result = await session.execute(stmt)
-            person = result.scalar_one_or_none()
+        supabase = get_supabase()
 
-            if not person:
-                return {"error": "Colaborador no encontrado"}
+        # Fetch person to verify it exists and belongs to company
+        person = await supabase.people.get_person_by_id(person_id)
+        if not person or person.get("company_id") != company_id:
+            return {"error": "Colaborador no encontrado"}
 
-            # Update fields (only if provided)
-            if first_name is not None:
-                person.first_name = first_name
-            if last_name is not None:
-                person.last_name = last_name
-            if email is not None:
-                person.email = email
-            if phone is not None:
-                person.phone = phone
-            if birth_date is not None:
-                person.birth_date = date.fromisoformat(birth_date)
-            if position_title is not None:
-                person.position_title = position_title
-            if contract_type is not None:
-                person.contract_type = contract_type
-            if hire_date is not None:
-                person.hire_date = date.fromisoformat(hire_date)
-            if base_salary is not None:
-                person.base_salary = base_salary
-            if afp_provider is not None:
-                person.afp_provider = afp_provider
-            if afp_percentage is not None:
-                person.afp_percentage = afp_percentage
-            if health_provider is not None:
-                person.health_provider = health_provider
-            if health_plan is not None:
-                person.health_plan = health_plan
-            if health_percentage is not None:
-                person.health_percentage = health_percentage
-            if health_fixed_amount is not None:
-                person.health_fixed_amount = health_fixed_amount
-            if bank_name is not None:
-                person.bank_name = bank_name
-            if bank_account_type is not None:
-                person.bank_account_type = bank_account_type
-            if bank_account_number is not None:
-                person.bank_account_number = bank_account_number
-            if status is not None:
-                person.status = status
-            if termination_date is not None:
-                person.termination_date = date.fromisoformat(termination_date)
-            if termination_reason is not None:
-                person.termination_reason = termination_reason
-            if notes is not None:
-                person.notes = notes
-            if photo_url is not None:
-                person.photo_url = photo_url
+        # Build update dict with only provided fields
+        update_data = {}
+        if first_name is not None:
+            update_data["first_name"] = first_name
+        if last_name is not None:
+            update_data["last_name"] = last_name
+        if email is not None:
+            update_data["email"] = email
+        if phone is not None:
+            update_data["phone"] = phone
+        if birth_date is not None:
+            update_data["birth_date"] = birth_date
+        if position_title is not None:
+            update_data["position_title"] = position_title
+        if contract_type is not None:
+            update_data["contract_type"] = contract_type
+        if hire_date is not None:
+            update_data["hire_date"] = hire_date
+        if base_salary is not None:
+            update_data["base_salary"] = base_salary
+        if afp_provider is not None:
+            update_data["afp_provider"] = afp_provider
+        if afp_percentage is not None:
+            update_data["afp_percentage"] = afp_percentage
+        if health_provider is not None:
+            update_data["health_provider"] = health_provider
+        if health_plan is not None:
+            update_data["health_plan"] = health_plan
+        if health_percentage is not None:
+            update_data["health_percentage"] = health_percentage
+        if health_fixed_amount is not None:
+            update_data["health_fixed_amount"] = health_fixed_amount
+        if bank_name is not None:
+            update_data["bank_name"] = bank_name
+        if bank_account_type is not None:
+            update_data["bank_account_type"] = bank_account_type
+        if bank_account_number is not None:
+            update_data["bank_account_number"] = bank_account_number
+        if status is not None:
+            update_data["status"] = status
+        if termination_date is not None:
+            update_data["termination_date"] = termination_date
+        if termination_reason is not None:
+            update_data["termination_reason"] = termination_reason
+        if notes is not None:
+            update_data["notes"] = notes
+        if photo_url is not None:
+            update_data["photo_url"] = photo_url
 
-            await session.commit()
-            await session.refresh(person)
+        # Update person
+        updated_person = await supabase.people.update(person_id, **update_data)
+        if not updated_person:
+            return {"error": "Error al actualizar colaborador"}
 
-            return {
-                "success": True,
-                "message": f"Colaborador {person.full_name} actualizado exitosamente",
-                "person": {
-                    "id": str(person.id),
-                    "rut": person.rut,
-                    "full_name": person.full_name,
-                    "position": person.position_title,
-                    "status": person.status,
-                    "base_salary": float(person.base_salary),
-                }
+        full_name = f"{updated_person.get('first_name', '')} {updated_person.get('last_name', '')}".strip()
+
+        return {
+            "success": True,
+            "message": f"Colaborador {full_name} actualizado exitosamente",
+            "person": {
+                "id": updated_person.get("id"),
+                "rut": updated_person.get("rut"),
+                "full_name": full_name,
+                "position": updated_person.get("position_title"),
+                "status": updated_person.get("status"),
+                "base_salary": float(updated_person.get("base_salary", 0)),
             }
+        }
 
     except ValueError as e:
         return {"error": f"Error en formato de datos: {str(e)}"}

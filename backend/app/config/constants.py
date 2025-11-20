@@ -1,17 +1,12 @@
-"""Global constants and configuration.
-
-NOTE: Agent instructions have been moved to app/agents/instructions/
-Import them from there instead of this file.
-"""
+"""Global constants and configuration for Backend V2."""
 
 # Timezone configuration
-# All datetime operations in the application use this timezone
 TIMEZONE = "America/Santiago"  # Chile (UTC-3 / UTC-4 with DST)
 
 # OpenAI models configuration
 # Multi-agent system models
-SUPERVISOR_MODEL = "gpt-4.1-nano"  # Very fast and cheap for routing
-SPECIALIZED_MODEL = "gpt-4.1-nano"  # Very fast and cheap for specialized tasks
+SUPERVISOR_MODEL = "gpt-4o-mini"  # Fast and cheap for routing
+SPECIALIZED_MODEL = "gpt-4o-mini"  # Fast and cheap for specialized tasks
 
 # Model settings for reasoning models (gpt-5*)
-REASONING_EFFORT = "minimal"  # Options: "low", "medium", "high"
+REASONING_EFFORT = "medium"  # Options: "low", "medium", "high"

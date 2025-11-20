@@ -1,10 +1,8 @@
 """
-Agent business services module.
+Agent business services module - Simplified for Backend V2.
 
-This module provides business logic layer for agent execution,
-coordinating between database, UI tools, attachments, and agent runners.
-
-Used by both ChatKit (web) and WhatsApp channels.
+Stateless version without database dependencies.
+Provides business logic layer for agent execution with provided context.
 """
 
 from .agent_executor import AgentService

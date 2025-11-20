@@ -46,10 +46,9 @@ htmlcov/
 .gitignore
 .gitattributes
 
-# Documentation
+# Documentation (mantener solo README.md)
 *.md
 !README.md
-docs/
 
 # Logs
 *.log
@@ -66,10 +65,6 @@ sessions/
 chrome-data/
 screenshots/
 
-# Database migrations (aplicar manualmente)
-migrations/
-supabase/
-
 # Docker
 Dockerfile
 docker-compose*.yml
@@ -82,12 +77,9 @@ ngrok.yml
 
 # Local development scripts
 start_*.sh
-test_*.py
-debug_*.py
-
-# Celery
-celerybeat-schedule*
-celerybeat.pid
+example_*.py
+verify_*.sh
+run_tests.sh
 
 # macOS
 .DS_Store

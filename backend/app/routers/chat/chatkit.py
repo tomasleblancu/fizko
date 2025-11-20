@@ -1,44 +1,25 @@
-"""ChatKit AI Agent endpoints."""
+"""ChatKit AI Agent endpoints - Simplified for Backend V2."""
 
 from __future__ import annotations
 
 import json
 import logging
 import time
-from typing import TYPE_CHECKING
 
 from chatkit.server import StreamingResult
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
 from starlette.responses import JSONResponse
 from starlette.requests import ClientDisconnect
 
-from ...agents import create_chatkit_server
 from app.integrations.chatkit import ChatKitServerAdapter
-from ...agents.config.scopes import get_scope_for_plan
-from ...agents.ui_tools import UIToolDispatcher
-from ...agents.guardrails import (
-    InputGuardrailTripwireTriggered,
-    OutputGuardrailTripwireTriggered,
-)
-from ...config.database import AsyncSessionLocal
-from ...core import get_optional_user
-from ...dependencies import require_auth, get_subscription_or_none
-from ...utils.ui_component_context import (
-    extract_ui_component_context,
-    format_ui_context_for_agent,
-)
-
-if TYPE_CHECKING:
-    from ...db.models import Subscription
+from app.agents.ui_tools import UIToolDispatcher
+from app.config.supabase import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
     tags=["chatkit"],
-    dependencies=[
-        Depends(require_auth)
-    ]
 )
 
 # Lazy initialization of ChatKit server (only when first requested)
@@ -51,6 +32,7 @@ def get_chatkit_server() -> ChatKitServerAdapter:
     if _chatkit_server is None:
         try:
             logger.info("🤖 Initializing ChatKit server (multi-agent mode)")
+            from app.agents import create_chatkit_server
 
             _chatkit_server = create_chatkit_server()
             if _chatkit_server is None:
@@ -93,7 +75,7 @@ async def chatkit_upload_attachment(
         JSON response with success status
     """
     try:
-        from ...agents.core.memory_attachment_store import store_attachment_content
+        from app.agents.core.memory_attachment_store import store_attachment_content
 
         content_type = request.headers.get("content-type", "")
 
@@ -188,24 +170,14 @@ async def chatkit_endpoint(
     entity_type: str | None = Query(
         None, description="Entity type (contact, document, etc) for UI context"
     ),
-    subscription: "Subscription | None" = Depends(get_subscription_or_none),
     server: ChatKitServerAdapter = Depends(get_chatkit_server),
 ) -> Response:
-    """ChatKit conversational endpoint."""
+    """ChatKit conversational endpoint for backend-v2 (Supabase-based)."""
     # 🕐 START: Log request start time
     request_start_time = time.time()
 
-    # Determine agent scope based on subscription
-    plan_code = subscription.plan.code if subscription else None
-    agent_scope = get_scope_for_plan(plan_code)
-
-    # Get optional user from JWT token
-    user = await get_optional_user(request)
-    user_id = user.get("sub") if user else "anonymous"
-
-    # Priority: Query param > JWT token
-    if not company_id:
-        company_id = user.get("company_id") if user else None
+    # Backend-v2 doesn't have auth/subscriptions - simplified flow
+    user_id = "anonymous"  # TODO: Add auth when needed
 
     # Handle client disconnect gracefully
     try:
@@ -229,53 +201,39 @@ async def chatkit_endpoint(
     except:
         pass
 
-    # NEW: Dispatch to UI Tools system if ui_component is present
+    # Dispatch to UI Tools system if ui_component is present (using Supabase)
     ui_tool_result = None
     ui_context_text = ""
 
     if ui_component and ui_component != "null":
-        # Get database session for UI tool processing
-        async with AsyncSessionLocal() as db:
-            # Build additional_data dict from query params
-            additional_data = {}
-            if entity_id:
-                additional_data["entity_id"] = entity_id
-            if entity_type:
-                additional_data["entity_type"] = entity_type
+        # Get Supabase client for UI tool processing
+        supabase = get_supabase_client()
 
-            ui_tool_result = await UIToolDispatcher.dispatch(
-                ui_component=ui_component,
-                user_message=user_message,
-                company_id=company_id,
-                user_id=user_id,
-                db=db,
-                additional_data=additional_data if additional_data else None,
-            )
+        # Build additional_data dict from query params
+        additional_data = {}
+        if entity_id:
+            additional_data["entity_id"] = entity_id
+        if entity_type:
+            additional_data["entity_type"] = entity_type
+
+        ui_tool_result = await UIToolDispatcher.dispatch(
+            ui_component=ui_component,
+            user_message=user_message,
+            company_id=company_id,
+            user_id=user_id,
+            supabase=supabase,
+            additional_data=additional_data if additional_data else None,
+        )
 
         if ui_tool_result and ui_tool_result.success:
             ui_context_text = ui_tool_result.context_text
         elif ui_tool_result and not ui_tool_result.success:
             logger.warning(f"⚠️ UI Tool failed: {ui_tool_result.error}")
-            # Fallback to legacy system if UI tool fails
-            ui_context = extract_ui_component_context(
-                ui_component=ui_component,
-                message=user_message,
-                company_id=company_id,
-            )
-            ui_context_text = format_ui_context_for_agent(ui_context)
-    else:
-        # No ui_component, use legacy system as fallback
-        ui_context = extract_ui_component_context(
-            ui_component=ui_component,
-            message=user_message,
-            company_id=company_id,
-        )
-        ui_context_text = format_ui_context_for_agent(ui_context)
 
     context = {
         "request": request,
         "user_id": user_id,
-        "user": user,
+        "user": {},
         "company_id": company_id,
         "ui_component": ui_component,
         "entity_id": entity_id,
@@ -283,8 +241,8 @@ async def chatkit_endpoint(
         "ui_tool_result": ui_tool_result,
         "ui_context_text": ui_context_text,
         "agent_type": agent_type,
-        "agent_scope": agent_scope,  # Pass scope to agent system
-        "request_start_time": request_start_time,  # Pass timing to agent
+        "agent_scope": "full",  # Backend-v2 always uses full scope
+        "request_start_time": request_start_time,
     }
 
     # Single consolidated log
@@ -292,7 +250,7 @@ async def chatkit_endpoint(
     company_id_short = company_id[:8] if company_id else "none"
     logger.info(
         f"🚀 ChatKit | op={operation} | user={user_id_short} | "
-        f"company={company_id_short} | scope={agent_scope} | ui_tool={ui_component or 'none'}"
+        f"company={company_id_short} | ui_tool={ui_component or 'none'}"
     )
 
     # Process request through ChatKit server
@@ -300,154 +258,21 @@ async def chatkit_endpoint(
         result = await server.process(payload, context)
 
         if isinstance(result, StreamingResult):
-            # Wrap streaming result to catch guardrail exceptions during streaming
-            async def stream_with_guardrail_handler():
-                try:
-                    async for chunk in result:
-                        yield chunk
-                except InputGuardrailTripwireTriggered as e:
-                    # Input bloqueado por guardrail durante streaming
-                    # Extract guardrail info safely (ChatKit exceptions may not have these attributes)
-                    guardrail_name = getattr(e, "guardrail_name", "unknown")
-                    guardrail_result = getattr(e, "result", None)
-                    reason_info = guardrail_result.output.output_info if guardrail_result else str(e)
+            # Return streaming response
+            async def stream_generator():
+                async for chunk in result:
+                    yield chunk
 
-                    logger.warning(
-                        f"🚨 Input guardrail triggered (during stream) | "
-                        f"User: {user_id} | "
-                        f"Company: {company_id} | "
-                        f"Guardrail: {guardrail_name} | "
-                        f"Reason: {reason_info}"
-                    )
+            return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
-                    # Determinar mensaje basado en el tipo de bloqueo
-                    if guardrail_result and hasattr(guardrail_result.output, "output_info"):
-                        reason = guardrail_result.output.output_info.get("reason", "").lower()
-                    else:
-                        reason = str(e).lower()
-
-                    if "prompt injection" in reason:
-                        message_text = (
-                            "⚠️ Lo siento, detecté un intento de manipular mi comportamiento.\n\n"
-                            "Estoy diseñado para ayudarte exclusivamente con temas tributarios y contables de Chile. "
-                            "Por favor, hazme preguntas relacionadas con:\n"
-                            "• Impuestos (IVA, F29, DTE)\n"
-                            "• Contabilidad empresarial\n"
-                            "• Remuneraciones y personal\n"
-                            "• Documentos tributarios\n"
-                            "• Obligaciones con el SII"
-                        )
-                    elif "off-topic" in reason:
-                        message_text = (
-                            "🤔 Tu pregunta parece estar fuera del alcance de Fizko.\n\n"
-                            "Soy un asistente especializado en temas tributarios y contables de Chile. "
-                            "Puedo ayudarte con:\n"
-                            "• Cálculos de IVA y otros impuestos\n"
-                            "• Llenado del formulario F29\n"
-                            "• Gestión de documentos tributarios (facturas, boletas, guías)\n"
-                            "• Remuneraciones y contratos laborales\n"
-                            "• Obligaciones y plazos del SII\n"
-                            "• Contabilidad empresarial\n\n"
-                            "¿En qué tema tributario o contable puedo ayudarte hoy?"
-                        )
-                    else:
-                        message_text = (
-                            "Lo siento, no puedo procesar tu solicitud. "
-                            "Por favor, reformula tu pregunta relacionada con temas tributarios y contables de Chile. "
-                            "Estoy aquí para ayudarte con IVA, F29, documentos tributarios, remuneraciones y más."
-                        )
-
-                    # Enviar mensaje como evento SSE
-                    error_event = {
-                        "role": "assistant",
-                        "content": [{"type": "output_text", "text": message_text}]
-                    }
-                    yield f"data: {json.dumps(error_event)}\n\n"
-                    yield "data: [DONE]\n\n"
-
-            return StreamingResponse(stream_with_guardrail_handler(), media_type="text/event-stream")
         if hasattr(result, "json"):
             return Response(content=result.json, media_type="application/json")
         return JSONResponse(result)
 
-    except InputGuardrailTripwireTriggered as e:
-        # Input bloqueado por guardrail (ej: prompt injection, uso abusivo)
-        # Extract guardrail info safely (ChatKit exceptions may not have these attributes)
-        guardrail_name = getattr(e, "guardrail_name", "unknown")
-        guardrail_result = getattr(e, "result", None)
-        reason_info = guardrail_result.output.output_info if guardrail_result else str(e)
+    except Exception as e:
+        logger.error(f"❌ ChatKit error: {e}", exc_info=True)
 
-        logger.warning(
-            f"🚨 Input guardrail triggered | "
-            f"User: {user_id} | "
-            f"Company: {company_id} | "
-            f"Guardrail: {guardrail_name} | "
-            f"Reason: {reason_info}"
-        )
-
-        # Determinar mensaje basado en el tipo de bloqueo
-        if guardrail_result and hasattr(guardrail_result.output, "output_info"):
-            reason = guardrail_result.output.output_info.get("reason", "").lower()
-        else:
-            reason = str(e).lower()
-
-        if "prompt injection" in reason:
-            # Mensaje para intentos de manipulación
-            message_text = (
-                "⚠️ Lo siento, detecté un intento de manipular mi comportamiento.\n\n"
-                "Estoy diseñado para ayudarte exclusivamente con temas tributarios y contables de Chile. "
-                "Por favor, hazme preguntas relacionadas con:\n"
-                "• Impuestos (IVA, F29, DTE)\n"
-                "• Contabilidad empresarial\n"
-                "• Remuneraciones y personal\n"
-                "• Documentos tributarios\n"
-                "• Obligaciones con el SII"
-            )
-        elif "off-topic" in reason:
-            # Mensaje para preguntas fuera de tema
-            message_text = (
-                "🤔 Tu pregunta parece estar fuera del alcance de Fizko.\n\n"
-                "Soy un asistente especializado en temas tributarios y contables de Chile. "
-                "Puedo ayudarte con:\n"
-                "• Cálculos de IVA y otros impuestos\n"
-                "• Llenado del formulario F29\n"
-                "• Gestión de documentos tributarios (facturas, boletas, guías)\n"
-                "• Remuneraciones y contratos laborales\n"
-                "• Obligaciones y plazos del SII\n"
-                "• Contabilidad empresarial\n\n"
-                "¿En qué tema tributario o contable puedo ayudarte hoy?"
-            )
-        else:
-            # Mensaje genérico para otros casos
-            message_text = (
-                "Lo siento, no puedo procesar tu solicitud. "
-                "Por favor, reformula tu pregunta relacionada con temas tributarios y contables de Chile. "
-                "Estoy aquí para ayudarte con IVA, F29, documentos tributarios, remuneraciones y más."
-            )
-
-        # Retornar mensaje amigable al usuario
-        error_message = {
-            "role": "assistant",
-            "content": [
-                {
-                    "type": "output_text",
-                    "text": message_text
-                }
-            ]
-        }
-        return JSONResponse(error_message, status_code=200)  # 200 para que ChatKit lo muestre
-
-    except OutputGuardrailTripwireTriggered as e:
-        # Output bloqueado por guardrail (ej: PII detectado)
-        logger.error(
-            f"🚨 Output guardrail triggered | "
-            f"User: {user_id} | "
-            f"Company: {company_id} | "
-            f"Guardrail: {e.guardrail_name} | "
-            f"Reason: {e.result.output.output_info}"
-        )
-
-        # No mostrar el output bloqueado - devolver mensaje genérico
+        # Return friendly error message
         error_message = {
             "role": "assistant",
             "content": [

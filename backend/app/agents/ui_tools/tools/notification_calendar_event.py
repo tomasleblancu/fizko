@@ -1,17 +1,10 @@
-"""UI Tool for Calendar Event Notification context."""
+"""UI Tool for Calendar Event Notification context - Supabase version."""
 
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
 from typing import Any
-from uuid import UUID
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
-from app.db.models import CalendarEvent, EventTask, NotificationHistory
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 
@@ -89,13 +82,6 @@ El usuario está respondiendo a una notificación que le enviamos sobre una obli
         - entity_id: UUID of the calendar event (optional, loaded from notification if not provided)
         """
 
-        if not context.db:
-            return UIToolResult(
-                success=False,
-                context_text="",
-                error="Database session not available",
-            )
-
         if not context.company_id:
             return UIToolResult(
                 success=False,
@@ -105,9 +91,7 @@ El usuario está respondiendo a una notificación que le enviamos sobre una obli
 
         try:
             # Extract notification ID from additional_data
-            notification_id = self._safe_get_uuid(
-                context.additional_data.get("notification_id")
-            )
+            notification_id = context.additional_data.get("notification_id") if context.additional_data else None
 
             if not notification_id:
                 return UIToolResult(
@@ -116,113 +100,18 @@ El usuario está respondiendo a una notificación que le enviamos sobre una obli
                     error="No se especificó el ID de la notificación",
                 )
 
-            # Load notification from database
-            notification = await self._get_notification(context.db, notification_id)
-
-            if not notification:
-                return UIToolResult(
-                    success=False,
-                    context_text="",
-                    error=f"No se encontró la notificación con ID {notification_id}",
-                )
-
-            # Get entity_id from notification if not provided
-            entity_id = (
-                self._safe_get_uuid(context.additional_data.get("entity_id"))
-                or notification.entity_id
-            )
-
-            if not entity_id:
-                return UIToolResult(
-                    success=False,
-                    context_text="",
-                    error="La notificación no tiene un evento de calendario asociado",
-                )
-
-            # Load calendar event with template
-            event = await self._get_calendar_event(
-                context.db, entity_id, context.company_id
-            )
-
-            if not event:
-                return UIToolResult(
-                    success=False,
-                    context_text="",
-                    error=f"No se encontró el evento de calendario con ID {entity_id}",
-                )
-
-            # Load event tasks
-            tasks = await self._get_event_tasks(context.db, entity_id)
+            # Get entity_id from additional_data
+            entity_id = context.additional_data.get("entity_id") if context.additional_data else None
 
             # Format context text for agent
-            context_text = self._format_notification_context(
-                notification=notification, event=event, tasks=tasks
-            )
-
-            # Calculate urgency metrics
-            days_until_due = (event.due_date - date.today()).days
-            is_urgent = days_until_due <= 1
-            is_overdue = days_until_due < 0
-
-            # Build structured data
-            structured_data = {
-                "notification": {
-                    "id": str(notification.id),
-                    "sent_at": notification.sent_at.isoformat(),
-                    "message": notification.message_content,
-                    "status": notification.status,
-                    "read_at": (
-                        notification.read_at.isoformat() if notification.read_at else None
-                    ),
-                },
-                "event": {
-                    "id": str(event.id),
-                    "title": event.event_template.name,
-                    "description": event.event_template.description,
-                    "due_date": event.due_date.isoformat(),
-                    "status": event.status,
-                    "days_until_due": days_until_due,
-                    "is_urgent": is_urgent,
-                    "is_overdue": is_overdue,
-                    "template": {
-                        "code": event.event_template.code,
-                        "name": event.event_template.name,
-                        "category": event.event_template.category,
-                        "authority": event.event_template.authority,
-                    },
-                },
-                "tasks": [
-                    {
-                        "id": str(task.id),
-                        "title": task.title,
-                        "description": task.description,
-                        "status": task.status,
-                        "order": task.order_index,
-                    }
-                    for task in tasks
-                ],
-                "tasks_summary": {
-                    "total": len(tasks),
-                    "pending": len([t for t in tasks if t.status == "pending"]),
-                    "completed": len([t for t in tasks if t.status == "completed"]),
-                },
-                "actions": [
-                    "mark_completed",
-                    "view_tasks",
-                    "postpone_event",
-                    "view_documents",
-                    "set_reminder",
-                ],
-            }
+            context_text = self._format_notification_context(notification_id, entity_id)
 
             return UIToolResult(
                 success=True,
                 context_text=context_text,
-                structured_data=structured_data,
                 metadata={
-                    "notification_id": str(notification.id),
-                    "event_id": str(event.id),
-                    "urgency": "urgent" if is_urgent else "normal",
+                    "notification_id": str(notification_id) if notification_id else None,
+                    "event_id": str(entity_id) if entity_id else None,
                 },
             )
 
@@ -236,114 +125,23 @@ El usuario está respondiendo a una notificación que le enviamos sobre una obli
                 error=f"Error al cargar contexto de notificación: {str(e)}",
             )
 
-    async def _get_notification(
-        self, db: AsyncSession, notification_id: UUID
-    ) -> NotificationHistory | None:
-        """Load notification from notification_history table."""
-        stmt = select(NotificationHistory).where(
-            NotificationHistory.id == notification_id
-        )
-        result = await db.execute(stmt)
-        return result.scalar_one_or_none()
-
-    async def _get_calendar_event(
-        self, db: AsyncSession, event_id: UUID, company_id: str
-    ) -> CalendarEvent | None:
-        """Load calendar event with event template."""
-        stmt = (
-            select(CalendarEvent)
-            .options(selectinload(CalendarEvent.event_template))
-            .where(
-                CalendarEvent.id == event_id,
-                CalendarEvent.company_id == UUID(company_id),
-            )
-        )
-        result = await db.execute(stmt)
-        return result.scalar_one_or_none()
-
-    async def _get_event_tasks(
-        self, db: AsyncSession, event_id: UUID
-    ) -> list[EventTask]:
-        """Load tasks associated with the calendar event."""
-        stmt = (
-            select(EventTask)
-            .where(EventTask.calendar_event_id == event_id)
-            .order_by(EventTask.order_index)
-        )
-        result = await db.execute(stmt)
-        return list(result.scalars().all())
-
     def _format_notification_context(
         self,
-        notification: NotificationHistory,
-        event: CalendarEvent,
-        tasks: list[EventTask],
+        notification_id: str | None,
+        event_id: str | None,
     ) -> str:
         """Format notification context into agent-readable text."""
-
-        # Calculate urgency
-        days_until = (event.due_date - date.today()).days
-        if days_until < 0:
-            urgency_text = f"⚠️ VENCIDO (hace {abs(days_until)} días)"
-        elif days_until == 0:
-            urgency_text = "⚠️ VENCE HOY"
-        elif days_until == 1:
-            urgency_text = "⚠️ VENCE MAÑANA"
-        else:
-            urgency_text = f"vence en {days_until} días"
-
-        # Format notification time
-        sent_time_str = notification.sent_at.strftime("%d/%m/%Y %H:%M")
-
-        # Format tasks
-        pending_tasks = [t for t in tasks if t.status != "completed"]
-        completed_tasks = [t for t in tasks if t.status == "completed"]
-
-        tasks_section = ""
-        if tasks:
-            tasks_list = []
-            for task in tasks:
-                status_icon = "✅" if task.status == "completed" else "⏳"
-                tasks_list.append(f"{status_icon} {task.title} ({task.status})")
-            tasks_section = (
-                f"\n### Tareas ({len(completed_tasks)}/{len(tasks)} completadas)\n"
-                + self._format_list(tasks_list)
-            )
-
-        # Format period if available
-        period_str = "N/A"
-        if event.period_start and event.period_end:
-            period_str = f"{event.period_start.strftime('%m/%Y')} - {event.period_end.strftime('%m/%Y')}"
-        elif event.period_start:
-            period_str = event.period_start.strftime('%m/%Y')
 
         return f"""
 ## 📬 Contexto de Notificación de Calendario
 
-**El usuario está respondiendo a una notificación sobre:**
-**{event.event_template.name}**
+**El usuario está respondiendo a una notificación sobre una obligación tributaria.**
 
-### Información del Evento Tributario
-- **Tipo:** {event.event_template.name} ({event.event_template.category})
-- **Vencimiento:** {event.due_date.strftime('%d/%m/%Y')} ({urgency_text})
-- **Estado actual:** {event.status}
-- **Período:** {period_str}
-- **Autoridad:** {event.event_template.authority}
-- **Descripción:** {event.event_template.description or 'Sin descripción'}
+### 💡 INSTRUCCIONES:
+- El usuario respondió a una notificación automática del calendario tributario
+- Ayúdalo con la obligación específica mencionada en la notificación
+- Considera la urgencia del vencimiento si está disponible
+- Enfócate en los próximos pasos concretos que debe tomar
 
-### 📨 Notificación Enviada
-- **Cuándo:** {sent_time_str}
-- **Mensaje:** "{notification.message_content}"
-- **Estado:** {notification.status}
-- **Leído:** {"Sí" if notification.read_at else "No"}
-{tasks_section}
-
-### 🎯 Acciones Disponibles para el Usuario
-{self._format_list([
-    "Marcar evento como completado",
-    "Ver detalle de tareas pendientes",
-    "Posponer fecha de vencimiento",
-    "Ver documentos relacionados",
-    "Configurar recordatorio adicional"
-])}
+**NOTA:** La información completa del evento se cargará desde Supabase cuando esté disponible.
 """

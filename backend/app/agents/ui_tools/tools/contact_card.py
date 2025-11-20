@@ -1,14 +1,10 @@
-"""UI Tool for Contact Card component."""
+"""UI Tool for Contact Card component - Supabase Version."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.models import Contact, PurchaseDocument, SalesDocument
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 
@@ -18,7 +14,7 @@ logger = logging.getLogger(__name__)
 @ui_tool_registry.register
 class ContactCardTool(BaseUITool):
     """
-    UI Tool for Contact Card component.
+    UI Tool for Contact Card component - Supabase Version.
 
     When a user clicks or interacts with a contact card in the frontend,
     this tool pre-loads:
@@ -70,11 +66,11 @@ El usuario está viendo la ficha de un contacto específico.
     async def process(self, context: UIToolContext) -> UIToolResult:
         """Process contact card interaction and load relevant data."""
 
-        if not context.db:
+        if not context.supabase:
             return UIToolResult(
                 success=False,
                 context_text="",
-                error="Database session not available",
+                error="Supabase client not available",
             )
 
         if not context.company_id:
@@ -99,7 +95,7 @@ El usuario está viendo la ficha de un contacto específico.
 
             # Get contact data
             contact_data = await self._get_contact_data(
-                context.db,
+                context.supabase,
                 context.company_id,
                 contact_rut,
             )
@@ -135,79 +131,58 @@ El usuario está viendo la ficha de un contacto específico.
 
     async def _get_contact_data(
         self,
-        db: AsyncSession,
+        supabase,
         company_id: str,
         contact_rut: str | None = None,
     ) -> dict[str, Any] | None:
-        """Fetch contact data from database."""
+        """Fetch contact data from Supabase using repository pattern."""
 
-        company_uuid = self._safe_get_uuid(company_id)
-        if not company_uuid:
+        if not contact_rut:
             return None
 
-        # Build query
-        query = select(Contact).where(Contact.company_id == company_uuid)
-
-        if contact_rut:
-            query = query.where(Contact.rut == contact_rut)
-        else:
-            # If no RUT specified, just return None
-            # (could optionally return most recent contact)
-            return None
-
-        result = await db.execute(query)
-        contact = result.scalar_one_or_none()
+        # Get contact by RUT using contacts repository
+        contact = await supabase.contacts.get_by_rut(company_id, contact_rut)
 
         if not contact:
             return None
 
-        # Get transaction summary
-        sales_summary = await self._get_sales_summary(db, contact.id)
-        purchase_summary = await self._get_purchase_summary(db, contact.id)
+        contact_id = contact.get("id")
+
+        # Get transaction summaries using contacts repository
+        sales_summary = await supabase.contacts.get_sales_summary(contact_id)
+        purchase_summary = await supabase.contacts.get_purchase_summary(contact_id)
+
+        # Handle None responses from repository
+        if sales_summary is None:
+            sales_summary = {"total_amount": 0, "document_count": 0}
+        if purchase_summary is None:
+            purchase_summary = {"total_amount": 0, "document_count": 0}
 
         return {
-            "id": str(contact.id),
-            "rut": contact.rut,
-            "business_name": contact.business_name,
-            "trade_name": contact.trade_name,
-            "contact_type": contact.contact_type,
-            "address": contact.address,
-            "phone": contact.phone,
-            "email": contact.email,
-            "sales_summary": sales_summary,
-            "purchase_summary": purchase_summary,
-            "total_transactions": sales_summary["count"] + purchase_summary["count"],
-            "total_amount": sales_summary["total"] + purchase_summary["total"],
-        }
-
-    async def _get_sales_summary(self, db: AsyncSession, contact_id) -> dict[str, Any]:
-        """Get summary of sales documents for this contact."""
-        stmt = select(
-            func.count(SalesDocument.id).label("count"),
-            func.coalesce(func.sum(SalesDocument.total_amount), 0).label("total"),
-        ).where(SalesDocument.contact_id == contact_id)
-
-        result = await db.execute(stmt)
-        row = result.first()
-
-        return {
-            "count": row.count if row else 0,
-            "total": float(row.total) if row else 0.0,
-        }
-
-    async def _get_purchase_summary(self, db: AsyncSession, contact_id) -> dict[str, Any]:
-        """Get summary of purchase documents for this contact."""
-        stmt = select(
-            func.count(PurchaseDocument.id).label("count"),
-            func.coalesce(func.sum(PurchaseDocument.total_amount), 0).label("total"),
-        ).where(PurchaseDocument.contact_id == contact_id)
-
-        result = await db.execute(stmt)
-        row = result.first()
-
-        return {
-            "count": row.count if row else 0,
-            "total": float(row.total) if row else 0.0,
+            "id": contact_id,
+            "rut": contact.get("rut"),
+            "business_name": contact.get("business_name"),
+            "trade_name": contact.get("trade_name"),
+            "contact_type": contact.get("contact_type"),
+            "address": contact.get("address"),
+            "phone": contact.get("phone"),
+            "email": contact.get("email"),
+            "sales_summary": {
+                "count": sales_summary.get("document_count", 0),
+                "total": sales_summary.get("total_amount", 0),
+            },
+            "purchase_summary": {
+                "count": purchase_summary.get("document_count", 0),
+                "total": purchase_summary.get("total_amount", 0),
+            },
+            "total_transactions": (
+                sales_summary.get("document_count", 0) +
+                purchase_summary.get("document_count", 0)
+            ),
+            "total_amount": (
+                sales_summary.get("total_amount", 0) +
+                purchase_summary.get("total_amount", 0)
+            ),
         }
 
     def _extract_rut_from_message(self, message: str) -> str | None:

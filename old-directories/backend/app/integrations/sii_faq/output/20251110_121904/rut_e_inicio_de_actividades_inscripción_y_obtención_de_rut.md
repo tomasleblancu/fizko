@@ -1,0 +1,179 @@
+# RUT e Inicio de Actividades
+
+## Inscripción y Obtención de RUT
+
+**URL:** https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/arbol_faqs_rut_inicio_actividades_1943.htm
+
+**Total de preguntas:** 13
+
+---
+
+### 1. ¿Quiénes deben inscribirse en el Rut?
+
+ID: 001.105.0128.017  
+Fecha de creación: 01/09/2003  
+Fecha de actualización: 04/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_0128.htm
+
+#### Respuesta
+
+Deben obtener Rol Único Tributario (Rut) toda Persona Jurídica o ente sin personalidad jurídica que, en razón de su actividad o condición, cause o pueda causar impuestos, o ser retenedor de impuestos.Este trámite debe efectuarlo en Internet, de acuerdo con los tipos y subtipos de contribuyentes que les serán presentados por el aplicativo disponible en la sección Servicios online, menú RUT e Inicio de actividades, opción Inscripción y obtención de N° de RUT.
+
+---
+
+### 2. ¿Qué documentos hay que presentar para inscribirse en el Rut?
+
+ID: 001.105.0135.020  
+Fecha de creación: 01/09/2003  
+Fecha de actualización: 04/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_0135.htm
+
+#### Respuesta
+
+Para inscribirse y obtener RUT, debe hacer el trámite por internet, en el sitio web www.sii.cl, siguiendo la ruta: Servicios online, RUT e Inicio de actividades, Inscripción y obtención de RUT.Dependiendo del tipo de entidad o sociedad que desee obtener RUT, debe adjuntar los siguientes antecedentes en el trámite indicados en la Res. N°118 del 2025.
+
+---
+
+### 3. ¿Cuánto demora el trámite para la obtención de RUT de una sociedad?
+
+ID: 001.105.1776.014  
+Fecha de creación: 03/09/2004  
+Fecha de actualización: 04/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_1776.htm
+
+#### Respuesta
+
+La obtención de RUT es de forma inmediata, aunque en algunos casos tienen una duración de 3 a 5 días.Al finalizar el trámite, le llegará el certificado de obtención de RUT al correo informado a nuestro servicio.
+
+---
+
+### 4. ¿La Administradora de Fondos de Inversión Privados (FIP), debe poseer Rut?
+
+ID: 001.105.5578.005  
+Fecha de creación: 30/08/2007  
+Fecha de actualización: 07/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_5578.htm
+
+#### Respuesta
+
+Sí, la Administradora de Fondos de Inversión Privados (FIP), regulados por la Ley 18.815, deben tener Rol Único Tributario (Rut), independiente de los fondos que administra.
+
+---
+
+### 5. ¿Qué trámites tributarios debe efectuar un turista extranjero para comprar un bien raíz en Chile?
+
+ID: 001.105.2105.011  
+Fecha de creación: 17/12/2004  
+Fecha de actualización: 04/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_2105.htm
+
+#### Respuesta
+
+Para que un turista extranjero pueda comprar un bien raíz en Chile debe obtener previamente  RUT por la página web del SII.Si el turista va a realizar inversiones en nuestro país deberá designar un representante con domicilio y residencia en Chile, mediante un mandato ante Notario o bien con firma electrónica avanzada, que se haga cargo de las obligaciones tributarias que correspondan. Y es su representante el que realiza a través de internet la obtención de RUT para el turista.
+
+---
+
+### 6. Para obtener el RUT de una persona jurídica extranjera que adquiere derechos en una Sociedad de Responsabilidad Limitada en Chile, ¿cómo debe actuar?
+
+ID: 001.105.3571.013  
+Fecha de creación: 26/10/2005  
+Fecha de actualización: 05/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_3571.htm
+
+#### Respuesta
+
+Para obtener rut,  debe actuar por medio de un representante domiciliado en Chile, quien deberá acreditar tener el poder suficiente para actuar en el país en nombre de la sociedad extranjera y así poder realizar su trámite en la página web del SII.Este poder puede ser otorgado en el extranjero, visado por el cónsul chileno en el país de origen (o ante quien represente los intereses de Chile en dicho país) y legalizado por el Ministerio de Relaciones Exteriores de Chile o bien apostillado.Para realizar este trámite debe seguir la siguiente ruta:  Menú Servicios online, opción RUT e Inicio de Actividades, seleccionar Inscripción y obtención de RUT, luego Otras empresas / sociedades formalizadas, autenticarse con Rut y clave tributaria del Representante Legal y elegir la opción Sociedad Extranjera y  llenar el formulario disponible en la página web adjuntando los antecedentes requeridos para el trámite.
+
+---
+
+### 7. ¿Existe una forma simplificada de obtener RUT, para personas sin domicilio o residencia en Chile, para invertir en capitales mobiliarios o abrir cuentas corrientes en Chile?
+
+ID: 001.105.4033.011  
+Fecha de creación: 31/03/2006  
+Fecha de actualización: 05/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_4033.htm
+
+#### Respuesta
+
+Las personas sin domicilio ni residencia en Chile, que inviertan únicamente en capitales mobiliarios o cuentas corrientes, pueden inscribirse en el RUT a través de instituciones financieras o bancos que funcionen como Agentes Responsables y/o Bancos Corresponsales.
+
+---
+
+### 8. ¿El Servicio de Impuestos Internos, otorga RUT a personas naturales extranjeras, para trámites relacionados con pagos previsionales?
+
+ID: 001.105.6575.004  
+Fecha de creación: 02/09/2014  
+Fecha de actualización: 05/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_6575.htm
+
+#### Respuesta
+
+No, el SII no entrega RUT (Rol Único Tributario) para trámites relacionados con pagos provisionales. La entidad encargada es el de Registro Civil e Identificación.
+
+---
+
+### 9. ¿Cómo cumple con las obligaciones previsionales e impuestos, un extranjero sin domicilio ni residencia en Chile que trabaja como dependiente?
+
+ID: 001.105.6787.005  
+Fecha de creación: 24/03/2016  
+Fecha de actualización: 05/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_6787.htm
+
+#### Respuesta
+
+Un trabajador sin domicilio ni residencia en Chile con permiso para trabajar en el país y que no cuenta con cédula de identidad, no está impedido de cotizar para un fondo de pensiones de acuerdo al Dictamen FIS-1342 de la Superintendencia de AFPs.En estos casos el empleador se debe hacer cargo del pago de las cotizaciones previsionales en la institución correspondiente, y respecto al pago de impuestos:Durante los 6 primeros meses, del pago del impuesto adicional.Posterior a dicho plazo, del pago del impuesto único de segunda categoría si corresponde.
+
+---
+
+### 10. ¿Cómo se inscribe y obtiene RUT en el SII?
+
+ID: 001.105.0130.016  
+Fecha de creación: 01/09/2003  
+Fecha de actualización: 05/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_0130.htm
+
+#### Respuesta
+
+Para inscribirse y obtener el RUT  debe realizarlo a través de la página web del SII, Servicios online, opción RUT e inicio de actividades, sección Inscripción y obtención de N° de RUT.
+
+---
+
+### 11. ¿Cómo obtiene RUT una comunidad de edificio?
+
+ID: 001.105.0893.017  
+Fecha de creación: 23/01/2004  
+Fecha de actualización: 05/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_0893.htm
+
+#### Respuesta
+
+Para que una comunidad de edificio obtenga RUT debe ingresar en la página Web del Servicio, www.sii.cl:Seleccionar a Servicios online, menú RUT e Inicio de actividades, Inscripción y obtención de RUT Entidad sin personalidad jurídica, autenticarse con el RUT y clave del representante o mandatario autorizado, debe seleccionar opción Entidad sin personalidad jurídica y seleccionar el subtipo Comunidades de edificio y completar la información requerida de la declaración jurada y adjuntar Certificado de inscripción en el registro pertinente, Acta de nombramiento del administrador, copia de cédula de identidad del representante.
+
+---
+
+### 12. ¿Un Empresario individual puede transformarse en una Empresa Individual de Responsabilidad Limitada (EIRL) sin cambiar su RUT?
+
+ID: 001.105.0833.016  
+Fecha de creación: 19/01/2004  
+Fecha de actualización: 05/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_0833.htm
+
+#### Respuesta
+
+No, pues la persona natural al realizar tal cambio se convierte en una persona jurídica a la que se le asigna un RUT distinto al de la cédula de identidad.
+
+---
+
+### 13. ¿Dónde solicitar el Rol Único Tributario (RUT) para las empresas constituidas en el Registro de empresas y sociedades (RES)?
+
+ID: 001.105.6358.006  
+Fecha de creación: 03/05/2013  
+Fecha de actualización: 05/11/2025  
+URL: https://www.sii.cl/preguntas_frecuentes/rut_inicio_actividades/001_105_6358.htm
+
+#### Respuesta
+
+El RUT se solicita en el sitio web del Registro de Empresas y Sociedades del Ministerio de Economía, Fomento y Turismo.
+
+---
+

@@ -1,4 +1,4 @@
-"""Agent context for Fizko platform."""
+"""Agent context for Fizko platform - Simplified for Backend V2."""
 
 from __future__ import annotations
 
@@ -16,12 +16,10 @@ class FizkoContext(AgentContext[dict[str, Any]]):
     Attributes:
         thread: The current ChatKit thread metadata (inherited)
         store: The conversation store (inherited)
-        request_context: Request-specific data - user_id, user, etc. (inherited)
+        request_context: Request-specific data - user_id, company_id, etc. (inherited)
         current_agent_type: The currently active agent
-        thread_item_converter: Converter for attachments
         company_info: Preloaded company information (RUT, name, tax info, etc.)
     """
 
     current_agent_type: str = "sii_general"
-    thread_item_converter: Any | None = None
     company_info: dict[str, Any] | None = None

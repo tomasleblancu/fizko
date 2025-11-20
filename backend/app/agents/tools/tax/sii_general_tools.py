@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from uuid import UUID
 
 from agents import RunContextWrapper, function_tool
-from sqlalchemy import select
 
-from app.config.database import AsyncSessionLocal
 from app.agents.core import FizkoContext
+from app.agents.tools.utils import get_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -25,54 +23,47 @@ async def get_company_info(
     Returns:
         Complete company information including basic data and tax info
     """
-    from app.db.models import Company, CompanyTaxInfo
-
     # Get company_id from context
     company_id = ctx.context.request_context.get("company_id")
     if not company_id:
         return {"error": "company_id no disponible en el contexto"}
 
     try:
-        async with AsyncSessionLocal() as db:
-            # Get company basic info
-            stmt = select(Company).where(Company.id == UUID(company_id))
-            result = await db.execute(stmt)
-            company = result.scalar_one_or_none()
+        supabase = get_supabase()
 
-            if not company:
-                return {"error": "Empresa no encontrada"}
+        # Get company info (includes tax info via join)
+        company = await supabase.companies.get_by_id(company_id)
 
-            # Get tax info
-            tax_stmt = select(CompanyTaxInfo).where(CompanyTaxInfo.company_id == UUID(company_id))
-            tax_result = await db.execute(tax_stmt)
-            tax_info = tax_result.scalar_one_or_none()
+        if not company:
+            return {"error": "Empresa no encontrada"}
 
-            # Build complete company info
-            company_data = {
-                "id": str(company.id),
-                "rut": company.rut,
-                "business_name": company.business_name,
-                "trade_name": company.trade_name,
-                "address": company.address,
-                "phone": company.phone,
-                "email": company.email,
-                "created_at": company.created_at.isoformat() if company.created_at else None,
-                "updated_at": company.updated_at.isoformat() if company.updated_at else None,
+        # Build complete company info
+        company_data = {
+            "id": company.get("id"),
+            "rut": company.get("rut"),
+            "business_name": company.get("business_name"),
+            "trade_name": company.get("trade_name"),
+            "address": company.get("address"),
+            "phone": company.get("phone"),
+            "email": company.get("email"),
+            "created_at": company.get("created_at"),
+            "updated_at": company.get("updated_at"),
+        }
+
+        # Add tax info if available (from company_tax_info relation)
+        tax_info = company.get("company_tax_info")
+        if tax_info:
+            company_data["tax_info"] = {
+                "tax_regime": tax_info.get("tax_regime"),
+                "sii_activity_code": tax_info.get("sii_activity_code"),
+                "sii_activity_name": tax_info.get("sii_activity_name"),
+                "legal_representative_rut": tax_info.get("legal_representative_rut"),
+                "legal_representative_name": tax_info.get("legal_representative_name"),
+                "start_of_activities_date": tax_info.get("start_of_activities_date"),
+                "accounting_start_month": tax_info.get("accounting_start_month"),
             }
 
-            # Add tax info if available
-            if tax_info:
-                company_data["tax_info"] = {
-                    "tax_regime": tax_info.tax_regime,
-                    "sii_activity_code": tax_info.sii_activity_code,
-                    "sii_activity_name": tax_info.sii_activity_name,
-                    "legal_representative_rut": tax_info.legal_representative_rut,
-                    "legal_representative_name": tax_info.legal_representative_name,
-                    "start_of_activities_date": tax_info.start_of_activities_date.isoformat() if tax_info.start_of_activities_date else None,
-                    "accounting_start_month": tax_info.accounting_start_month,
-                }
-
-            return {"company": company_data}
+        return {"company": company_data}
     except Exception as e:
         logger.error(f"Error getting company info: {e}")
         return {"error": str(e)}

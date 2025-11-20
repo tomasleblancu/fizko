@@ -1,17 +1,16 @@
 """
-Celery tasks for SII form processing.
+Celery tasks for SII form synchronization (Backend V2).
 
-These tasks handle the processing and synchronization of tax forms (F29, F22, etc.)
-from the SII website to the local database.
+These tasks handle the synchronization of F29 forms from the SII website
+to the Supabase database.
 
-IMPORTANT: Keep tasks simple - delegate to services for business logic.
+IMPORTANT: Tasks are kept simple and delegate all business logic to SIIService.
 """
 import logging
 from typing import Dict, Any
 from datetime import datetime
 
 from app.infrastructure.celery import celery_app
-from app.integrations.sii.exceptions import SIIUnavailableException
 
 logger = logging.getLogger(__name__)
 
@@ -24,829 +23,566 @@ logger = logging.getLogger(__name__)
 )
 def sync_f29(
     self,
-    session_id: str = None,
-    year: int = None,
-    company_id: str = None,
+    company_id: str,
+    year: str = None,
 ) -> Dict[str, Any]:
     """
     Celery task wrapper for F29 form synchronization.
 
-    Syncs F29 forms from SII for a specific year. If year is not provided,
-    uses the current year.
+    Delegates to SIIService for business logic.
 
     Args:
-        session_id: Optional UUID of the SII session (str format).
-                    If not provided, will be found using company_id.
-        year: Year to sync (e.g., 2024). If not provided, uses current year.
-        company_id: Optional UUID of the company (str format).
-                    If provided, will find the most recent active session for this company.
+        company_id: UUID of the company (str format)
+        year: Year to sync (YYYY format). Defaults to current year.
 
     Returns:
-        Dict with sync results:
-        {
-            "success": bool,
-            "forms_synced": int,
-            "year": int,
-            "company_id": str,
-            "session_id": str,
-            "message": str
-        }
+        Dict with sync results from service layer
     """
     try:
-        # Import dependencies
         import asyncio
-        from uuid import UUID
-        from app.dependencies import get_background_db
-        from app.services.sii import SIIService
-        from app.db.models.session import Session
-        from sqlalchemy import select
+        from app.config.supabase import get_supabase_client
+        from app.services.sii_service import SIIService
 
-        # Default year to current year if not provided
-        if not year:
-            year = datetime.now().year
-            logger.info(f"📅 [CELERY TASK] No year provided, using current year: {year}")
+        if year is None:
+            year = str(datetime.now().year)
 
         logger.info(
-            f"🚀 [CELERY TASK] F29 sync started: year={year}, "
-            f"session_id={session_id}, company_id={company_id}"
+            f"🚀 [CELERY TASK] F29 sync started: "
+            f"company_id={company_id}, year={year}"
         )
 
-        # Delegate to service layer - USE SINGLE DB SESSION for entire task
-        async def _sync():
-            nonlocal company_id, session_id
+        # Get Supabase client and service
+        supabase = get_supabase_client()
+        service = SIIService(supabase)
 
-            async with get_background_db() as db:
-                # If company_id is provided but not session_id, find the most recent active session
-                if company_id and not session_id:
-                    logger.info(
-                        f"🔍 [CELERY TASK] Finding most recent active session for company {company_id}"
-                    )
-                    result = await db.execute(
-                        select(Session.id)
-                        .where(Session.company_id == UUID(company_id))
-                        .where(Session.is_active == True)
-                        .order_by(Session.last_accessed_at.desc())
-                        .limit(1)
-                    )
-                    session_row = result.first()
-                    if session_row:
-                        session_id = str(session_row[0])
-                        logger.info(f"✅ [CELERY TASK] Found session {session_id} for company {company_id}")
-                    else:
-                        error_msg = f"No active session found for company {company_id}"
-                        logger.error(f"❌ [CELERY TASK] {error_msg}")
-                        return {
-                            "success": False,
-                            "error": error_msg,
-                            "company_id": company_id,
-                            "session_id": None,
-                            "year": year
-                        }
-
-                # Ensure we have a session_id at this point
-                if not session_id:
-                    error_msg = "Either session_id or company_id must be provided"
-                    logger.error(f"❌ [CELERY TASK] {error_msg}")
-                    return {
-                        "success": False,
-                        "error": error_msg,
-                        "company_id": company_id,
-                        "session_id": None,
-                        "year": year
-                    }
-
-                # Initialize service with the same DB session
-                service = SIIService(db)
-
-                # Extract F29 forms from SII with incremental saving
-                # El servicio ahora guarda cada formulario inmediatamente después de extraer su id_interno_sii
-                formularios = await service.extract_f29_lista(
-                    session_id=session_id,
-                    anio=str(year),
-                    company_id=company_id  # Necesario para guardado incremental
-                )
-
-                # Los formularios ya fueron guardados incrementalmente durante la extracción
-                # Solo retornar el resultado
-
-                if not formularios:
-                    logger.info(f"ℹ️ [CELERY TASK] No F29 forms found for year {year}")
-                    return {
-                        "success": True,
-                        "forms_synced": 0,
-                        "company_id": company_id,
-                        "message": f"No se encontraron formularios F29 para el año {year}"
-                    }
-
-                logger.info(
-                    f"✅ [CELERY TASK] F29 extraction completed: {len(formularios)} formularios "
-                    f"(guardados incrementalmente)"
-                )
-
-                return {
-                    "success": True,
-                    "forms_synced": len(formularios),
-                    "company_id": company_id,
-                    "message": f"{len(formularios)} formularios F29 sincronizados incrementalmente"
-                }
-
-        # Run async function in sync context
-        result = asyncio.run(_sync())
-
-        # Handle error results from _sync
-        if not result.get("success"):
-            return result
+        # Run async service method synchronously
+        result = asyncio.run(
+            service.sync_f29(
+                company_id=company_id,
+                year=year
+            )
+        )
 
         logger.info(
-            f"✅ [CELERY TASK] F29 sync completed: {result['forms_synced']} forms synced"
+            f"✅ [CELERY TASK] F29 sync completed: "
+            f"{result.get('total', 0)} forms synced"
         )
 
+        # After successful sync, trigger PDF download for all pending forms
+        if result.get('success') and result.get('total', 0) > 0:
+            logger.info(
+                f"📥 [CELERY TASK] Triggering PDF download for company {company_id}"
+            )
+
+            # Call download_f29_pdf in batch mode (folio=None, id_interno_sii=None)
+            # This will download all F29 PDFs that don't have extracted data yet
+            download_f29_pdf.delay(company_id=company_id)
+
+            logger.info(
+                f"✅ [CELERY TASK] PDF download task queued for company {company_id}"
+            )
+
+        return result
+
+    except ValueError as e:
+        # Validation errors (company not found, no credentials, etc.)
+        error_msg = str(e)
+        logger.error(f"❌ [CELERY TASK] Validation error: {error_msg}")
         return {
-            "success": True,
-            "forms_synced": result["forms_synced"],
+            "success": False,
+            "error": error_msg,
+            "company_id": company_id,
             "year": year,
-            "company_id": result["company_id"],
-            "session_id": session_id,
-            "message": result["message"]
         }
 
-    except SIIUnavailableException as e:
-        logger.warning(f"⚠️ [CELERY TASK] SII unavailable, will retry: {e}")
-        raise self.retry(exc=e)
-
     except Exception as e:
-        logger.error(f"❌ [CELERY TASK] F29 sync failed: {e}", exc_info=True)
+        logger.error(
+            f"❌ [CELERY TASK] F29 sync failed for company {company_id}: {e}",
+            exc_info=True
+        )
+
+        # Retry on unexpected errors
+        if self.request.retries < self.max_retries:
+            logger.info(f"🔄 Retrying... (attempt {self.request.retries + 1}/{self.max_retries})")
+            raise self.retry(exc=e)
+
         return {
             "success": False,
             "error": str(e),
             "company_id": company_id,
-            "session_id": session_id,
-            "year": year
+            "year": year,
         }
 
 
 @celery_app.task(
     bind=True,
     name="sii.sync_f29_all_companies",
-    max_retries=3,
-    default_retry_delay=300,  # 5 minutes
+    max_retries=1
 )
 def sync_f29_all_companies(
     self,
-    year: int = None,
+    year: str = None,
 ) -> Dict[str, Any]:
     """
-    Celery task to sync F29 forms for all companies using their most recent active session.
+    Sync F29 forms for ALL companies with active subscriptions.
 
-    This task queries all companies and for each one finds the most recently accessed
-    active session, then triggers sync_f29 for that session.
-    Useful for batch synchronization across all companies.
+    Delegates to SIIService for business logic.
 
     Args:
-        year: Year to sync for each company. If not provided, uses current year.
+        year: Year to sync (YYYY format). Defaults to current year.
 
     Returns:
-        Dict with summary results:
-        {
-            "success": bool,
-            "year": int,
-            "total_companies": int,
-            "synced": int,
-            "failed": int,
-            "skipped": int,
-            "results": [...]
-        }
+        Dict with batch sync summary from service layer
     """
+    if year is None:
+        year = str(datetime.now().year)
+
+    logger.info(f"🚀 [CELERY TASK] Batch F29 sync started for all companies (year={year})")
+
     try:
-        # Default year to current year if not provided
-        if not year:
-            year = datetime.now().year
-            logger.info(f"📅 [CELERY TASK] No year provided, using current year: {year}")
+        import asyncio
+        from app.config.supabase import get_supabase_client
+        from app.services.sii_service import SIIService
 
-        logger.info(
-            f"🚀 [CELERY TASK] Starting batch F29 sync for all companies: year={year}"
+        # Get Supabase client and service
+        supabase = get_supabase_client()
+        service = SIIService(supabase)
+
+        # Run async service method synchronously
+        result = asyncio.run(
+            service.sync_f29_all_companies(year=year)
         )
-
-        # Get companies with active subscriptions using async helper
-        import asyncio as async_lib
-        from app.config.database import AsyncSessionLocal
-        from app.infrastructure.celery.subscription_helper import get_subscribed_companies
-        from app.db.models.session import Session
-        from sqlalchemy import select
-
-        # Get subscribed companies
-        async def _get_companies_and_sessions():
-            async with AsyncSessionLocal() as db:
-                # Get only companies with active subscriptions
-                companies = await get_subscribed_companies(db, only_active=True)
-
-                if not companies:
-                    return []
-
-                logger.info(f"📋 [CELERY TASK] Found {len(companies)} companies with active subscriptions")
-
-                # For each company, get the most recent active session
-                company_sessions = []
-                for company_id_uuid, company_name in companies:
-                    session_result = await db.execute(
-                        select(Session.id)
-                        .where(Session.company_id == company_id_uuid)
-                        .where(Session.is_active == True)
-                        .order_by(Session.last_accessed_at.desc())
-                        .limit(1)
-                    )
-                    session_row = session_result.first()
-
-                    if session_row:
-                        company_sessions.append({
-                            "company_id": str(company_id_uuid),
-                            "company_name": company_name,
-                            "session_id": str(session_row[0])
-                        })
-                    else:
-                        logger.warning(f"⚠️ [CELERY TASK] No active session found for company {company_name} ({company_id_uuid})")
-
-                return company_sessions
-
-        company_sessions = async_lib.run(_get_companies_and_sessions())
-
-        if not company_sessions:
-            logger.warning("⚠️ [CELERY TASK] No subscribed companies with active sessions found")
-            return {
-                "success": True,
-                "year": year,
-                "total_companies": 0,
-                "synced": 0,
-                "failed": 0,
-                "skipped": 0,
-                "message": "No subscribed companies with active sessions to sync"
-            }
-
-        logger.info(f"📋 [CELERY TASK] Found {len(company_sessions)} subscribed companies with active sessions")
-
-        # Trigger sync_f29 for each company's session
-        results = []
-        synced = 0
-        failed = 0
-        skipped = 0  # All non-subscribed companies are already filtered out
-
-        for company_session in company_sessions:
-            company_id = company_session["company_id"]
-            company_name = company_session["company_name"]
-            session_id = company_session["session_id"]
-
-            try:
-                logger.info(f"🔄 [CELERY TASK] Syncing F29 for company {company_name} ({company_id}) using session {session_id}")
-
-                # Call sync_f29 task directly (synchronous call within this task)
-                result = sync_f29(
-                    session_id=session_id,
-                    year=year,
-                    company_id=company_id
-                )
-
-                if result.get("success"):
-                    synced += 1
-                    logger.info(f"✅ [CELERY TASK] Company {company_name} F29 synced successfully: {result.get('forms_synced')} forms")
-                else:
-                    failed += 1
-                    logger.error(f"❌ [CELERY TASK] Company {company_name} F29 sync failed: {result.get('error')}")
-
-                results.append({
-                    "company_id": company_id,
-                    "company_name": company_name,
-                    "session_id": session_id,
-                    "success": result.get("success"),
-                    "forms_synced": result.get("forms_synced", 0),
-                    "error": result.get("error")
-                })
-
-            except Exception as e:
-                failed += 1
-                logger.error(f"❌ [CELERY TASK] Exception syncing F29 for company {company_name}: {e}", exc_info=True)
-                results.append({
-                    "company_id": company_id,
-                    "company_name": company_name,
-                    "session_id": session_id,
-                    "success": False,
-                    "forms_synced": 0,
-                    "error": str(e)
-                })
 
         logger.info(
             f"✅ [CELERY TASK] Batch F29 sync completed: "
-            f"total_companies={len(company_sessions)}, synced={synced}, failed={failed}, skipped={skipped}"
+            f"total={result['total_companies']}, synced={result['synced']}, "
+            f"failed={result['failed']}"
         )
 
-        return {
-            "success": True,
-            "year": year,
-            "total_companies": len(company_sessions),
-            "synced": synced,
-            "failed": failed,
-            "skipped": skipped,
-            "results": results
-        }
+        return result
 
     except Exception as e:
-        logger.error(f"❌ [CELERY TASK] Batch F29 sync failed: {e}", exc_info=True)
+        logger.error(
+            f"❌ [CELERY TASK] Batch F29 sync failed: {e}",
+            exc_info=True
+        )
         return {
             "success": False,
             "error": str(e),
-            "year": year,
-            "total_companies": 0,
-            "synced": 0,
-            "failed": 0,
-            "skipped": 0
+            "year": year
         }
 
 
 @celery_app.task(
     bind=True,
-    name="sii.save_single_f29",
-    max_retries=3,
-    default_retry_delay=5,
+    name="sii.download_f29_pdf",
+    max_retries=2,
+    default_retry_delay=30,
 )
-def save_single_f29(
+def download_f29_pdf(
     self,
     company_id: str,
-    formulario: dict,
-    session_id: str = None
+    folio: str = None,
+    id_interno_sii: str = None
 ) -> Dict[str, Any]:
     """
-    Celery task to save a single F29 form to the database.
+    Celery task to download and extract data from F29 PDFs.
 
-    This task is triggered for each form extracted during sync,
-    allowing incremental saving without complex queue management.
+    Can work in two modes:
+    1. Single PDF download: When folio and id_interno_sii are provided
+    2. Batch download: When folio=None and id_interno_sii=None (downloads all pending PDFs)
+
+    This task:
+    1. Downloads the PDF(s) from SII using the formCompacto endpoint
+    2. Validates PDF content
+    3. Extracts all F29 codes and data from the PDF
+    4. Updates form29_sii_downloads with extracted data
+    5. (TODO) Uploads PDF to Supabase Storage
 
     Args:
         company_id: UUID of the company (str format)
-        formulario: F29 form data dict with keys:
-                   - folio: str
-                   - period: str (YYYY-MM)
-                   - contributor: str
-                   - submission_date: str
-                   - status: str
-                   - amount: int
-                   - id_interno_sii: str (optional)
-        session_id: Optional UUID of the SII session for PDF download trigger
+        folio: Folio of the F29 form (None for batch mode)
+        id_interno_sii: Internal SII ID (codInt) for PDF download (None for batch mode)
 
     Returns:
-        Dict with save result:
-        {
-            "success": bool,
-            "folio": str,
-            "download_id": str (if saved),
-            "pdf_queued": bool (if PDF download was queued),
-            "error": str (if failed)
-        }
+        Dict with download result:
+        - Single mode: {success, company_id, folio, storage_url, extracted_data, pdf_size_mb, error}
+        - Batch mode: {success, company_id, total, downloaded, failed, results: [...]}
     """
     try:
         import asyncio
-        from app.config.database import AsyncSessionLocal
-        from app.services.sii import SIIService
+        from app.config.supabase import get_supabase_client
+        from app.services.sii_service import SIIService
 
-        logger.info(
-            f"💾 [CELERY TASK] Saving F29 form: "
-            f"folio={formulario.get('folio')}, period={formulario.get('period')}"
-        )
+        # Get Supabase client and service
+        supabase = get_supabase_client()
+        service = SIIService(supabase)
 
-        # Delegate to service layer
-        async def _save_form():
-            async with AsyncSessionLocal() as db:
-                service = SIIService(db)
-                saved = await service.save_f29_downloads(
-                    company_id=company_id,
-                    formularios=[formulario]
-                )
-                return saved
+        # BATCH MODE: Download all pending PDFs for company
+        if folio is None and id_interno_sii is None:
+            logger.info(
+                f"📥 [CELERY TASK] F29 PDF batch download started: company_id={company_id}"
+            )
 
-        # Run async function
-        saved = asyncio.run(_save_form())
+            # Get all F29 forms with id_interno_sii but without PDF data
+            forms_response = (
+                supabase._client
+                .table('form29_sii_downloads')
+                .select('*')
+                .eq('company_id', company_id)
+                .not_.is_('sii_id_interno', 'null')
+                .order('period_year', desc=True)
+                .order('period_month', desc=True)
+                .execute()
+            )
 
-        if not saved:
-            logger.error(f"❌ [CELERY TASK] Failed to save F29: no records returned")
+            if not forms_response.data:
+                logger.warning(f"⚠️ No F29 forms found with id_interno_sii for company {company_id}")
+                return {
+                    "success": True,
+                    "company_id": company_id,
+                    "total": 0,
+                    "downloaded": 0,
+                    "failed": 0,
+                    "results": []
+                }
+
+            # Filter forms without PDF data
+            forms_to_download = [
+                f for f in forms_response.data
+                if not f.get('extra_data', {}).get('f29_data')
+            ]
+
+            total_forms = len(forms_to_download)
+            logger.info(f"📋 Found {total_forms} F29 forms ready for PDF download")
+
+            if total_forms == 0:
+                logger.info("✅ All F29 forms already have PDF data")
+                return {
+                    "success": True,
+                    "company_id": company_id,
+                    "total": 0,
+                    "downloaded": 0,
+                    "failed": 0,
+                    "results": []
+                }
+
+            # Download each PDF
+            downloaded = 0
+            failed = 0
+            results = []
+
+            for i, form in enumerate(forms_to_download, 1):
+                form_folio = form['sii_folio']
+                form_id_interno = form['sii_id_interno']
+                period = form.get('period_display', 'N/A')
+
+                logger.info(f"📥 [{i}/{total_forms}] Downloading PDF: folio={form_folio}, period={period}")
+
+                try:
+                    # Download single PDF
+                    result = asyncio.run(
+                        service.download_f29_pdf(
+                            company_id=company_id,
+                            folio=form_folio,
+                            id_interno_sii=form_id_interno
+                        )
+                    )
+
+                    if result.get("success"):
+                        downloaded += 1
+                        logger.info(f"✅ [{i}/{total_forms}] Downloaded: folio={form_folio}")
+                    else:
+                        failed += 1
+                        logger.error(f"❌ [{i}/{total_forms}] Failed: folio={form_folio}, error={result.get('error')}")
+
+                    results.append({
+                        "folio": form_folio,
+                        "period": period,
+                        "success": result.get("success"),
+                        "error": result.get("error")
+                    })
+
+                except Exception as e:
+                    failed += 1
+                    error_msg = str(e)
+                    logger.error(f"❌ [{i}/{total_forms}] Exception: folio={form_folio}, error={error_msg}")
+                    results.append({
+                        "folio": form_folio,
+                        "period": period,
+                        "success": False,
+                        "error": error_msg
+                    })
+
+            logger.info(
+                f"✅ [CELERY TASK] F29 PDF batch download completed: "
+                f"total={total_forms}, downloaded={downloaded}, failed={failed}"
+            )
+
             return {
-                "success": False,
-                "folio": formulario.get('folio'),
-                "error": "No records saved"
+                "success": True,
+                "company_id": company_id,
+                "total": total_forms,
+                "downloaded": downloaded,
+                "failed": failed,
+                "results": results
             }
 
-        download_record = saved[0]
-        download_id = str(download_record.id)
+        # SINGLE MODE: Download one specific PDF
+        else:
+            if not folio or not id_interno_sii:
+                raise ValueError("Both folio and id_interno_sii are required for single PDF download")
 
-        logger.info(f"✅ [CELERY TASK] F29 saved: folio={formulario.get('folio')}, id={download_id}")
+            logger.info(
+                f"📥 [CELERY TASK] F29 PDF download started: "
+                f"company_id={company_id}, folio={folio}, id_interno_sii={id_interno_sii}"
+            )
 
-        # If has id_interno_sii and session_id, queue PDF download
-        pdf_queued = False
-        if formulario.get('id_interno_sii') and session_id:
-            try:
-                download_single_f29_pdf.apply_async(
-                    args=[download_id, session_id],
-                    countdown=2  # Wait 2s to avoid SII overload
+            # Run async service method synchronously
+            result = asyncio.run(
+                service.download_f29_pdf(
+                    company_id=company_id,
+                    folio=folio,
+                    id_interno_sii=id_interno_sii
                 )
-                pdf_queued = True
-                logger.info(f"📥 [CELERY TASK] PDF download queued for folio {formulario.get('folio')}")
-            except Exception as pdf_error:
-                logger.warning(f"⚠️ [CELERY TASK] Failed to queue PDF download: {pdf_error}")
+            )
 
+            # Log result
+            if result.get("success"):
+                logger.info(
+                    f"✅ [CELERY TASK] F29 PDF downloaded successfully: "
+                    f"folio={folio}, size={result.get('pdf_size_mb', 0):.2f}MB, "
+                    f"extracted_codes={len(result.get('extracted_data', {}).get('codes', {}))}"
+                )
+            else:
+                logger.error(
+                    f"❌ [CELERY TASK] F29 PDF download failed: "
+                    f"folio={folio}, error={result.get('error')}"
+                )
+
+            return {
+                "success": result.get("success", False),
+                "company_id": company_id,
+                "folio": folio,
+                "storage_url": result.get("storage_url"),
+                "extracted_data": result.get("extracted_data"),
+                "pdf_size_mb": result.get("pdf_size_mb"),
+                "error": result.get("error")
+            }
+
+    except ValueError as e:
+        # Validation errors (company not found, no credentials, missing codInt, etc.)
+        error_msg = str(e)
+        logger.error(f"❌ [CELERY TASK] Validation error: {error_msg}")
         return {
-            "success": True,
-            "folio": formulario.get('folio'),
-            "download_id": download_id,
-            "pdf_queued": pdf_queued
+            "success": False,
+            "company_id": company_id,
+            "folio": folio,
+            "error": error_msg
         }
 
     except Exception as e:
         logger.error(
-            f"❌ [CELERY TASK] Failed to save F29 {formulario.get('folio')}: {e}",
+            f"❌ [CELERY TASK] F29 PDF download failed: {e}",
             exc_info=True
         )
-        # Retry on database errors
-        if "database" in str(e).lower() or "connection" in str(e).lower():
+
+        # Retry on unexpected errors
+        if self.request.retries < self.max_retries:
+            logger.info(f"🔄 Retrying... (attempt {self.request.retries + 1}/{self.max_retries})")
             raise self.retry(exc=e)
 
         return {
             "success": False,
-            "folio": formulario.get('folio'),
+            "company_id": company_id,
+            "folio": folio,
             "error": str(e)
         }
 
 
 @celery_app.task(
     bind=True,
-    name="sii.download_single_f29_pdf",
-    max_retries=2,
-    default_retry_delay=30,
+    name="sii.download_all_pending_f29_pdfs",
+    max_retries=1,
 )
-def download_single_f29_pdf(
+def download_all_pending_f29_pdfs(
     self,
-    download_id: str,
-    session_id: str
+    max_per_company: int = None
 ) -> Dict[str, Any]:
     """
-    Celery task para descargar el PDF de un solo formulario F29.
+    Celery task to download ALL pending F29 PDFs across ALL companies.
 
-    Esta tarea se dispara automáticamente después de guardar cada F29
-    con id_interno_sii durante la sincronización incremental.
+    This is a batch task that:
+    1. Finds all companies with F29 forms that have id_interno_sii but no PDF data
+    2. For each company, triggers download_f29_pdf in batch mode
+    3. Returns statistics about the batch operation
 
-    Args:
-        download_id: UUID del registro Form29SIIDownload (str format)
-        session_id: UUID de la sesión SII para autenticación (str format)
-
-    Returns:
-        Dict con resultado de descarga:
-        {
-            "success": bool,
-            "download_id": str,
-            "folio": str,
-            "url": str (si éxito),
-            "error": str (si falla)
-        }
-    """
-    try:
-        import asyncio
-        from app.dependencies import get_background_db
-        from app.services.sii import SIIService
-
-        logger.info(
-            f"📥 [CELERY TASK] Single F29 PDF download started: "
-            f"download_id={download_id}, session_id={session_id}"
-        )
-
-        # Delegate to service layer
-        async def _download_single_pdf():
-            async with get_background_db() as db:
-                service = SIIService(db)
-                result = await service.download_and_save_f29_pdf(
-                    download_id=download_id,
-                    session_id=session_id
-                )
-                return result
-
-        # Run async function in sync context
-        result = asyncio.run(_download_single_pdf())
-
-        # Log result
-        if result.get("success"):
-            logger.info(
-                f"✅ [CELERY TASK] PDF downloaded successfully: "
-                f"download_id={download_id}, url={result.get('url')}"
-            )
-        else:
-            logger.error(
-                f"❌ [CELERY TASK] PDF download failed: "
-                f"download_id={download_id}, error={result.get('error')}"
-            )
-
-        return {
-            "success": result.get("success", False),
-            "download_id": download_id,
-            "url": result.get("url"),
-            "error": result.get("error")
-        }
-
-    except SIIUnavailableException as e:
-        logger.warning(f"⚠️ [CELERY TASK] SII unavailable, will retry: {e}")
-        raise self.retry(exc=e)
-
-    except Exception as e:
-        logger.error(f"❌ [CELERY TASK] Single PDF download failed: {e}", exc_info=True)
-        return {
-            "success": False,
-            "download_id": download_id,
-            "error": str(e)
-        }
-
-
-@celery_app.task(
-    bind=True,
-    name="sii.sync_f29_pdfs_missing",
-    max_retries=3,
-    default_retry_delay=60,
-)
-def sync_f29_pdfs_missing(
-    self,
-    session_id: str = None,
-    company_id: str = None,
-    max_per_company: int = 10,
-) -> Dict[str, Any]:
-    """
-    Celery task to download missing F29 PDFs for a specific company.
-
-    Downloads PDFs for all F29 forms that have:
-    - sii_folio (registered folio)
-    - sii_id_interno (internal code required for download)
-    - NO PDF downloaded yet (pdf_download_status != 'downloaded')
+    Useful for:
+    - Scheduled batch processing (e.g., nightly job)
+    - Backfilling missing PDFs
+    - Recovery after system issues
 
     Args:
-        session_id: Optional UUID of the SII session (str format).
-                    If not provided, will be found using company_id.
-        company_id: Optional UUID of the company (str format).
-                    If provided, will find the most recent active session for this company.
-        max_per_company: Maximum number of PDFs to download per company (default: 10)
+        max_per_company: Optional limit of PDFs to download per company
 
     Returns:
-        Dict with download results:
+        Dict with batch results:
         {
             "success": bool,
-            "company_id": str,
-            "session_id": str,
-            "total_pending": int,
+            "total_companies": int,
+            "processed_companies": int,
+            "total_forms": int,
             "downloaded": int,
             "failed": int,
-            "errors": [...]
+            "companies": [...]  # List of company results
         }
     """
     try:
-        # Import dependencies
-        import asyncio
-        from app.dependencies import get_background_db
-        from app.services.sii import SIIService
+        from app.config.supabase import get_supabase_client
 
-        logger.info(
-            f"🚀 [CELERY TASK] F29 PDF download started: "
-            f"session_id={session_id}, company_id={company_id}, max={max_per_company}"
+        logger.info("🚀 [CELERY TASK] Batch F29 PDF download started for ALL companies")
+
+        # Get Supabase client
+        supabase = get_supabase_client()
+
+        # Find all F29 forms with id_interno_sii but without PDF data
+        # Group by company_id to process per company
+        forms_response = (
+            supabase._client
+            .table('form29_sii_downloads')
+            .select('company_id, sii_folio, sii_id_interno, period_display, extra_data')
+            .not_.is_('sii_id_interno', 'null')
+            .order('company_id')
+            .order('period_year', desc=True)
+            .order('period_month', desc=True)
+            .execute()
         )
 
-        # Delegate ALL logic to service layer
-        async def _download_pdfs():
-            async with get_background_db() as db:
-                service = SIIService(db)
-                return await service.download_f29_pdfs_for_session(
-                    session_id=session_id,
-                    company_id=company_id,
-                    max_per_company=max_per_company
-                )
-
-        # Run async function in sync context
-        result = asyncio.run(_download_pdfs())
-
-        # Log result
-        if result.get("success"):
-            logger.info(
-                f"✅ [CELERY TASK] F29 PDF download completed: "
-                f"downloaded={result['downloaded']}, failed={result['failed']}"
-            )
-        else:
-            logger.error(
-                f"❌ [CELERY TASK] F29 PDF download failed: {result.get('error')}"
-            )
-
-        return result
-
-    except SIIUnavailableException as e:
-        logger.warning(f"⚠️ [CELERY TASK] SII unavailable, will retry: {e}")
-        raise self.retry(exc=e)
-
-    except Exception as e:
-        logger.error(f"❌ [CELERY TASK] F29 PDF download failed: {e}", exc_info=True)
-        return {
-            "success": False,
-            "error": str(e),
-            "company_id": company_id,
-            "session_id": session_id,
-            "total_pending": 0,
-            "downloaded": 0,
-            "failed": 0,
-            "errors": []
-        }
-
-
-@celery_app.task(
-    bind=True,
-    name="sii.sync_f29_pdfs_missing_all_companies",
-    max_retries=3,
-    default_retry_delay=300,  # 5 minutes
-)
-def sync_f29_pdfs_missing_all_companies(
-    self,
-    max_per_company: int = 10,
-) -> Dict[str, Any]:
-    """
-    Celery task to download missing F29 PDFs for all companies.
-
-    For each company, downloads PDFs for F29 forms that have:
-    - sii_folio (registered folio)
-    - sii_id_interno (internal code required for download)
-    - NO PDF downloaded yet (pdf_download_status != 'downloaded')
-
-    Args:
-        max_per_company: Maximum number of PDFs to download per company (default: 10)
-
-    Returns:
-        Dict with summary results:
-        {
-            "success": bool,
-            "max_per_company": int,
-            "total_companies": int,
-            "processed": int,
-            "skipped": int,
-            "total_pdfs_downloaded": int,
-            "total_pdfs_failed": int,
-            "results": [...]
-        }
-    """
-    try:
-        logger.info(
-            f"🚀 [CELERY TASK] Starting batch F29 PDF download for all companies: max_per_company={max_per_company}"
-        )
-
-        # Get companies with active subscriptions using async helper
-        import asyncio as async_lib
-        from app.config.database import AsyncSessionLocal
-        from app.infrastructure.celery.subscription_helper import get_subscribed_companies
-        from app.db.models.session import Session
-        from sqlalchemy import select
-
-        # Get subscribed companies
-        async def _get_companies_and_sessions():
-            async with AsyncSessionLocal() as db:
-                # Get only companies with active subscriptions
-                companies = await get_subscribed_companies(db, only_active=True)
-
-                if not companies:
-                    return []
-
-                logger.info(f"📋 [CELERY TASK] Found {len(companies)} companies with active subscriptions")
-
-                # For each company, get the most recent active session
-                company_sessions = []
-                for company_id_uuid, company_name in companies:
-                    session_result = await db.execute(
-                        select(Session.id)
-                        .where(Session.company_id == company_id_uuid)
-                        .where(Session.is_active == True)
-                        .order_by(Session.last_accessed_at.desc())
-                        .limit(1)
-                    )
-                    session_row = session_result.first()
-
-                    if session_row:
-                        company_sessions.append({
-                            "company_id": str(company_id_uuid),
-                            "company_name": company_name,
-                            "session_id": str(session_row[0])
-                        })
-                    else:
-                        logger.warning(f"⚠️ [CELERY TASK] No active session found for company {company_name} ({company_id_uuid})")
-
-                return company_sessions
-
-        company_sessions = async_lib.run(_get_companies_and_sessions())
-
-        if not company_sessions:
-            logger.warning("⚠️ [CELERY TASK] No subscribed companies with active sessions found")
+        if not forms_response.data:
+            logger.info("✅ No F29 forms found with id_interno_sii")
             return {
                 "success": True,
-                "max_per_company": max_per_company,
                 "total_companies": 0,
-                "processed": 0,
-                "skipped": 0,
-                "total_pdfs_downloaded": 0,
-                "total_pdfs_failed": 0,
-                "message": "No subscribed companies with active sessions to process"
+                "processed_companies": 0,
+                "total_forms": 0,
+                "downloaded": 0,
+                "failed": 0,
+                "companies": []
             }
 
-        logger.info(f"📋 [CELERY TASK] Found {len(company_sessions)} subscribed companies with active sessions")
+        # Filter forms without PDF data
+        forms_without_pdf = [
+            f for f in forms_response.data
+            if not f.get('extra_data', {}).get('f29_data')
+        ]
 
-        # Download PDFs for each company's session
-        results = []
-        processed = 0
-        skipped = 0  # All non-subscribed companies are already filtered out
-        total_pdfs_downloaded = 0
-        total_pdfs_failed = 0
+        if not forms_without_pdf:
+            logger.info("✅ All F29 forms already have PDF data")
+            return {
+                "success": True,
+                "total_companies": 0,
+                "processed_companies": 0,
+                "total_forms": 0,
+                "downloaded": 0,
+                "failed": 0,
+                "companies": []
+            }
 
-        for company_session in company_sessions:
-            company_id = company_session["company_id"]
-            company_name = company_session["company_name"]
-            session_id = company_session["session_id"]
+        # Group forms by company_id
+        from collections import defaultdict
+        companies_forms = defaultdict(list)
+        for form in forms_without_pdf:
+            companies_forms[form['company_id']].append(form)
+
+        total_companies = len(companies_forms)
+        total_forms = len(forms_without_pdf)
+
+        logger.info(
+            f"📋 Found {total_forms} F29 forms pending PDF download "
+            f"across {total_companies} companies"
+        )
+
+        # Process each company
+        processed_companies = 0
+        total_downloaded = 0
+        total_failed = 0
+        companies_results = []
+
+        for company_id, forms in companies_forms.items():
+            company_forms_count = len(forms)
+
+            # Apply max_per_company limit if specified
+            if max_per_company and company_forms_count > max_per_company:
+                logger.info(
+                    f"📋 Company {company_id}: Limiting to {max_per_company} PDFs "
+                    f"(total: {company_forms_count})"
+                )
+                # We'll let the download_f29_pdf task handle the limiting
+
+            logger.info(
+                f"📥 [{processed_companies + 1}/{total_companies}] "
+                f"Queuing PDF downloads for company {company_id}: "
+                f"{company_forms_count} forms"
+            )
 
             try:
-                logger.info(
-                    f"🔄 [CELERY TASK] Downloading F29 PDFs for company {company_name} ({company_id}) "
-                    f"using session {session_id}"
-                )
+                # Queue download_f29_pdf task in batch mode for this company
+                # This runs asynchronously - we just queue it
+                download_f29_pdf.delay(company_id=company_id)
 
-                # Call sync_f29_pdfs_missing task directly (synchronous call within this task)
-                result = sync_f29_pdfs_missing(
-                    session_id=session_id,
-                    company_id=company_id,
-                    max_per_company=max_per_company
-                )
+                processed_companies += 1
 
-                if result.get("success"):
-                    processed += 1
-                    downloaded = result.get("downloaded", 0)
-                    failed = result.get("failed", 0)
-                    total_pdfs_downloaded += downloaded
-                    total_pdfs_failed += failed
-
-                    logger.info(
-                        f"✅ [CELERY TASK] Company {company_name}: "
-                        f"downloaded={downloaded}, failed={failed}"
-                    )
-                else:
-                    # Even if task failed, count as processed
-                    processed += 1
-                    logger.error(
-                        f"❌ [CELERY TASK] Company {company_name} PDF download failed: {result.get('error')}"
-                    )
-
-                results.append({
+                companies_results.append({
                     "company_id": company_id,
-                    "company_name": company_name,
-                    "session_id": session_id,
-                    "success": result.get("success"),
-                    "total_pending": result.get("total_pending", 0),
-                    "downloaded": result.get("downloaded", 0),
-                    "failed": result.get("failed", 0),
-                    "error": result.get("error")
+                    "forms_count": company_forms_count,
+                    "status": "queued",
+                    "error": None
                 })
 
-            except Exception as e:
-                processed += 1
-                logger.error(
-                    f"❌ [CELERY TASK] Exception downloading F29 PDFs for company {company_name}: {e}",
-                    exc_info=True
+                logger.info(
+                    f"✅ [{processed_companies}/{total_companies}] "
+                    f"PDF download task queued for company {company_id}"
                 )
-                results.append({
+
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(
+                    f"❌ [{processed_companies + 1}/{total_companies}] "
+                    f"Failed to queue for company {company_id}: {error_msg}"
+                )
+
+                companies_results.append({
                     "company_id": company_id,
-                    "company_name": company_name,
-                    "session_id": session_id,
-                    "success": False,
-                    "total_pending": 0,
-                    "downloaded": 0,
-                    "failed": 0,
-                    "error": str(e)
+                    "forms_count": company_forms_count,
+                    "status": "error",
+                    "error": error_msg
                 })
 
         logger.info(
             f"✅ [CELERY TASK] Batch F29 PDF download completed: "
-            f"total_companies={len(company_sessions)}, processed={processed}, skipped={skipped}, "
-            f"total_pdfs_downloaded={total_pdfs_downloaded}, total_pdfs_failed={total_pdfs_failed}"
+            f"{processed_companies}/{total_companies} companies queued, "
+            f"{total_forms} total forms"
         )
 
         return {
             "success": True,
-            "max_per_company": max_per_company,
-            "total_companies": len(company_sessions),
-            "processed": processed,
-            "skipped": skipped,
-            "total_pdfs_downloaded": total_pdfs_downloaded,
-            "total_pdfs_failed": total_pdfs_failed,
-            "results": results
+            "total_companies": total_companies,
+            "processed_companies": processed_companies,
+            "total_forms": total_forms,
+            "note": "Tasks queued asynchronously - download counts not available yet",
+            "companies": companies_results
         }
 
     except Exception as e:
-        logger.error(f"❌ [CELERY TASK] Batch F29 PDF download failed: {e}", exc_info=True)
+        logger.error(
+            f"❌ [CELERY TASK] Batch F29 PDF download failed: {e}",
+            exc_info=True
+        )
         return {
             "success": False,
             "error": str(e),
-            "max_per_company": max_per_company,
             "total_companies": 0,
-            "processed": 0,
-            "skipped": 0,
-            "total_pdfs_downloaded": 0,
-            "total_pdfs_failed": 0
+            "processed_companies": 0,
+            "total_forms": 0,
+            "companies": []
         }

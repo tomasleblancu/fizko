@@ -1,3 +1,12 @@
-"""Services module for Fizko platform."""
+"""
+Services module - Business logic layer.
 
-# Services can be added here as needed
+Provides business services for the application.
+"""
+
+from .agents import AgentService, ContextBuilder
+
+__all__ = [
+    "AgentService",
+    "ContextBuilder",
+]

@@ -26,7 +26,6 @@ class F29Scraper(BaseScraper):
     """
 
     SEARCH_URL = navigation.SEARCH_URL
-    FORM_CODE = navigation.FORM_CODE
 
     def scrape(self, **kwargs) -> dict:
         """
@@ -48,15 +47,13 @@ class F29Scraper(BaseScraper):
         save_callback: Optional[callable] = None
     ) -> List[FormularioF29]:
         """
-        Busca formularios F29 en el SII
+        Busca formularios F29 en el SII usando la página de rectificar F29
 
         Args:
-            anio: Ano a consultar (YYYY) - obligatorio si no se busca por folio
-            folio: Folio especifico - opcional
-            max_retries: Numero maximo de reintentos para navegacion
-            save_callback: Callback opcional (síncrono) para guardar cada formulario
-                          inmediatamente después de extraer su id_interno_sii.
-                          Firma: def callback(formulario: Dict) -> None
+            anio: Ano a consultar (YYYY) - obligatorio
+            folio: Folio especifico - NO SOPORTADO en esta versión (búsqueda solo anual)
+            max_retries: Numero maximo de reintentos para navegacion (no usado)
+            save_callback: Callback opcional - NO USADO en esta versión
 
         Returns:
             Lista de formularios F29 encontrados
@@ -66,33 +63,30 @@ class F29Scraper(BaseScraper):
             ScrapingException: Si hay errores en el scraping
         """
         try:
-            # Validar parametros
-            validation.validar_parametros(anio, folio)
+            # Validar parámetros
+            if not anio:
+                raise ValueError("Parámetro 'anio' es obligatorio")
 
-            logger.info(f"🔎 Iniciando búsqueda F29 - Año: {anio}, Folio: {folio}")
+            if folio:
+                logger.warning("⚠️ Búsqueda por folio no soportada en esta versión, se ignorará")
+
+            logger.info(f"🔎 Iniciando búsqueda F29 - Año: {anio}")
 
             # Validar sesión al inicio
             if not validation.check_session_valid(self.driver):
                 raise ScrapingException("Sesión de Selenium inválida al inicio de búsqueda F29")
 
-            # Navegar a pagina de busqueda
+            # Navegar a página de búsqueda (rectificar F29)
             navigation.navegar_a_busqueda(self.driver, max_retries)
 
-            # Click en "Buscar Formulario"
-            navigation.click_buscar_formulario(self.driver)
+            # Seleccionar año en el dropdown
+            navigation.seleccionar_anio(self.driver, anio)
 
-            # Seleccionar tipo y codigo de formulario
-            navigation.seleccionar_tipo_formulario(self.driver)
+            # Ejecutar consulta
+            navigation.ejecutar_consulta(self.driver)
 
-            # Configurar criterios de busqueda
-            navigation.configurar_criterios_busqueda(self.driver, anio, folio)
-
-            # Ejecutar consulta y capturar response GWT
-            gwt_response = navigation.ejecutar_consulta(self.driver)
-
-            # Extraer resultados de la tabla HTML con codInt incluido
-            # El codInt se extrae haciendo click en "Ver" → "Formulario Compacto"
-            # y capturando la URL que se abre en la nueva ventana
+            # Extraer resultados de la tabla
+            # Esta función ahora extrae folio + period + status + id_interno_sii
             resultados = extraction.extraer_resultados(self.driver, save_callback=save_callback)
 
             # Resumen final
@@ -124,67 +118,88 @@ class F29Scraper(BaseScraper):
             )
             raise ScrapingException(f"Error en busqueda de formularios: {str(e)}") from e
 
-    def descargar_pdf(self, id_interno_sii: str) -> Optional[bytes]:
+    def descargar_pdf(
+        self,
+        folio: str,
+        id_interno_sii: str,
+        rut: Optional[str] = None
+    ) -> Optional[bytes]:
         """
-        Descarga el PDF de un formulario F29 desde el SII
+        Descarga el PDF de un formulario F29 desde el SII usando formCompacto
 
         Args:
-            id_interno_sii: ID interno del formulario en el sistema del SII
+            folio: Folio del formulario
+            id_interno_sii: ID interno del SII (codInt)
+            rut: RUT del contribuyente (opcional, se obtiene del driver si no se proporciona)
 
         Returns:
             Bytes del PDF descargado, o None si falla
 
         Raises:
             ScrapingException: Si hay errores en la descarga
+
+        Example:
+            >>> pdf = scraper.descargar_pdf(
+            ...     folio="8104678626",
+            ...     id_interno_sii="817935151",
+            ...     rut="77794858"
+            ... )
         """
-        import time
         import requests
 
         try:
-            logger.info(f"📥 Descargando PDF F29 con ID interno: {id_interno_sii}")
+            logger.info(f"📥 Descargando PDF F29: folio={folio}, codInt={id_interno_sii}")
 
-            # URL para descargar el PDF del F29
-            # El parámetro 'idDoc' es el id_interno_sii
-            download_url = f"https://www4.sii.cl/svctsiiInternet/rtc?idDoc={id_interno_sii}"
+            # Obtener RUT sin dígito verificador
+            if not rut:
+                # Intentar obtener del driver si hay sesión activa
+                rut = getattr(self.driver, 'tax_id', None)
+                if not rut:
+                    raise ScrapingException("RUT is required for PDF download")
 
-            logger.debug(f"URL de descarga: {download_url}")
+            # Extraer RUT sin DV
+            if '-' in rut:
+                rut_sin_dv = rut.split('-')[0]
+            else:
+                rut_sin_dv = rut[:-1]  # Remover último carácter (DV)
 
-            # Navegar a la URL de descarga
-            self.driver.navigate_to(download_url)
+            # Construir URL del formulario compacto
+            url = (
+                f"https://www4.sii.cl/rfiInternet/formCompacto"
+                f"?folio={folio}"
+                f"&rut={rut_sin_dv}"
+                f"&form=029"  # F29
+                f"&codInt={id_interno_sii}"
+            )
 
-            # Esperar a que se cargue la respuesta
-            time.sleep(3)
+            logger.debug(f"URL de descarga: {url}")
 
-            # Usar requests para descargar el PDF con las cookies del driver
             # Obtener cookies del driver de Selenium
             selenium_cookies = self.driver.get_cookies()
 
-            # Convertir cookies de Selenium a formato de requests
-            session = requests.Session()
-            for cookie in selenium_cookies:
-                session.cookies.set(
-                    cookie['name'],
-                    cookie['value'],
-                    domain=cookie.get('domain'),
-                    path=cookie.get('path', '/')
-                )
+            # Convertir cookies a formato dict
+            cookies_dict = {c['name']: c['value'] for c in selenium_cookies}
 
-            # Descargar el PDF
-            logger.debug("Descargando PDF con requests...")
-            response = session.get(download_url, timeout=30)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://www4.sii.cl/sifmConsultaInternet/',
+                'Accept': 'application/pdf'
+            }
+
+            # Descargar el PDF con requests
+            response = requests.get(url, cookies=cookies_dict, headers=headers, timeout=30)
 
             if response.status_code != 200:
                 logger.error(f"❌ Error en descarga: HTTP {response.status_code}")
                 return None
 
             # Verificar que el contenido es un PDF
-            content_type = response.headers.get('Content-Type', '')
-            if 'pdf' not in content_type.lower():
-                logger.warning(f"⚠️ Content-Type inesperado: {content_type}")
-                # Verificar si el contenido empieza con el magic number de PDF
-                if not response.content.startswith(b'%PDF'):
-                    logger.error("❌ El contenido descargado no es un PDF válido")
-                    return None
+            if not response.content.startswith(b'%PDF'):
+                content_type = response.headers.get('Content-Type', '')
+                logger.error(f"❌ Content-Type: {content_type}")
+                logger.error(f"❌ Primeros 500 chars: {response.text[:500]}")
+                logger.error("❌ El contenido descargado no es un PDF válido")
+                return None
 
             pdf_bytes = response.content
             logger.info(f"✅ PDF descargado exitosamente: {len(pdf_bytes):,} bytes")

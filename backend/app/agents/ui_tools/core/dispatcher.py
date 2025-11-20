@@ -1,11 +1,9 @@
-"""Dispatcher for UI Tools - Routes UI interactions to appropriate tools."""
+"""Dispatcher for UI Tools - Supabase Version."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
-
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import UIToolContext, UIToolResult
 from .registry import ui_tool_registry
@@ -15,10 +13,10 @@ logger = logging.getLogger(__name__)
 
 class UIToolDispatcher:
     """
-    Dispatcher for UI Tools.
+    Dispatcher for UI Tools - Supabase Version.
 
     Routes UI component interactions to their corresponding tools
-    and handles the processing flow.
+    and handles the processing flow using Supabase for database access.
     """
 
     @staticmethod
@@ -27,7 +25,7 @@ class UIToolDispatcher:
         user_message: str,
         company_id: str | None = None,
         user_id: str | None = None,
-        db: AsyncSession | None = None,
+        supabase: Any = None,
         additional_data: dict[str, Any] | None = None,
     ) -> UIToolResult | None:
         """
@@ -38,7 +36,7 @@ class UIToolDispatcher:
             user_message: The user's message
             company_id: Company ID from request context
             user_id: User ID from request context
-            db: Database session for data fetching
+            supabase: Supabase client for data fetching
             additional_data: Any additional context data
 
         Returns:
@@ -79,7 +77,7 @@ class UIToolDispatcher:
             user_message=user_message,
             company_id=company_id,
             user_id=user_id,
-            db=db,
+            supabase=supabase,
             additional_data=additional_data or {},
         )
         logger.debug(f"  📦 Context creation: {(time.time() - context_create_start):.3f}s")

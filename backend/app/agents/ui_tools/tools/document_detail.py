@@ -1,15 +1,11 @@
-"""UI Tool for Document Detail component."""
+"""UI Tool for Document Detail component - Supabase version."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.models import Company, Contact, SalesDocument, PurchaseDocument
-from ...tools.widgets.widgets import create_document_detail_widget, document_detail_widget_copy_text
+from ...tools.widgets.builders import create_document_detail_widget, document_detail_widget_copy_text
 from ..core.base import BaseUITool, UIToolContext, UIToolResult
 from ..core.registry import ui_tool_registry
 
@@ -19,7 +15,7 @@ logger = logging.getLogger(__name__)
 @ui_tool_registry.register
 class DocumentDetailTool(BaseUITool):
     """
-    UI Tool for Document Detail component.
+    UI Tool for Document Detail component - Supabase version.
 
     When a user clicks on a specific document (invoice, bill, etc.),
     this tool pre-loads:
@@ -77,14 +73,7 @@ El usuario está viendo los detalles completos de un documento tributario (factu
 """.strip()
 
     async def process(self, context: UIToolContext) -> UIToolResult:
-        """Process document detail interaction and load relevant data."""
-
-        if not context.db:
-            return UIToolResult(
-                success=False,
-                context_text="",
-                error="Database session not available",
-            )
+        """Process document detail interaction and load relevant data from Supabase."""
 
         if not context.company_id:
             return UIToolResult(
@@ -104,8 +93,8 @@ El usuario está viendo los detalles completos de un documento tributario (factu
             entity_id = context.additional_data["entity_id"]
             entity_type = context.additional_data.get("entity_type", "sales_document")
 
-            # Get company info
-            company_data = await self._get_company_info(context.db, context.company_id)
+            # Get company info from Supabase
+            company_data = await self._get_company_info(context.supabase, context.company_id)
             if not company_data:
                 return UIToolResult(
                     success=False,
@@ -116,11 +105,11 @@ El usuario está viendo los detalles completos de un documento tributario (factu
             # Get document details based on type
             if entity_type == "sales_document":
                 document_data = await self._get_sales_document_details(
-                    context.db, entity_id, context.company_id
+                    context.supabase, entity_id, context.company_id
                 )
             elif entity_type == "purchase_document":
                 document_data = await self._get_purchase_document_details(
-                    context.db, entity_id, context.company_id
+                    context.supabase, entity_id, context.company_id
                 )
             else:
                 return UIToolResult(
@@ -147,10 +136,6 @@ El usuario está viendo los detalles completos de un documento tributario (factu
             context_text = self._format_document_context(full_data)
 
             # Create widget to stream immediately
-            widget = None
-            widget_copy_text = None
-
-            # Get document type name and contact info for widget
             doc = document_data
             is_sales = entity_type == "sales_document"
             doc_type_names = {
@@ -237,123 +222,123 @@ El usuario está viendo los detalles completos de un documento tributario (factu
 
     async def _get_company_info(
         self,
-        db: AsyncSession,
+        supabase,
         company_id: str,
     ) -> dict[str, Any] | None:
-        """Fetch company basic info."""
-        company_uuid = self._safe_get_uuid(company_id)
-        if not company_uuid:
+        """Fetch company basic info from Supabase."""
+        try:
+            response = (
+                supabase.client
+                .table("companies")
+                .select("rut, business_name")
+                .eq("id", company_id)
+                .execute()
+            )
+
+            if hasattr(response, 'data') and response.data:
+                data = response.data[0] if isinstance(response.data, list) else response.data
+                return {
+                    "rut": data.get("rut"),
+                    "business_name": data.get("business_name"),
+                }
+
             return None
 
-        stmt = select(Company).where(Company.id == company_uuid)
-        result = await db.execute(stmt)
-        company = result.scalar_one_or_none()
-
-        if not company:
+        except Exception as e:
+            logger.error(f"Error getting company info: {e}", exc_info=True)
             return None
-
-        return {
-            "rut": company.rut,
-            "business_name": company.business_name,
-        }
 
     async def _get_sales_document_details(
         self,
-        db: AsyncSession,
+        supabase,
         document_id: str,
         company_id: str,
     ) -> dict[str, Any] | None:
-        """Get detailed information about a sales document."""
-
-        document_uuid = self._safe_get_uuid(document_id)
-        company_uuid = self._safe_get_uuid(company_id)
-        if not document_uuid or not company_uuid:
-            return None
-
-        # Get document with contact info
-        stmt = (
-            select(SalesDocument, Contact)
-            .outerjoin(Contact, SalesDocument.contact_id == Contact.id)
-            .where(
-                SalesDocument.id == document_uuid,
-                SalesDocument.company_id == company_uuid,
+        """Get detailed information about a sales document from Supabase."""
+        try:
+            # Get document with contact info
+            response = (
+                supabase.client
+                .table("sales_documents")
+                .select("*, contacts(*)")
+                .eq("id", document_id)
+                .eq("company_id", company_id)
+                .execute()
             )
-        )
 
-        result = await db.execute(stmt)
-        row = result.first()
+            if hasattr(response, 'data') and response.data:
+                doc = response.data[0] if isinstance(response.data, list) else response.data
+                contact = doc.get("contacts")
 
-        if not row:
+                return {
+                    "id": doc.get("id"),
+                    "folio": doc.get("folio"),
+                    "document_type": doc.get("document_type"),
+                    "issue_date": doc.get("issue_date"),
+                    "net_amount": float(doc.get("net_amount") or 0.0),
+                    "tax_amount": float(doc.get("tax_amount") or 0.0),
+                    "total_amount": float(doc.get("total_amount") or 0.0),
+                    "status": doc.get("status"),
+                    "sii_track_id": doc.get("sii_track_id"),
+                    "recipient_rut": doc.get("recipient_rut"),
+                    "recipient_name": doc.get("recipient_name"),
+                    "contact": {
+                        "rut": contact.get("rut") if contact else None,
+                        "business_name": contact.get("business_name") if contact else None,
+                    } if contact else None,
+                }
+
             return None
 
-        document, contact = row
-
-        return {
-            "id": str(document.id),
-            "folio": document.folio,
-            "document_type": document.document_type,
-            "issue_date": document.issue_date.isoformat() if document.issue_date else None,
-            "net_amount": float(document.net_amount) if document.net_amount else 0.0,
-            "tax_amount": float(document.tax_amount) if document.tax_amount else 0.0,
-            "total_amount": float(document.total_amount) if document.total_amount else 0.0,
-            "status": document.status,
-            "sii_track_id": document.sii_track_id,
-            "recipient_rut": document.recipient_rut,
-            "recipient_name": document.recipient_name,
-            "contact": {
-                "rut": contact.rut if contact else None,
-                "business_name": contact.business_name if contact else None,
-            } if contact else None,
-        }
+        except Exception as e:
+            logger.error(f"Error getting sales document: {e}", exc_info=True)
+            return None
 
     async def _get_purchase_document_details(
         self,
-        db: AsyncSession,
+        supabase,
         document_id: str,
         company_id: str,
     ) -> dict[str, Any] | None:
-        """Get detailed information about a purchase document."""
-
-        document_uuid = self._safe_get_uuid(document_id)
-        company_uuid = self._safe_get_uuid(company_id)
-        if not document_uuid or not company_uuid:
-            return None
-
-        # Get document with contact info
-        stmt = (
-            select(PurchaseDocument, Contact)
-            .outerjoin(Contact, PurchaseDocument.contact_id == Contact.id)
-            .where(
-                PurchaseDocument.id == document_uuid,
-                PurchaseDocument.company_id == company_uuid,
+        """Get detailed information about a purchase document from Supabase."""
+        try:
+            # Get document with contact info
+            response = (
+                supabase.client
+                .table("purchase_documents")
+                .select("*, contacts(*)")
+                .eq("id", document_id)
+                .eq("company_id", company_id)
+                .execute()
             )
-        )
 
-        result = await db.execute(stmt)
-        row = result.first()
+            if hasattr(response, 'data') and response.data:
+                doc = response.data[0] if isinstance(response.data, list) else response.data
+                contact = doc.get("contacts")
 
-        if not row:
+                return {
+                    "id": doc.get("id"),
+                    "folio": doc.get("folio"),
+                    "document_type": doc.get("document_type"),
+                    "issue_date": doc.get("issue_date"),
+                    "net_amount": float(doc.get("net_amount") or 0.0),
+                    "tax_amount": float(doc.get("tax_amount") or 0.0),
+                    "total_amount": float(doc.get("total_amount") or 0.0),
+                    "status": doc.get("status"),
+                    "sii_track_id": doc.get("sii_track_id"),
+                    "sender_rut": doc.get("sender_rut"),
+                    "sender_name": doc.get("sender_name"),
+                    "contact": {
+                        "rut": contact.get("rut") if contact else None,
+                        "business_name": contact.get("business_name") if contact else None,
+                    } if contact else None,
+                }
+
             return None
 
-        document, contact = row
-
-        return {
-            "id": str(document.id),
-            "folio": document.folio,
-            "document_type": document.document_type,
-            "issue_date": document.issue_date.isoformat() if document.issue_date else None,
-            "net_amount": float(document.net_amount) if document.net_amount else 0.0,
-            "tax_amount": float(document.tax_amount) if document.tax_amount else 0.0,
-            "total_amount": float(document.total_amount) if document.total_amount else 0.0,
-            "status": document.status,
-            "sii_track_id": document.sii_track_id,
-            "sender_rut": document.sender_rut,
-            "sender_name": document.sender_name,
-            "contact": {
-                "rut": contact.rut if contact else None,
-                "business_name": contact.business_name if contact else None,
-            } if contact else None,
-        }
+        except Exception as e:
+            logger.error(f"Error getting purchase document: {e}", exc_info=True)
+            return None
 
     def _format_document_context(self, data: dict[str, Any]) -> str:
         """Format document data into human-readable context for agent."""
@@ -435,18 +420,5 @@ El usuario está viendo los detalles completos de un documento tributario (factu
                 f"- **RUT:** {doc.get('sender_rut', 'N/A')}",
                 "",
             ])
-
-        # Contact info for widget
-        contact_name = None
-        contact_rut = None
-        if doc.get("contact"):
-            contact_name = doc["contact"].get("business_name")
-            contact_rut = doc["contact"].get("rut")
-        elif is_sales:
-            contact_name = doc.get("recipient_name")
-            contact_rut = doc.get("recipient_rut")
-        else:
-            contact_name = doc.get("sender_name")
-            contact_rut = doc.get("sender_rut")
 
         return "\n".join(lines)

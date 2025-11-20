@@ -1,73 +1,49 @@
 """
-Repository Pattern Implementation.
+Repositories Module - Modular data access layer for Supabase.
 
-Provides clean data access layer with:
-- Centralized SQL queries
-- Consistent interfaces
-- Easy testing
-- Query optimization
+This module provides domain-specific repositories for database access,
+replacing the monolithic SupabaseClient approach.
+
+Architecture:
+- Each repository handles queries for a specific domain
+- BaseRepository provides common functionality and error handling
+- Repositories receive a Supabase client instance at initialization
+- All methods use async/await for consistency
 
 Usage:
-    from app.repositories.personnel import PersonRepository
-    from app.repositories.tax import TaxDocumentRepository
-    from app.repositories.core import CompanyRepository
+    from app.repositories import ContactsRepository
+    from app.config.supabase import get_supabase_client
 
-    repo = PersonRepository(db)
-    people = await repo.find_by_company(company_id)
+    supabase = get_supabase_client()
+    contacts_repo = ContactsRepository(supabase._client)
+
+    contact = await contacts_repo.get_by_rut(company_id, rut)
 """
 
 from .base import BaseRepository
-from .brain import UserBrainRepository, CompanyBrainRepository
-from .calendar import CalendarRepository, EventTemplateRepository
-from .contacts import ContactRepository
-from .core import (
-    AdminStatsRepository,
-    CompanyRepository,
-    CompanyTaxInfoRepository,
-    ProfileRepository,
-    SessionRepository,
-    CompanySettingsRepository,
-    NotificationTemplateRepository,
-    NotificationSubscriptionRepository,
-    UserNotificationPreferenceRepository
-)
-from .personnel import PersonRepository, PayrollRepository
-from .tax import (
-    PurchaseDocumentRepository,
-    SalesDocumentRepository,
-    Form29Repository,
-    Form29SIIDownloadRepository,
-    TaxDocumentRepository
-)
+from .calendar import CalendarRepository
+from .companies import CompaniesRepository
+from .contacts import ContactsRepository
+from .documents import DocumentsRepository
+from .expenses import ExpensesRepository
+from .f29 import F29Repository
+from .feedback import FeedbackRepository
+from .honorarios import HonorariosRepository
+from .notifications import NotificationsRepository
+from .people import PeopleRepository
+from .tax_summaries import TaxSummariesRepository
 
 __all__ = [
-    # Base
     "BaseRepository",
-    # Brain
-    "UserBrainRepository",
-    "CompanyBrainRepository",
-    # Calendar
-    "EventTemplateRepository",
     "CalendarRepository",
-    # Contacts
-    "ContactRepository",
-    # Core
-    "AdminStatsRepository",
-    "CompanyRepository",
-    "CompanyTaxInfoRepository",
-    "ProfileRepository",
-    "SessionRepository",
-    "CompanySettingsRepository",
-    "NotificationTemplateRepository",
-    "NotificationSubscriptionRepository",
-    "UserNotificationPreferenceRepository",
-    # Personnel
-    "PersonRepository",
-    "PayrollRepository",
-    # Tax
-    "PurchaseDocumentRepository",
-    "SalesDocumentRepository",
-    "Form29Repository",
-    "Form29SIIDownloadRepository",
-    "TaxDocumentRepository",
+    "CompaniesRepository",
+    "ContactsRepository",
+    "DocumentsRepository",
+    "ExpensesRepository",
+    "F29Repository",
+    "FeedbackRepository",
+    "HonorariosRepository",
+    "NotificationsRepository",
+    "PeopleRepository",
+    "TaxSummariesRepository",
 ]

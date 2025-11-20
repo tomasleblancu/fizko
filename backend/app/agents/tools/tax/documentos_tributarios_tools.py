@@ -9,15 +9,12 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from datetime import datetime, date
-from uuid import UUID
 
 from agents import RunContextWrapper, function_tool
-from sqlalchemy import select, and_, desc
 
-from app.config.database import AsyncSessionLocal
 from app.agents.core import FizkoContext
 from app.agents.tools.decorators import require_subscription_tool
+from app.agents.tools.utils import get_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +56,6 @@ async def get_documents(
         - Date range: get_documents(start_date="2024-10-01", end_date="2024-10-31")
         - Combined: get_documents(document_type="purchases", rut="12345678-9", limit=5)
     """
-    from app.db.models import PurchaseDocument, SalesDocument
-
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
         return {"error": "Usuario no autenticado"}
@@ -69,130 +64,101 @@ async def get_documents(
     if not company_id:
         return {"error": "company_id no disponible en el contexto"}
 
+    # Limit to max 100
+    limit = min(limit, 100)
+
     try:
-        async with AsyncSessionLocal() as session:
-            results = {
-                "filters_applied": {
-                    "document_type": document_type,
-                    "rut": rut,
-                    "folio": folio,
-                    "date_range": f"{start_date} to {end_date}" if start_date and end_date else None,
-                },
-                "purchase_documents": [],
-                "sales_documents": [],
+        # Get Supabase client with repositories
+        supabase = get_supabase()
+
+        # Use documents repository to search
+        doc_results = await supabase.documents.search_documents(
+            company_id=company_id,
+            document_type=document_type,
+            rut=rut,
+            folio=folio,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit
+        )
+
+        # Format results
+        results = {
+            "filters_applied": {
+                "document_type": document_type,
+                "rut": rut,
+                "folio": folio,
+                "date_range": f"{start_date} to {end_date}" if start_date and end_date else None,
+            },
+            "purchase_documents": [],
+            "sales_documents": [],
+        }
+
+        # Process purchase documents
+        purchases = doc_results.get("purchase_documents", [])
+        if purchases:
+            purchase_total = sum(float(doc.get("total_amount", 0)) for doc in purchases)
+            purchase_iva = sum(float(doc.get("tax_amount", 0) or doc.get("iva_amount", 0)) for doc in purchases)
+
+            results["purchase_documents"] = [
+                {
+                    "id": doc.get("id"),
+                    "document_type": doc.get("document_type") or doc.get("tipo_dte"),
+                    "folio": doc.get("folio"),
+                    "issue_date": doc.get("issue_date") or doc.get("emission_date"),
+                    "sender_rut": doc.get("sender_rut"),
+                    "sender_name": doc.get("sender_name"),
+                    "net_amount": float(doc.get("net_amount", 0)),
+                    "tax_amount": float(doc.get("tax_amount", 0) or doc.get("iva_amount", 0)),
+                    "total_amount": float(doc.get("total_amount", 0)),
+                    "status": doc.get("status"),
+                }
+                for doc in purchases
+            ]
+
+            results["purchase_summary"] = {
+                "count": len(purchases),
+                "total_amount": purchase_total,
+                "total_iva": purchase_iva,
             }
 
-            # Parse dates if provided
-            start_dt = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
-            end_dt = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
+        # Process sales documents
+        sales = doc_results.get("sales_documents", [])
+        if sales:
+            sales_total = sum(float(doc.get("total_amount", 0)) for doc in sales)
+            sales_iva = sum(float(doc.get("tax_amount", 0) or doc.get("iva_amount", 0)) for doc in sales)
 
-            # Query purchases if needed
-            if document_type in ["purchases", "both"]:
-                purchase_conditions = [PurchaseDocument.company_id == UUID(company_id)]
-
-                if rut:
-                    purchase_conditions.append(PurchaseDocument.sender_rut == rut)
-                if folio:
-                    purchase_conditions.append(PurchaseDocument.folio == folio)
-                if start_dt:
-                    purchase_conditions.append(PurchaseDocument.issue_date >= start_dt)
-                if end_dt:
-                    purchase_conditions.append(PurchaseDocument.issue_date <= end_dt)
-
-                purchase_stmt = (
-                    select(PurchaseDocument)
-                    .where(and_(*purchase_conditions))
-                    .order_by(desc(PurchaseDocument.issue_date))
-                    .limit(min(limit, 100))
-                )
-
-                purchase_result = await session.execute(purchase_stmt)
-                purchases = purchase_result.scalars().all()
-
-                purchase_total = sum(float(doc.total_amount) for doc in purchases)
-                purchase_iva = sum(float(doc.tax_amount) for doc in purchases)
-
-                results["purchase_documents"] = [
-                    {
-                        "id": str(doc.id),
-                        "document_type": doc.document_type,
-                        "folio": doc.folio,
-                        "issue_date": doc.issue_date.isoformat(),
-                        "sender_rut": doc.sender_rut,
-                        "sender_name": doc.sender_name,
-                        "net_amount": float(doc.net_amount),
-                        "tax_amount": float(doc.tax_amount),
-                        "total_amount": float(doc.total_amount),
-                        "status": doc.status,
-                    }
-                    for doc in purchases
-                ]
-
-                results["purchase_summary"] = {
-                    "count": len(purchases),
-                    "total_amount": purchase_total,
-                    "total_iva": purchase_iva,
+            results["sales_documents"] = [
+                {
+                    "id": doc.get("id"),
+                    "document_type": doc.get("document_type") or doc.get("tipo_dte"),
+                    "folio": doc.get("folio"),
+                    "issue_date": doc.get("issue_date") or doc.get("emission_date"),
+                    "recipient_rut": doc.get("recipient_rut") or doc.get("receiver_rut"),
+                    "recipient_name": doc.get("recipient_name") or doc.get("receiver_name"),
+                    "net_amount": float(doc.get("net_amount", 0)),
+                    "tax_amount": float(doc.get("tax_amount", 0) or doc.get("iva_amount", 0)),
+                    "total_amount": float(doc.get("total_amount", 0)),
+                    "status": doc.get("status"),
                 }
+                for doc in sales
+            ]
 
-            # Query sales if needed
-            if document_type in ["sales", "both"]:
-                sales_conditions = [SalesDocument.company_id == UUID(company_id)]
+            results["sales_summary"] = {
+                "count": len(sales),
+                "total_amount": sales_total,
+                "total_iva": sales_iva,
+            }
 
-                if rut:
-                    sales_conditions.append(SalesDocument.recipient_rut == rut)
-                if folio:
-                    sales_conditions.append(SalesDocument.folio == folio)
-                if start_dt:
-                    sales_conditions.append(SalesDocument.issue_date >= start_dt)
-                if end_dt:
-                    sales_conditions.append(SalesDocument.issue_date <= end_dt)
+        # Add total counts
+        total_docs = len(results.get("purchase_documents", [])) + len(results.get("sales_documents", []))
+        results["total_documents_found"] = total_docs
 
-                sales_stmt = (
-                    select(SalesDocument)
-                    .where(and_(*sales_conditions))
-                    .order_by(desc(SalesDocument.issue_date))
-                    .limit(min(limit, 100))
-                )
+        if total_docs == 0:
+            results["message"] = "No se encontraron documentos con los filtros aplicados"
 
-                sales_result = await session.execute(sales_stmt)
-                sales = sales_result.scalars().all()
+        return results
 
-                sales_total = sum(float(doc.total_amount) for doc in sales)
-                sales_iva = sum(float(doc.tax_amount) for doc in sales)
-
-                results["sales_documents"] = [
-                    {
-                        "id": str(doc.id),
-                        "document_type": doc.document_type,
-                        "folio": doc.folio,
-                        "issue_date": doc.issue_date.isoformat(),
-                        "recipient_rut": doc.recipient_rut,
-                        "recipient_name": doc.recipient_name,
-                        "net_amount": float(doc.net_amount),
-                        "tax_amount": float(doc.tax_amount),
-                        "total_amount": float(doc.total_amount),
-                        "status": doc.status,
-                    }
-                    for doc in sales
-                ]
-
-                results["sales_summary"] = {
-                    "count": len(sales),
-                    "total_amount": sales_total,
-                    "total_iva": sales_iva,
-                }
-
-            # Add total counts
-            total_docs = len(results.get("purchase_documents", [])) + len(results.get("sales_documents", []))
-            results["total_documents_found"] = total_docs
-
-            if total_docs == 0:
-                results["message"] = "No se encontraron documentos con los filtros aplicados"
-
-            return results
-
-    except ValueError as e:
-        return {"error": f"Formato de fecha inválido. Use YYYY-MM-DD. Error: {str(e)}"}
     except Exception as e:
         logger.error(f"Error in get_documents: {e}", exc_info=True)
         return {"error": str(e)}
