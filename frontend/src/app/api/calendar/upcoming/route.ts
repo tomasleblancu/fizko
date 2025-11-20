@@ -41,6 +41,13 @@ export async function GET(request: NextRequest) {
 
     // Query upcoming calendar events
     // Note: This requires calendar_events and event_templates tables
+    type CalendarEventWithTemplate = {
+      id: string
+      due_date: string
+      status: string
+      event_template: { code: string; name: string } | Array<{ code: string; name: string }>
+    }
+
     const { data: events, error } = await supabase
       .from('calendar_events')
       .select(`
@@ -55,7 +62,7 @@ export async function GET(request: NextRequest) {
       .eq('company_id', companyId)
       .gte('due_date', today.toISOString().split('T')[0])
       .lte('due_date', endDate.toISOString().split('T')[0])
-      .order('due_date', { ascending: true })
+      .order('due_date', { ascending: true }) as { data: CalendarEventWithTemplate[] | null; error: any }
 
     if (error) {
       console.error('Error fetching calendar events:', error)
