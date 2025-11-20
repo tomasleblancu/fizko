@@ -107,30 +107,28 @@ export async function POST(
       updateData.initial_setup_completed_at = new Date().toISOString()
     }
 
-    let result
+    let result: CompanySettingsRow
     if (existing) {
-      // Update existing
-      // @ts-ignore - Supabase type inference issue with dynamic update objects
-      const { data, error } = await supabase
+      // Update existing - Using any cast to bypass Supabase type inference issue
+      const { data, error } = await (supabase as any)
         .from('company_settings')
         .update(updateData)
         .eq('company_id', companyId)
         .select()
-        .single() as { data: CompanySettingsRow | null; error: any }
+        .single()
 
       if (error) throw error
       result = data
     } else {
-      // Create new
-      // @ts-ignore - Supabase type inference issue with dynamic insert objects
-      const { data, error } = await supabase
+      // Create new - Using any cast to bypass Supabase type inference issue
+      const { data, error } = await (supabase as any)
         .from('company_settings')
         .insert({
           company_id: companyId,
           ...updateData,
         })
         .select()
-        .single() as { data: CompanySettingsRow | null; error: any }
+        .single()
 
       if (error) throw error
       result = data
