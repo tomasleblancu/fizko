@@ -1,6 +1,7 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { queryKeys } from "@/lib/query-keys";
 import type { SalesDocument, PurchaseDocument, DocumentWithType } from "@/types/database";
@@ -17,33 +18,27 @@ export function useInfiniteCompanyDocuments({
   pageSize = DEFAULT_PAGE_SIZE
 }: UseInfiniteCompanyDocumentsOptions) {
   const supabase = createClient();
+  const [displayedCount, setDisplayedCount] = useState(pageSize);
 
-  return useInfiniteQuery({
+  // Fetch ALL documents once and cache them
+  const { data: allDocuments, isLoading } = useQuery({
     queryKey: companyId ? queryKeys.documents.byCompany(companyId) : ['documents', 'empty'],
-    queryFn: async ({ pageParam = 0 }): Promise<{
-      documents: DocumentWithType[];
-      nextCursor: number | undefined;
-      hasMore: boolean;
-    }> => {
-      const offset = pageParam;
-
-      // Fetch sales documents with pagination
-      const { data: salesData, error: salesError, count: salesCount } = await supabase
+    queryFn: async (): Promise<DocumentWithType[]> => {
+      // Fetch ALL sales documents
+      const { data: salesData, error: salesError } = await supabase
         .from("sales_documents")
-        .select("*", { count: 'exact' })
+        .select("*")
         .eq("company_id", companyId)
-        .order("issue_date", { ascending: false })
-        .range(offset, offset + pageSize - 1);
+        .order("issue_date", { ascending: false });
 
       if (salesError) throw salesError;
 
-      // Fetch purchase documents with pagination
-      const { data: purchasesData, error: purchasesError, count: purchasesCount } = await supabase
+      // Fetch ALL purchase documents
+      const { data: purchasesData, error: purchasesError } = await supabase
         .from("purchase_documents")
-        .select("*", { count: 'exact' })
+        .select("*")
         .eq("company_id", companyId)
-        .order("issue_date", { ascending: false })
-        .range(offset, offset + pageSize - 1);
+        .order("issue_date", { ascending: false });
 
       if (purchasesError) throw purchasesError;
 
@@ -64,25 +59,42 @@ export function useInfiniteCompanyDocuments({
       }));
 
       // Combine and sort by issue_date
-      const allDocuments = [...salesDocuments, ...purchaseDocuments].sort(
+      return [...salesDocuments, ...purchaseDocuments].sort(
         (a, b) => new Date(b.issue_date).getTime() - new Date(a.issue_date).getTime()
       );
-
-      // Calculate if there are more documents
-      const totalCount = (salesCount || 0) + (purchasesCount || 0);
-      const hasMore = offset + allDocuments.length < totalCount;
-      const nextCursor = hasMore ? offset + pageSize : undefined;
-
-      return {
-        documents: allDocuments,
-        nextCursor,
-        hasMore,
-      };
     },
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    initialPageParam: 0,
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000, // 2 minutes
     refetchOnWindowFocus: true,
   });
+
+  // Client-side pagination
+  const paginatedData = useMemo(() => {
+    if (!allDocuments) return null;
+
+    const documents = allDocuments.slice(0, displayedCount);
+    const hasMore = displayedCount < allDocuments.length;
+
+    return {
+      pages: [{ documents }], // Wrap in pages structure for compatibility
+      documents, // Flat array of displayed documents
+      hasMore,
+    };
+  }, [allDocuments, displayedCount]);
+
+  const fetchNextPage = useCallback(() => {
+    if (!allDocuments) return;
+    setDisplayedCount(prev => Math.min(prev + pageSize, allDocuments.length));
+  }, [allDocuments, pageSize]);
+
+  const hasNextPage = paginatedData?.hasMore ?? false;
+  const isFetchingNextPage = false; // No actual fetching, just displaying more
+
+  return {
+    data: paginatedData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  };
 }
