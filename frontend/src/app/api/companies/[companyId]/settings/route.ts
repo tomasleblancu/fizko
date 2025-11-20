@@ -101,7 +101,8 @@ export async function POST(
     const hasAnyField = Object.values(body).some(val => val !== null && val !== undefined)
     const shouldMarkSetupComplete = !existing?.is_initial_setup_complete && hasAnyField
 
-    const updateData: any = { ...body }
+    type UpdateData = Partial<Database['public']['Tables']['company_settings']['Update']>
+    const updateData: UpdateData = { ...body }
     if (shouldMarkSetupComplete) {
       updateData.is_initial_setup_complete = true
       updateData.initial_setup_completed_at = new Date().toISOString()
