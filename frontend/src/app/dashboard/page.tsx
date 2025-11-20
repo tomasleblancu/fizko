@@ -246,8 +246,8 @@ export default function DashboardPage() {
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Desktop: Split View Layout */}
       <div className="hidden lg:flex lg:flex-1 lg:overflow-hidden">
-        {/* Left Side: Chat (35%) - Always visible */}
-        <div className="flex w-[35%] flex-col border-r border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+        {/* Left Side: Chat (30%) - Always visible */}
+        <div className="flex w-[30%] flex-col border-r border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
           {isDesktop && (
             <ChatKitPanel
               companyId={company.id}
@@ -256,7 +256,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Right Side: Dashboard Views (65%) - Only visible when a tab is selected */}
+        {/* Right Side: Dashboard Views (70%) - Only visible when a tab is selected */}
         {activeTab && (
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Header with integrated tabs */}
