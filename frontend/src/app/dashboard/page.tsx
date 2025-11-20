@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
-import { Bell, Sun, Home, Building2, UsersRound, FileText, Settings } from "lucide-react";
+import { Bell, Sun, Home, Building2, UsersRound, FileText, Settings, X } from "lucide-react";
 import { Header, type TabType } from "@/components/layout/Header";
 import { DashboardView } from "@/components/features/dashboard/DashboardView";
 import { ContactsView } from "@/components/features/dashboard/ContactsView";
@@ -19,6 +19,9 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<TabType | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const startY = useRef<number>(0);
+  const currentY = useRef<number>(0);
   const router = useRouter();
   const redirectInitiated = useRef(false);
 
@@ -82,6 +85,35 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/");
+  };
+
+  // Handle swipe down to close drawer
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startY.current = e.touches[0].clientY;
+    currentY.current = startY.current;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    currentY.current = e.touches[0].clientY;
+    const diff = currentY.current - startY.current;
+
+    // Only allow dragging down
+    if (diff > 0 && drawerRef.current) {
+      drawerRef.current.style.transform = `translateY(${diff}px)`;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    const diff = currentY.current - startY.current;
+
+    if (drawerRef.current) {
+      drawerRef.current.style.transform = '';
+    }
+
+    // Close if dragged more than 100px down
+    if (diff > 100) {
+      setActiveTab(null);
+    }
   };
 
   // Combined loading state
@@ -336,20 +368,43 @@ export default function DashboardPage() {
         {/* Mobile Drawer - Shows when any tab is active */}
         {activeTab && (
           <div
-            className="fixed inset-0 z-40 bg-black/50"
-            onClick={() => setActiveTab(null)}
+            className="fixed inset-0 z-40"
+            style={{ pointerEvents: activeTab ? 'auto' : 'none' }}
           >
+            {/* Backdrop */}
             <div
-              className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white dark:bg-slate-900"
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+              onClick={() => setActiveTab(null)}
+              aria-hidden="true"
+            />
+
+            {/* Drawer */}
+            <div
+              ref={drawerRef}
+              className="absolute bottom-0 left-0 right-0 h-[85vh] transform rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Drawer Handle */}
-              <div className="flex justify-center py-3">
-                <div className="h-1 w-12 rounded-full bg-slate-300 dark:bg-slate-600" />
+              {/* Handle Bar - Touch events only here */}
+              <div
+                className="flex items-center justify-center py-3"
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+              >
+                <div className="h-1.5 w-12 rounded-full bg-slate-300 dark:bg-slate-700" />
               </div>
 
-              {/* Drawer Content */}
-              <div className="px-4 pb-24">
+              {/* Close Button */}
+              <button
+                onClick={() => setActiveTab(null)}
+                className="absolute right-4 top-4 z-20 rounded-full bg-slate-100 p-2 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700"
+                aria-label="Cerrar"
+              >
+                <X className="h-5 w-5 text-slate-600 dark:text-slate-300" />
+              </button>
+
+              {/* Content */}
+              <div className="h-[calc(100%-3rem)] overflow-y-auto px-4 pb-24">
                 {renderView()}
               </div>
             </div>
