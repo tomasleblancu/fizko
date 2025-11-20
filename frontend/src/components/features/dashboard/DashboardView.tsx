@@ -295,7 +295,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex flex-col gap-4 lg:h-full">
       {/* Period Cards - Hidden when movements expanded */}
       {!showAllMovements && (
         <div className="grid flex-shrink-0 gap-4 lg:grid-cols-2">
@@ -337,7 +337,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
       )}
 
       {/* Calendar and Movements */}
-      <div className={`grid flex-1 gap-4 overflow-hidden ${showAllMovements ? '' : 'lg:grid-cols-[38%_1fr]'}`}>
+      <div className={`grid gap-4 ${showAllMovements ? 'flex-1 overflow-hidden' : 'lg:grid-cols-[38%_1fr] lg:flex-1 lg:overflow-hidden'}`}>
         {/* Calendar - Hidden when movements expanded */}
         {!showAllMovements && (
           <CalendarWidget

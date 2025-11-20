@@ -15,6 +15,16 @@ import {
 } from "lucide-react";
 import { ChateableWrapper } from "@/components/ui/ChateableWrapper";
 
+/**
+ * Format document type name: replace underscores with spaces and capitalize first letters
+ */
+function formatDocumentType(type: string): string {
+  return type
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
 interface Document {
   id: string;
   type: "sale" | "purchase";
@@ -252,7 +262,7 @@ export function MovementsPanel({
                             </td>
                             <td className="px-4 py-3">
                               <div className="text-sm text-slate-900 dark:text-white">
-                                {doc.document_type}
+                                {formatDocumentType(doc.document_type)}
                               </div>
                               {doc.folio && (
                                 <div className="text-xs text-slate-500 dark:text-slate-400">
@@ -348,12 +358,7 @@ export function MovementsPanel({
                           </div>
                           <div className="flex flex-col">
                             <span className="text-sm text-slate-900 dark:text-white">
-                              {doc.counterparty_name ||
-                                `${doc.document_type} ${doc.folio || ""}`}
-                            </span>
-                            <span className="text-xs text-slate-500 dark:text-slate-400">
-                              {doc.document_type}{" "}
-                              {doc.folio ? `N° ${doc.folio}` : ""}
+                              {doc.counterparty_name || formatDocumentType(doc.document_type)}
                             </span>
                           </div>
                         </div>

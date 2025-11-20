@@ -96,7 +96,7 @@ export function ChatKitPanel({ companyId, className }: ChatKitPanelProps) {
   // Memoize composer configuration
   const composerConfig = useMemo(
     () => ({
-      placeholder: 'Pregúntame sobre impuestos, facturas, F29...',
+      placeholder: 'Pregúntame algo...',
       attachments: {
         enabled: true,
         maxCount: 5,

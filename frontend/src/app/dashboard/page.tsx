@@ -87,8 +87,9 @@ export default function DashboardPage() {
     router.push("/");
   };
 
-  // Handle swipe down to close drawer
+  // Handle swipe down to close drawer (only from handle bar)
   const handleTouchStart = (e: React.TouchEvent) => {
+    // Store initial touch position
     startY.current = e.touches[0].clientY;
     currentY.current = startY.current;
   };
@@ -97,8 +98,10 @@ export default function DashboardPage() {
     currentY.current = e.touches[0].clientY;
     const diff = currentY.current - startY.current;
 
-    // Only allow dragging down
+    // Only allow dragging down and only apply transform
     if (diff > 0 && drawerRef.current) {
+      // Prevent scroll while dragging from handle
+      e.preventDefault();
       drawerRef.current.style.transform = `translateY(${diff}px)`;
     }
   };
@@ -381,12 +384,12 @@ export default function DashboardPage() {
             {/* Drawer */}
             <div
               ref={drawerRef}
-              className="absolute bottom-0 left-0 right-0 h-[85vh] transform rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900"
+              className="absolute bottom-0 left-0 right-0 flex h-[85vh] flex-col transform rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Handle Bar - Touch events only here */}
               <div
-                className="flex items-center justify-center py-3"
+                className="flex flex-shrink-0 items-center justify-center py-3"
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
@@ -403,8 +406,8 @@ export default function DashboardPage() {
                 <X className="h-5 w-5 text-slate-600 dark:text-slate-300" />
               </button>
 
-              {/* Content */}
-              <div className="h-[calc(100%-3rem)] overflow-y-auto px-4 pb-24">
+              {/* Content - Now with proper flex-1 and overflow */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-24">
                 {renderView()}
               </div>
             </div>
