@@ -195,7 +195,7 @@ export function ChatKitPanel({ companyId, className }: ChatKitPanelProps) {
   const chatkit = useChatKit({
     api: {
       url: apiUrl,
-      domainKey: 'domain_pk_localhost_dev', // For local dev
+      domainKey: process.env.NEXT_PUBLIC_CHATKIT_API_DOMAIN_KEY || 'domain_pk_localhost_dev',
       fetch: customFetch,
       uploadStrategy: { type: 'two_phase' },
     },
