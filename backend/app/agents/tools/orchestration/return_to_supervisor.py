@@ -51,7 +51,7 @@ async def return_to_supervisor(
         # Get orchestrator from handoffs_manager
         from ...orchestration import handoffs_manager
 
-        orchestrator = handoffs_manager._orchestrators.get(thread_id)
+        orchestrator = handoffs_manager._orchestrator_cache.get(thread_id)
 
         if not orchestrator:
             logger.warning(f"⚠️ [RETURN TO SUPERVISOR] No orchestrator for thread {thread_id[:12]}...")
