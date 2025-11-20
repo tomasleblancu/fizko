@@ -451,7 +451,7 @@ export default function DashboardPage() {
             {/* Drawer */}
             <div
               ref={drawerRef}
-              className="absolute bottom-0 left-0 right-0 flex h-[90vh] flex-col transform rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900"
+              className="absolute bottom-0 left-0 right-0 flex h-[80vh] flex-col transform rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900"
               onClick={(e) => e.stopPropagation()}
               style={{ touchAction: 'pan-y' }}
             >
