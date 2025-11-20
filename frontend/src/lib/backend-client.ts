@@ -9,13 +9,13 @@
  * Backend client configuration
  */
 export class BackendClient {
-  private static readonly DEFAULT_URL = 'http://localhost:8000';
+  private static readonly DEFAULT_URL = 'http://localhost:8089';
 
   /**
    * Get the backend URL from environment or use default
    */
   static getBaseUrl(): string {
-    return process.env.NEXT_PUBLIC_BACKEND_V2_URL || this.DEFAULT_URL;
+    return process.env.NEXT_PUBLIC_BACKEND_URL || this.DEFAULT_URL;
   }
 
   /**
