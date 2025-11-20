@@ -25,10 +25,10 @@ export function Hero({ onContactSales }: HeroProps) {
           <div className="mx-auto max-w-4xl">
             <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-slate-900 dark:text-white mb-8 leading-tight">
               <span className="block transition-all duration-300 hover:scale-105 cursor-default inline-block">
-                Tus números claros.
+                Tus números claros
               </span>
               <span className="block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent transition-all duration-300 hover:scale-105 cursor-default inline-block">
-                Tus impuestos bajo control.
+                Tus impuestos bajo control
               </span>
             </h1>
           </div>

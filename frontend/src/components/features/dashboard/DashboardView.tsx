@@ -298,7 +298,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     <div className="flex flex-col gap-4 lg:h-full">
       {/* Period Cards - Hidden when movements expanded */}
       {!showAllMovements && (
-        <div className="grid flex-shrink-0 gap-4 lg:grid-cols-2">
+        <div className="grid flex-shrink-0 gap-4 lg:grid-cols-[45%_1fr]">
           {/* Previous Month Card */}
           <PeriodCard
             period={previousPeriodString}
@@ -315,7 +315,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
           />
 
           {/* Right Column - Split into Current Month Summary and Quick Actions */}
-          <div className="flex flex-1 flex-col gap-4">
+          <div className="flex flex-col gap-4">
             {/* Current Month Card */}
             <PeriodCard
               period={formatMonthYear(currentYear, currentMonth)}
