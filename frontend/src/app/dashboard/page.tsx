@@ -250,6 +250,7 @@ export default function DashboardPage() {
         <div className="flex w-[30%] flex-col border-r border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
           {isDesktop && (
             <ChatKitPanel
+              key={company.id}
               companyId={company.id}
               className="h-full"
             />
@@ -358,6 +359,7 @@ export default function DashboardPage() {
         {/* Chat takes full screen */}
         {!isDesktop && (
           <ChatKitPanel
+            key={company.id}
             companyId={company.id}
             className="flex-1 pb-20"
           />
