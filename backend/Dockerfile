@@ -67,9 +67,11 @@ COPY tests ./tests
 # Copy test configuration
 COPY pytest.ini ./pytest.ini
 
-# Copy entrypoint script
+# Copy entrypoint script and Railway-specific scripts
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+COPY railway-worker.sh /railway-worker.sh
+COPY railway-beat.sh /railway-beat.sh
+RUN chmod +x /docker-entrypoint.sh /railway-worker.sh /railway-beat.sh
 
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/sessions /app/chrome-data /app/screenshots \
