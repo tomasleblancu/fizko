@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     const response: NotificationPreferences = {
       id: preferences.id,
       user_id: preferences.user_id,
-      company_id: preferences.company_id,
+      company_id: preferences.company_id ?? undefined,
       notifications_enabled: preferences.notifications_enabled,
       quiet_hours_start: preferences.quiet_hours_start,
       quiet_hours_end: preferences.quiet_hours_end,
@@ -171,7 +171,7 @@ export async function PUT(request: NextRequest) {
     const response: NotificationPreferences = {
       id: result.id,
       user_id: result.user_id,
-      company_id: result.company_id,
+      company_id: result.company_id ?? undefined,
       notifications_enabled: result.notifications_enabled,
       quiet_hours_start: result.quiet_hours_start,
       quiet_hours_end: result.quiet_hours_end,
