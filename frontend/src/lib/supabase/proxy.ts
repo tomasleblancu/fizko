@@ -72,6 +72,22 @@ export async function updateSession(request: NextRequest) {
   if (user) {
     const pathname = request.nextUrl.pathname;
 
+    // Check admin route protection
+    if (pathname.startsWith("/admin")) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("rol")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile || profile.rol !== "admin-fizko") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/";
+        url.searchParams.set("error", "unauthorized");
+        return NextResponse.redirect(url);
+      }
+    }
+
     // Fetch user sessions with company settings
     const { data: sessions } = await supabase
       .from('sessions')

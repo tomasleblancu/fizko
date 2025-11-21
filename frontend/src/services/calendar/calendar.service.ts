@@ -18,6 +18,7 @@ import type {
   UpdateCalendarEventRequest,
   AddEventHistoryRequest,
   CalendarEventFull,
+  EventStatus,
 } from '@/types/calendar.types';
 
 export class CalendarService {
@@ -654,6 +655,116 @@ export class CalendarService {
       end_date: endDate.toISOString().split('T')[0],
       status: 'pending',
     });
+  }
+
+  /**
+   * Get upcoming events with template data and filtered by display_days_before
+   *
+   * This method fetches upcoming events and filters them based on the
+   * display_days_before setting from the event template. Only events
+   * within their display window are returned.
+   *
+   * @param companyId - Company UUID
+   * @param daysAhead - Number of days to look ahead (default: 30)
+   * @returns List of upcoming events with template data and days_until_due
+   */
+  static async getUpcomingEventsWithTemplates(
+    companyId: string,
+    daysAhead = 30
+  ): Promise<Array<{
+    id: string;
+    title: string;
+    event_template: {
+      code: string;
+      name: string;
+      display_days_before: number;
+    };
+    due_date: string;
+    days_until_due: number;
+    status: EventStatus;
+  }>> {
+    console.log(`[Calendar Service] Fetching upcoming events with templates for company ${companyId}`);
+
+    const supabase = createClient();
+
+    // Calculate date range as ISO date strings (avoid timezone issues)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + daysAhead);
+
+    // Format as YYYY-MM-DD directly to avoid timezone shifts
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const endDateStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
+    // Query upcoming calendar events with template data
+    type CalendarEventWithTemplate = {
+      id: string;
+      due_date: string;
+      status: string;
+      event_template: { code: string; name: string; display_days_before: number } | Array<{ code: string; name: string; display_days_before: number }>;
+    };
+
+    const { data: events, error } = await supabase
+      .from('calendar_events')
+      .select(`
+        id,
+        due_date,
+        status,
+        event_template:event_templates!inner(
+          code,
+          name,
+          display_days_before
+        )
+      `)
+      .eq('company_id', companyId)
+      .gte('due_date', todayStr)
+      .lte('due_date', endDateStr)
+      .order('due_date', { ascending: true }) as { data: CalendarEventWithTemplate[] | null; error: any };
+
+    if (error) {
+      console.error('[Calendar Service] Error fetching calendar events:', error);
+      throw new Error(`Failed to fetch calendar events: ${error.message}`);
+    }
+
+    // Helper function to parse local date (YYYY-MM-DD)
+    const parseLocalDate = (dateStr: string): Date => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    };
+
+    // Transform and filter events based on display_days_before
+    const transformedEvents = (events || [])
+      .map(event => {
+        const dueDate = parseLocalDate(event.due_date);
+        const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        // Handle the event_template which could be an array or object
+        const template = Array.isArray(event.event_template)
+          ? event.event_template[0]
+          : event.event_template;
+
+        return {
+          id: event.id,
+          title: template?.name || 'Sin título',
+          event_template: {
+            code: template?.code || '',
+            name: template?.name || '',
+            display_days_before: template?.display_days_before || 30
+          },
+          due_date: event.due_date,
+          days_until_due: daysUntilDue,
+          status: event.status as EventStatus
+        };
+      })
+      .filter(event => {
+        // Only show events if they are within the display_days_before threshold
+        return event.days_until_due <= event.event_template.display_days_before;
+      });
+
+    console.log(`[Calendar Service] Found ${transformedEvents.length} upcoming events`);
+
+    return transformedEvents;
   }
 
   /**

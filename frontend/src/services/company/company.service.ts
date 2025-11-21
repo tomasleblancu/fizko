@@ -146,6 +146,122 @@ export class CompanyService {
   }
 
   /**
+   * Get company settings
+   *
+   * Returns default values if no settings exist
+   *
+   * @param companyId - Company UUID
+   * @returns Company settings
+   */
+  static async getSettings(companyId: string): Promise<any> {
+    const serviceClient = createServiceClient();
+
+    console.log(`[Company Service] Fetching settings for company ${companyId}`);
+
+    const { data: settings, error } = await serviceClient
+      .from('company_settings')
+      .select('*')
+      .eq('company_id', companyId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // Not found is ok
+      console.error('[Company Service] Error fetching settings:', error);
+      throw new Error(`Failed to fetch company settings: ${error.message}`);
+    }
+
+    // If no settings exist, return default values
+    if (!settings) {
+      console.log('[Company Service] No settings found, returning defaults');
+      return {
+        id: '',
+        company_id: companyId,
+        has_formal_employees: null,
+        has_imports: null,
+        has_exports: null,
+        has_lease_contracts: null,
+        has_bank_loans: null,
+        business_description: null,
+        is_initial_setup_complete: false,
+        initial_setup_completed_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    return settings;
+  }
+
+  /**
+   * Update or create company settings
+   *
+   * Automatically marks initial setup as complete if any field has a value
+   *
+   * @param companyId - Company UUID
+   * @param updates - Settings updates
+   * @returns Updated settings
+   */
+  static async upsertSettings(companyId: string, updates: any): Promise<any> {
+    const serviceClient = createServiceClient();
+
+    console.log(`[Company Service] Upserting settings for company ${companyId}`);
+
+    // Check if settings already exist
+    const { data: existing } = await serviceClient
+      .from('company_settings')
+      .select('id, is_initial_setup_complete')
+      .eq('company_id', companyId)
+      .single();
+
+    const hasAnyField = Object.values(updates).some(val => val !== null && val !== undefined);
+    const shouldMarkSetupComplete = !existing?.is_initial_setup_complete && hasAnyField;
+
+    const updateData = { ...updates } as Record<string, any>;
+    if (shouldMarkSetupComplete) {
+      console.log('[Company Service] Marking initial setup as complete');
+      updateData.is_initial_setup_complete = true;
+      updateData.initial_setup_completed_at = new Date().toISOString();
+    }
+
+    let result: any;
+
+    if (existing) {
+      // Update existing
+      const { data, error } = await (serviceClient as any)
+        .from('company_settings')
+        .update(updateData)
+        .eq('company_id', companyId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Company Service] Error updating settings:', error);
+        throw new Error(`Failed to update settings: ${error.message}`);
+      }
+      result = data;
+    } else {
+      // Create new
+      const { data, error } = await (serviceClient as any)
+        .from('company_settings')
+        .insert({
+          company_id: companyId,
+          ...updateData,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[Company Service] Error creating settings:', error);
+        throw new Error(`Failed to create settings: ${error.message}`);
+      }
+      result = data;
+    }
+
+    console.log('[Company Service] Settings saved successfully');
+
+    return result;
+  }
+
+  /**
    * Build company data object from contributor info
    */
   private static buildCompanyData(

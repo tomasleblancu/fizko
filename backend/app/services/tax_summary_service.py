@@ -60,6 +60,7 @@ class TaxSummaryService:
             - credito_fiscal: Net purchase IVA (after credit notes)
             - balance: Net IVA to pay (positive) or credit (negative)
             - previous_month_credit: Credit from previous month's F29
+            - overdue_iva_credit: Overdue IVA that can't be recovered
             - ppm: PPM amount (0.125% of net revenue)
             - retencion: Retención from honorarios receipts
             - sales_count: Total sales documents
@@ -80,7 +81,7 @@ class TaxSummaryService:
                 ],
                 period_start=period_start,
                 period_end=period_end,
-                fields=["tax_amount", "total_amount", "net_amount"]
+                fields=["tax_amount", "total_amount", "net_amount", "overdue_iva_credit"]
             )
 
             sales_credits = await self._get_documents(
@@ -89,21 +90,39 @@ class TaxSummaryService:
                 document_types=['nota_credito_venta'],
                 period_start=period_start,
                 period_end=period_end,
-                fields=["tax_amount", "total_amount", "net_amount"]
+                fields=["tax_amount", "total_amount", "net_amount", "overdue_iva_credit"]
             )
 
             # Calculate net sales IVA and revenue
             sales_positive_tax = sum(doc.get("tax_amount", 0) or 0 for doc in sales_positive)
             sales_positive_total = sum(doc.get("total_amount", 0) or 0 for doc in sales_positive)
-            sales_positive_net = sum(doc.get("net_amount", 0) or 0 for doc in sales_positive)
+            sales_positive_overdue = sum(doc.get("overdue_iva_credit", 0) or 0 for doc in sales_positive)
+
+            # For PPM calculation: exclude documents with overdue_iva_credit
+            # If a document has overdue, it means it's "out of time" and shouldn't affect the tax base
+            sales_positive_net = sum(
+                doc.get("net_amount", 0) or 0
+                for doc in sales_positive
+                if not (doc.get("overdue_iva_credit", 0) or 0) > 0
+            )
 
             sales_credit_tax = sum(doc.get("tax_amount", 0) or 0 for doc in sales_credits)
             sales_credit_total = sum(doc.get("total_amount", 0) or 0 for doc in sales_credits)
-            sales_credit_net = sum(doc.get("net_amount", 0) or 0 for doc in sales_credits)
+            sales_credit_overdue = sum(doc.get("overdue_iva_credit", 0) or 0 for doc in sales_credits)
+
+            # For PPM calculation: exclude credit notes with overdue_iva_credit
+            sales_credit_net = sum(
+                doc.get("net_amount", 0) or 0
+                for doc in sales_credits
+                if not (doc.get("overdue_iva_credit", 0) or 0) > 0
+            )
 
             debito_fiscal = sales_positive_tax - sales_credit_tax
             total_revenue = sales_positive_total - sales_credit_total
             net_revenue = sales_positive_net - sales_credit_net
+            # Overdue IVA: ALWAYS adds to tax burden (can't be recovered)
+            # Both positive docs AND credit notes increase the burden
+            overdue_iva_from_sales = sales_positive_overdue + sales_credit_overdue
 
             # Get purchase data using repository
             purchases_positive = await self._get_documents(
@@ -116,7 +135,7 @@ class TaxSummaryService:
                 ],
                 period_start=period_start,
                 period_end=period_end,
-                fields=["tax_amount"]
+                fields=["tax_amount", "overdue_iva_credit"]
             )
 
             purchases_credits = await self._get_documents(
@@ -125,13 +144,23 @@ class TaxSummaryService:
                 document_types=['nota_credito_compra'],
                 period_start=period_start,
                 period_end=period_end,
-                fields=["tax_amount"]
+                fields=["tax_amount", "overdue_iva_credit"]
             )
 
             # Calculate net purchase IVA
             purchases_positive_tax = sum(doc.get("tax_amount", 0) or 0 for doc in purchases_positive)
+            purchases_positive_overdue = sum(doc.get("overdue_iva_credit", 0) or 0 for doc in purchases_positive)
+
             purchases_credit_tax = sum(doc.get("tax_amount", 0) or 0 for doc in purchases_credits)
+            purchases_credit_overdue = sum(doc.get("overdue_iva_credit", 0) or 0 for doc in purchases_credits)
+
             credito_fiscal = purchases_positive_tax - purchases_credit_tax
+            # Overdue IVA: ALWAYS adds to tax burden (can't be claimed)
+            # Both positive docs AND credit notes increase the burden
+            overdue_iva_from_purchases = purchases_positive_overdue + purchases_credit_overdue
+
+            # Calculate total overdue IVA credit
+            overdue_iva_credit = overdue_iva_from_sales + overdue_iva_from_purchases
 
             # Calculate balance
             balance = debito_fiscal - credito_fiscal
@@ -154,6 +183,7 @@ class TaxSummaryService:
                 "credito_fiscal": credito_fiscal,
                 "balance": balance,
                 "previous_month_credit": previous_month_credit or 0.0,
+                "overdue_iva_credit": overdue_iva_credit,
                 "ppm": ppm or 0.0,
                 "retencion": retencion or 0.0,
                 "sales_count": sales_count,
@@ -167,6 +197,7 @@ class TaxSummaryService:
                 "credito_fiscal": 0,
                 "balance": 0,
                 "previous_month_credit": 0.0,
+                "overdue_iva_credit": 0.0,
                 "ppm": 0.0,
                 "retencion": 0.0,
                 "sales_count": 0,

@@ -26,6 +26,7 @@ def create_tax_calculation_widget(
     ppm: float | None = None,
     retencion: float | None = None,
     impuesto_trabajadores: float | None = None,
+    overdue_iva_credit: float | None = None,
 ) -> WidgetRoot | None:
     """
     Create a widget displaying the tax calculation breakdown.
@@ -39,6 +40,7 @@ def create_tax_calculation_widget(
         ppm: PPM (Pago Provisional Mensual) - adelanto para impuesto anual
         retencion: Retención de honorarios
         impuesto_trabajadores: Impuesto asociado a sueldos
+        overdue_iva_credit: IVA fuera de plazo (overdue IVA that can't be recovered)
 
     Returns:
         Card widget with the tax calculation breakdown, or None if widgets not available
@@ -51,7 +53,8 @@ def create_tax_calculation_widget(
         return f"${amount:,.0f}"
 
     # Calculate IVA balance (can be negative)
-    iva_balance = iva_collected - iva_paid - (previous_month_credit or 0.0)
+    overdue_iva_value = overdue_iva_credit if overdue_iva_credit is not None else 0.0
+    iva_balance = iva_collected - iva_paid - (previous_month_credit or 0.0) + overdue_iva_value
     iva_a_pagar = max(0.0, iva_balance)
 
     # Build widget rows
@@ -107,6 +110,18 @@ def create_tax_calculation_widget(
             children=[
                 Text(value="IVA Crédito Mes Anterior", size="sm", color="tertiary"),
                 Text(value=f"-{fmt(previous_month_credit or 0.0)}", size="sm", color="tertiary"),
+            ],
+        )
+    )
+
+    # Overdue IVA Credit (IVA fuera de plazo) - always show even if 0
+    content_rows.append(
+        Row(
+            justify="between",
+            align="center",
+            children=[
+                Text(value="IVA Fuera de plazo", size="sm"),
+                Text(value=f"+{fmt(overdue_iva_value)}", size="sm", weight="medium"),
             ],
         )
     )
@@ -230,6 +245,7 @@ def tax_calculation_widget_copy_text(
     ppm: float | None = None,
     retencion: float | None = None,
     impuesto_trabajadores: float | None = None,
+    overdue_iva_credit: float | None = None,
 ) -> str:
     """
     Generate human-readable fallback text for the tax calculation widget.
@@ -243,6 +259,7 @@ def tax_calculation_widget_copy_text(
         ppm: PPM (Pago Provisional Mensual)
         retencion: Retención de honorarios
         impuesto_trabajadores: Impuesto asociado a sueldos
+        overdue_iva_credit: IVA fuera de plazo (overdue IVA that can't be recovered)
 
     Returns:
         Formatted text representation of the tax calculation
@@ -251,7 +268,8 @@ def tax_calculation_widget_copy_text(
         return f"${amount:,.0f}"
 
     # Calculate IVA balance and IVA a pagar
-    iva_balance = iva_collected - iva_paid - (previous_month_credit or 0.0)
+    overdue_iva_value = overdue_iva_credit if overdue_iva_credit is not None else 0.0
+    iva_balance = iva_collected - iva_paid - (previous_month_credit or 0.0) + overdue_iva_value
     iva_a_pagar = max(0.0, iva_balance)
 
     lines = [
@@ -260,6 +278,7 @@ def tax_calculation_widget_copy_text(
         f"IVA Cobrado: {fmt(iva_collected)}",
         f"IVA Pagado: -{fmt(iva_paid)}",
         f"IVA Crédito Mes Anterior: -{fmt(previous_month_credit or 0.0)}",
+        f"IVA Fuera de plazo: +{fmt(overdue_iva_value)}",
         "--------------------",
         f"IVA a Pagar: {fmt(iva_a_pagar)}",
         "",

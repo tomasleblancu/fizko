@@ -190,7 +190,7 @@ def parse_purchase_document(
     # Calculate accounting_date (fecha contable)
     # For DIN documents: use issue_date
     # For all other purchases: use reception_date
-    is_din = document_type == 'DIN'
+    is_din = document_type == 'declaracion_ingreso'
     accounting_date = issue_date if is_din else reception_date
 
     # Parse amounts
@@ -198,6 +198,7 @@ def parse_purchase_document(
     tax_amount = parse_amount(doc.get('detMntIVA', 0))
     exempt_amount = parse_amount(doc.get('detMntExento', 0))
     total_amount = parse_amount(doc.get('detMntTotal', 0))
+    overdue_iva_credit = parse_amount(doc.get('detIVAFueraPlazo', 0))
 
     # Parse reference document fields (e.g., credit note referencing invoice)
     reference_document_type = doc.get('detTipoDocRef')
@@ -226,6 +227,7 @@ def parse_purchase_document(
         "tax_amount": tax_amount,
         "exempt_amount": exempt_amount,
         "total_amount": total_amount,
+        "overdue_iva_credit": overdue_iva_credit,
         "status": "pending",
         "accounting_state": estado_contab,
         "reference_document_type": reference_document_type,
@@ -283,6 +285,7 @@ def parse_sales_document(
     tax_amount = parse_amount(doc.get('detMntIVA', 0))
     exempt_amount = parse_amount(doc.get('detMntExento', 0))
     total_amount = parse_amount(doc.get('detMntTotal', 0))
+    overdue_iva_credit = parse_amount(doc.get('detIVAFueraPlazo', 0))
 
     # Parse reference document fields (e.g., credit note referencing invoice)
     reference_document_type = doc.get('detTipoDocRef')
@@ -311,6 +314,7 @@ def parse_sales_document(
         "tax_amount": tax_amount,
         "exempt_amount": exempt_amount,
         "total_amount": total_amount,
+        "overdue_iva_credit": overdue_iva_credit,
         "status": "pending",
         "reference_document_type": reference_document_type,
         "reference_folio": reference_folio,

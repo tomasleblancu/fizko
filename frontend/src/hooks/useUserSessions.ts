@@ -32,46 +32,17 @@ export function useUserSessions() {
         return [];
       }
 
-      // Fetch active sessions with company data and settings
-      const { data, error } = await supabase
-        .from("sessions")
-        .select(
-          `
-          *,
-          company:companies (
-            id,
-            rut,
-            business_name,
-            trade_name,
-            address,
-            phone,
-            email,
-            created_at,
-            updated_at,
-            settings:company_settings (
-              id,
-              is_initial_setup_complete,
-              has_formal_employees,
-              has_imports,
-              has_exports,
-              has_lease_contracts,
-              has_bank_loans,
-              business_description
-            )
-          )
-        `
-        )
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("last_accessed_at", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false });
+      // Fetch active sessions via internal API route
+      const sessionsResponse = await fetch('/api/sessions', {
+        credentials: 'include',
+      });
 
-      if (error) throw error;
+      if (!sessionsResponse.ok) {
+        throw new Error('Failed to fetch sessions');
+      }
 
-      return (data || []).map((session: any) => ({
-        ...session,
-        company: session.company,
-      })) as SessionWithCompany[];
+      const { data } = await sessionsResponse.json();
+      return data as SessionWithCompany[];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: true,
