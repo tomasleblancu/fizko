@@ -4,6 +4,7 @@ import { FileText, Download, Eye, Calendar, ArrowLeft, ChevronDown, ChevronUp } 
 import React, { useMemo, useState } from "react";
 import { useF29Forms } from "@/hooks/useF29Forms";
 import { useF29SIIDownloads } from "@/hooks/useF29SIIDownloads";
+import { parseLocalDate } from "@/shared/lib/date-utils";
 import type { CombinedF29Form, CombinedF29Status } from "@/types/f29";
 
 interface FormsViewProps {
@@ -148,7 +149,7 @@ export function FormsView({ companyId }: FormsViewProps) {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-CL");
+    return parseLocalDate(dateString).toLocaleDateString("es-CL");
   };
 
   // Extract F29 data from extra_data
@@ -484,7 +485,7 @@ export function FormsView({ companyId }: FormsViewProps) {
             )}
 
             {/* Créditos (IVA a Favor) */}
-            {(extractedData.total_creditos || extractedData.credito_iva_documentos_electronicos || extractedData.credito_facturas_giro) && (
+            {!!(extractedData.total_creditos || extractedData.credito_iva_documentos_electronicos || extractedData.credito_facturas_giro) && (
               <div className="rounded-lg border border-green-200 bg-green-50 p-6 dark:border-green-800 dark:bg-green-900/20">
                 <button
                   onClick={() => toggleSection('creditos')}

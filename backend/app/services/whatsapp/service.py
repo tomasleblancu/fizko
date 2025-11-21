@@ -30,10 +30,10 @@ class WhatsAppService:
         self.conversation_manager = WhatsAppConversationManager(client)
 
         # Initialize Kapso client
-        api_token = os.getenv("KAPSO_API_KEY")
+        api_token = os.getenv("KAPSO_API_TOKEN")
         if not api_token:
-            logger.error("KAPSO_API_KEY not configured")
-            raise ValueError("KAPSO_API_KEY environment variable is required")
+            logger.error("KAPSO_API_TOKEN not configured")
+            raise ValueError("KAPSO_API_TOKEN environment variable is required")
 
         self.kapso = KapsoClient(api_token=api_token)
         logger.info("WhatsApp service initialized")

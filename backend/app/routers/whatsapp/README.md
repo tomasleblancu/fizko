@@ -70,8 +70,8 @@ Agregar a `.env`:
 
 ```bash
 # Kapso WhatsApp Integration
-KAPSO_API_KEY=sk_...                    # API key de Kapso
-KAPSO_PROJECT_ID=proj_...               # ID del proyecto Kapso
+KAPSO_API_TOKEN=sk_...                  # API token de Kapso
+KAPSO_PROJECT_ID=proj_...               # ID del proyecto Kapso (opcional)
 KAPSO_WEBHOOK_SECRET=whsec_...          # Secret para HMAC validation
 
 # Supabase (ya existentes)

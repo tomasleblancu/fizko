@@ -50,6 +50,11 @@ async def handle_webhook(
     # Parse JSON
     try:
         data = json.loads(payload_str)
+        print("=" * 80)
+        print("WEBHOOK PAYLOAD RECEIVED:")
+        print(json.dumps(data, indent=2))
+        print("=" * 80)
+        logger.info(f"Received webhook payload: {json.dumps(data, indent=2)}")
     except json.JSONDecodeError:
         logger.error("Invalid JSON in webhook payload")
         raise HTTPException(
@@ -133,9 +138,11 @@ async def _process_single_event(
     # Extract event type
     event_type = event_data.get("event_type") or event_data.get("type")
 
+    logger.info(f"Processing event type: {event_type}")
+
     # Only process inbound messages
     if event_type not in ["message.received", "whatsapp.message.received"]:
-        logger.debug(f"Ignoring event type: {event_type}")
+        logger.info(f"Ignoring event type: {event_type}")
         return None
 
     # Extract message and conversation data (support V1 and V2 formats)
@@ -205,11 +212,18 @@ async def _process_single_event(
     # For now, send a simple echo response
     response_message = f"Recibí tu mensaje: {message_content}\n\n(Sistema en desarrollo)"
 
+    logger.info(f"Sending response to conversation {conversation_id}")
+
     # Send response
-    await whatsapp_service.send_text(
-        conversation_id=conversation_id,
-        message=response_message,
-    )
+    try:
+        result = await whatsapp_service.send_text(
+            conversation_id=conversation_id,
+            message=response_message,
+        )
+        logger.info(f"Message sent successfully: {result}")
+    except Exception as e:
+        logger.error(f"Error sending message: {e}", exc_info=True)
+        raise
 
     # TODO: Save conversation and messages to database
 

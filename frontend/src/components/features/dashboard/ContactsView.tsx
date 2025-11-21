@@ -5,6 +5,7 @@ import React, { useState, useMemo } from "react";
 import { useContacts } from "@/hooks/useContacts";
 import { useCompanyDocuments } from "@/hooks/useCompanyDocuments";
 import { ChateableWrapper } from "@/components/ui/ChateableWrapper";
+import { parseLocalDate, getTimestamp } from "@/shared/lib/date-utils";
 import type { Contact } from "@/types/contacts";
 import type { DocumentWithType } from "@/types/database";
 
@@ -81,7 +82,7 @@ export function ContactsView({ companyId }: ContactsViewProps) {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseLocalDate(dateString);
     return new Intl.DateTimeFormat("es-CL", {
       weekday: "long",
       day: "numeric",
@@ -178,7 +179,7 @@ export function ContactsView({ companyId }: ContactsViewProps) {
               <table className="w-full">
                 <tbody className="bg-white dark:bg-slate-900">
                   {Object.entries(groupedContactDocuments)
-                    .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
+                    .sort(([dateA], [dateB]) => getTimestamp(dateB) - getTimestamp(dateA))
                     .map(([date, docs]) => (
                       <React.Fragment key={date}>
                         {/* Date Group Header Row */}

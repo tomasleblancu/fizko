@@ -11,6 +11,7 @@ import { QuickActions } from "./components/QuickActions";
 import { CalendarWidget } from "./components/CalendarWidget";
 import { MovementsPanel } from "./components/MovementsPanel";
 import { CSVDownloadModal } from "./components/CSVDownloadModal";
+import { parseLocalDate, getYear, getTimestamp } from "@/shared/lib/date-utils";
 import "@/styles/chateable.css";
 
 interface DashboardViewProps {
@@ -20,6 +21,8 @@ interface DashboardViewProps {
 export function DashboardView({ companyId }: DashboardViewProps) {
   const [showAllMovements, setShowAllMovements] = useState(false);
   const [movementTypeFilter, setMovementTypeFilter] = useState<'all' | 'sale' | 'purchase'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [hideZeroAmount, setHideZeroAmount] = useState(true);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -92,7 +95,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseLocalDate(dateString);
     return new Intl.DateTimeFormat("es-CL", {
       weekday: "long",
       day: "numeric",
@@ -109,7 +112,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   };
 
   const formatDueDate = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseLocalDate(dateString);
     return new Intl.DateTimeFormat("es-CL", {
       day: "numeric",
       month: "short",
@@ -138,7 +141,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
 
   // Convert to array and sort by date (most recent first)
   const documentsByDate = Object.entries(groupedDocuments)
-    .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
+    .sort(([dateA], [dateB]) => getTimestamp(dateB) - getTimestamp(dateA))
     .slice(0, 10); // Show last 10 days with activity
 
   // For expanded view: apply filters and group documents
@@ -147,9 +150,26 @@ export function DashboardView({ companyId }: DashboardViewProps) {
 
     let filteredDocs = documents || [];
 
+    // Apply zero amount filter (hide by default)
+    if (hideZeroAmount) {
+      filteredDocs = filteredDocs.filter(doc => doc.total_amount !== 0);
+    }
+
     // Apply movement type filter
     if (movementTypeFilter !== 'all') {
       filteredDocs = filteredDocs.filter(doc => doc.type === movementTypeFilter);
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filteredDocs = filteredDocs.filter(doc => {
+        const counterpartyMatch = doc.counterparty_name?.toLowerCase().includes(query);
+        const folioMatch = doc.folio?.toString().includes(query);
+        const docTypeMatch = doc.document_type.toLowerCase().includes(query);
+        const amountMatch = doc.total_amount.toString().includes(query);
+        return counterpartyMatch || folioMatch || docTypeMatch || amountMatch;
+      });
     }
 
     return filteredDocs.reduce((acc, doc) => {
@@ -160,7 +180,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
       acc[dateKey].push(doc);
       return acc;
     }, {} as Record<string, DocumentWithType[]>);
-  }, [documents, showAllMovements, groupedDocuments, movementTypeFilter]);
+  }, [documents, showAllMovements, groupedDocuments, movementTypeFilter, searchQuery, hideZeroAmount]);
 
   // Intersection Observer for infinite scroll - fetches more pages from backend
   useEffect(() => {
@@ -184,15 +204,40 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   useEffect(() => {
     if (!showAllMovements) {
       setMovementTypeFilter('all');
+      setSearchQuery('');
     }
   }, [showAllMovements]);
 
   // Calculate filtered document count
   const filteredDocumentsCount = useMemo(() => {
     if (!documents) return 0;
-    if (movementTypeFilter === 'all') return documents.length;
-    return documents.filter(doc => doc.type === movementTypeFilter).length;
-  }, [documents, movementTypeFilter]);
+
+    let filteredDocs = documents;
+
+    // Apply zero amount filter (hide by default)
+    if (hideZeroAmount) {
+      filteredDocs = filteredDocs.filter(doc => doc.total_amount !== 0);
+    }
+
+    // Apply movement type filter
+    if (movementTypeFilter !== 'all') {
+      filteredDocs = filteredDocs.filter(doc => doc.type === movementTypeFilter);
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filteredDocs = filteredDocs.filter(doc => {
+        const counterpartyMatch = doc.counterparty_name?.toLowerCase().includes(query);
+        const folioMatch = doc.folio?.toString().includes(query);
+        const docTypeMatch = doc.document_type.toLowerCase().includes(query);
+        const amountMatch = doc.total_amount.toString().includes(query);
+        return counterpartyMatch || folioMatch || docTypeMatch || amountMatch;
+      });
+    }
+
+    return filteredDocs.length;
+  }, [documents, movementTypeFilter, searchQuery, hideZeroAmount]);
 
   // Get unique document types from current documents
   const availableDocTypes = useMemo(() => {
@@ -204,7 +249,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   // Get available years from documents
   const availableYears = useMemo(() => {
     if (!documents) return [];
-    const years = new Set(documents.map(doc => new Date(doc.issue_date).getFullYear()));
+    const years = new Set(documents.map(doc => getYear(doc.issue_date)));
     return Array.from(years).sort((a, b) => b - a).map(String); // Most recent first, as strings
   }, [documents]);
 
@@ -354,6 +399,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
           isLoading={documentsLoading}
           showAllMovements={showAllMovements}
           movementTypeFilter={movementTypeFilter}
+          searchQuery={searchQuery}
           visibleGroupedDocuments={visibleGroupedDocuments}
           documentsByDate={documentsByDate}
           filteredDocumentsCount={filteredDocumentsCount}
@@ -362,6 +408,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
           loadMoreRef={loadMoreRef}
           onToggleExpand={() => setShowAllMovements(!showAllMovements)}
           onFilterChange={setMovementTypeFilter}
+          onSearchChange={setSearchQuery}
           onDownloadCSV={handleDownloadCSV}
           formatDate={formatDate}
           formatCurrency={formatCurrency}

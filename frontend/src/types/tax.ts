@@ -64,7 +64,8 @@ export const PURCHASES_POSITIVE_TYPES = [
   'factura_compra',
   'factura_exenta_compra',
   'liquidacion_factura',
-  'nota_debito_compra'
+  'nota_debito_compra',
+  'declaracion_ingreso'
 ] as const
 
 // Purchase document types that SUBTRACT from totals

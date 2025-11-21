@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import type { UpcomingEventsResponse } from '@/types/calendar'
+import { parseLocalDate } from '@/shared/lib/date-utils'
 
 // Create Supabase client for server-side operations
 function getSupabaseClient() {
@@ -33,11 +34,15 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient()
 
-    // Calculate date range
+    // Calculate date range as ISO date strings (avoid timezone issues)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const endDate = new Date(today)
     endDate.setDate(endDate.getDate() + daysAhead)
+
+    // Format as YYYY-MM-DD directly to avoid timezone shifts
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const endDateStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`
 
     // Query upcoming calendar events
     // Note: This requires calendar_events and event_templates tables
@@ -61,8 +66,8 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('company_id', companyId)
-      .gte('due_date', today.toISOString().split('T')[0])
-      .lte('due_date', endDate.toISOString().split('T')[0])
+      .gte('due_date', todayStr)
+      .lte('due_date', endDateStr)
       .order('due_date', { ascending: true }) as { data: CalendarEventWithTemplate[] | null; error: any }
 
     if (error) {
@@ -76,7 +81,7 @@ export async function GET(request: NextRequest) {
     // Transform and filter events based on display_days_before
     const transformedEvents = (events || [])
       .map(event => {
-        const dueDate = new Date(event.due_date)
+        const dueDate = parseLocalDate(event.due_date)
         const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 
         // Handle the event_template which could be an array or object
@@ -106,8 +111,8 @@ export async function GET(request: NextRequest) {
       data: transformedEvents,
       total: transformedEvents.length,
       period: {
-        start: today.toISOString().split('T')[0],
-        end: endDate.toISOString().split('T')[0],
+        start: todayStr,
+        end: endDateStr,
         days: daysAhead
       }
     }

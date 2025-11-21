@@ -12,8 +12,10 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Calendar,
+  Search,
 } from "lucide-react";
 import { ChateableWrapper } from "@/components/ui/ChateableWrapper";
+import { getTimestamp } from "@/shared/lib/date-utils";
 
 /**
  * Format document type name: replace underscores with spaces and capitalize first letters
@@ -45,6 +47,7 @@ interface MovementsPanelProps {
   isLoading: boolean;
   showAllMovements: boolean;
   movementTypeFilter: "all" | "sale" | "purchase";
+  searchQuery: string;
   visibleGroupedDocuments: GroupedDocuments;
   documentsByDate: [string, Document[]][];
   filteredDocumentsCount: number;
@@ -53,6 +56,7 @@ interface MovementsPanelProps {
   loadMoreRef: React.RefObject<HTMLDivElement | null>;
   onToggleExpand: () => void;
   onFilterChange: (filter: "all" | "sale" | "purchase") => void;
+  onSearchChange: (query: string) => void;
   onDownloadCSV: () => void;
   formatDate: (date: string) => string;
   formatCurrency: (amount: number) => string;
@@ -63,6 +67,7 @@ export function MovementsPanel({
   isLoading,
   showAllMovements,
   movementTypeFilter,
+  searchQuery,
   visibleGroupedDocuments,
   documentsByDate,
   filteredDocumentsCount,
@@ -71,6 +76,7 @@ export function MovementsPanel({
   loadMoreRef,
   onToggleExpand,
   onFilterChange,
+  onSearchChange,
   onDownloadCSV,
   formatDate,
   formatCurrency,
@@ -127,16 +133,26 @@ export function MovementsPanel({
           </div>
         </div>
 
-        {/* Filters - Only show in expanded desktop view */}
+        {/* Filters - Only show in expanded view */}
         {showAllMovements && (
-          <div className="hidden items-center gap-2 lg:flex">
-            <span className="text-sm text-slate-600 dark:text-slate-400">
-              Tipo:
-            </span>
-            <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            {/* Search input */}
+            <div className="relative flex-1 lg:max-w-xs">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, folio, monto..."
+                value={searchQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder-slate-500 dark:focus:border-emerald-400"
+              />
+            </div>
+
+            {/* Type filter - Desktop only */}
+            <div className="hidden lg:flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800 h-[38px]">
               <button
                 onClick={() => onFilterChange("all")}
-                className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   movementTypeFilter === "all"
                     ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
@@ -146,7 +162,7 @@ export function MovementsPanel({
               </button>
               <button
                 onClick={() => onFilterChange("sale")}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   movementTypeFilter === "sale"
                     ? "bg-white text-emerald-700 shadow-sm dark:bg-slate-700 dark:text-emerald-400"
                     : "text-slate-600 hover:text-emerald-700 dark:text-slate-400 dark:hover:text-emerald-400"
@@ -157,7 +173,7 @@ export function MovementsPanel({
               </button>
               <button
                 onClick={() => onFilterChange("purchase")}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   movementTypeFilter === "purchase"
                     ? "bg-white text-blue-700 shadow-sm dark:bg-slate-700 dark:text-blue-400"
                     : "text-slate-600 hover:text-blue-700 dark:text-slate-400 dark:hover:text-blue-400"
@@ -190,7 +206,7 @@ export function MovementsPanel({
                 {Object.entries(visibleGroupedDocuments)
                   .sort(
                     ([dateA], [dateB]) =>
-                      new Date(dateB).getTime() - new Date(dateA).getTime()
+                      getTimestamp(dateB) - getTimestamp(dateA)
                   )
                   .map(([date, docs]) => (
                     <React.Fragment key={date}>
