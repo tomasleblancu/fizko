@@ -25,6 +25,7 @@ def create_tax_calculation_widget(
     period: str,
     ppm: float | None = None,
     retencion: float | None = None,
+    reverse_charge_withholding: float | None = None,
     impuesto_trabajadores: float | None = None,
     overdue_iva_credit: float | None = None,
 ) -> WidgetRoot | None:
@@ -39,6 +40,7 @@ def create_tax_calculation_widget(
         period: Period string (e.g., "Oct 2025")
         ppm: PPM (Pago Provisional Mensual) - adelanto para impuesto anual
         retencion: Retención de honorarios
+        reverse_charge_withholding: Retención Cambio de Sujeto (código 46)
         impuesto_trabajadores: Impuesto asociado a sueldos
         overdue_iva_credit: IVA fuera de plazo (overdue IVA that can't be recovered)
 
@@ -172,6 +174,19 @@ def create_tax_calculation_widget(
         )
     )
 
+    # Reverse Charge Withholding (Retención Cambio de Sujeto - código 46)
+    reverse_charge_value = reverse_charge_withholding if reverse_charge_withholding is not None else 0.0
+    content_rows.append(
+        Row(
+            justify="between",
+            align="center",
+            children=[
+                Text(value="Retención Cambio de Sujeto", size="sm"),
+                Text(value=f"+{fmt(reverse_charge_value)}", size="sm", weight="medium"),
+            ],
+        )
+    )
+
     # Impuesto de Trabajadores
     impuesto_trabajadores_value = impuesto_trabajadores if impuesto_trabajadores is not None else 0.0
     content_rows.append(
@@ -244,6 +259,7 @@ def tax_calculation_widget_copy_text(
     period: str,
     ppm: float | None = None,
     retencion: float | None = None,
+    reverse_charge_withholding: float | None = None,
     impuesto_trabajadores: float | None = None,
     overdue_iva_credit: float | None = None,
 ) -> str:
@@ -258,6 +274,7 @@ def tax_calculation_widget_copy_text(
         period: Period string (e.g., "Oct 2025")
         ppm: PPM (Pago Provisional Mensual)
         retencion: Retención de honorarios
+        reverse_charge_withholding: Retención Cambio de Sujeto (código 46)
         impuesto_trabajadores: Impuesto asociado a sueldos
         overdue_iva_credit: IVA fuera de plazo (overdue IVA that can't be recovered)
 
@@ -290,6 +307,9 @@ def tax_calculation_widget_copy_text(
 
     retencion_value = retencion if retencion is not None else 0.0
     lines.append(f"Retención (Honorarios): +{fmt(retencion_value)}")
+
+    reverse_charge_value = reverse_charge_withholding if reverse_charge_withholding is not None else 0.0
+    lines.append(f"Retención Cambio de Sujeto: +{fmt(reverse_charge_value)}")
 
     impuesto_trabajadores_value = impuesto_trabajadores if impuesto_trabajadores is not None else 0.0
     lines.append(f"Impuesto Trabajadores: +{fmt(impuesto_trabajadores_value)}")

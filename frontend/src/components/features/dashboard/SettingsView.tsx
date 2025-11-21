@@ -311,7 +311,36 @@ export function SettingsView({ userId, companyId, companyData, onLogout }: Setti
                 Datos de la Empresa
               </h3>
             </div>
-            <div className="space-y-4">
+            {/* Mobile: Show only essential info (razón social + régimen) */}
+            <div className="space-y-4 lg:hidden">
+              <div>
+                <Label>Razón Social</Label>
+                <p className="text-sm font-medium text-slate-900 dark:text-white">
+                  {companyData?.business_name || '-'}
+                </p>
+              </div>
+              <div>
+                <Label>Régimen Tributario</Label>
+                <p className="text-sm font-medium text-slate-900 dark:text-white">
+                  {companyData?.tax_regime || '-'}
+                </p>
+              </div>
+
+              {/* Add New Company Button */}
+              <div className="border-t border-slate-200 pt-4 dark:border-slate-700">
+                <Button
+                  onClick={() => router.push('/onboarding/sii')}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Agregar Nueva Empresa
+                </Button>
+              </div>
+            </div>
+
+            {/* Desktop: Show all company info */}
+            <div className="hidden space-y-4 lg:block">
               <div>
                 <Label>RUT</Label>
                 <p className="text-sm font-medium text-slate-900 dark:text-white">

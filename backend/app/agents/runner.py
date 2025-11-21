@@ -123,7 +123,12 @@ class AgentRunner:
         context = await self._build_context(request, db)
 
         # 3. Prepare agent input
-        agent_input = self._prepare_input(request)
+        # When using session memory with simple text, pass string directly
+        # Otherwise prepare full message format
+        if session and isinstance(request.message, str):
+            agent_input = request.message
+        else:
+            agent_input = self._prepare_input(request)
 
         # 5. Execute agent
         if stream:

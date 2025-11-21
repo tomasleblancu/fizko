@@ -208,6 +208,18 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     }
   }, [showAllMovements]);
 
+  // Collapse panel when dashboard tab is clicked
+  useEffect(() => {
+    const handleDashboardClick = () => {
+      if (showAllMovements) {
+        setShowAllMovements(false);
+      }
+    };
+
+    window.addEventListener('dashboard:collapse', handleDashboardClick);
+    return () => window.removeEventListener('dashboard:collapse', handleDashboardClick);
+  }, [showAllMovements]);
+
   // Calculate filtered document count
   const filteredDocumentsCount = useMemo(() => {
     if (!documents) return 0;

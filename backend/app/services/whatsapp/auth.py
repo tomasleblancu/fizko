@@ -1,16 +1,14 @@
 """WhatsApp authentication - authenticate users by phone number."""
 
 import logging
-from typing import Optional
+from typing import Optional, Union
 from uuid import UUID
-
-from supabase import Client
 
 logger = logging.getLogger(__name__)
 
 
 async def authenticate_user_by_whatsapp(
-    client: Client,
+    supabase,  # SupabaseClient or raw Client
     phone_number: str,
 ) -> Optional[UUID]:
     """
@@ -20,7 +18,7 @@ async def authenticate_user_by_whatsapp(
     Phone numbers are normalized with + prefix.
 
     Args:
-        client: Supabase client
+        supabase: Supabase client (SupabaseClient or raw Client)
         phone_number: Phone number (will be normalized)
 
     Returns:
@@ -32,17 +30,19 @@ async def authenticate_user_by_whatsapp(
 
         logger.info(f"Authenticating user by phone: {normalized_phone}")
 
+        # Get underlying client if wrapped
+        client = supabase.client if hasattr(supabase, 'client') else supabase
+
         # Query profiles table
         response = (
             client.table("profiles")
             .select("id, full_name, email")
             .eq("phone", normalized_phone)
-            .maybe_single()
             .execute()
         )
 
-        if hasattr(response, "data") and response.data:
-            profile = response.data
+        if hasattr(response, "data") and response.data and len(response.data) > 0:
+            profile = response.data[0]
             user_id = UUID(profile["id"])
             logger.info(
                 f"Authenticated user: {profile.get('full_name')} ({profile.get('email')})"
