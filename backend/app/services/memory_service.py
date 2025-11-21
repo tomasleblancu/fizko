@@ -9,6 +9,12 @@ Architecture:
 2. Memories are tracked in Supabase (user_brain, company_brain tables)
 3. Memory content is stored in Mem0 cloud service
 4. Updates use slug to find existing memories instead of creating duplicates
+
+Functions:
+- save_company_memories: Save/update company memories
+- save_user_memories: Save/update user memories
+- build_company_memories_from_data: Build memory list from company data
+- build_user_memories_from_data: Build memory list from user data
 """
 
 import logging
@@ -416,6 +422,251 @@ async def save_user_memories(
         "failed_count": failed_count,
         "errors": errors
     }
+
+
+async def build_company_memories_from_data(
+    company_id: str
+) -> dict[str, Any]:
+    """
+    Build memory list from existing company data.
+
+    Extracts data from companies and company_tax_info tables and builds
+    a list of memories ready to be saved.
+
+    Args:
+        company_id: Company UUID
+
+    Returns:
+        Dict with result:
+        {
+            "success": bool,
+            "company_name": str,
+            "memories": list[dict],  # Ready for save_company_memories
+            "error": str  # Only if failed
+        }
+
+    Example:
+        result = await build_company_memories_from_data(company_id)
+        if result["success"]:
+            await save_company_memories(company_id, result["memories"])
+    """
+    try:
+        supabase = get_supabase_client()
+        companies_repo = CompaniesRepository(supabase._client)
+
+        # Fetch company data with tax info
+        company = await companies_repo.get_by_id(
+            company_id=company_id,
+            include_tax_info=True
+        )
+
+        if not company:
+            return {
+                "success": False,
+                "error": f"Company {company_id} not found"
+            }
+
+        company_name = company.get("business_name", "Unknown")
+
+        # Build memory list from available data
+        memories: list[dict[str, str]] = []
+
+        # Extract tax info (can be None if not set)
+        tax_info = None
+        if "company_tax_info" in company and company["company_tax_info"]:
+            # Handle both list and dict responses
+            tax_info_data = company["company_tax_info"]
+            if isinstance(tax_info_data, list) and len(tax_info_data) > 0:
+                tax_info = tax_info_data[0]
+            elif isinstance(tax_info_data, dict):
+                tax_info = tax_info_data
+
+        # Memory 1: Tax Regime
+        if tax_info and tax_info.get("tax_regime"):
+            tax_regime = tax_info["tax_regime"]
+            # Translate regime to Spanish
+            regime_names = {
+                "regimen_general": "Régimen General",
+                "regimen_simplificado": "Régimen Simplificado",
+                "pro_pyme": "ProPyme General",
+                "14_ter": "14 TER"
+            }
+            regime_label = regime_names.get(tax_regime, tax_regime)
+            memories.append({
+                "slug": "company_tax_regime",
+                "category": "company_tax",
+                "content": f"Régimen tributario: {regime_label}"
+            })
+
+        # Memory 2: SII Activity
+        if tax_info and (tax_info.get("sii_activity_name") or tax_info.get("sii_activity_code")):
+            activity_name = tax_info.get("sii_activity_name", "No especificado")
+            activity_code = tax_info.get("sii_activity_code", "")
+            activity_text = f"Actividad económica: {activity_name}"
+            if activity_code:
+                activity_text += f" (Código SII: {activity_code})"
+            memories.append({
+                "slug": "company_activity",
+                "category": "company_tax",
+                "content": activity_text
+            })
+
+        # Memory 3: Legal Representative
+        if tax_info and (tax_info.get("legal_representative_name") or tax_info.get("legal_representative_rut")):
+            rep_name = tax_info.get("legal_representative_name", "")
+            rep_rut = tax_info.get("legal_representative_rut", "")
+            rep_text = "Representante legal: "
+            if rep_name and rep_rut:
+                rep_text += f"{rep_name} (RUT: {rep_rut})"
+            elif rep_name:
+                rep_text += rep_name
+            elif rep_rut:
+                rep_text += f"RUT {rep_rut}"
+            memories.append({
+                "slug": "company_legal_representative",
+                "category": "company_tax",
+                "content": rep_text
+            })
+
+        # Memory 4: Start of Activities Date
+        if tax_info and tax_info.get("start_of_activities_date"):
+            start_date = tax_info["start_of_activities_date"]
+            memories.append({
+                "slug": "company_start_date",
+                "category": "company_tax",
+                "content": f"Fecha de inicio de actividades: {start_date}"
+            })
+
+        # Memory 5: Accounting Start Month
+        if tax_info and tax_info.get("accounting_start_month"):
+            month = tax_info["accounting_start_month"]
+            month_names = {
+                1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+                5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+                9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+            }
+            month_name = month_names.get(month, str(month))
+            memories.append({
+                "slug": "company_accounting_start",
+                "category": "company_tax",
+                "content": f"Mes de inicio contable: {month_name} (mes {month})"
+            })
+
+        return {
+            "success": True,
+            "company_name": company_name,
+            "memories": memories
+        }
+
+    except Exception as e:
+        logger.error(
+            f"[Memory Service] Error building company memories: {e}",
+            exc_info=True
+        )
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+async def build_user_memories_from_data(
+    user_id: str
+) -> dict[str, Any]:
+    """
+    Build memory list from existing user data.
+
+    Extracts data from profiles table and builds a list of memories
+    ready to be saved.
+
+    Args:
+        user_id: User UUID
+
+    Returns:
+        Dict with result:
+        {
+            "success": bool,
+            "user_name": str,
+            "memories": list[dict],  # Ready for save_user_memories
+            "error": str  # Only if failed
+        }
+
+    Example:
+        result = await build_user_memories_from_data(user_id)
+        if result["success"]:
+            await save_user_memories(user_id, result["memories"])
+    """
+    try:
+        supabase = get_supabase_client()
+
+        # Fetch user profile
+        profile_response = (
+            supabase._client
+            .table("profiles")
+            .select("*")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+        profile = profile_response.data if hasattr(profile_response, "data") else None
+
+        if not profile:
+            return {
+                "success": False,
+                "error": f"User {user_id} not found"
+            }
+
+        user_name = profile.get("full_name", profile.get("email", "Unknown"))
+
+        # Build memory list from available data
+        memories: list[dict[str, str]] = []
+
+        # Memory 1: Full Name
+        if profile.get("full_name"):
+            memories.append({
+                "slug": "user_full_name",
+                "category": "user_profile",
+                "content": f"Nombre completo: {profile['full_name']}"
+            })
+
+        # Memory 2: Email
+        if profile.get("email"):
+            memories.append({
+                "slug": "user_email",
+                "category": "user_profile",
+                "content": f"Email: {profile['email']}"
+            })
+
+        # Memory 3: Phone
+        if profile.get("phone"):
+            memories.append({
+                "slug": "user_phone",
+                "category": "user_profile",
+                "content": f"Teléfono: {profile['phone']}"
+            })
+
+        # Memory 4: Role/Position
+        if profile.get("rol"):
+            memories.append({
+                "slug": "user_role",
+                "category": "user_profile",
+                "content": f"Rol/Cargo: {profile['rol']}"
+            })
+
+        return {
+            "success": True,
+            "user_name": user_name,
+            "memories": memories
+        }
+
+    except Exception as e:
+        logger.error(
+            f"[Memory Service] Error building user memories: {e}",
+            exc_info=True
+        )
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 
 def _extract_memory_id(result: Any) -> str | None:

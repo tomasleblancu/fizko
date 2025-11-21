@@ -261,7 +261,7 @@ Apply the migration to create tables:
 supabase db push
 
 # Or apply manually
-psql $DATABASE_URL < supabase/migrations/20251121195736_create_brain_tables.sql
+psql $DATABASE_URL < supabase/migrations/20251104174123_create_brain_tables.sql
 ```
 
 ---
@@ -423,7 +423,7 @@ backend/
 │   │           └── __init__.py        # Task registry (updated)
 ├── supabase/
 │   └── migrations/
-│       └── 20251121195736_create_brain_tables.sql  # Database schema
+│       └── 20251104174123_create_brain_tables.sql  # Database schema (existing)
 └── docs/
     └── MEMORY_INFRASTRUCTURE.md       # This file
 ```
