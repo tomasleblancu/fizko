@@ -103,15 +103,15 @@ export function MovementsPanel({
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* Download CSV button - only show when expanded */}
+            {/* Download CSV button - only show when expanded and on desktop */}
             {showAllMovements && documents && documents.length > 0 && (
               <button
                 onClick={onDownloadCSV}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-emerald-100 hover:text-emerald-700 dark:text-slate-400 dark:hover:bg-emerald-900/30 dark:hover:text-emerald-400"
+                className="hidden lg:flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-emerald-100 hover:text-emerald-700 dark:text-slate-400 dark:hover:bg-emerald-900/30 dark:hover:text-emerald-400"
                 title="Descargar CSV"
               >
                 <Download className="h-4 w-4" />
-                <span className="hidden sm:inline">CSV</span>
+                <span>CSV</span>
               </button>
             )}
             <button

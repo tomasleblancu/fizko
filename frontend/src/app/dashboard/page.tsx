@@ -399,9 +399,9 @@ export default function DashboardPage() {
 
             <button
               onClick={() => setActiveTab("contacts")}
-              className={`rounded-lg p-2 transition-colors ${
+              className={`rounded-lg p-2 transition-all ${
                 activeTab === "contacts"
-                  ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50"
                   : "text-slate-600 dark:text-slate-400"
               }`}
               aria-label="Contactos"
@@ -411,9 +411,9 @@ export default function DashboardPage() {
 
             <button
               onClick={() => setActiveTab("personnel")}
-              className={`rounded-lg p-2 transition-colors ${
+              className={`rounded-lg p-2 transition-all ${
                 activeTab === "personnel"
-                  ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50"
                   : "text-slate-600 dark:text-slate-400"
               }`}
               aria-label="Personal"
@@ -423,9 +423,9 @@ export default function DashboardPage() {
 
             <button
               onClick={() => setActiveTab("forms")}
-              className={`rounded-lg p-2 transition-colors ${
+              className={`rounded-lg p-2 transition-all ${
                 activeTab === "forms"
-                  ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50"
                   : "text-slate-600 dark:text-slate-400"
               }`}
               aria-label="Formularios"
@@ -435,9 +435,9 @@ export default function DashboardPage() {
 
             <button
               onClick={() => setActiveTab("settings")}
-              className={`rounded-lg p-2 transition-colors ${
+              className={`rounded-lg p-2 transition-all ${
                 activeTab === "settings"
-                  ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50"
                   : "text-slate-600 dark:text-slate-400"
               }`}
               aria-label="Configuración"

@@ -343,7 +343,56 @@ export function ContactsView({ companyId }: ContactsViewProps) {
         </div>
       ) : (
         <div className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-          <div className="overflow-x-auto">
+          {/* Mobile: Card-based layout */}
+          <div className="divide-y divide-slate-100 lg:hidden dark:divide-slate-800">
+            {filteredContacts.map((contact) => (
+              <ChateableWrapper
+                key={contact.id}
+                as="fragment"
+                message={`Muéstrame información detallada de mi contacto ${contact.business_name} (RUT: ${contact.rut})`}
+                contextData={{
+                  contactId: contact.id,
+                  businessName: contact.business_name,
+                  tradeName: contact.trade_name,
+                  rut: contact.rut,
+                  contactType: contact.contact_type,
+                  email: contact.email,
+                  phone: contact.phone,
+                }}
+                uiComponent="contact_card"
+                entityId={contact.id}
+                entityType="contact"
+                onClick={() => setSelectedContact(contact)}
+              >
+                <div className="cursor-pointer p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-slate-900 dark:text-white truncate">
+                        {contact.business_name}
+                      </p>
+                      {contact.trade_name && (
+                        <p className="text-sm text-slate-500 dark:text-slate-400 truncate">
+                          {contact.trade_name}
+                        </p>
+                      )}
+                    </div>
+                    <span className={`ml-3 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                      contact.contact_type === 'provider'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                        : contact.contact_type === 'client'
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
+                        : 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
+                    }`}>
+                      {contact.contact_type === 'provider' ? 'Proveedor' : contact.contact_type === 'client' ? 'Cliente' : 'Ambos'}
+                    </span>
+                  </div>
+                </div>
+              </ChateableWrapper>
+            ))}
+          </div>
+
+          {/* Desktop: Table layout */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-700">

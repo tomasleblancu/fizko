@@ -150,9 +150,9 @@ export function Header({
 
               <button
                 onClick={() => onTabChange("contacts")}
-                className={`rounded-lg p-2 transition-colors ${
+                className={`rounded-lg p-2 transition-all ${
                   activeTab === "contacts"
-                    ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50"
                     : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 }`}
                 aria-label="Contactos"
@@ -162,9 +162,9 @@ export function Header({
 
               <button
                 onClick={() => onTabChange("personnel")}
-                className={`rounded-lg p-2 transition-colors ${
+                className={`rounded-lg p-2 transition-all ${
                   activeTab === "personnel"
-                    ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50"
                     : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 }`}
                 aria-label="Personal"
@@ -174,9 +174,9 @@ export function Header({
 
               <button
                 onClick={() => onTabChange("forms")}
-                className={`rounded-lg p-2 transition-colors ${
+                className={`rounded-lg p-2 transition-all ${
                   activeTab === "forms"
-                    ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50"
                     : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 }`}
                 aria-label="Formularios"
@@ -186,9 +186,9 @@ export function Header({
 
               <button
                 onClick={() => onTabChange("settings")}
-                className={`rounded-lg p-2 transition-colors ${
+                className={`rounded-lg p-2 transition-all ${
                   activeTab === "settings"
-                    ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50"
                     : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                 }`}
                 aria-label="Configuración"
