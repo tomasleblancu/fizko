@@ -64,7 +64,7 @@ export class ContactsService {
   static async getById(contactId: string): Promise<Contact> {
     console.log(`[Contacts Service] Fetching contact ${contactId}`);
 
-    const supabase = createClient();
+    const supabase = createServiceClient();
 
     const { data: contact, error } = await supabase
       .from('contacts')

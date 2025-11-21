@@ -81,7 +81,7 @@ export class F29SIIDownloadsService {
   static async getById(downloadId: string): Promise<F29SIIDownload> {
     console.log(`[F29 SII Downloads Service] Fetching download ${downloadId}`);
 
-    const supabase = createClient();
+    const supabase = createServiceClient();
 
     const { data: download, error } = await supabase
       .from('form29_sii_downloads')
