@@ -1,7 +1,7 @@
 import { User, Activity, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { CompanyDetail } from "@/services/admin/companies.service";
+import type { CompanyDetail, UserSession } from "@/services/admin/companies.service";
 
 interface CompanyUsersListProps {
   company: CompanyDetail;
@@ -28,7 +28,7 @@ export function CompanyUsersList({ company }: CompanyUsersListProps) {
       acc[session.user_id].push(session);
       return acc;
     },
-    {} as Record<string, typeof company.sessions>
+    {} as Record<string, UserSession[]>
   );
 
   if (!company.sessions || company.sessions.length === 0) {
@@ -45,6 +45,8 @@ export function CompanyUsersList({ company }: CompanyUsersListProps) {
   return (
     <div className="space-y-4">
       {Object.entries(sessionsByUser).map(([userId, userSessions]) => {
+        if (!userSessions || userSessions.length === 0) return null;
+
         const firstSession = userSessions[0];
         const activeSessions = userSessions.filter((s) => s.is_active);
         const lastActivity = userSessions.reduce((latest, session) => {

@@ -56,7 +56,7 @@ export function CompanyStats({ company }: CompanyStatsProps) {
           <div>
             <p className="text-sm text-gray-600">Última Actividad</p>
             <p className="text-sm font-semibold text-gray-900">
-              {formatDate(company.last_activity)}
+              {formatDate(company.last_activity || null)}
             </p>
           </div>
         </div>

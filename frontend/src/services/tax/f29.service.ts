@@ -86,7 +86,7 @@ export class F29Service {
   static async getById(formId: string): Promise<F29Form> {
     console.log(`[F29 Service] Fetching form ${formId}`);
 
-    const supabase = createClient();
+    const supabase = createServiceClient();
 
     const { data: form, error } = await supabase
       .from('form29')
