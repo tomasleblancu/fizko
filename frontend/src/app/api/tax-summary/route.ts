@@ -27,8 +27,9 @@ function getSupabaseClient() {
 
 /**
  * Parse period string (YYYY-MM) or default to current month
+ * Returns ISO date strings (YYYY-MM-DD) to avoid timezone issues
  */
-function parsePeriod(period?: string): { start: Date; end: Date } {
+function parsePeriod(period?: string): { start: string; end: string } {
   let year: number
   let month: number
 
@@ -49,41 +50,44 @@ function parsePeriod(period?: string): { start: Date; end: Date } {
     month = now.getMonth() + 1
   }
 
-  const periodStart = new Date(year, month - 1, 1)
+  // Return ISO date strings directly to avoid timezone conversion issues
+  const periodStart = `${year}-${String(month).padStart(2, '0')}-01`
   const periodEnd = month === 12
-    ? new Date(year + 1, 0, 1)
-    : new Date(year, month, 1)
+    ? `${year + 1}-01-01`
+    : `${year}-${String(month + 1).padStart(2, '0')}-01`
 
   return { start: periodStart, end: periodEnd }
 }
 
 /**
  * Calculate sales revenue and IVA collected
+ *
+ * Uses accounting_date for tax recognition
  */
 async function calculateSales(
   supabase: ReturnType<typeof getSupabaseClient>,
   companyId: string,
-  periodStart: Date,
-  periodEnd: Date
+  periodStart: string,
+  periodEnd: string
 ): Promise<{ totalRevenue: number; ivaCollected: number }> {
-  // Query positive documents
+  // Query positive documents using accounting_date
   const { data: positiveData, error: positiveError } = await supabase
     .from('sales_documents')
     .select('total_amount, tax_amount')
     .eq('company_id', companyId)
-    .gte('issue_date', periodStart.toISOString().split('T')[0])
-    .lt('issue_date', periodEnd.toISOString().split('T')[0])
+    .gte('accounting_date', periodStart)
+    .lt('accounting_date', periodEnd)
     .in('document_type', [...SALES_POSITIVE_TYPES]) as { data: SalesDocumentRow[] | null; error: any }
 
   if (positiveError) throw positiveError
 
-  // Query credit notes
+  // Query credit notes using accounting_date
   const { data: creditData, error: creditError } = await supabase
     .from('sales_documents')
     .select('total_amount, tax_amount')
     .eq('company_id', companyId)
-    .gte('issue_date', periodStart.toISOString().split('T')[0])
-    .lt('issue_date', periodEnd.toISOString().split('T')[0])
+    .gte('accounting_date', periodStart)
+    .lt('accounting_date', periodEnd)
     .in('document_type', [...SALES_CREDIT_TYPES]) as { data: SalesDocumentRow[] | null; error: any }
 
   if (creditError) throw creditError
@@ -102,31 +106,34 @@ async function calculateSales(
 
 /**
  * Calculate purchase expenses and IVA paid
+ *
+ * Uses accounting_date for tax recognition
+ * (accounting_date = reception_date for most purchases, issue_date for DIN)
  */
 async function calculatePurchases(
   supabase: ReturnType<typeof getSupabaseClient>,
   companyId: string,
-  periodStart: Date,
-  periodEnd: Date
+  periodStart: string,
+  periodEnd: string
 ): Promise<{ totalExpenses: number; ivaPaid: number }> {
-  // Query positive documents
+  // Query positive documents using accounting_date
   const { data: positiveData, error: positiveError } = await supabase
     .from('purchase_documents')
     .select('total_amount, tax_amount')
     .eq('company_id', companyId)
-    .gte('issue_date', periodStart.toISOString().split('T')[0])
-    .lt('issue_date', periodEnd.toISOString().split('T')[0])
+    .gte('accounting_date', periodStart)
+    .lt('accounting_date', periodEnd)
     .in('document_type', [...PURCHASES_POSITIVE_TYPES]) as { data: PurchaseDocumentRow[] | null; error: any }
 
   if (positiveError) throw positiveError
 
-  // Query credit notes
+  // Query credit notes using accounting_date
   const { data: creditData, error: creditError } = await supabase
     .from('purchase_documents')
     .select('total_amount, tax_amount')
     .eq('company_id', companyId)
-    .gte('issue_date', periodStart.toISOString().split('T')[0])
-    .lt('issue_date', periodEnd.toISOString().split('T')[0])
+    .gte('accounting_date', periodStart)
+    .lt('accounting_date', periodEnd)
     .in('document_type', [...PURCHASES_CREDIT_TYPES]) as { data: PurchaseDocumentRow[] | null; error: any }
 
   if (creditError) throw creditError
@@ -149,10 +156,12 @@ async function calculatePurchases(
 async function getPreviousMonthCredit(
   supabase: ReturnType<typeof getSupabaseClient>,
   companyId: string,
-  periodStart: Date
+  periodStart: string
 ): Promise<number | null> {
-  const prevYear = periodStart.getMonth() === 0 ? periodStart.getFullYear() - 1 : periodStart.getFullYear()
-  const prevMonth = periodStart.getMonth() === 0 ? 12 : periodStart.getMonth()
+  // Parse periodStart (YYYY-MM-DD format)
+  const [year, month] = periodStart.split('-').map(Number)
+  const prevYear = month === 1 ? year - 1 : year
+  const prevMonth = month === 1 ? 12 : month - 1
 
   // First: Check Form29 drafts for saved/paid forms
   const { data: draftData } = await supabase
@@ -213,16 +222,16 @@ function calculatePPM(netRevenue: number): number | null {
 async function getRetencion(
   supabase: ReturnType<typeof getSupabaseClient>,
   companyId: string,
-  periodStart: Date,
-  periodEnd: Date
+  periodStart: string,
+  periodEnd: string
 ): Promise<number | null> {
   const { data, error } = await supabase
     .from('honorarios_receipts')
     .select('recipient_retention')
     .eq('company_id', companyId)
     .eq('receipt_type', 'received')
-    .gte('issue_date', periodStart.toISOString().split('T')[0])
-    .lt('issue_date', periodEnd.toISOString().split('T')[0]) as { data: HonorariosReceiptRow[] | null; error: any }
+    .gte('issue_date', periodStart)
+    .lt('issue_date', periodEnd) as { data: HonorariosReceiptRow[] | null; error: any }
 
   if (error) {
     console.error('Error fetching honorarios receipts:', error)
@@ -340,22 +349,25 @@ export async function GET(request: NextRequest) {
     if (retencion && retencion > 0) monthlyTax += retencion
     if (impuestoTrabajadores && impuestoTrabajadores > 0) monthlyTax += impuestoTrabajadores
 
+    // Parse year and month from periodStart (YYYY-MM-DD)
+    const [periodYear, periodMonth] = periodStart.split('-').map(Number)
+
     // Get generated Form29
     const generatedF29 = await getGeneratedF29(
       supabase,
       companyId,
-      periodStart.getFullYear(),
-      periodStart.getMonth() + 1
+      periodYear,
+      periodMonth
     )
 
     // Generate summary ID
-    const summaryId = `${companyId}-${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, '0')}`
+    const summaryId = `${companyId}-${periodYear}-${String(periodMonth).padStart(2, '0')}`
 
     const summary: TaxSummary = {
       id: summaryId,
       company_id: companyId,
-      period_start: periodStart.toISOString(),
-      period_end: periodEnd.toISOString(),
+      period_start: `${periodStart}T00:00:00.000Z`,
+      period_end: `${periodEnd}T00:00:00.000Z`,
       total_revenue: totalRevenue,
       total_expenses: totalExpenses,
       iva_collected: ivaCollected,

@@ -111,7 +111,8 @@ class TaxSummaryService:
                 company_id,
                 document_types=[
                     'factura_compra', 'factura_exenta_compra',
-                    'liquidacion_factura', 'nota_debito_compra'
+                    'liquidacion_factura', 'nota_debito_compra',
+                    'declaracion_ingreso'
                 ],
                 period_start=period_start,
                 period_end=period_end,
@@ -258,7 +259,8 @@ class TaxSummaryService:
                 company_id,
                 document_types=[
                     'factura_compra', 'factura_exenta_compra',
-                    'liquidacion_factura', 'nota_debito_compra'
+                    'liquidacion_factura', 'nota_debito_compra',
+                    'declaracion_ingreso'
                 ],
                 period_start=period_start,
                 period_end=period_end,
@@ -499,6 +501,11 @@ class TaxSummaryService:
         """
         Get documents from repository with filters.
 
+        Uses accounting_date for tax recognition.
+        accounting_date logic:
+        - Sales: always issue_date
+        - Purchases: reception_date for most, issue_date for DIN
+
         Args:
             table: Table name (sales_documents or purchase_documents)
             company_id: Company UUID
@@ -523,8 +530,9 @@ class TaxSummaryService:
         )
 
         # Add date filters if provided
+        # Always use accounting_date for tax calculations
         if period_start and period_end:
-            query = query.gte("issue_date", period_start).lt("issue_date", period_end)
+            query = query.gte("accounting_date", period_start).lt("accounting_date", period_end)
 
         # Execute query
         response = query.execute()

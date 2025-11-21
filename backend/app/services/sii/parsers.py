@@ -98,7 +98,8 @@ def get_document_type_name(tipo_doc: str, is_purchase: bool = True) -> str:
             "46": "factura_compra",
             "48": "comprobante_pago",
             "56": "nota_debito_compra",
-            "61": "nota_credito_compra"
+            "61": "nota_credito_compra",
+            "914": "declaracion_ingreso"
         }
     else:
         tipo_map = {
@@ -179,9 +180,18 @@ def parse_purchase_document(
     # Map document type
     document_type = get_document_type_name(tipo_doc, is_purchase=True)
 
-    # Parse date
+    # Parse dates
     issue_date_str = doc.get('detFchDoc') or doc.get('fecha')
     issue_date = parse_date(issue_date_str)
+
+    reception_date_str = doc.get('detFecRecepcion')
+    reception_date = parse_date(reception_date_str)
+
+    # Calculate accounting_date (fecha contable)
+    # For DIN documents: use issue_date
+    # For all other purchases: use reception_date
+    is_din = document_type == 'DIN'
+    accounting_date = issue_date if is_din else reception_date
 
     # Parse amounts
     net_amount = parse_amount(doc.get('detMntNeto', 0))
@@ -205,8 +215,11 @@ def parse_purchase_document(
     return {
         "company_id": company_id,
         "document_type": document_type,
+        "document_type_code": str(tipo_doc),  # Numeric SII document type code
         "folio": folio,
         "issue_date": issue_date,  # Changed from emission_date to issue_date
+        "reception_date": reception_date,  # Date when document was received at SII
+        "accounting_date": accounting_date,  # Date for tax recognition (DIN: issue_date, others: reception_date)
         "sender_rut": sender_rut,
         "sender_name": doc.get('detRznSoc'),
         "net_amount": net_amount,
@@ -254,9 +267,16 @@ def parse_sales_document(
     # Map document type
     document_type = get_document_type_name(tipo_doc, is_purchase=False)
 
-    # Parse date
+    # Parse dates
     issue_date_str = doc.get('detFchDoc') or doc.get('fecha')
     issue_date = parse_date(issue_date_str)
+
+    reception_date_str = doc.get('detFecRecepcion')
+    reception_date = parse_date(reception_date_str)
+
+    # Calculate accounting_date (fecha contable)
+    # For ALL sales documents (facturas, boletas, comprobantes de pago): always use issue_date
+    accounting_date = issue_date
 
     # Parse amounts
     net_amount = parse_amount(doc.get('detMntNeto', 0))
@@ -280,8 +300,11 @@ def parse_sales_document(
     return {
         "company_id": company_id,
         "document_type": document_type,
+        "document_type_code": str(tipo_doc),  # Numeric SII document type code
         "folio": folio,
         "issue_date": issue_date,
+        "reception_date": reception_date,  # Date when document was received at SII
+        "accounting_date": accounting_date,  # Date for tax recognition (always issue_date for sales)
         "recipient_rut": recipient_rut,  # Changed to recipient_rut (correct schema name)
         "recipient_name": doc.get('detRznSoc'),  # Changed to recipient_name (correct schema name)
         "net_amount": net_amount,
@@ -346,8 +369,11 @@ def parse_daily_purchase_document(
     return {
         "company_id": company_id,
         "document_type": get_document_type_name(tipo_doc, is_purchase=True),
+        "document_type_code": str(tipo_doc),  # Numeric SII document type code
         "folio": folio,
         "issue_date": issue_date,
+        "reception_date": issue_date,  # For daily summaries, reception_date = issue_date
+        "accounting_date": issue_date,  # For purchases (boletas/comprobantes): use issue_date
         "sender_rut": None,
         "sender_name": sender_name,
         "net_amount": net_amount,
@@ -417,8 +443,11 @@ def parse_daily_sales_document(
     return {
         "company_id": company_id,
         "document_type": get_document_type_name(tipo_doc, is_purchase=False),
+        "document_type_code": str(tipo_doc),  # Numeric SII document type code
         "folio": folio,
         "issue_date": issue_date,
+        "reception_date": issue_date,  # For daily summaries, reception_date = issue_date
+        "accounting_date": issue_date,  # For sales: always use issue_date
         "recipient_rut": None,
         "recipient_name": recipient_name,
         "net_amount": net_amount,

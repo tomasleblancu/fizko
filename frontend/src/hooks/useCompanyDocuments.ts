@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { queryKeys } from "@/lib/query-keys";
+import { getTimestamp } from "@/shared/lib/date-utils";
 import type { SalesDocument, PurchaseDocument, DocumentWithType } from "@/types/database";
 
 interface UseCompanyDocumentsOptions {
@@ -54,7 +55,7 @@ export function useCompanyDocuments({ companyId, limit = 50 }: UseCompanyDocumen
 
       // Combine and sort by issue_date
       const allDocuments = [...salesDocuments, ...purchaseDocuments].sort(
-        (a, b) => new Date(b.issue_date).getTime() - new Date(a.issue_date).getTime()
+        (a, b) => getTimestamp(b.issue_date) - getTimestamp(a.issue_date)
       );
 
       return allDocuments.slice(0, limit);

@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getTimestamp, getMonth } from '@/shared/lib/date-utils';
 
 interface SalesDocument {
   id: string;
@@ -39,6 +40,8 @@ interface UnifiedDocument {
   document_type: string;
   folio: number | null;
   issue_date: string;
+  reception_date: string | null;
+  accounting_date: string | null;
   counterparty_rut: string | null;
   counterparty_name: string | null;
   net_amount: number;
@@ -81,42 +84,61 @@ export async function GET(request: NextRequest) {
 
     // Fetch sales documents if not filtered to purchases only
     if (!typeParam || typeParam === 'sale') {
-      let salesQuery = supabase
-        .from('sales_documents')
-        .select('*')
-        .eq('company_id', companyId)
-        .gte('issue_date', `${year}-01-01`)
-        .lte('issue_date', `${year}-12-31`)
-        .order('issue_date', { ascending: true });
+      // Fetch ALL sales documents using pagination to avoid 1000-row limit
+      let salesData: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      // Apply document type filter
-      if (docTypesParam) {
-        const docTypes = docTypesParam.split(',');
-        salesQuery = salesQuery.in('document_type', docTypes);
-      }
+      while (hasMore) {
+        let salesQuery = supabase
+          .from('sales_documents')
+          .select('*')
+          .eq('company_id', companyId)
+          .gte('issue_date', `${year}-01-01`)
+          .lte('issue_date', `${year}-12-31`)
+          .order('issue_date', { ascending: true })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      const { data: salesData, error: salesError } = await salesQuery;
+        // Apply document type filter
+        if (docTypesParam) {
+          const docTypes = docTypesParam.split(',');
+          salesQuery = salesQuery.in('document_type', docTypes);
+        }
 
-      if (salesError) {
-        console.error('[Export CSV] Sales query error:', salesError);
-        return NextResponse.json(
-          { error: 'Error al obtener documentos de venta' },
-          { status: 500 }
-        );
+        const { data: pageData, error: salesError } = await salesQuery;
+
+        if (salesError) {
+          console.error('[Export CSV] Sales query error:', salesError);
+          return NextResponse.json(
+            { error: 'Error al obtener documentos de venta' },
+            { status: 500 }
+          );
+        }
+
+        if (pageData && pageData.length > 0) {
+          salesData = [...salesData, ...pageData];
+          hasMore = pageData.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
       }
 
       // Transform sales documents to unified format
-      const salesDocuments: UnifiedDocument[] = (salesData || []).map((doc: SalesDocument) => ({
+      const salesDocuments: UnifiedDocument[] = (salesData || []).map((doc: any) => ({
         id: doc.id,
         type: 'sale' as const,
         document_type: doc.document_type,
         folio: doc.folio,
         issue_date: doc.issue_date,
+        reception_date: doc.reception_date || null,
+        accounting_date: doc.accounting_date || null,
         counterparty_rut: doc.recipient_rut,
         counterparty_name: doc.recipient_name,
-        net_amount: doc.net_amount,
-        tax_amount: doc.tax_amount,
-        total_amount: doc.total_amount,
+        net_amount: Number(doc.net_amount) || 0,
+        tax_amount: Number(doc.tax_amount) || 0,
+        total_amount: Number(doc.total_amount) || 0,
       }));
 
       allDocuments = [...allDocuments, ...salesDocuments];
@@ -124,56 +146,75 @@ export async function GET(request: NextRequest) {
 
     // Fetch purchase documents if not filtered to sales only
     if (!typeParam || typeParam === 'purchase') {
-      let purchasesQuery = supabase
-        .from('purchase_documents')
-        .select('*')
-        .eq('company_id', companyId)
-        .gte('issue_date', `${year}-01-01`)
-        .lte('issue_date', `${year}-12-31`)
-        .order('issue_date', { ascending: true });
+      // Fetch ALL purchase documents using pagination to avoid 1000-row limit
+      let purchasesData: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      // Apply document type filter
-      if (docTypesParam) {
-        const docTypes = docTypesParam.split(',');
-        purchasesQuery = purchasesQuery.in('document_type', docTypes);
-      }
+      while (hasMore) {
+        let purchasesQuery = supabase
+          .from('purchase_documents')
+          .select('*')
+          .eq('company_id', companyId)
+          .gte('issue_date', `${year}-01-01`)
+          .lte('issue_date', `${year}-12-31`)
+          .order('issue_date', { ascending: true })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      const { data: purchasesData, error: purchasesError } = await purchasesQuery;
+        // Apply document type filter
+        if (docTypesParam) {
+          const docTypes = docTypesParam.split(',');
+          purchasesQuery = purchasesQuery.in('document_type', docTypes);
+        }
 
-      if (purchasesError) {
-        console.error('[Export CSV] Purchases query error:', purchasesError);
-        return NextResponse.json(
-          { error: 'Error al obtener documentos de compra' },
-          { status: 500 }
-        );
+        const { data: pageData, error: purchasesError } = await purchasesQuery;
+
+        if (purchasesError) {
+          console.error('[Export CSV] Purchases query error:', purchasesError);
+          return NextResponse.json(
+            { error: 'Error al obtener documentos de compra' },
+            { status: 500 }
+          );
+        }
+
+        if (pageData && pageData.length > 0) {
+          purchasesData = [...purchasesData, ...pageData];
+          hasMore = pageData.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
       }
 
       // Transform purchase documents to unified format
-      const purchaseDocuments: UnifiedDocument[] = (purchasesData || []).map((doc: PurchaseDocument) => ({
+      const purchaseDocuments: UnifiedDocument[] = (purchasesData || []).map((doc: any) => ({
         id: doc.id,
         type: 'purchase' as const,
         document_type: doc.document_type,
         folio: doc.folio,
         issue_date: doc.issue_date,
+        reception_date: doc.reception_date || null,
+        accounting_date: doc.accounting_date || null,
         counterparty_rut: doc.sender_rut,
         counterparty_name: doc.sender_name,
-        net_amount: doc.net_amount,
-        tax_amount: doc.tax_amount,
-        total_amount: doc.total_amount,
+        net_amount: Number(doc.net_amount) || 0,
+        tax_amount: Number(doc.tax_amount) || 0,
+        total_amount: Number(doc.total_amount) || 0,
       }));
 
       allDocuments = [...allDocuments, ...purchaseDocuments];
     }
 
     // Sort by issue date
-    allDocuments.sort((a, b) => new Date(a.issue_date).getTime() - new Date(b.issue_date).getTime());
+    allDocuments.sort((a, b) => getTimestamp(a.issue_date) - getTimestamp(b.issue_date));
 
     // Apply month filter in memory if specified
     let filteredDocs = allDocuments;
     if (monthsParam) {
       const months = monthsParam.split(',').map(m => parseInt(m));
       filteredDocs = filteredDocs.filter(doc => {
-        const docMonth = new Date(doc.issue_date).getMonth() + 1; // JS months are 0-indexed
+        const docMonth = getMonth(doc.issue_date);
         return months.includes(docMonth);
       });
     }
@@ -181,6 +222,8 @@ export async function GET(request: NextRequest) {
     // Generate CSV
     const headers = [
       'Fecha',
+      'Fecha Recepción',
+      'Fecha Contable',
       'Tipo',
       'Tipo Documento',
       'Folio',
@@ -193,6 +236,8 @@ export async function GET(request: NextRequest) {
 
     const rows = filteredDocs.map(doc => [
       doc.issue_date,
+      doc.reception_date || '',
+      doc.accounting_date || '',
       doc.type === 'sale' ? 'Venta' : 'Compra',
       doc.document_type,
       doc.folio?.toString() || '',

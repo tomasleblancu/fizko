@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { queryKeys } from "@/lib/query-keys";
+import { getTimestamp } from "@/shared/lib/date-utils";
 import type { SalesDocument, PurchaseDocument, DocumentWithType } from "@/types/database";
 
 interface UseInfiniteCompanyDocumentsOptions {
@@ -60,7 +61,7 @@ export function useInfiniteCompanyDocuments({
 
       // Combine and sort by issue_date
       return [...salesDocuments, ...purchaseDocuments].sort(
-        (a, b) => new Date(b.issue_date).getTime() - new Date(a.issue_date).getTime()
+        (a, b) => getTimestamp(b.issue_date) - getTimestamp(a.issue_date)
       );
     },
     enabled: !!companyId,

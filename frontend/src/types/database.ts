@@ -98,8 +98,11 @@ export interface Database {
           id: string
           company_id: string
           document_type: string
+          document_type_code: string | null
           folio: number | null
           issue_date: string
+          reception_date: string | null
+          accounting_date: string | null
           recipient_rut: string | null
           recipient_name: string | null
           net_amount: number
@@ -121,6 +124,8 @@ export interface Database {
           document_type: string
           folio?: number | null
           issue_date: string
+          reception_date?: string | null
+          accounting_date?: string | null
           recipient_rut?: string | null
           recipient_name?: string | null
           net_amount: number
@@ -142,6 +147,8 @@ export interface Database {
           document_type?: string
           folio?: number | null
           issue_date?: string
+          reception_date?: string | null
+          accounting_date?: string | null
           recipient_rut?: string | null
           recipient_name?: string | null
           net_amount?: number
@@ -167,8 +174,10 @@ export interface Database {
           id: string
           company_id: string
           document_type: string
+          document_type_code: string | null
           folio: number | null
           issue_date: string
+          reception_date: string | null
           sender_rut: string | null
           sender_name: string | null
           net_amount: number
@@ -192,6 +201,7 @@ export interface Database {
           document_type: string
           folio?: number | null
           issue_date: string
+          reception_date?: string | null
           sender_rut?: string | null
           sender_name?: string | null
           net_amount: number
@@ -215,6 +225,7 @@ export interface Database {
           document_type?: string
           folio?: number | null
           issue_date?: string
+          reception_date?: string | null
           sender_rut?: string | null
           sender_name?: string | null
           net_amount?: number
