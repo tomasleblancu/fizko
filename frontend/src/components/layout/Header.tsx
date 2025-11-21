@@ -138,14 +138,14 @@ export function Header({
             <>
               <button
                 onClick={() => onTabChange("dashboard")}
-                className={`rounded-lg p-2 transition-colors ${
+                className={`rounded-full p-3 transition-all ${
                   activeTab === "dashboard"
-                    ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50 dark:bg-emerald-600"
+                    : "bg-emerald-100 text-emerald-600 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
                 }`}
                 aria-label="Dashboard"
               >
-                <Home className="h-5 w-5" />
+                <Home className="h-6 w-6" />
               </button>
 
               <button

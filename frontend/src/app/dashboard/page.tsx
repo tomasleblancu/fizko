@@ -96,6 +96,21 @@ export default function DashboardPage() {
     }
   }, [activeTab, isDesktop]);
 
+  // Auto-close drawer on mobile when chateable message is sent
+  useEffect(() => {
+    if (!isDesktop && activeTab) {
+      const handleChateableMessage = () => {
+        setActiveTab(null);
+      };
+
+      window.addEventListener('chatkit:sendMessage' as any, handleChateableMessage as EventListener);
+
+      return () => {
+        window.removeEventListener('chatkit:sendMessage' as any, handleChateableMessage as EventListener);
+      };
+    }
+  }, [isDesktop, activeTab]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/");
@@ -286,10 +301,10 @@ export default function DashboardPage() {
           <div className="absolute right-6 top-6 flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900">
             <button
               onClick={() => setActiveTab("dashboard")}
-              className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+              className="rounded-full p-3 bg-emerald-500 text-white shadow-lg shadow-emerald-500/50 transition-all hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
               aria-label="Dashboard"
             >
-              <Home className="h-5 w-5" />
+              <Home className="h-6 w-6" />
             </button>
 
             <button
@@ -367,72 +382,67 @@ export default function DashboardPage() {
 
         {/* Bottom Navigation */}
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-          <div className="flex items-center justify-around px-4 py-2">
+          <div className="flex items-center justify-around px-4 py-3">
             <button
               onClick={() => setActiveTab("dashboard")}
-              className={`flex flex-col items-center gap-1 rounded-lg px-4 py-2 transition-colors ${
-                activeTab === "dashboard"
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-slate-600 dark:text-slate-400"
-              }`}
+              className="transition-all"
+              aria-label="Dashboard"
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              <span className="text-xs">Inicio</span>
+              <div className={`rounded-full p-3.5 transition-all ${
+                activeTab === "dashboard"
+                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50"
+                  : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+              }`}>
+                <Home className="h-7 w-7" />
+              </div>
             </button>
 
             <button
               onClick={() => setActiveTab("contacts")}
-              className={`flex flex-col items-center gap-1 rounded-lg px-4 py-2 transition-colors ${
+              className={`rounded-lg p-2 transition-colors ${
                 activeTab === "contacts"
-                  ? "text-emerald-600 dark:text-emerald-400"
+                  ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
                   : "text-slate-600 dark:text-slate-400"
               }`}
+              aria-label="Contactos"
             >
               <Building2 className="h-6 w-6" />
-              <span className="text-xs">Contactos</span>
             </button>
 
             <button
               onClick={() => setActiveTab("personnel")}
-              className={`flex flex-col items-center gap-1 rounded-lg px-4 py-2 transition-colors ${
+              className={`rounded-lg p-2 transition-colors ${
                 activeTab === "personnel"
-                  ? "text-emerald-600 dark:text-emerald-400"
+                  ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
                   : "text-slate-600 dark:text-slate-400"
               }`}
+              aria-label="Personal"
             >
               <UsersRound className="h-6 w-6" />
-              <span className="text-xs">Personal</span>
             </button>
 
             <button
               onClick={() => setActiveTab("forms")}
-              className={`flex flex-col items-center gap-1 rounded-lg px-4 py-2 transition-colors ${
+              className={`rounded-lg p-2 transition-colors ${
                 activeTab === "forms"
-                  ? "text-emerald-600 dark:text-emerald-400"
+                  ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
                   : "text-slate-600 dark:text-slate-400"
               }`}
+              aria-label="Formularios"
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span className="text-xs">Formularios</span>
+              <FileText className="h-6 w-6" />
             </button>
 
             <button
               onClick={() => setActiveTab("settings")}
-              className={`flex flex-col items-center gap-1 rounded-lg px-4 py-2 transition-colors ${
+              className={`rounded-lg p-2 transition-colors ${
                 activeTab === "settings"
-                  ? "text-emerald-600 dark:text-emerald-400"
+                  ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
                   : "text-slate-600 dark:text-slate-400"
               }`}
+              aria-label="Configuración"
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span className="text-xs">Ajustes</span>
+              <Settings className="h-6 w-6" />
             </button>
           </div>
         </div>
