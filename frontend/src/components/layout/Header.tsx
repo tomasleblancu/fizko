@@ -137,7 +137,11 @@ export function Header({
           {onTabChange && (
             <>
               <button
-                onClick={() => onTabChange("dashboard")}
+                onClick={() => {
+                  onTabChange("dashboard");
+                  // Dispatch event to collapse movements panel if expanded
+                  window.dispatchEvent(new Event('dashboard:collapse'));
+                }}
                 className={`rounded-full p-3 transition-all ${
                   activeTab === "dashboard"
                     ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/50 dark:bg-emerald-600"

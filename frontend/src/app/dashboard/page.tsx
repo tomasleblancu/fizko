@@ -300,7 +300,11 @@ export default function DashboardPage() {
         {!activeTab && (
           <div className="absolute right-6 top-6 flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-900">
             <button
-              onClick={() => setActiveTab("dashboard")}
+              onClick={() => {
+                setActiveTab("dashboard");
+                // Dispatch event to collapse movements panel if expanded
+                window.dispatchEvent(new Event('dashboard:collapse'));
+              }}
               className="rounded-full p-3 bg-emerald-500 text-white shadow-lg shadow-emerald-500/50 transition-all hover:bg-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-700"
               aria-label="Dashboard"
             >
@@ -384,7 +388,11 @@ export default function DashboardPage() {
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-center justify-around px-4 py-3">
             <button
-              onClick={() => setActiveTab("dashboard")}
+              onClick={() => {
+                setActiveTab("dashboard");
+                // Dispatch event to collapse movements panel if expanded
+                window.dispatchEvent(new Event('dashboard:collapse'));
+              }}
               className="transition-all"
               aria-label="Dashboard"
             >

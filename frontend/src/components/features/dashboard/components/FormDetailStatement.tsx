@@ -6,7 +6,7 @@
 
 import React from "react";
 import { ArrowLeft, FileText, Download } from "lucide-react";
-import type { CombinedF29Form } from "@/types/f29";
+import type { CombinedF29Form, CombinedF29Status } from "@/types/f29";
 
 interface FormDetailStatementProps {
   form: CombinedF29Form;
@@ -14,8 +14,8 @@ interface FormDetailStatementProps {
   formatPeriod: (year: number, month: number) => string;
   formatDate: (dateString: string) => string;
   formatCurrency: (amount: number) => string;
-  getStatusColor: (status: string) => string;
-  getStatusLabel: (status: string) => string;
+  getStatusColor: (status: CombinedF29Status) => string;
+  getStatusLabel: (status: CombinedF29Status) => string;
   onBack: () => void;
 }
 
