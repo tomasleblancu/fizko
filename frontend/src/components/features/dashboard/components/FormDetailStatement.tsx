@@ -185,9 +185,6 @@ export function FormDetailStatement({
               <>
                 <Section title="Créditos Fiscales (IVA Compras)" icon="💰" />
 
-                {extractedData.credito_iva_documentos_electronicos !== undefined && (
-                  <LineItem label="IVA Crédito Fiscal" value={extractedData.credito_iva_documentos_electronicos} />
-                )}
                 {extractedData.credito_facturas_giro !== undefined && (
                   <LineItem label="IVA Activo Fijo" value={extractedData.credito_facturas_giro} />
                 )}
@@ -199,6 +196,20 @@ export function FormDetailStatement({
                 )}
                 {extractedData.credito_notas_debito !== undefined && extractedData.credito_notas_debito !== 0 && (
                   <LineItem label="(+) Notas de Débito" value={extractedData.credito_notas_debito} />
+                )}
+
+                {/* IVA Crédito Fiscal = suma de componentes anteriores */}
+                {extractedData.credito_iva_documentos_electronicos !== undefined && (
+                  <LineItem
+                    label="IVA Crédito Fiscal"
+                    value={extractedData.credito_iva_documentos_electronicos}
+                    isBold
+                  />
+                )}
+
+                {/* Remanente Mes Anterior (se suma al crédito) */}
+                {extractedData.remanente_mes_anterior !== undefined && extractedData.remanente_mes_anterior !== 0 && (
+                  <LineItem label="Remanente Mes Anterior" value={extractedData.remanente_mes_anterior} />
                 )}
 
                 <LineItem
@@ -219,17 +230,23 @@ export function FormDetailStatement({
                   value={extractedData.iva_determinado}
                   isBold
                 />
+
+                {/* Remanente para próximo mes (si es negativo) */}
+                {extractedData.iva_determinado < 0 && (
+                  <LineItem
+                    label="Remanente Crédito Fiscal (próximo mes)"
+                    value={Math.abs(extractedData.iva_determinado)}
+                    isBold
+                  />
+                )}
               </>
             )}
 
-            {/* REMANENTES */}
-            {(extractedData.remanente_mes_anterior !== undefined || extractedData.remanente_credito_fisc !== undefined) && (
+            {/* OTROS CRÉDITOS Y AJUSTES */}
+            {(extractedData.remanente_credito_fisc !== undefined || extractedData.recup_imp_diesel !== undefined || extractedData.iva_postergado !== undefined) && (
               <>
-                <Section title="Remanentes y Créditos" icon="🔄" />
+                <Section title="Otros Créditos y Ajustes" icon="🔄" />
 
-                {extractedData.remanente_mes_anterior !== undefined && extractedData.remanente_mes_anterior !== 0 && (
-                  <LineItem label="(-) Remanente Mes Anterior" value={-extractedData.remanente_mes_anterior} />
-                )}
                 {extractedData.remanente_credito_fisc !== undefined && extractedData.remanente_credito_fisc !== 0 && (
                   <LineItem label="(-) Remanente Crédito Fiscal" value={-extractedData.remanente_credito_fisc} />
                 )}
@@ -248,7 +265,10 @@ export function FormDetailStatement({
                 <Section title="PPM y Retenciones" icon="📈" />
 
                 {extractedData.ppm_neto !== undefined && extractedData.ppm_neto !== 0 && (
-                  <LineItem label="PPM (0.125% Ingresos Netos)" value={extractedData.ppm_neto} />
+                  <LineItem
+                    label={`PPM (${extractedData.tasa_ppm ? `${extractedData.tasa_ppm.toFixed(3)}%` : '0.125%'} Ingresos Netos)`}
+                    value={extractedData.ppm_neto}
+                  />
                 )}
                 {extractedData.retencion_imp_unico !== undefined && extractedData.retencion_imp_unico !== 0 && (
                   <LineItem label="Retención Impuesto Único" value={extractedData.retencion_imp_unico} />

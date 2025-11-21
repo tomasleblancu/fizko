@@ -11,9 +11,12 @@ Structure:
     │   ├── __init__.py
     │   ├── documents.py     # Document synchronization
     │   └── forms.py         # Form processing (F29)
-    └── calendar/            # Calendar-related tasks
+    ├── calendar/            # Calendar-related tasks
+    │   ├── __init__.py
+    │   └── events.py        # Calendar event generation
+    └── memory/              # Memory-related tasks
         ├── __init__.py
-        └── events.py        # Calendar event generation
+        └── load.py          # Memory loading from existing data
 
 Import your task modules here to ensure they're discovered by Celery.
 """
@@ -21,8 +24,10 @@ Import your task modules here to ensure they're discovered by Celery.
 # Import task modules to register them with Celery
 from . import sii
 from . import calendar
+from . import memory
 
 __all__ = [
     "sii",
     "calendar",
+    "memory",
 ]

@@ -63,11 +63,13 @@ export class TaxSummaryService {
       { totalExpenses, ivaPaid, overdueIvaFromPurchases },
       previousMonthCredit,
       retencion,
+      reverseChargeWithholding,
     ] = await Promise.all([
       this.calculateSales(companyId, periodStart, periodEnd),
       this.calculatePurchases(companyId, periodStart, periodEnd),
       this.getPreviousMonthCredit(companyId, periodStart),
       this.getRetencion(companyId, periodStart, periodEnd),
+      this.getReverseChargeWithholding(companyId, periodStart, periodEnd),
     ]);
 
     // Calculate derived values
@@ -89,6 +91,7 @@ export class TaxSummaryService {
     monthlyTax += overdueIvaCredit; // Always add overdue IVA (can be positive or negative)
     if (ppm && ppm > 0) monthlyTax += ppm;
     if (retencion && retencion > 0) monthlyTax += retencion;
+    if (reverseChargeWithholding && reverseChargeWithholding > 0) monthlyTax += reverseChargeWithholding;
     if (impuestoTrabajadores && impuestoTrabajadores > 0) monthlyTax += impuestoTrabajadores;
 
     // Get generated Form29
@@ -112,6 +115,7 @@ export class TaxSummaryService {
       overdue_iva_credit: overdueIvaCredit,
       ppm,
       retencion,
+      reverse_charge_withholding: reverseChargeWithholding,
       impuesto_trabajadores: impuestoTrabajadores,
       monthly_tax: monthlyTax,
       generated_f29: generatedF29,
@@ -339,6 +343,34 @@ export class TaxSummaryService {
     }
 
     const total = data?.reduce((sum, receipt) => sum + receipt.recipient_retention, 0) || 0;
+    return total > 0 ? total : null;
+  }
+
+  /**
+   * Get Reverse Charge Withholding from purchase documents with code 46
+   * This is when the buyer pays the seller's IVA obligation (Retención Cambio de Sujeto)
+   */
+  private static async getReverseChargeWithholding(
+    companyId: string,
+    periodStart: string,
+    periodEnd: string
+  ): Promise<number | null> {
+    const supabase = createServiceClient();
+
+    const { data, error } = await supabase
+      .from('purchase_documents')
+      .select('tax_amount')
+      .eq('company_id', companyId)
+      .eq('document_type_code', '46')
+      .gte('accounting_date', periodStart)
+      .lt('accounting_date', periodEnd) as { data: { tax_amount: number }[] | null; error: any };
+
+    if (error) {
+      console.error('[Tax Summary Service] Error fetching código 46 documents:', error);
+      return null;
+    }
+
+    const total = data?.reduce((sum, doc) => sum + doc.tax_amount, 0) || 0;
     return total > 0 ? total : null;
   }
 

@@ -63,6 +63,7 @@ class TaxSummaryService:
             - overdue_iva_credit: Overdue IVA that can't be recovered
             - ppm: PPM amount (0.125% of net revenue)
             - retencion: Retención from honorarios receipts
+            - reverse_charge_withholding: Retención Cambio de Sujeto (código 46)
             - sales_count: Total sales documents
             - purchases_count: Total purchase documents
         """
@@ -174,6 +175,9 @@ class TaxSummaryService:
             # Get retención from honorarios receipts
             retencion = await self._get_retencion(company_id, period_start, period_end)
 
+            # Get reverse charge withholding (código 46)
+            reverse_charge_withholding = await self._get_reverse_charge_withholding(company_id, period_start, period_end)
+
             # Count documents
             sales_count = len(sales_positive) + len(sales_credits)
             purchases_count = len(purchases_positive) + len(purchases_credits)
@@ -186,6 +190,7 @@ class TaxSummaryService:
                 "overdue_iva_credit": overdue_iva_credit,
                 "ppm": ppm or 0.0,
                 "retencion": retencion or 0.0,
+                "reverse_charge_withholding": reverse_charge_withholding or 0.0,
                 "sales_count": sales_count,
                 "purchases_count": purchases_count
             }
@@ -200,6 +205,7 @@ class TaxSummaryService:
                 "overdue_iva_credit": 0.0,
                 "ppm": 0.0,
                 "retencion": 0.0,
+                "reverse_charge_withholding": 0.0,
                 "sales_count": 0,
                 "purchases_count": 0
             }
@@ -399,6 +405,57 @@ class TaxSummaryService:
 
         except Exception as e:
             logger.error(f"Error getting retención: {e}", exc_info=True)
+
+        return None
+
+    async def _get_reverse_charge_withholding(
+        self,
+        company_id: str,
+        period_start: str | None,
+        period_end: str | None
+    ) -> float | None:
+        """
+        Get Reverse Charge Withholding from purchase documents with code 46.
+
+        This is when the buyer pays the seller's IVA obligation (Retención Cambio de Sujeto).
+        Document type code 46 represents this special case in Chilean tax law.
+
+        Args:
+            company_id: Company UUID
+            period_start: Period start date (YYYY-MM-DD)
+            period_end: Period end date (YYYY-MM-DD, exclusive)
+
+        Returns:
+            Total reverse charge withholding amount or None if no documents found
+        """
+        try:
+            # Build query for purchase_documents table
+            query = (
+                self.supabase.client
+                .table("purchase_documents")
+                .select("tax_amount")
+                .eq("company_id", company_id)
+                .eq("document_type_code", "46")  # Código 46: Retención Cambio de Sujeto
+            )
+
+            # Add date filters if provided (use accounting_date for consistency)
+            if period_start and period_end:
+                query = query.gte("accounting_date", period_start).lt("accounting_date", period_end)
+
+            # Execute query
+            response = query.execute()
+
+            # Extract and sum tax amounts
+            if hasattr(response, 'data') and response.data:
+                documents = response.data if isinstance(response.data, list) else [response.data]
+                total_reverse_charge = sum(
+                    doc.get("tax_amount", 0) or 0
+                    for doc in documents
+                )
+                return total_reverse_charge if total_reverse_charge > 0 else None
+
+        except Exception as e:
+            logger.error(f"Error getting reverse charge withholding: {e}", exc_info=True)
 
         return None
 

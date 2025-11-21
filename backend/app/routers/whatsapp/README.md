@@ -146,10 +146,41 @@ Envía mensaje interactivo (botones o lista).
 1. **Validación HMAC**: Verifica firma `X-Webhook-Signature`
 2. **Extracción de datos**: Soporta formatos V1 y V2 de Kapso
 3. **Autenticación**: Busca usuario por número de teléfono en `profiles.phone`
-4. **Procesamiento**:
-   - Usuario encontrado: Procesa mensaje y envía respuesta
-   - Usuario no encontrado: Envía mensaje de registro
-5. **Respuesta asíncrona**: No bloquea el webhook
+4. **Carga de contexto**: Obtiene `company_id` del perfil del usuario
+5. **Ejecución de agentes**: Ejecuta el sistema multi-agente (supervisor + especializados)
+6. **Generación de respuesta**: Formato adaptado para WhatsApp (sin markdown)
+7. **Envío de respuesta**: Envía respuesta via Kapso
+8. **Manejo de errores**: Si el usuario no existe, envía mensaje de registro
+
+### Integración con Sistema de Agentes
+
+El webhook ejecuta automáticamente el sistema multi-agente de Fizko:
+
+```python
+from app.services.whatsapp import WhatsAppAgentRunner
+
+# En el webhook handler
+agent_runner = WhatsAppAgentRunner(supabase=supabase)
+response = await agent_runner.run(
+    user_id=str(user_id),
+    company_id=str(company_id),
+    thread_id=conversation_id,  # Se usa conversation_id como thread_id
+    message=message_content,
+    metadata={
+        "phone": sender_phone,
+        "conversation_id": conversation_id,
+        "message_id": message_id,
+    },
+)
+```
+
+**Características del sistema de agentes para WhatsApp:**
+- Usa el mismo sistema multi-agente que ChatKit (supervisor + especializados)
+- Canal configurado como `"whatsapp"` para evitar formateo markdown
+- Conversación persistida en SQLite para mantener contexto
+- Respuestas formateadas como texto plano
+- Acceso a todas las herramientas de consulta tributaria (DTEs, F29, etc.)
+- Manejo de handoffs entre agentes especializados
 
 ## Autenticación por Teléfono
 
@@ -262,8 +293,10 @@ Para probar localmente:
 
 ## Próximos Pasos
 
-- [ ] Integrar con sistema de agentes AI
-- [ ] Implementar media processor para adjuntos
+- [x] Integrar con sistema de agentes AI ✅
+- [ ] Guardar conversaciones y mensajes en base de datos
+- [ ] Implementar media processor para adjuntos (imágenes, PDFs)
+- [ ] Detectar contexto de notificaciones (replies a eventos de calendario, F29, etc.)
 - [ ] Agregar soporte para templates de WhatsApp
 - [ ] Implementar rate limiting
 - [ ] Agregar métricas y monitoreo

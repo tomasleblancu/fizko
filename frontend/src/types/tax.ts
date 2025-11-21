@@ -17,6 +17,7 @@ export interface TaxSummary {
   overdue_iva_credit: number
   ppm: number | null
   retencion: number | null
+  reverse_charge_withholding: number | null
   impuesto_trabajadores: number | null
   monthly_tax: number
   generated_f29: GeneratedForm29 | null

@@ -21,6 +21,7 @@ Usage:
 """
 
 from .base import BaseRepository
+from .brain import CompanyBrainRepository, UserBrainRepository
 from .calendar import CalendarRepository
 from .companies import CompaniesRepository
 from .contacts import ContactsRepository
@@ -35,6 +36,8 @@ from .tax_summaries import TaxSummariesRepository
 
 __all__ = [
     "BaseRepository",
+    "CompanyBrainRepository",
+    "UserBrainRepository",
     "CalendarRepository",
     "CompaniesRepository",
     "ContactsRepository",

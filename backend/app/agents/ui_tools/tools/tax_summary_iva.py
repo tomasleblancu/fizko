@@ -53,6 +53,7 @@ El usuario está viendo el desglose del cálculo de impuesto mensual (IVA).
 - **IVA Fuera de plazo**: IVA de documentos antiguos que no se puede recuperar (tanto de facturas como NC)
 - **PPM (Pago Provisional Mensual)**: 0.125% del ingreso neto (ventas sin IVA, después de restar NC). IMPORTANTE: Los documentos con "IVA Fuera de plazo" NO se consideran en la base del PPM (se excluyen del cálculo)
 - **Retención**: Retención de honorarios recibidos (boletas de honorarios pagadas)
+- **Retención Cambio de Sujeto**: IVA de documentos código 46 donde el comprador paga la obligación de IVA del vendedor
 
 **Tu objetivo:**
 - Explica BREVEMENTE (máximo 2 líneas) el resultado del cálculo
@@ -112,12 +113,13 @@ El usuario está viendo el desglose del cálculo de impuesto mensual (IVA).
             )
             iva_a_pagar = max(0.0, iva_balance)
 
-            # Calculate monthly tax: IVA a pagar + overdue IVA + PPM + Retención + Impuesto Trabajadores
+            # Calculate monthly tax: IVA a pagar + overdue IVA + PPM + Retención + Reverse Charge + Impuesto Trabajadores
             monthly_tax = (
                 iva_a_pagar
                 + (iva_data.get("overdue_iva_credit", 0.0) or 0.0)
                 + (iva_data.get("ppm", 0.0) or 0.0)
                 + (iva_data.get("retencion", 0.0) or 0.0)
+                + (iva_data.get("reverse_charge_withholding", 0.0) or 0.0)
                 + 0.0  # impuesto_trabajadores - will be added when payroll is integrated
             )
 
@@ -152,6 +154,7 @@ El usuario está viendo el desglose del cálculo de impuesto mensual (IVA).
                     period=period_display,
                     ppm=iva_data.get("ppm", 0.0),
                     retencion=iva_data.get("retencion", 0.0),
+                    reverse_charge_withholding=iva_data.get("reverse_charge_withholding", 0.0),
                     impuesto_trabajadores=0.0,  # TODO: Get from payroll system when available
                     overdue_iva_credit=iva_data.get("overdue_iva_credit", 0.0),
                 )
@@ -164,6 +167,7 @@ El usuario está viendo el desglose del cálculo de impuesto mensual (IVA).
                     period=period_display,
                     ppm=iva_data.get("ppm", 0.0),
                     retencion=iva_data.get("retencion", 0.0),
+                    reverse_charge_withholding=iva_data.get("reverse_charge_withholding", 0.0),
                     impuesto_trabajadores=0.0,
                     overdue_iva_credit=iva_data.get("overdue_iva_credit", 0.0),
                 )
