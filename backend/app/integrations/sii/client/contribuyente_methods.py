@@ -51,7 +51,7 @@ class ContribuyenteMethods(SIIClientBase):
         if self._current_cookies:
             # Ya tenemos cookies, validar que sean válidas
             cookie_names = [c.get('name') for c in self._current_cookies]
-            logger.info(f"🍪 Using {len(self._current_cookies)} provided cookies: {cookie_names}")
+            # logger.info(f"🍪 Using {len(self._current_cookies)} provided cookies: {cookie_names}")
             try:
                 # Intentar extraer con cookies provistas
                 return self._contribuyente_extractor.extract(

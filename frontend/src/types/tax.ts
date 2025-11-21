@@ -14,6 +14,7 @@ export interface TaxSummary {
   net_iva: number
   income_tax: number
   previous_month_credit: number | null
+  overdue_iva_credit: number
   ppm: number | null
   retencion: number | null
   impuesto_trabajadores: number | null

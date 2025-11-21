@@ -109,6 +109,7 @@ export interface Database {
           tax_amount: number
           exempt_amount: number
           total_amount: number
+          overdue_iva_credit: number
           status: string
           dte_xml: string | null
           sii_track_id: string | null
@@ -184,6 +185,7 @@ export interface Database {
           tax_amount: number
           exempt_amount: number
           total_amount: number
+          overdue_iva_credit: number
           status: string
           dte_xml: string | null
           sii_track_id: string | null

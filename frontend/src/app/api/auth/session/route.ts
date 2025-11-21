@@ -1,30 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { NextResponse } from 'next/server'
+import { AuthService } from '@/services/auth/auth.service'
 
-export async function GET(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          // No need to set cookies on read-only operation
-        },
-      },
+export async function GET() {
+  try {
+    const result = await AuthService.getCurrentUser()
+
+    if (!result.user) {
+      return NextResponse.json({ user: null }, { status: 401 })
     }
-  );
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+    return NextResponse.json(result)
+  } catch (error) {
+    console.error('[Auth Session API] Error:', error)
 
-  if (error || !user) {
-    return NextResponse.json({ user: null }, { status: 401 });
+    return NextResponse.json(
+      { user: null, error: 'Internal server error' },
+      { status: 500 }
+    )
   }
-
-  return NextResponse.json({ user });
 }

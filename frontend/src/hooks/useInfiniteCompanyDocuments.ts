@@ -2,10 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { queryKeys } from "@/lib/query-keys";
 import { getTimestamp } from "@/shared/lib/date-utils";
-import type { SalesDocument, PurchaseDocument, DocumentWithType } from "@/types/database";
+import type { DocumentWithType } from "@/types/database";
 
 interface UseInfiniteCompanyDocumentsOptions {
   companyId: string;
@@ -18,51 +17,22 @@ export function useInfiniteCompanyDocuments({
   companyId,
   pageSize = DEFAULT_PAGE_SIZE
 }: UseInfiniteCompanyDocumentsOptions) {
-  const supabase = createClient();
   const [displayedCount, setDisplayedCount] = useState(pageSize);
 
-  // Fetch ALL documents once and cache them
+  // Fetch ALL documents once and cache them via internal API
   const { data: allDocuments, isLoading } = useQuery({
     queryKey: companyId ? queryKeys.documents.byCompany(companyId) : ['documents', 'empty'],
     queryFn: async (): Promise<DocumentWithType[]> => {
-      // Fetch ALL sales documents
-      const { data: salesData, error: salesError } = await supabase
-        .from("sales_documents")
-        .select("*")
-        .eq("company_id", companyId)
-        .order("issue_date", { ascending: false });
+      const response = await fetch(`/api/documents?companyId=${companyId}`, {
+        credentials: 'include',
+      });
 
-      if (salesError) throw salesError;
+      if (!response.ok) {
+        throw new Error('Failed to fetch documents');
+      }
 
-      // Fetch ALL purchase documents
-      const { data: purchasesData, error: purchasesError } = await supabase
-        .from("purchase_documents")
-        .select("*")
-        .eq("company_id", companyId)
-        .order("issue_date", { ascending: false });
-
-      if (purchasesError) throw purchasesError;
-
-      // Transform sales documents to unified format
-      const salesDocuments: DocumentWithType[] = (salesData || []).map((doc: SalesDocument) => ({
-        ...doc,
-        type: 'sale' as const,
-        counterparty_rut: doc.recipient_rut,
-        counterparty_name: doc.recipient_name,
-      }));
-
-      // Transform purchase documents to unified format
-      const purchaseDocuments: DocumentWithType[] = (purchasesData || []).map((doc: PurchaseDocument) => ({
-        ...doc,
-        type: 'purchase' as const,
-        counterparty_rut: doc.sender_rut,
-        counterparty_name: doc.sender_name,
-      }));
-
-      // Combine and sort by issue_date
-      return [...salesDocuments, ...purchaseDocuments].sort(
-        (a, b) => getTimestamp(b.issue_date) - getTimestamp(a.issue_date)
-      );
+      const { data } = await response.json();
+      return data as DocumentWithType[];
     },
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000, // 2 minutes
