@@ -324,7 +324,7 @@ class DocumentsRepository(BaseRepository):
         self, documents: list[dict[str, Any]]
     ) -> tuple[int, int]:
         """
-        Upsert purchase documents (insert or update based on company_id + folio).
+        Upsert purchase documents (insert or update based on company_id + folio + sender_rut).
 
         Args:
             documents: List of purchase documents to upsert
@@ -336,32 +336,36 @@ class DocumentsRepository(BaseRepository):
             return 0, 0
 
         try:
-            # Get existing folios to count new vs updated
+            # Get existing documents to count new vs updated
             company_id = documents[0]["company_id"]
-            folios = [doc["folio"] for doc in documents if doc.get("folio") is not None]
 
-            existing_folios = set()
-            if folios:
+            # Build list of (folio, sender_rut) tuples for matching
+            doc_keys = [(doc["folio"], doc.get("sender_rut")) for doc in documents if doc.get("folio") is not None]
+
+            existing_keys = set()
+            if doc_keys:
+                # Get all purchase documents for this company with matching folios
+                folios = [key[0] for key in doc_keys]
                 response = (
                     self._client
                     .table("purchase_documents")
-                    .select("folio")
+                    .select("folio,sender_rut")
                     .eq("company_id", company_id)
                     .in_("folio", folios)
                     .execute()
                 )
-                existing_folios = {doc["folio"] for doc in response.data}
+                existing_keys = {(doc["folio"], doc.get("sender_rut")) for doc in response.data}
 
-            # Count new vs updated
-            nuevos = sum(1 for doc in documents if doc.get("folio") not in existing_folios)
+            # Count new vs updated based on (folio, sender_rut) combination
+            nuevos = sum(1 for doc in documents if (doc.get("folio"), doc.get("sender_rut")) not in existing_keys)
             actualizados = len(documents) - nuevos
 
             # Supabase upsert (inserts or updates based on unique constraint)
-            # Note: Supabase requires on_conflict parameter to specify unique constraint
+            # Note: Unique constraint is now (company_id, folio, sender_rut)
             response = (
                 self._client
                 .table("purchase_documents")
-                .upsert(documents, on_conflict="company_id,folio")
+                .upsert(documents, on_conflict="company_id,folio,sender_rut")
                 .execute()
             )
 
