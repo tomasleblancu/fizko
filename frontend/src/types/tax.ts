@@ -21,6 +21,7 @@ export interface TaxSummary {
   impuesto_trabajadores: number | null
   monthly_tax: number
   generated_f29: GeneratedForm29 | null
+  form29_sii_download: Form29SiiDownload | null
   created_at: string
   updated_at: string
 }
@@ -43,6 +44,28 @@ export interface GeneratedForm29 {
   status: string
   extra_data: Record<string, any> | null
   submitted_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Form29SiiDownload {
+  id: string
+  company_id: string
+  form29_id: string | null
+  sii_folio: string
+  sii_id_interno: string | null
+  period_year: number
+  period_month: number
+  period_display: string
+  contributor_rut: string
+  submission_date: string | null
+  status: string
+  amount_cents: number
+  pdf_storage_url: string | null
+  pdf_download_status: string
+  pdf_download_error: string | null
+  pdf_downloaded_at: string | null
+  extra_data: Record<string, any> | null
   created_at: string
   updated_at: string
 }

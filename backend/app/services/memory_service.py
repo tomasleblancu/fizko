@@ -430,8 +430,8 @@ async def build_company_memories_from_data(
     """
     Build memory list from existing company data.
 
-    Extracts data from companies and company_tax_info tables and builds
-    a list of memories ready to be saved.
+    Extracts data from companies, company_tax_info (including extra_data),
+    and company_settings tables to build comprehensive memories.
 
     Args:
         company_id: Company UUID
@@ -473,6 +473,7 @@ async def build_company_memories_from_data(
 
         # Extract tax info (can be None if not set)
         tax_info = None
+        extra_data = None
         if "company_tax_info" in company and company["company_tax_info"]:
             # Handle both list and dict responses
             tax_info_data = company["company_tax_info"]
@@ -481,10 +482,26 @@ async def build_company_memories_from_data(
             elif isinstance(tax_info_data, dict):
                 tax_info = tax_info_data
 
-        # Memory 1: Tax Regime
+            # Extract extra_data JSON
+            if tax_info:
+                extra_data = tax_info.get("extra_data")
+
+        # Fetch company settings
+        settings_response = (
+            supabase._client
+            .table("company_settings")
+            .select("*")
+            .eq("company_id", company_id)
+            .maybe_single()
+            .execute()
+        )
+        company_settings = settings_response.data if hasattr(settings_response, "data") else None
+
+        # ===== BASIC TAX INFO =====
+
+        # Memory: Tax Regime
         if tax_info and tax_info.get("tax_regime"):
             tax_regime = tax_info["tax_regime"]
-            # Translate regime to Spanish
             regime_names = {
                 "regimen_general": "Régimen General",
                 "regimen_simplificado": "Régimen Simplificado",
@@ -498,20 +515,20 @@ async def build_company_memories_from_data(
                 "content": f"Régimen tributario: {regime_label}"
             })
 
-        # Memory 2: SII Activity
+        # Memory: Main SII Activity
         if tax_info and (tax_info.get("sii_activity_name") or tax_info.get("sii_activity_code")):
             activity_name = tax_info.get("sii_activity_name", "No especificado")
             activity_code = tax_info.get("sii_activity_code", "")
-            activity_text = f"Actividad económica: {activity_name}"
+            activity_text = f"Actividad económica principal: {activity_name}"
             if activity_code:
                 activity_text += f" (Código SII: {activity_code})"
             memories.append({
-                "slug": "company_activity",
+                "slug": "company_main_activity",
                 "category": "company_tax",
                 "content": activity_text
             })
 
-        # Memory 3: Legal Representative
+        # Memory: Legal Representative (from base fields)
         if tax_info and (tax_info.get("legal_representative_name") or tax_info.get("legal_representative_rut")):
             rep_name = tax_info.get("legal_representative_name", "")
             rep_rut = tax_info.get("legal_representative_rut", "")
@@ -528,16 +545,16 @@ async def build_company_memories_from_data(
                 "content": rep_text
             })
 
-        # Memory 4: Start of Activities Date
+        # Memory: Start of Activities Date
         if tax_info and tax_info.get("start_of_activities_date"):
             start_date = tax_info["start_of_activities_date"]
             memories.append({
                 "slug": "company_start_date",
-                "category": "company_tax",
+                "category": "company_info",
                 "content": f"Fecha de inicio de actividades: {start_date}"
             })
 
-        # Memory 5: Accounting Start Month
+        # Memory: Accounting Start Month
         if tax_info and tax_info.get("accounting_start_month"):
             month = tax_info["accounting_start_month"]
             month_names = {
@@ -551,6 +568,203 @@ async def build_company_memories_from_data(
                 "category": "company_tax",
                 "content": f"Mes de inicio contable: {month_name} (mes {month})"
             })
+
+        # ===== EXTRA_DATA EXTRACTION =====
+
+        if extra_data and isinstance(extra_data, dict):
+
+            # Memory: Company Segment
+            if extra_data.get("segmento"):
+                memories.append({
+                    "slug": "company_segment",
+                    "category": "company_info",
+                    "content": f"Segmento empresarial: {extra_data['segmento']}"
+                })
+
+            # Memory: Company Type
+            tipo = extra_data.get("tipo_contribuyente")
+            subtipo = extra_data.get("subtipo_contribuyente")
+            if tipo or subtipo:
+                type_text = "Tipo de empresa: "
+                if subtipo:
+                    type_text += subtipo
+                if tipo and subtipo:
+                    type_text += f" ({tipo})"
+                elif tipo:
+                    type_text += tipo
+                memories.append({
+                    "slug": "company_type",
+                    "category": "company_info",
+                    "content": type_text
+                })
+
+            # Memory: Socios/Partners
+            socios = extra_data.get("socios", [])
+            if socios and isinstance(socios, list):
+                socios_vigentes = [s for s in socios if s.get("vigente")]
+                if socios_vigentes:
+                    socios_text = "Socios de la empresa: "
+                    socios_list = []
+                    for socio in socios_vigentes:
+                        nombre = socio.get("nombre_completo", "")
+                        participacion = socio.get("participacion_capital", "")
+                        if nombre:
+                            socio_str = nombre
+                            if participacion:
+                                socio_str += f" ({participacion}% capital)"
+                            socios_list.append(socio_str)
+                    if socios_list:
+                        socios_text += ", ".join(socios_list)
+                        memories.append({
+                            "slug": "company_partners",
+                            "category": "company_info",
+                            "content": socios_text
+                        })
+
+            # Memory: All Economic Activities
+            actividades = extra_data.get("actividades", [])
+            if actividades and isinstance(actividades, list):
+                act_list = []
+                for act in actividades:
+                    desc = act.get("descripcion", "")
+                    codigo = act.get("codigo", "")
+                    if desc:
+                        act_str = desc
+                        if codigo:
+                            act_str += f" (código {codigo})"
+                        act_list.append(act_str)
+                if act_list:
+                    memories.append({
+                        "slug": "company_all_activities",
+                        "category": "company_tax",
+                        "content": f"Actividades económicas registradas: {'; '.join(act_list)}"
+                    })
+
+            # Memory: Active Timbrajes (Authorized Documents)
+            timbrajes = extra_data.get("timbrajes", [])
+            if timbrajes and isinstance(timbrajes, list):
+                doc_types = set()
+                for timb in timbrajes:
+                    desc = timb.get("descripcion", "")
+                    if desc:
+                        doc_types.add(desc)
+                if doc_types:
+                    memories.append({
+                        "slug": "company_authorized_documents",
+                        "category": "company_tax",
+                        "content": f"Documentos autorizados: {', '.join(sorted(doc_types))}"
+                    })
+
+            # Memory: Legal Representatives (from extra_data)
+            representantes = extra_data.get("representantes", [])
+            if representantes and isinstance(representantes, list):
+                reps_vigentes = [r for r in representantes if r.get("vigente")]
+                if reps_vigentes:
+                    reps_list = []
+                    for rep in reps_vigentes:
+                        nombre = rep.get("nombre_completo", "")
+                        if nombre:
+                            reps_list.append(nombre)
+                    if reps_list:
+                        memories.append({
+                            "slug": "company_all_representatives",
+                            "category": "company_info",
+                            "content": f"Representantes legales vigentes: {', '.join(reps_list)}"
+                        })
+
+            # Memory: Tax Compliance
+            cumplimiento = extra_data.get("cumplimiento_tributario", {})
+            if cumplimiento and isinstance(cumplimiento, dict):
+                estado = cumplimiento.get("estado", "")
+                if estado:
+                    memories.append({
+                        "slug": "company_tax_compliance",
+                        "category": "company_tax",
+                        "content": f"Cumplimiento tributario: {estado}"
+                    })
+
+            # Memory: SII Observations/Alerts
+            observaciones = extra_data.get("observaciones", {})
+            if observaciones and isinstance(observaciones, dict):
+                tiene_obs = observaciones.get("tiene_observaciones", False)
+                if tiene_obs:
+                    obs_list = observaciones.get("observaciones", [])
+                    if obs_list and isinstance(obs_list, list):
+                        obs_texts = []
+                        for obs in obs_list[:3]:  # Max 3 observaciones
+                            glosa = obs.get("glosaSubstr", "")
+                            if glosa:
+                                # Truncate if too long
+                                if len(glosa) > 200:
+                                    glosa = glosa[:200] + "..."
+                                obs_texts.append(glosa)
+                        if obs_texts:
+                            memories.append({
+                                "slug": "company_sii_alerts",
+                                "category": "company_tax",
+                                "content": f"Observaciones SII: {' | '.join(obs_texts)}"
+                            })
+                else:
+                    memories.append({
+                        "slug": "company_sii_alerts",
+                        "category": "company_tax",
+                        "content": "Observaciones SII: No tiene observaciones vigentes"
+                    })
+
+            # Memory: Address
+            direcciones = extra_data.get("direcciones", [])
+            if direcciones and isinstance(direcciones, list) and len(direcciones) > 0:
+                dir_principal = direcciones[0]
+                calle = dir_principal.get("calle", "")
+                comuna = dir_principal.get("comuna", "")
+                region = dir_principal.get("region", "")
+                if calle or comuna:
+                    addr_text = "Domicilio: "
+                    addr_parts = []
+                    if calle:
+                        addr_parts.append(calle)
+                    if comuna:
+                        addr_parts.append(comuna)
+                    if region:
+                        addr_parts.append(region.strip())
+                    addr_text += ", ".join(addr_parts)
+                    memories.append({
+                        "slug": "company_address",
+                        "category": "company_info",
+                        "content": addr_text
+                    })
+
+        # ===== COMPANY SETTINGS =====
+
+        if company_settings:
+
+            # Memory: Business Description
+            if company_settings.get("business_description"):
+                memories.append({
+                    "slug": "company_business_description",
+                    "category": "company_info",
+                    "content": f"Descripción del negocio: {company_settings['business_description']}"
+                })
+
+            # Memory: Business Characteristics
+            characteristics = []
+            if company_settings.get("has_formal_employees"):
+                characteristics.append("tiene empleados formales")
+            if company_settings.get("has_imports"):
+                characteristics.append("realiza importaciones")
+            if company_settings.get("has_exports"):
+                characteristics.append("realiza exportaciones")
+            if company_settings.get("has_lease_contracts"):
+                characteristics.append("tiene contratos de arriendo")
+            if company_settings.get("has_bank_loans"):
+                characteristics.append("tiene préstamos bancarios")
+
+            if characteristics:
+                memories.append({
+                    "slug": "company_characteristics",
+                    "category": "company_operations",
+                    "content": f"Características operacionales: {', '.join(characteristics)}"
+                })
 
         return {
             "success": True,

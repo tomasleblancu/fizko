@@ -64,12 +64,14 @@ export class TaxSummaryService {
       previousMonthCredit,
       retencion,
       reverseChargeWithholding,
+      form29SiiDownload,
     ] = await Promise.all([
       this.calculateSales(companyId, periodStart, periodEnd),
       this.calculatePurchases(companyId, periodStart, periodEnd),
       this.getPreviousMonthCredit(companyId, periodStart),
       this.getRetencion(companyId, periodStart, periodEnd),
       this.getReverseChargeWithholding(companyId, periodStart, periodEnd),
+      this.getForm29SiiDownload(companyId, periodYear, periodMonth),
     ]);
 
     // Calculate derived values
@@ -119,6 +121,7 @@ export class TaxSummaryService {
       impuesto_trabajadores: impuestoTrabajadores,
       monthly_tax: monthlyTax,
       generated_f29: generatedF29,
+      form29_sii_download: form29SiiDownload,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -416,6 +419,53 @@ export class TaxSummaryService {
       status: data.status,
       extra_data: data.extra_data as Record<string, any> | null,
       submitted_at: data.submission_date,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    };
+  }
+
+  /**
+   * Get Form29 SII Download for the period
+   * Returns the "Vigente" (current) F29 from SII for the specified period
+   */
+  private static async getForm29SiiDownload(
+    companyId: string,
+    periodYear: number,
+    periodMonth: number
+  ) {
+    const supabase = createServiceClient();
+
+    const { data } = await supabase
+      .from('form29_sii_downloads')
+      .select('*')
+      .eq('company_id', companyId)
+      .eq('period_year', periodYear)
+      .eq('period_month', periodMonth)
+      .eq('status', 'Vigente')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle() as { data: Form29SiiDownloadRow | null; error: any };
+
+    if (!data) return null;
+
+    return {
+      id: data.id,
+      company_id: data.company_id,
+      form29_id: data.form29_id,
+      sii_folio: data.sii_folio,
+      sii_id_interno: data.sii_id_interno,
+      period_year: data.period_year,
+      period_month: data.period_month,
+      period_display: data.period_display,
+      contributor_rut: data.contributor_rut,
+      submission_date: data.submission_date,
+      status: data.status,
+      amount_cents: data.amount_cents,
+      pdf_storage_url: data.pdf_storage_url,
+      pdf_download_status: data.pdf_download_status,
+      pdf_download_error: data.pdf_download_error,
+      pdf_downloaded_at: data.pdf_downloaded_at,
+      extra_data: data.extra_data as Record<string, any> | null,
       created_at: data.created_at,
       updated_at: data.updated_at,
     };

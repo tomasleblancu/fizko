@@ -11,7 +11,6 @@ import {
   Maximize2,
   ArrowUpRight,
   ArrowDownLeft,
-  Calendar,
   Search,
 } from "lucide-react";
 import { ChateableWrapper } from "@/components/ui/ChateableWrapper";
@@ -88,7 +87,10 @@ export function MovementsPanel({
       }`}
     >
       <div className="mb-4 flex flex-shrink-0 flex-col gap-3">
-        <div className="flex items-center justify-between">
+        <div
+          className={`flex items-center justify-between ${!showAllMovements ? 'cursor-pointer' : ''}`}
+          onClick={!showAllMovements ? onToggleExpand : undefined}
+        >
           <div className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-slate-600 dark:text-slate-400" />
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
@@ -102,7 +104,7 @@ export function MovementsPanel({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
             {/* Download CSV button - only show when expanded and on desktop */}
             {showAllMovements && documents && documents.length > 0 && (
               <button
@@ -211,18 +213,11 @@ export function MovementsPanel({
                   .map(([date, docs]) => (
                     <React.Fragment key={date}>
                       {/* Date Group Header Row */}
-                      <tr className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800/80">
-                        <td colSpan={5} className="px-4 py-2">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-slate-500" />
-                            <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                              {formatDate(date)}
-                            </span>
-                            <div className="h-px flex-1 bg-slate-300 dark:bg-slate-600" />
-                            <span className="text-xs text-slate-500">
-                              {docs.length} docs
-                            </span>
-                          </div>
+                      <tr className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/60">
+                        <td colSpan={3} className="px-3 py-1.5">
+                          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                            {formatDate(date)}
+                          </span>
                         </td>
                       </tr>
                       {/* Document Rows */}
@@ -249,53 +244,33 @@ export function MovementsPanel({
                               : "purchase_document"
                           }
                         >
-                          <tr className="border-b border-slate-200 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/50">
-                            <td className="px-4 py-3">
+                          <tr className="border-b border-slate-100 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/30">
+                            <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
-                                <div
-                                  className={`flex h-7 w-7 items-center justify-center rounded-lg ${
-                                    doc.type === "sale"
-                                      ? "bg-emerald-100 dark:bg-emerald-900/30"
-                                      : "bg-blue-100 dark:bg-blue-900/30"
-                                  }`}
-                                >
-                                  {doc.type === "sale" ? (
-                                    <ArrowUpRight className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                                  ) : (
-                                    <ArrowDownLeft className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                {doc.type === "sale" ? (
+                                  <ArrowUpRight className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                ) : (
+                                  <ArrowDownLeft className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                )}
+                                <div>
+                                  <div className="text-sm text-slate-900 dark:text-white">
+                                    {formatDocumentType(doc.document_type)}
+                                  </div>
+                                  {doc.folio && (
+                                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                                      N° {doc.folio}
+                                    </div>
                                   )}
                                 </div>
-                                <span
-                                  className={`text-xs font-medium ${
-                                    doc.type === "sale"
-                                      ? "text-emerald-700 dark:text-emerald-400"
-                                      : "text-blue-700 dark:text-blue-400"
-                                  }`}
-                                >
-                                  {doc.type === "sale" ? "Venta" : "Compra"}
-                                </span>
                               </div>
                             </td>
-                            <td className="px-4 py-3">
-                              <div className="text-sm text-slate-900 dark:text-white">
-                                {formatDocumentType(doc.document_type)}
-                              </div>
-                              {doc.folio && (
-                                <div className="text-xs text-slate-500 dark:text-slate-400">
-                                  N° {doc.folio}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-slate-900 dark:text-white">
+                            <td className="px-3 py-2 text-sm text-slate-700 dark:text-slate-300">
                               <div className="max-w-xs truncate">
                                 {doc.counterparty_name || "Sin nombre"}
                               </div>
                             </td>
-                            <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-slate-900 dark:text-white">
-                              {formatCurrency(doc.total_amount - doc.tax_amount)}
-                            </td>
                             <td
-                              className={`whitespace-nowrap px-4 py-3 text-right text-sm font-bold ${
+                              className={`whitespace-nowrap px-3 py-2 text-right text-sm font-medium ${
                                 doc.type === "sale"
                                   ? "text-emerald-600 dark:text-emerald-400"
                                   : "text-blue-600 dark:text-blue-400"

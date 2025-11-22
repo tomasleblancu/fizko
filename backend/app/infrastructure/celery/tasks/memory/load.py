@@ -23,18 +23,22 @@ logger = logging.getLogger(__name__)
 )
 def load_company_memories(
     self,
-    company_id: str
+    company_id: str,
+    user_id: str | None = None
 ) -> Dict[str, Any]:
     """
     Celery task to load memories for a specific company from existing data.
+    Optionally also loads user memories if user_id is provided.
 
     This task orchestrates service calls:
     1. Calls build_company_memories_from_data() to extract data
     2. Calls save_company_memories() to store in Mem0 + database
-    3. Is idempotent - can be run multiple times (updates existing memories)
+    3. If user_id provided, also loads user memories
+    4. Is idempotent - can be run multiple times (updates existing memories)
 
     Args:
         company_id: UUID of the company (str format)
+        user_id: Optional UUID of the user (str format). If provided, also loads user memories.
 
     Returns:
         Dict with load results:
@@ -42,23 +46,31 @@ def load_company_memories(
             "success": bool,
             "company_id": str,
             "company_name": str,
-            "memories_saved": int,
+            "company_memories_saved": int,
+            "user_result": dict | None,  # Only if user_id provided
             "errors": list[str]
         }
 
     Example:
         >>> load_company_memories.delay("123e4567-e89b-12d3-a456-426614174000")
+        >>> load_company_memories.delay("123e4567-e89b-12d3-a456-426614174000", user_id="456e789...")
     """
     try:
         import asyncio
-        from app.services import build_company_memories_from_data, save_company_memories
+        from app.services import (
+            build_company_memories_from_data,
+            save_company_memories,
+            build_user_memories_from_data,
+            save_user_memories
+        )
 
         logger.info(
             f"🧠 [CELERY TASK] Loading company memories: company_id={company_id}"
+            + (f", user_id={user_id}" if user_id else "")
         )
 
         async def _load():
-            # Build memories from existing data
+            # 1. Load company memories
             build_result = await build_company_memories_from_data(company_id)
 
             if not build_result["success"]:
@@ -79,39 +91,96 @@ def load_company_memories(
                 logger.warning(
                     f"⚠️  No memory data available for company {company_name}"
                 )
-                return {
+                company_result = {
                     "success": True,
                     "company_id": company_id,
                     "company_name": company_name,
-                    "memories_saved": 0,
+                    "company_memories_saved": 0,
                     "errors": ["No data available to create memories"]
                 }
+            else:
+                # Save memories to Mem0
+                save_result = await save_company_memories(
+                    company_id=company_id,
+                    memories=memories
+                )
 
-            # Save memories to Mem0
-            save_result = await save_company_memories(
-                company_id=company_id,
-                memories=memories
-            )
+                company_result = {
+                    "success": save_result["success"],
+                    "company_id": company_id,
+                    "company_name": company_name,
+                    "company_memories_saved": save_result["saved_count"],
+                    "errors": save_result.get("errors", [])
+                }
+
+            # 2. Load user memories if user_id provided
+            user_result = None
+            if user_id:
+                logger.info(f"👤 Also loading user memories for user_id={user_id}")
+
+                user_build_result = await build_user_memories_from_data(user_id)
+
+                if user_build_result["success"]:
+                    user_name = user_build_result["user_name"]
+                    user_memories = user_build_result["memories"]
+
+                    logger.info(
+                        f"🧠 Built {len(user_memories)} memories for user {user_name}"
+                    )
+
+                    if len(user_memories) > 0:
+                        user_save_result = await save_user_memories(
+                            user_id=user_id,
+                            memories=user_memories
+                        )
+
+                        user_result = {
+                            "success": user_save_result["success"],
+                            "user_id": user_id,
+                            "user_name": user_name,
+                            "user_memories_saved": user_save_result["saved_count"],
+                            "errors": user_save_result.get("errors", [])
+                        }
+                    else:
+                        user_result = {
+                            "success": True,
+                            "user_id": user_id,
+                            "user_name": user_name,
+                            "user_memories_saved": 0,
+                            "errors": ["No data available to create memories"]
+                        }
+                else:
+                    user_result = {
+                        "success": False,
+                        "user_id": user_id,
+                        "errors": [user_build_result.get("error", "Failed to build user memories")]
+                    }
 
             # Return combined result
-            return {
-                "success": save_result["success"],
-                "company_id": company_id,
-                "company_name": company_name,
-                "memories_saved": save_result["saved_count"],
-                "errors": save_result.get("errors", [])
-            }
+            result = company_result.copy()
+            if user_result:
+                result["user_result"] = user_result
+
+            return result
 
         # Run async function
         result = asyncio.run(_load())
 
         # Log result
         if result.get("success"):
-            logger.info(
+            log_msg = (
                 f"✅ [CELERY TASK] Company memories loaded: "
                 f"company={result.get('company_name')}, "
-                f"saved={result.get('memories_saved', 0)}"
+                f"saved={result.get('company_memories_saved', 0)}"
             )
+            if result.get("user_result"):
+                user_res = result["user_result"]
+                log_msg += (
+                    f" | User memories: "
+                    f"user={user_res.get('user_name', 'Unknown')}, "
+                    f"saved={user_res.get('user_memories_saved', 0)}"
+                )
+            logger.info(log_msg)
         else:
             logger.error(
                 f"❌ [CELERY TASK] Company memories failed: "

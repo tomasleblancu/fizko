@@ -10,9 +10,11 @@
 export type CeleryTaskType =
   | 'sii.sync_documents'
   | 'sii.sync_f29'
+  | 'form29.generate_draft_for_company'
   | 'calendar.sync_company_calendar'
   | 'calendar.process_events'
-  | 'notifications.send_batch';
+  | 'notifications.send_batch'
+  | 'memory.load_company_memories';
 
 /**
  * Parameters for SII document sync task
@@ -39,12 +41,31 @@ export interface CalendarSyncParams {
 }
 
 /**
+ * Parameters for loading company memories
+ */
+export interface LoadCompanyMemoriesParams {
+  company_id: string;
+}
+
+/**
+ * Parameters for generating F29 draft
+ */
+export interface Form29GenerateDraftParams {
+  company_id: string;
+  period_year: number;
+  period_month: number;
+  auto_calculate?: boolean;
+}
+
+/**
  * Generic task parameters (can be extended)
  */
 export type CeleryTaskParams =
   | SIISyncDocumentsParams
   | SIISyncForm29Params
   | CalendarSyncParams
+  | LoadCompanyMemoriesParams
+  | Form29GenerateDraftParams
   | Record<string, any>;
 
 /**

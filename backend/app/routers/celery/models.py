@@ -18,7 +18,10 @@ class TaskType(str, Enum):
     SYNC_DOCUMENTS_ALL = "sii.sync_documents_all_companies"
     SYNC_F29 = "sii.sync_f29"
     SYNC_F29_ALL = "sii.sync_f29_all_companies"
+    GENERATE_F29_DRAFT = "form29.generate_draft_for_company"
+    GENERATE_F29_DRAFTS_ALL = "form29.generate_drafts_all_companies"
     SYNC_COMPANY_CALENDAR = "calendar.sync_company_calendar"
+    LOAD_COMPANY_MEMORIES = "memory.load_company_memories"
 
 
 class TaskStatus(str, Enum):
@@ -62,6 +65,27 @@ class SyncF29AllParams(BaseModel):
 class SyncCompanyCalendarParams(BaseModel):
     """Parameters for sync_company_calendar task"""
     company_id: str = Field(..., description="Company UUID")
+
+
+class LoadCompanyMemoriesParams(BaseModel):
+    """Parameters for load_company_memories task"""
+    company_id: str = Field(..., description="Company UUID")
+    user_id: Optional[str] = Field(None, description="Optional: User UUID to also load user memories")
+
+
+class GenerateF29DraftParams(BaseModel):
+    """Parameters for generate_f29_draft_for_company task"""
+    company_id: str = Field(..., description="Company UUID")
+    period_year: int = Field(..., ge=2020, le=2030, description="Year for F29 period")
+    period_month: int = Field(..., ge=1, le=12, description="Month for F29 period (1-12)")
+    auto_calculate: bool = Field(True, description="Whether to auto-calculate values from tax documents")
+
+
+class GenerateF29DraftsAllParams(BaseModel):
+    """Parameters for generate_f29_drafts_all_companies task"""
+    period_year: Optional[int] = Field(None, ge=2020, le=2030, description="Year for F29 period (defaults to current/previous year)")
+    period_month: Optional[int] = Field(None, ge=1, le=12, description="Month for F29 period (defaults to previous month)")
+    auto_calculate: bool = Field(True, description="Whether to auto-calculate values from tax documents")
 
 
 # ============================================================================

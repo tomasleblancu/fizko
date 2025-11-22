@@ -7,8 +7,10 @@ Handles:
 - Getting task descriptions
 """
 import logging
-from typing import List
-from fastapi import APIRouter, HTTPException
+from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Depends
+
+from app.core.auth import get_optional_user
 
 from app.infrastructure.celery.tasks.sii import (
     sync_documents,
@@ -17,6 +19,11 @@ from app.infrastructure.celery.tasks.sii import (
     sync_f29_all_companies,
 )
 from app.infrastructure.celery.tasks.calendar import sync_company_calendar
+from app.infrastructure.celery.tasks.memory import load_company_memories
+from app.infrastructure.celery.tasks.form29 import (
+    generate_f29_draft_for_company,
+    generate_f29_drafts_all_companies,
+)
 from .models import (
     TaskType,
     TaskLaunchRequest,
@@ -27,6 +34,9 @@ from .models import (
     SyncF29Params,
     SyncF29AllParams,
     SyncCompanyCalendarParams,
+    LoadCompanyMemoriesParams,
+    GenerateF29DraftParams,
+    GenerateF29DraftsAllParams,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,11 +96,43 @@ async def list_available_tasks():
                 "company_id": {"type": "string", "required": True, "description": "Company UUID"},
             }
         ),
+        AvailableTask(
+            task_type=TaskType.LOAD_COMPANY_MEMORIES.value,
+            name="memory.load_company_memories",
+            description="Load company memories from existing data into Mem0",
+            parameters={
+                "company_id": {"type": "string", "required": True, "description": "Company UUID"},
+            }
+        ),
+        AvailableTask(
+            task_type=TaskType.GENERATE_F29_DRAFT.value,
+            name="form29.generate_draft_for_company",
+            description="Generate Form29 draft with auto-calculated values from tax documents for a single company",
+            parameters={
+                "company_id": {"type": "string", "required": True, "description": "Company UUID"},
+                "period_year": {"type": "integer", "required": True, "description": "Year for F29 period"},
+                "period_month": {"type": "integer", "required": True, "min": 1, "max": 12, "description": "Month for F29 period (1-12)"},
+                "auto_calculate": {"type": "boolean", "required": False, "default": True, "description": "Auto-calculate values from tax documents"},
+            }
+        ),
+        AvailableTask(
+            task_type=TaskType.GENERATE_F29_DRAFTS_ALL.value,
+            name="form29.generate_drafts_all_companies",
+            description="Generate Form29 drafts for ALL companies with active subscriptions",
+            parameters={
+                "period_year": {"type": "integer", "required": False, "description": "Year for F29 period (defaults to current/previous year)"},
+                "period_month": {"type": "integer", "required": False, "min": 1, "max": 12, "description": "Month for F29 period (defaults to previous month)"},
+                "auto_calculate": {"type": "boolean", "required": False, "default": True, "description": "Auto-calculate values from tax documents"},
+            }
+        ),
     ]
 
 
 @router.post("/tasks/launch", response_model=TaskLaunchResponse)
-async def launch_task(request: TaskLaunchRequest):
+async def launch_task(
+    request: TaskLaunchRequest,
+    current_user: Optional[dict] = Depends(get_optional_user)
+):
     """
     Launch a Celery task and get its task ID.
 
@@ -153,6 +195,41 @@ async def launch_task(request: TaskLaunchRequest):
             task_result = sync_company_calendar.apply_async(
                 kwargs={"company_id": params.company_id}
             )
+
+        elif request.task_type == TaskType.LOAD_COMPANY_MEMORIES:
+            params = LoadCompanyMemoriesParams(**request.params)
+
+            # Add user_id from authenticated user if not provided in params
+            user_id = params.user_id
+            if not user_id and current_user:
+                user_id = current_user.get("user_id")
+
+            task_kwargs = {"company_id": params.company_id}
+            if user_id:
+                task_kwargs["user_id"] = user_id
+                logger.info(f"📤 Will also load user memories for user_id={user_id}")
+
+            task_result = load_company_memories.apply_async(kwargs=task_kwargs)
+
+        elif request.task_type == TaskType.GENERATE_F29_DRAFT:
+            params = GenerateF29DraftParams(**request.params)
+            task_result = generate_f29_draft_for_company.apply_async(
+                kwargs={
+                    "company_id": params.company_id,
+                    "period_year": params.period_year,
+                    "period_month": params.period_month,
+                    "auto_calculate": params.auto_calculate,
+                }
+            )
+
+        elif request.task_type == TaskType.GENERATE_F29_DRAFTS_ALL:
+            params = GenerateF29DraftsAllParams(**request.params)
+            kwargs = {"auto_calculate": params.auto_calculate}
+            if params.period_year is not None:
+                kwargs["period_year"] = params.period_year
+            if params.period_month is not None:
+                kwargs["period_month"] = params.period_month
+            task_result = generate_f29_drafts_all_companies.apply_async(kwargs=kwargs)
 
         else:
             raise HTTPException(

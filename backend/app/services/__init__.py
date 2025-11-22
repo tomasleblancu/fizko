@@ -11,6 +11,8 @@ from .memory_service import (
     build_company_memories_from_data,
     build_user_memories_from_data,
 )
+from .form29_draft_service import Form29DraftService
+from .tax_summary_service import TaxSummaryService
 
 __all__ = [
     "AgentService",
@@ -19,4 +21,6 @@ __all__ = [
     "save_user_memories",
     "build_company_memories_from_data",
     "build_user_memories_from_data",
+    "Form29DraftService",
+    "TaxSummaryService",
 ]

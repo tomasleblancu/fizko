@@ -73,7 +73,7 @@ export function DashboardView({ companyId }: DashboardViewProps) {
   // Fetch upcoming calendar events
   const { data: upcomingEvents, isLoading: calendarLoading } = useUpcomingEvents({
     companyId: companyId || '',
-    daysAhead: 30,
+    daysAhead: 60,
   });
 
   // Fetch F29 forms for previous month to check submission status
@@ -355,34 +355,21 @@ export function DashboardView({ companyId }: DashboardViewProps) {
     <div className="flex flex-col gap-4 lg:h-full">
       {/* Period Cards - Hidden when movements expanded */}
       {!showAllMovements && (
-        <div className="grid flex-shrink-0 gap-4 lg:grid-cols-[45%_1fr]">
-          {/* Previous Month Card */}
-          <PeriodCard
-            period={previousPeriodString}
-            year={previousYear}
-            month={previousMonth}
-            monthlyTax={previousMonthSummary?.monthly_tax || 0}
-            totalRevenue={previousMonthSummary?.total_revenue || 0}
-            totalExpenses={previousMonthSummary?.total_expenses || 0}
-            isLoading={previousLoading}
-            isPrevious={true}
-            f29Form={previousF29Form}
-            formatCurrency={formatCurrency}
-            formatMonthYear={formatMonthYear}
-          />
-
-          {/* Right Column - Split into Current Month Summary and Quick Actions */}
+        <div className="grid flex-shrink-0 gap-4 lg:grid-cols-[320px_1fr]">
+          {/* Left Column - Previous Month + Quick Actions */}
           <div className="flex flex-col gap-4">
-            {/* Current Month Card */}
+            {/* Previous Month Card */}
             <PeriodCard
-              period={formatMonthYear(currentYear, currentMonth)}
-              year={currentYear}
-              month={currentMonth}
-              monthlyTax={currentMonthSummary?.monthly_tax || 0}
-              totalRevenue={currentMonthSummary?.total_revenue || 0}
-              totalExpenses={currentMonthSummary?.total_expenses || 0}
-              isLoading={currentLoading}
-              isPrevious={false}
+              period={previousPeriodString}
+              year={previousYear}
+              month={previousMonth}
+              monthlyTax={previousMonthSummary?.monthly_tax || 0}
+              totalRevenue={previousMonthSummary?.total_revenue || 0}
+              totalExpenses={previousMonthSummary?.total_expenses || 0}
+              isLoading={previousLoading}
+              isPrevious={true}
+              f29Form={previousF29Form}
+              form29SiiDownload={previousMonthSummary?.form29_sii_download}
               formatCurrency={formatCurrency}
               formatMonthYear={formatMonthYear}
             />
@@ -390,6 +377,20 @@ export function DashboardView({ companyId }: DashboardViewProps) {
             {/* Quick Actions */}
             <QuickActions />
           </div>
+
+          {/* Right Column - Current Month (full height) */}
+          <PeriodCard
+            period={formatMonthYear(currentYear, currentMonth)}
+            year={currentYear}
+            month={currentMonth}
+            monthlyTax={currentMonthSummary?.monthly_tax || 0}
+            totalRevenue={currentMonthSummary?.total_revenue || 0}
+            totalExpenses={currentMonthSummary?.total_expenses || 0}
+            isLoading={currentLoading}
+            isPrevious={false}
+            formatCurrency={formatCurrency}
+            formatMonthYear={formatMonthYear}
+          />
         </div>
       )}
 

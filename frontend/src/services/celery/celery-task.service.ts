@@ -12,6 +12,8 @@ import type {
   SIISyncDocumentsParams,
   SIISyncForm29Params,
   CalendarSyncParams,
+  LoadCompanyMemoriesParams,
+  Form29GenerateDraftParams,
 } from '@/types/celery.types';
 
 export class CeleryTaskService {
@@ -118,6 +120,68 @@ export class CeleryTaskService {
 
     return this.launchTask({
       task_type: 'calendar.sync_company_calendar',
+      params,
+    });
+  }
+
+  /**
+   * Launch company memories load task
+   *
+   * Loads company memories from existing data into Mem0.
+   * This extracts data from company tables and stores as memories
+   * in the memory system (Mem0 + Supabase brain tables).
+   *
+   * @param companyId - Company UUID
+   * @returns Task launch response
+   */
+  static async syncCompanyMemories(
+    companyId: string
+  ): Promise<LaunchTaskResponse> {
+    console.log(
+      `[Celery Task Service] Syncing memories for company ${companyId}`
+    );
+
+    const params: LoadCompanyMemoriesParams = {
+      company_id: companyId,
+    };
+
+    return this.launchTask({
+      task_type: 'memory.load_company_memories',
+      params,
+    });
+  }
+
+  /**
+   * Generate Form29 draft for a company
+   *
+   * Generates a Form29 draft with auto-calculated values from tax documents.
+   * This creates a draft in the form29 table with all tax calculation components.
+   *
+   * @param companyId - Company UUID
+   * @param periodYear - Year for the F29 period
+   * @param periodMonth - Month for the F29 period (1-12)
+   * @param autoCalculate - Whether to auto-calculate values from documents (default: true)
+   * @returns Task launch response
+   */
+  static async generateForm29Draft(
+    companyId: string,
+    periodYear: number,
+    periodMonth: number,
+    autoCalculate: boolean = true
+  ): Promise<LaunchTaskResponse> {
+    console.log(
+      `[Celery Task Service] Generating Form29 draft for company ${companyId}, period ${periodYear}-${periodMonth}`
+    );
+
+    const params: Form29GenerateDraftParams = {
+      company_id: companyId,
+      period_year: periodYear,
+      period_month: periodMonth,
+      auto_calculate: autoCalculate,
+    };
+
+    return this.launchTask({
+      task_type: 'form29.generate_draft_for_company',
       params,
     });
   }

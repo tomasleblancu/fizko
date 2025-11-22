@@ -318,3 +318,327 @@ class F29Repository(BaseRepository):
         except Exception as e:
             self._log_error("upsert_f29_forms", e, count=len(forms))
             return 0, 0
+
+    # =====================================================================
+    # DRAFT MANAGEMENT METHODS (form29 table)
+    # =====================================================================
+
+    async def get_draft_by_period(
+        self,
+        company_id: str,
+        period_year: int,
+        period_month: int,
+        revision_number: int | None = None
+    ) -> dict[str, Any] | None:
+        """
+        Get Form29 draft for a specific period.
+
+        Args:
+            company_id: Company UUID
+            period_year: Year
+            period_month: Month (1-12)
+            revision_number: Optional revision number (defaults to latest non-cancelled)
+
+        Returns:
+            Form29 draft dict or None if not found
+        """
+        try:
+            query = (
+                self._client
+                .table("form29")
+                .select("*")
+                .eq("company_id", company_id)
+                .eq("period_year", period_year)
+                .eq("period_month", period_month)
+            )
+
+            if revision_number is not None:
+                query = query.eq("revision_number", revision_number)
+            else:
+                # Get latest non-cancelled revision
+                query = query.neq("status", "cancelled").order("revision_number", desc=True)
+
+            query = query.limit(1).maybe_single()
+            response = query.execute()
+
+            return self._extract_data(response, "get_draft_by_period")
+        except Exception as e:
+            self._log_error(
+                "get_draft_by_period",
+                e,
+                company_id=company_id,
+                period_year=period_year,
+                period_month=period_month,
+                revision_number=revision_number
+            )
+            return None
+
+    async def draft_exists_for_period(
+        self,
+        company_id: str,
+        period_year: int,
+        period_month: int,
+        exclude_cancelled: bool = True
+    ) -> bool:
+        """
+        Check if a Form29 draft exists for a specific period.
+
+        Args:
+            company_id: Company UUID
+            period_year: Year
+            period_month: Month (1-12)
+            exclude_cancelled: Whether to exclude cancelled forms (default True)
+
+        Returns:
+            True if draft exists, False otherwise
+        """
+        try:
+            query = (
+                self._client
+                .table("form29")
+                .select("id", count="exact")
+                .eq("company_id", company_id)
+                .eq("period_year", period_year)
+                .eq("period_month", period_month)
+            )
+
+            if exclude_cancelled:
+                query = query.neq("status", "cancelled")
+
+            response = query.execute()
+            return response.count > 0 if hasattr(response, 'count') else False
+        except Exception as e:
+            self._log_error(
+                "draft_exists_for_period",
+                e,
+                company_id=company_id,
+                period_year=period_year,
+                period_month=period_month
+            )
+            return False
+
+    async def get_latest_revision_number(
+        self,
+        company_id: str,
+        period_year: int,
+        period_month: int
+    ) -> int:
+        """
+        Get the latest revision number for a period.
+
+        Args:
+            company_id: Company UUID
+            period_year: Year
+            period_month: Month (1-12)
+
+        Returns:
+            Latest revision number (0 if none exist)
+        """
+        try:
+            response = (
+                self._client
+                .table("form29")
+                .select("revision_number")
+                .eq("company_id", company_id)
+                .eq("period_year", period_year)
+                .eq("period_month", period_month)
+                .order("revision_number", desc=True)
+                .limit(1)
+                .maybe_single()
+                .execute()
+            )
+
+            data = self._extract_data(response, "get_latest_revision_number")
+            return data["revision_number"] if data else 0
+        except Exception as e:
+            self._log_error(
+                "get_latest_revision_number",
+                e,
+                company_id=company_id,
+                period_year=period_year,
+                period_month=period_month
+            )
+            return 0
+
+    async def create_draft(
+        self,
+        company_id: str,
+        period_year: int,
+        period_month: int,
+        created_by_user_id: str | None = None,
+        **values
+    ) -> dict[str, Any] | None:
+        """
+        Create a new Form29 draft.
+
+        Args:
+            company_id: Company UUID
+            period_year: Year
+            period_month: Month (1-12)
+            created_by_user_id: Optional user ID who created the draft
+            **values: Additional form values (total_sales, taxable_sales, etc.)
+
+        Returns:
+            Created Form29 draft or None on error
+        """
+        try:
+            # Get next revision number
+            revision_number = await self.get_latest_revision_number(
+                company_id, period_year, period_month
+            ) + 1
+
+            # Prepare form data
+            form_data = {
+                "company_id": company_id,
+                "period_year": period_year,
+                "period_month": period_month,
+                "revision_number": revision_number,
+                "status": "draft",
+                "validation_status": "pending",
+                "payment_status": "unpaid",
+                **values
+            }
+
+            if created_by_user_id:
+                form_data["created_by_user_id"] = created_by_user_id
+
+            # Insert form
+            response = (
+                self._client
+                .table("form29")
+                .insert(form_data)
+                .execute()
+            )
+
+            result = self._extract_data(response, "create_draft")
+            if result:
+                logger.info(
+                    f"✅ Created Form29 draft for company {company_id}, "
+                    f"period {period_year}-{period_month:02d}, revision {revision_number}"
+                )
+            return result
+        except Exception as e:
+            self._log_error(
+                "create_draft",
+                e,
+                company_id=company_id,
+                period_year=period_year,
+                period_month=period_month
+            )
+            return None
+
+    async def update_draft(
+        self,
+        form_id: str,
+        **updates
+    ) -> dict[str, Any] | None:
+        """
+        Update a Form29 draft.
+
+        Args:
+            form_id: Form29 UUID
+            **updates: Fields to update
+
+        Returns:
+            Updated Form29 draft or None on error
+        """
+        try:
+            response = (
+                self._client
+                .table("form29")
+                .update(updates)
+                .eq("id", form_id)
+                .execute()
+            )
+
+            return self._extract_data(response, "update_draft")
+        except Exception as e:
+            self._log_error("update_draft", e, form_id=form_id, updates=updates)
+            return None
+
+    async def get_active_drafts(
+        self,
+        company_id: str | None = None,
+        limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """
+        Get all active drafts (status=draft).
+
+        Args:
+            company_id: Optional company filter
+            limit: Maximum number of drafts
+
+        Returns:
+            List of Form29 drafts
+        """
+        try:
+            query = (
+                self._client
+                .table("form29")
+                .select("*")
+                .eq("status", "draft")
+            )
+
+            if company_id:
+                query = query.eq("company_id", company_id)
+
+            query = query.order("period_year", desc=True).order("period_month", desc=True).limit(limit)
+
+            response = query.execute()
+            return self._extract_data_list(response, "get_active_drafts")
+        except Exception as e:
+            self._log_error("get_active_drafts", e, company_id=company_id, limit=limit)
+            return []
+
+    async def get_drafts_by_company(
+        self,
+        company_id: str,
+        period_year: int | None = None,
+        period_month: int | None = None,
+        status: str | None = None,
+        limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """
+        Get Form29 drafts for a company with filters.
+
+        Args:
+            company_id: Company UUID
+            period_year: Optional year filter
+            period_month: Optional month filter
+            status: Optional status filter
+            limit: Maximum number of drafts
+
+        Returns:
+            List of Form29 drafts
+        """
+        try:
+            query = (
+                self._client
+                .table("form29")
+                .select("*")
+                .eq("company_id", company_id)
+            )
+
+            if period_year is not None:
+                query = query.eq("period_year", period_year)
+
+            if period_month is not None:
+                query = query.eq("period_month", period_month)
+
+            if status:
+                query = query.eq("status", status)
+
+            query = query.order("period_year", desc=True).order("period_month", desc=True).limit(limit)
+
+            response = query.execute()
+            return self._extract_data_list(response, "get_drafts_by_company")
+        except Exception as e:
+            self._log_error(
+                "get_drafts_by_company",
+                e,
+                company_id=company_id,
+                period_year=period_year,
+                period_month=period_month,
+                status=status
+            )
+            return []
