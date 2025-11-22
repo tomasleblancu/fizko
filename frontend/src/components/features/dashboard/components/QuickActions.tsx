@@ -3,13 +3,13 @@
  * Grid of quick action buttons for common tasks
  */
 
-import { Receipt, Users, Building2, FileText } from "lucide-react";
+import { Plus, BarChart3, HelpCircle } from "lucide-react";
 import { ChateableWrapper } from "@/components/ui/ChateableWrapper";
 
 export function QuickActions() {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <ChateableWrapper
           message="Ayúdame a agregar un nuevo gasto o compra"
           contextData={{}}
@@ -17,20 +17,20 @@ export function QuickActions() {
           entityType="quick_action"
         >
           <button className="flex h-[72px] w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
-            <Receipt className="h-5 w-5 flex-shrink-0" />
-            <span className="text-center text-xs leading-tight">Agregar<br/>Gasto</span>
+            <Plus className="h-5 w-5 flex-shrink-0" />
+            <span className="text-center text-xs leading-tight">Gasto</span>
           </button>
         </ChateableWrapper>
 
         <ChateableWrapper
-          message="Ayúdame a agregar un nuevo empleado a la nómina"
+          message="Dame un resumen detallado de mi situación tributaria actual"
           contextData={{}}
-          uiComponent="quick_action_add_employee"
+          uiComponent="quick_action_tax_summary"
           entityType="quick_action"
         >
           <button className="flex h-[72px] w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
-            <Users className="h-5 w-5 flex-shrink-0" />
-            <span className="text-center text-xs leading-tight">Agregar<br/>Empleado</span>
+            <BarChart3 className="h-5 w-5 flex-shrink-0" />
+            <span className="text-center text-xs leading-tight">Resumen</span>
           </button>
         </ChateableWrapper>
 
@@ -41,20 +41,8 @@ export function QuickActions() {
           entityType="quick_action"
         >
           <button className="flex h-[72px] w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
-            <Building2 className="h-5 w-5 flex-shrink-0" />
-            <span className="text-center text-xs leading-tight">Información<br/>Sociedad</span>
-          </button>
-        </ChateableWrapper>
-
-        <ChateableWrapper
-          message="Ayúdame a agregar un nuevo documento de venta o compra"
-          contextData={{}}
-          uiComponent="quick_action_add_document"
-          entityType="quick_action"
-        >
-          <button className="flex h-[72px] w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">
-            <FileText className="h-5 w-5 flex-shrink-0" />
-            <span className="text-center text-xs leading-tight">Agregar<br/>Documento</span>
+            <HelpCircle className="h-5 w-5 flex-shrink-0" />
+            <span className="text-center text-xs leading-tight">Sociedad</span>
           </button>
         </ChateableWrapper>
       </div>

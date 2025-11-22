@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Download, FileText, Calendar, Loader2 } from "lucide-react";
+import { Download, FileText, Calendar, Brain, Loader2, Calculator } from "lucide-react";
 import { CeleryTaskService } from "@/services/celery/celery-task.service";
 
 interface CompanySyncActionsProps {
@@ -14,13 +14,17 @@ export function CompanySyncActions({ companyId }: CompanySyncActionsProps) {
   // Task execution states
   const [syncDocsLoading, setSyncDocsLoading] = useState(false);
   const [syncF29Loading, setSyncF29Loading] = useState(false);
+  const [generateDraftLoading, setGenerateDraftLoading] = useState(false);
   const [syncCalendarLoading, setSyncCalendarLoading] = useState(false);
+  const [syncMemoriesLoading, setSyncMemoriesLoading] = useState(false);
   const [taskMessage, setTaskMessage] = useState<string | null>(null);
 
   // Task parameters
   const [docsMonths, setDocsMonths] = useState(1);
   const [docsOffset, setDocsOffset] = useState(1);
   const [f29Year, setF29Year] = useState(new Date().getFullYear().toString());
+  const [draftYear, setDraftYear] = useState(new Date().getFullYear());
+  const [draftMonth, setDraftMonth] = useState(new Date().getMonth() || 12);
 
   const handleSyncDocuments = async () => {
     try {
@@ -86,6 +90,51 @@ export function CompanySyncActions({ companyId }: CompanySyncActionsProps) {
       );
     } finally {
       setSyncCalendarLoading(false);
+    }
+  };
+
+  const handleSyncMemories = async () => {
+    try {
+      setSyncMemoriesLoading(true);
+      setTaskMessage(null);
+
+      const response = await CeleryTaskService.syncCompanyMemories(companyId);
+
+      setTaskMessage(
+        `✓ Sincronización de memorias iniciada. Task ID: ${response.task_id}`
+      );
+    } catch (error) {
+      console.error("Error syncing memories:", error);
+      setTaskMessage(
+        `✗ Error: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    } finally {
+      setSyncMemoriesLoading(false);
+    }
+  };
+
+  const handleGenerateDraft = async () => {
+    try {
+      setGenerateDraftLoading(true);
+      setTaskMessage(null);
+
+      const response = await CeleryTaskService.generateForm29Draft(
+        companyId,
+        draftYear,
+        draftMonth,
+        true // auto_calculate
+      );
+
+      setTaskMessage(
+        `✓ Generación de draft F29 iniciada. Task ID: ${response.task_id}`
+      );
+    } catch (error) {
+      console.error("Error generating F29 draft:", error);
+      setTaskMessage(
+        `✗ Error: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    } finally {
+      setGenerateDraftLoading(false);
     }
   };
 
@@ -204,7 +253,7 @@ export function CompanySyncActions({ companyId }: CompanySyncActionsProps) {
         </div>
 
         {/* Calendar Sync */}
-        <div>
+        <div className="border-b border-gray-200 pb-6">
           <div className="flex items-start gap-3 mb-3">
             <div className="p-2 bg-purple-100 rounded-lg">
               <Calendar className="h-5 w-5 text-purple-600" />
@@ -233,6 +282,101 @@ export function CompanySyncActions({ companyId }: CompanySyncActionsProps) {
               <>
                 <Calendar className="h-4 w-4 mr-2" />
                 Sincronizar Calendario
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Generate F29 Draft */}
+        <div className="border-b border-gray-200 pb-6">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="p-2 bg-yellow-100 rounded-lg">
+              <Calculator className="h-5 w-5 text-yellow-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900">Generar Draft F29</h3>
+              <p className="text-sm text-gray-600">
+                Genera un borrador de F29 con valores calculados desde documentos
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-3">
+            <div>
+              <Label htmlFor="draftYear">Año</Label>
+              <Input
+                id="draftYear"
+                type="number"
+                min="2020"
+                max="2030"
+                value={draftYear}
+                onChange={(e) => setDraftYear(parseInt(e.target.value) || new Date().getFullYear())}
+                disabled={generateDraftLoading}
+              />
+            </div>
+            <div>
+              <Label htmlFor="draftMonth">Mes</Label>
+              <Input
+                id="draftMonth"
+                type="number"
+                min="1"
+                max="12"
+                value={draftMonth}
+                onChange={(e) => setDraftMonth(parseInt(e.target.value) || 1)}
+                disabled={generateDraftLoading}
+              />
+            </div>
+          </div>
+
+          <Button
+            onClick={handleGenerateDraft}
+            disabled={generateDraftLoading}
+            className="w-full"
+          >
+            {generateDraftLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Generando...
+              </>
+            ) : (
+              <>
+                <Calculator className="h-4 w-4 mr-2" />
+                Generar Draft F29
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Memory Sync */}
+        <div>
+          <div className="flex items-start gap-3 mb-3">
+            <div className="p-2 bg-orange-100 rounded-lg">
+              <Brain className="h-5 w-5 text-orange-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900">
+                Cargar Memorias
+              </h3>
+              <p className="text-sm text-gray-600">
+                Carga datos de la empresa en el sistema de memoria (Mem0)
+              </p>
+            </div>
+          </div>
+
+          <Button
+            onClick={handleSyncMemories}
+            disabled={syncMemoriesLoading}
+            className="w-full"
+          >
+            {syncMemoriesLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Cargando...
+              </>
+            ) : (
+              <>
+                <Brain className="h-4 w-4 mr-2" />
+                Cargar Memorias
               </>
             )}
           </Button>

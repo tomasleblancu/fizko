@@ -16,6 +16,7 @@ from agents import function_tool, RunContextWrapper
 from mem0 import AsyncMemoryClient
 
 from app.agents.core import FizkoContext
+from app.utils.rut import normalize_rut
 
 logger = logging.getLogger(__name__)
 
@@ -196,20 +197,24 @@ async def search_company_memory(
     try:
         mem0 = get_mem0_client()
 
-        # Get company_id from request_context (via context.context)
-        company_id = context.context.request_context.get("company_id")
-
-        if not company_id:
-            logger.warning("⚠️ No company_id in request_context, cannot search company memory")
+        # Get company RUT from company_info in context
+        company_info = context.context.company_info
+        if not company_info:
+            logger.warning("⚠️ No company_info in context, cannot search company memory")
             return "No company context available."
 
-        # Use company_id prefixed with 'company_' to distinguish from user IDs
-        entity_id = f"company_{company_id}"
+        company_rut = company_info.get("rut")
+        if not company_rut:
+            logger.warning("⚠️ No RUT in company_info, cannot search company memory")
+            return "No company RUT available."
 
-        logger.info(f"🔍 Searching COMPANY memory: query='{query}', company_id={company_id}, limit={limit}")
+        # Normalize RUT for entity_id (removes hyphens, converts to lowercase)
+        entity_id = normalize_rut(company_rut)
+
+        logger.info(f"🔍 Searching COMPANY memory: query='{query}', entity_id={entity_id}, limit={limit}")
 
         # Search company memories using async client
-        # Use company_id as the user_id (Mem0's entity identifier)
+        # Use normalized RUT as the user_id (Mem0's entity identifier)
         result = await mem0.search(
             query,  # Positional argument
             user_id=entity_id,
@@ -262,17 +267,21 @@ async def save_company_memory(
     try:
         mem0 = get_mem0_client()
 
-        # Get company_id from request_context (via context.context)
-        company_id = context.context.request_context.get("company_id")
-
-        if not company_id:
-            logger.warning("⚠️ No company_id in request_context, cannot save company memory")
+        # Get company RUT from company_info in context
+        company_info = context.context.company_info
+        if not company_info:
+            logger.warning("⚠️ No company_info in context, cannot save company memory")
             return "No company context available. Cannot save company memory."
 
-        # Use company_id prefixed with 'company_' to distinguish from user IDs
-        entity_id = f"company_{company_id}"
+        company_rut = company_info.get("rut")
+        if not company_rut:
+            logger.warning("⚠️ No RUT in company_info, cannot save company memory")
+            return "No company RUT available. Cannot save company memory."
 
-        logger.info(f"💾 Saving COMPANY memory: company_id={company_id}, content='{content[:100]}...'")
+        # Normalize RUT for entity_id (removes hyphens, converts to lowercase)
+        entity_id = normalize_rut(company_rut)
+
+        logger.info(f"💾 Saving COMPANY memory: entity_id={entity_id}, content='{content[:100]}...'")
 
         # Save memory using async client (Mem0 expects a list of message-like dicts)
         await mem0.add(

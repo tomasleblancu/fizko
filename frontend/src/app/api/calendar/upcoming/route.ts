@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { UpcomingEventsResponse } from '@/types/calendar'
 import { CalendarService } from '@/services/calendar/calendar.service'
+import { createServiceClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,10 +23,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Delegate to service layer
+    // Create service client to bypass RLS (similar to tax-summary API)
+    const supabase = createServiceClient()
+
+    // Delegate to service layer with service client
     const events = await CalendarService.getUpcomingEventsWithTemplates(
       companyId,
-      daysAhead
+      daysAhead,
+      supabase
     )
 
     // Calculate date range for response

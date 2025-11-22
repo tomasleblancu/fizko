@@ -10,7 +10,10 @@ Structure:
     ├── sii/                 # SII-related tasks
     │   ├── __init__.py
     │   ├── documents.py     # Document synchronization
-    │   └── forms.py         # Form processing (F29)
+    │   └── forms.py         # Form processing (F29 from SII)
+    ├── form29/              # Form29 draft generation tasks
+    │   ├── __init__.py
+    │   └── drafts.py        # Draft generation from tax documents
     ├── calendar/            # Calendar-related tasks
     │   ├── __init__.py
     │   └── events.py        # Calendar event generation
@@ -23,11 +26,13 @@ Import your task modules here to ensure they're discovered by Celery.
 
 # Import task modules to register them with Celery
 from . import sii
+from . import form29
 from . import calendar
 from . import memory
 
 __all__ = [
     "sii",
+    "form29",
     "calendar",
     "memory",
 ]

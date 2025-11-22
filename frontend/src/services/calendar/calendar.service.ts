@@ -658,19 +658,21 @@ export class CalendarService {
   }
 
   /**
-   * Get upcoming events with template data and filtered by display_days_before
+   * Get upcoming events with template data
    *
-   * This method fetches upcoming events and filters them based on the
-   * display_days_before setting from the event template. Only events
-   * within their display window are returned.
+   * This method fetches upcoming events within the specified time window.
+   * When called from an API route, pass a service client to bypass RLS.
+   * When called from client-side code, omit the client to use the default browser client.
    *
    * @param companyId - Company UUID
    * @param daysAhead - Number of days to look ahead (default: 30)
+   * @param supabaseClient - Optional Supabase client (for API routes using service client)
    * @returns List of upcoming events with template data and days_until_due
    */
   static async getUpcomingEventsWithTemplates(
     companyId: string,
-    daysAhead = 30
+    daysAhead = 30,
+    supabaseClient?: any
   ): Promise<Array<{
     id: string;
     title: string;
@@ -685,7 +687,7 @@ export class CalendarService {
   }>> {
     console.log(`[Calendar Service] Fetching upcoming events with templates for company ${companyId}`);
 
-    const supabase = createClient();
+    const supabase = supabaseClient || createClient();
 
     // Calculate date range as ISO date strings (avoid timezone issues)
     const today = new Date();
@@ -756,15 +758,27 @@ export class CalendarService {
           days_until_due: daysUntilDue,
           status: event.status as EventStatus
         };
-      })
-      .filter(event => {
-        // Only show events if they are within the display_days_before threshold
-        return event.days_until_due <= event.event_template.display_days_before;
       });
+    // Note: We don't filter by display_days_before here because:
+    // 1. The SQL query already filters by the requested daysAhead parameter
+    // 2. display_days_before is for UI urgency indicators, not data filtering
+    // 3. The CalendarWidget component handles urgency sectioning (0-10 days vs 11-60 days)
 
-    console.log(`[Calendar Service] Found ${transformedEvents.length} upcoming events`);
+    // Deduplicate events: only keep one event per template type (show only the closest event of each type)
+    // Events are already sorted by due_date (ascending), so we keep the first occurrence of each template
+    const deduplicatedEvents = transformedEvents.reduce((acc, event) => {
+      const key = event.event_template.code; // Deduplicate by template code only
+      if (!acc.has(key)) {
+        acc.set(key, event); // Keep only the first (closest) event of each type
+      }
+      return acc;
+    }, new Map<string, typeof transformedEvents[0]>());
 
-    return transformedEvents;
+    const uniqueEvents = Array.from(deduplicatedEvents.values());
+
+    console.log(`[Calendar Service] Found ${transformedEvents.length} upcoming events (${uniqueEvents.length} unique after deduplication by template type)`);
+
+    return uniqueEvents;
   }
 
   /**

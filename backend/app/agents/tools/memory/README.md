@@ -14,9 +14,15 @@ The system maintains **two separate memory spaces**:
 ### Memory Storage Strategy
 
 - **User Memory**: Stored with `user_id` as the entity identifier
-- **Company Memory**: Stored with `company_{company_id}` as the entity identifier (prefixed to distinguish from user IDs)
+- **Company Memory**: Stored with **normalized RUT** (without hyphens) as the entity identifier (e.g., `"772049315"`)
 
 Both memory types use Mem0's async client with the same underlying infrastructure but maintain complete separation.
+
+**Why use RUT for company memory?**
+- Portable across environments (same RUT in dev/staging/prod)
+- Stable identifier (doesn't change with database migrations)
+- Human-readable and debuggable
+- Matches the entity_id used in bulk memory loading system
 
 ## Available Tools
 
@@ -109,7 +115,7 @@ await save_company_memory(context, "Company is on ProPyme regime")
 Both memory tools require access to `FizkoContext`:
 
 - **User Memory**: Uses `context.request_context.get("user_id")` to identify the user
-- **Company Memory**: Uses `context.company_id` to identify the company
+- **Company Memory**: Uses `context.company_info.get("rut")` to identify the company (normalized RUT without hyphens)
 
 ### Error Handling
 
@@ -244,7 +250,8 @@ If searches return "No relevant memories found", this could mean:
 ### Company Memory Not Working
 
 If company memory tools fail, check:
-- `company_id` is present in `FizkoContext`
+- `company_info` is present in `FizkoContext`
+- `company_info` includes a valid `"rut"` field
 - The user's session includes company context
 - The company was properly loaded in the context loader
 
