@@ -121,3 +121,6 @@ backend/app/integrations/sii_faq/output/
 
 # Old directories
 old-directories/
+
+# Expo mobile app
+fizko-expo/
