@@ -13,7 +13,7 @@ from app.integrations.kapso.models import (
     SendInteractiveRequest,
 )
 from app.services.whatsapp import WhatsAppService
-from ..schemas import MessageResponse
+from ..schemas import MessageResponse, SendToPhoneRequest
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,71 @@ async def send_text_message(
         return MessageResponse(
             success=False,
             error=str(e),
+        )
+
+
+@router.post("/send/to-phone", response_model=MessageResponse)
+async def send_text_to_phone(
+    request: SendToPhoneRequest,
+    current_user: dict = Depends(get_current_user),
+    service: WhatsAppService = Depends(get_whatsapp_service_dep),
+):
+    """
+    Send a text message to a phone number.
+
+    This endpoint automatically finds an active conversation for the phone number.
+    If no active conversation exists, it will return an error.
+
+    **Note**: WhatsApp Business API only allows starting new conversations with
+    approved templates. Regular messages only work within 24-hour window after
+    user message.
+
+    Args:
+        request: Phone number and message
+        current_user: Authenticated user dict
+        service: WhatsApp service
+
+    Returns:
+        MessageResponse with success status and message details
+
+    Raises:
+        400: If no active conversation found for phone number
+    """
+    user_id = current_user.get("sub")
+    logger.info(f"User {user_id} sending message to phone: {request.phone_number}")
+
+    try:
+        result = await service.send_text_to_phone(
+            phone_number=request.phone_number,
+            message=request.message,
+            whatsapp_config_id=request.whatsapp_config_id,
+        )
+
+        logger.info(
+            f"✅ Message sent to {request.phone_number} | "
+            f"conversation: {result.get('conversation_id')}"
+        )
+
+        return MessageResponse(
+            success=True,
+            message_id=result.get("id"),
+            conversation_id=result.get("conversation_id"),
+            status=result.get("status"),
+        )
+
+    except ValueError as e:
+        # No active conversation found
+        logger.warning(f"No active conversation for {request.phone_number}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    except Exception as e:
+        logger.error(f"Error sending message to phone: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send message: {str(e)}",
         )
 
 

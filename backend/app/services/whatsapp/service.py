@@ -44,8 +44,8 @@ class WhatsAppService:
 
     async def send_text(
         self,
-        conversation_id: str,
-        message: str,
+        conversation_id: Optional[str] = None,
+        message: str = "",
         phone_number: Optional[str] = None,
         whatsapp_config_id: Optional[str] = None,
     ) -> dict[str, Any]:
@@ -53,34 +53,43 @@ class WhatsAppService:
         Send text message to conversation.
 
         Args:
-            conversation_id: Kapso conversation ID
+            conversation_id: Kapso conversation ID (optional if phone_number provided)
             message: Text message content
             phone_number: Optional phone number (for finding conversation)
-            whatsapp_config_id: Optional WhatsApp config to send from
+            whatsapp_config_id: Optional WhatsApp config ID (used with phone_number)
 
         Returns:
             Message response from Kapso
+
+        Raises:
+            ValueError: If neither conversation_id nor valid phone_number provided
         """
         try:
             # If phone_number provided but no conversation_id, find active conversation
-            if phone_number and not conversation_id:
+            if not conversation_id and phone_number:
                 logger.info(f"Finding active conversation for phone: {phone_number}")
-                conversations = await self.kapso.conversations.search(
-                    query=phone_number,
-                    status="active",
-                    limit=1,
+                conversation = await self._find_active_conversation(
+                    phone_number=phone_number,
+                    whatsapp_config_id=whatsapp_config_id,
                 )
-                if conversations.get("data"):
-                    conversation_id = conversations["data"][0]["id"]
-                else:
-                    logger.error(f"No active conversation found for: {phone_number}")
-                    raise ValueError(f"No active conversation for {phone_number}")
+                conversation_id = conversation["id"]
+
+            if not conversation_id:
+                raise ValueError(
+                    "Either conversation_id or (phone_number + whatsapp_config_id) is required"
+                )
 
             logger.info(f"Sending text message to conversation: {conversation_id}")
-            return await self.kapso.messages.send_text(
+            result = await self.kapso.messages.send_text(
                 conversation_id=conversation_id,
                 message=message,
             )
+
+            # Ensure conversation_id is in result (Kapso API may not include it)
+            if "conversation_id" not in result:
+                result["conversation_id"] = conversation_id
+
+            return result
 
         except Exception as e:
             logger.error(f"Error sending text message: {e}", exc_info=True)
@@ -172,6 +181,104 @@ class WhatsAppService:
         except Exception as e:
             logger.error(f"Error sending interactive: {e}", exc_info=True)
             raise
+
+    async def send_text_to_phone(
+        self,
+        phone_number: str,
+        message: str,
+        whatsapp_config_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """
+        Send text message to a phone number.
+        Automatically finds an active conversation for the phone number.
+
+        Args:
+            phone_number: Phone number to send to (with or without + prefix)
+            message: Text message content
+            whatsapp_config_id: Optional WhatsApp config ID to filter conversations
+
+        Returns:
+            Message response from Kapso
+
+        Raises:
+            ValueError: If no active conversation exists for the phone number
+        """
+        return await self.send_text(
+            phone_number=phone_number,
+            message=message,
+            whatsapp_config_id=whatsapp_config_id,
+        )
+
+    # =========================================================================
+    # Private Helpers
+    # =========================================================================
+
+    async def _find_active_conversation(
+        self,
+        phone_number: str,
+        whatsapp_config_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """
+        Find an active conversation for a phone number.
+
+        This method searches through existing conversations to find an active one
+        matching the phone number. It does NOT create new conversations.
+
+        IMPORTANT: WhatsApp Business API has strict rules:
+        - New conversations can only be started with approved templates
+        - Regular messages only work within 24-hour window after user message
+
+        Args:
+            phone_number: Phone number (will be normalized automatically)
+            whatsapp_config_id: Optional WhatsApp config ID to filter
+
+        Returns:
+            Active conversation dict with 'id', 'phone_number', 'status', etc.
+
+        Raises:
+            ValueError: If no active conversation found for this phone number
+        """
+        try:
+            # Normalize phone number (remove '+' if exists)
+            normalized_phone = phone_number.lstrip("+") if phone_number.startswith("+") else phone_number
+
+            # List conversations (increase limit to search more conversations)
+            conversations_response = await self.kapso.conversations.list(
+                whatsapp_config_id=whatsapp_config_id,
+                limit=50,
+            )
+
+            # Extract conversation list from response (handle different formats)
+            conversations = (
+                conversations_response.get("data")
+                or conversations_response.get("nodes")
+                or conversations_response.get("conversations")
+                or conversations_response.get("items")
+                or []
+            )
+
+            # Find active conversation matching the phone number
+            for conv in conversations:
+                conv_phone = conv.get("phone_number", "").lstrip("+")
+                conv_status = conv.get("status", "")
+
+                if conv_phone == normalized_phone and conv_status == "active":
+                    logger.info(f"✅ Active conversation found for {normalized_phone}")
+                    return conv
+
+            # If not found, raise informative error
+            raise ValueError(
+                f"No active conversation found for {normalized_phone}. "
+                f"The user must first initiate a conversation by sending a message, "
+                f"or you must send an approved WhatsApp template to start the conversation."
+            )
+
+        except ValueError:
+            # Re-raise ValueError as-is
+            raise
+        except Exception as e:
+            logger.error(f"Error searching for conversation: {e}", exc_info=True)
+            raise ValueError(f"Failed to search for conversation: {str(e)}")
 
     # =========================================================================
     # Webhook Validation

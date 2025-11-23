@@ -38,3 +38,23 @@ class ContactResponse(BaseModel):
     success: bool
     contacts: Optional[list] = None
     error: Optional[str] = None
+
+
+class SendToPhoneRequest(BaseModel):
+    """Request model for sending message to phone number."""
+
+    phone_number: str = Field(
+        ...,
+        description="Phone number to send to (with or without + prefix)",
+        examples=["+56912345678", "56912345678"],
+    )
+    message: str = Field(
+        ...,
+        description="Text message content",
+        min_length=1,
+        max_length=4096,
+    )
+    whatsapp_config_id: Optional[str] = Field(
+        None,
+        description="Optional WhatsApp config ID to filter conversations",
+    )
