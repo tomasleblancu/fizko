@@ -64,24 +64,29 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Initialize Supabase client with service role for privileged operations
+    // Initialize Supabase clients
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const backendUrl =
       Deno.env.get("BACKEND_URL") ||
       "https://fizko-v2-production.up.railway.app";
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    // Client for auth verification (uses user's token)
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: { Authorization: authHeader },
       },
     });
 
+    // Client for privileged operations (uses service role key, bypasses RLS)
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     // Verify user is authenticated
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser();
+    } = await authClient.auth.getUser();
 
     if (userError || !user) {
       return new Response(
