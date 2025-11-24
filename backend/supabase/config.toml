@@ -30,3 +30,6 @@ enable_confirmations = false
 # Edge Functions
 [functions.iva-summary]
 verify_jwt = true
+
+[functions.sii-auth]
+verify_jwt = true
