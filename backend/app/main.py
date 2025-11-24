@@ -4,7 +4,7 @@ Simplified version without database or authentication.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import sii, verify, celery
+from app.routers import sii, verify, celery, auth
 from app.routers.chat import agent as chat_agent
 from app.routers.chat import chatkit as chat_chatkit
 from app.routers.chat import conversations as chat_conversations
@@ -26,6 +26,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router)  # Auth router - includes own prefix (/api/auth)
 app.include_router(sii.router, prefix="/api/sii", tags=["SII"])
 app.include_router(verify.router, prefix="/api/sii", tags=["SII Verification"])
 app.include_router(celery.router, prefix="/api")  # Celery router includes its own prefix and tags
