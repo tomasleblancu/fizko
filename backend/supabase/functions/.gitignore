@@ -1,0 +1,7 @@
+# Deno
+node_modules/
+deno.lock
+
+# Environment variables
+.env
+.env.local

@@ -1,0 +1,12 @@
+{
+  "nodeModulesDir": "auto",
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"],
+    "strict": true
+  },
+  "imports": {
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@^2",
+    "@supabase/functions-js": "jsr:@supabase/functions-js@^2"
+  }
+}
