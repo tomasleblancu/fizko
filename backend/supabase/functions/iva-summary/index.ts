@@ -74,12 +74,23 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Parse request body
-    const { company_id, period }: IvaSummaryRequest = await req.json();
+    // Parse request - support both GET and POST
+    let company_id: string;
+    let period: string | undefined;
+
+    if (req.method === "GET") {
+      const url = new URL(req.url);
+      company_id = url.searchParams.get("companyId") || "";
+      period = url.searchParams.get("period") || undefined;
+    } else {
+      const body: IvaSummaryRequest = await req.json();
+      company_id = body.company_id;
+      period = body.period;
+    }
 
     if (!company_id) {
       return new Response(
-        JSON.stringify({ error: "company_id is required" }),
+        JSON.stringify({ error: "company_id or companyId is required" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

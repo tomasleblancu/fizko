@@ -4,12 +4,14 @@
 
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import type { Document, IvaSummary } from "./types.ts";
-import { calculatePPM } from "./helpers.ts";
+import { calculatePPM, calculatePeriodRange } from "./helpers.ts";
 import {
   getDocuments,
   getPreviousMonthCredit,
   getRetencion,
   getReverseChargeWithholding,
+  getGeneratedF29,
+  getForm29SiiDownload,
 } from "./documents.ts";
 
 /**
@@ -47,18 +49,22 @@ const PURCHASES_POSITIVE_TYPES = [
 const PURCHASES_CREDIT_TYPES = ["nota_credito_compra"];
 
 /**
- * Calculate sales totals (débito fiscal)
+ * Calculate sales totals
  */
 export function calculateSalesTotals(
   salesPositive: Document[],
   salesCredits: Document[]
 ): {
-  debitoFiscal: number;
-  netRevenue: number;
+  totalRevenue: number;
+  ivaCollected: number;
   overdueIvaFromSales: number;
-  salesCount: number;
+  netRevenue: number;
 } {
   // Positive sales
+  const salesPositiveTotal = salesPositive.reduce(
+    (sum, doc) => sum + (doc.total_amount || 0),
+    0
+  );
   const salesPositiveTax = salesPositive.reduce(
     (sum, doc) => sum + (doc.tax_amount || 0),
     0
@@ -67,11 +73,16 @@ export function calculateSalesTotals(
     (sum, doc) => sum + (doc.overdue_iva_credit || 0),
     0
   );
+  // For PPM: exclude documents with overdue_iva_credit
   const salesPositiveNet = salesPositive
     .filter((doc) => !(doc.overdue_iva_credit || 0) > 0)
     .reduce((sum, doc) => sum + (doc.net_amount || 0), 0);
 
   // Credit notes (subtract)
+  const salesCreditTotal = salesCredits.reduce(
+    (sum, doc) => sum + (doc.total_amount || 0),
+    0
+  );
   const salesCreditTax = salesCredits.reduce(
     (sum, doc) => sum + (doc.tax_amount || 0),
     0
@@ -80,36 +91,41 @@ export function calculateSalesTotals(
     (sum, doc) => sum + (doc.overdue_iva_credit || 0),
     0
   );
+  // For PPM: exclude credit notes with overdue_iva_credit
   const salesCreditNet = salesCredits
     .filter((doc) => !(doc.overdue_iva_credit || 0) > 0)
     .reduce((sum, doc) => sum + (doc.net_amount || 0), 0);
 
   // Calculate totals
-  const debitoFiscal = salesPositiveTax - salesCreditTax;
-  const netRevenue = salesPositiveNet - salesCreditNet;
+  const totalRevenue = salesPositiveTotal - salesCreditTotal;
+  const ivaCollected = salesPositiveTax - salesCreditTax;
   const overdueIvaFromSales = salesPositiveOverdue + salesCreditOverdue;
-  const salesCount = salesPositive.length + salesCredits.length;
+  const netRevenue = salesPositiveNet - salesCreditNet;
 
   return {
-    debitoFiscal,
-    netRevenue,
+    totalRevenue,
+    ivaCollected,
     overdueIvaFromSales,
-    salesCount,
+    netRevenue,
   };
 }
 
 /**
- * Calculate purchases totals (crédito fiscal)
+ * Calculate purchases totals
  */
 export function calculatePurchasesTotals(
   purchasesPositive: Document[],
   purchasesCredits: Document[]
 ): {
-  creditoFiscal: number;
+  totalExpenses: number;
+  ivaPaid: number;
   overdueIvaFromPurchases: number;
-  purchasesCount: number;
 } {
   // Positive purchases
+  const purchasesPositiveTotal = purchasesPositive.reduce(
+    (sum, doc) => sum + (doc.total_amount || 0),
+    0
+  );
   const purchasesPositiveTax = purchasesPositive.reduce(
     (sum, doc) => sum + (doc.tax_amount || 0),
     0
@@ -120,6 +136,10 @@ export function calculatePurchasesTotals(
   );
 
   // Credit notes (subtract)
+  const purchasesCreditTotal = purchasesCredits.reduce(
+    (sum, doc) => sum + (doc.total_amount || 0),
+    0
+  );
   const purchasesCreditTax = purchasesCredits.reduce(
     (sum, doc) => sum + (doc.tax_amount || 0),
     0
@@ -130,15 +150,15 @@ export function calculatePurchasesTotals(
   );
 
   // Calculate totals
-  const creditoFiscal = purchasesPositiveTax - purchasesCreditTax;
+  const totalExpenses = purchasesPositiveTotal - purchasesCreditTotal;
+  const ivaPaid = purchasesPositiveTax - purchasesCreditTax;
   const overdueIvaFromPurchases =
     purchasesPositiveOverdue + purchasesCreditOverdue;
-  const purchasesCount = purchasesPositive.length + purchasesCredits.length;
 
   return {
-    creditoFiscal,
+    totalExpenses,
+    ivaPaid,
     overdueIvaFromPurchases,
-    purchasesCount,
   };
 }
 
@@ -180,10 +200,10 @@ export async function calculateIvaSummary(
 
   // Calculate sales totals
   const {
-    debitoFiscal,
-    netRevenue,
+    totalRevenue,
+    ivaCollected,
     overdueIvaFromSales,
-    salesCount,
+    netRevenue,
   } = calculateSalesTotals(salesPositive, salesCredits);
 
   // Get purchase documents
@@ -194,7 +214,7 @@ export async function calculateIvaSummary(
     PURCHASES_POSITIVE_TYPES,
     periodStart,
     periodEnd,
-    ["tax_amount", "overdue_iva_credit"]
+    ["tax_amount", "total_amount", "overdue_iva_credit"]
   );
 
   const purchasesCredits = await getDocuments(
@@ -204,19 +224,19 @@ export async function calculateIvaSummary(
     PURCHASES_CREDIT_TYPES,
     periodStart,
     periodEnd,
-    ["tax_amount", "overdue_iva_credit"]
+    ["tax_amount", "total_amount", "overdue_iva_credit"]
   );
 
   // Calculate purchase totals
   const {
-    creditoFiscal,
+    totalExpenses,
+    ivaPaid,
     overdueIvaFromPurchases,
-    purchasesCount,
   } = calculatePurchasesTotals(purchasesPositive, purchasesCredits);
 
   // Calculate totals
   const overdueIvaCredit = overdueIvaFromSales + overdueIvaFromPurchases;
-  const balance = debitoFiscal - creditoFiscal;
+  const netIva = ivaCollected - ivaPaid;
 
   // Get additional data
   const previousMonthCredit = await getPreviousMonthCredit(
@@ -238,17 +258,79 @@ export async function calculateIvaSummary(
     periodEnd
   );
 
-  // Build result
+  // Get period year and month for F29 queries
+  let periodYear: number;
+  let periodMonth: number;
+  if (periodStart) {
+    const [yearStr, monthStr] = periodStart.split("-");
+    periodYear = parseInt(yearStr);
+    periodMonth = parseInt(monthStr);
+  } else {
+    const now = new Date();
+    periodYear = now.getFullYear();
+    periodMonth = now.getMonth() + 1;
+  }
+
+  // Get F29 data
+  const generatedF29 = await getGeneratedF29(
+    supabase,
+    companyId,
+    periodYear,
+    periodMonth
+  );
+  const form29SiiDownload = await getForm29SiiDownload(
+    supabase,
+    companyId,
+    periodYear,
+    periodMonth
+  );
+
+  // Calculate monthly tax following Chilean tax formula
+  const ivaBalance = ivaCollected - ivaPaid - (previousMonthCredit || 0);
+  const ivaAPagar = Math.max(0, ivaBalance);
+
+  let monthlyTax = ivaAPagar;
+  monthlyTax += overdueIvaCredit; // Always add overdue IVA
+  if (ppm && ppm > 0) monthlyTax += ppm;
+  if (retencion && retencion > 0) monthlyTax += retencion;
+  if (reverseChargeWithholding && reverseChargeWithholding > 0)
+    monthlyTax += reverseChargeWithholding;
+
+  // Generate summary ID
+  const summaryId = `${companyId}-${periodYear}-${
+    String(periodMonth).padStart(2, "0")
+  }`;
+
+  // Build result with timestamps
+  const now = new Date().toISOString();
+
   return {
-    debito_fiscal: debitoFiscal,
-    credito_fiscal: creditoFiscal,
-    balance: balance,
-    previous_month_credit: previousMonthCredit,
+    id: summaryId,
+    company_id: companyId,
+    period_start: periodStart
+      ? `${periodStart}T00:00:00.000Z`
+      : now,
+    period_end: periodEnd
+      ? `${periodEnd}T00:00:00.000Z`
+      : now,
+    total_revenue: totalRevenue,
+    total_expenses: totalExpenses,
+    iva_collected: ivaCollected,
+    iva_paid: ivaPaid,
+    net_iva: netIva,
+    income_tax: 0, // TODO: Implement when income tax is calculated
+    previous_month_credit: previousMonthCredit > 0 ? previousMonthCredit : null,
     overdue_iva_credit: overdueIvaCredit,
-    ppm: ppm,
-    retencion: retencion,
-    reverse_charge_withholding: reverseChargeWithholding,
-    sales_count: salesCount,
-    purchases_count: purchasesCount,
+    ppm: ppm > 0 ? ppm : null,
+    retencion: retencion > 0 ? retencion : null,
+    reverse_charge_withholding: reverseChargeWithholding > 0
+      ? reverseChargeWithholding
+      : null,
+    impuesto_trabajadores: null, // TODO: Implement when payroll exists
+    monthly_tax: monthlyTax,
+    generated_f29: generatedF29,
+    form29_sii_download: form29SiiDownload,
+    created_at: now,
+    updated_at: now,
   };
 }

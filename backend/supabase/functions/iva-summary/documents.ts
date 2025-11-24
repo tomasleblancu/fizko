@@ -3,7 +3,7 @@
  */
 
 import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
-import type { Document } from "./types.ts";
+import type { Document, GeneratedForm29, Form29SiiDownload } from "./types.ts";
 import { calculatePreviousMonth } from "./helpers.ts";
 
 /**
@@ -188,4 +188,114 @@ export async function getReverseChargeWithholding(
   );
 
   return total;
+}
+
+/**
+ * Get generated Form29 for the period
+ *
+ * @param supabase - Supabase client
+ * @param companyId - Company UUID
+ * @param periodYear - Period year
+ * @param periodMonth - Period month
+ * @returns Generated Form29 or null
+ */
+export async function getGeneratedF29(
+  supabase: SupabaseClient,
+  companyId: string,
+  periodYear: number,
+  periodMonth: number
+): Promise<GeneratedForm29 | null> {
+  const { data, error } = await supabase
+    .from("form29")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("period_year", periodYear)
+    .eq("period_month", periodMonth)
+    .neq("status", "cancelled")
+    .order("revision_number", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error || !data || data.length === 0) {
+    return null;
+  }
+
+  const form = data[0];
+
+  return {
+    id: form.id,
+    company_id: form.company_id,
+    period_year: form.period_year,
+    period_month: form.period_month,
+    total_sales: form.total_sales,
+    taxable_sales: form.taxable_sales,
+    exempt_sales: form.exempt_sales,
+    sales_tax: form.sales_tax,
+    total_purchases: form.total_purchases,
+    taxable_purchases: form.taxable_purchases,
+    purchases_tax: form.purchases_tax,
+    iva_to_pay: form.iva_to_pay,
+    iva_credit: form.iva_credit,
+    net_iva: form.net_iva,
+    status: form.status,
+    extra_data: form.extra_data as Record<string, any> | null,
+    submitted_at: form.submission_date,
+    created_at: form.created_at,
+    updated_at: form.updated_at,
+  };
+}
+
+/**
+ * Get Form29 SII Download for the period
+ * Returns the "Vigente" (current) F29 from SII for the specified period
+ *
+ * @param supabase - Supabase client
+ * @param companyId - Company UUID
+ * @param periodYear - Period year
+ * @param periodMonth - Period month
+ * @returns Form29 SII Download or null
+ */
+export async function getForm29SiiDownload(
+  supabase: SupabaseClient,
+  companyId: string,
+  periodYear: number,
+  periodMonth: number
+): Promise<Form29SiiDownload | null> {
+  const { data, error } = await supabase
+    .from("form29_sii_downloads")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("period_year", periodYear)
+    .eq("period_month", periodMonth)
+    .eq("status", "Vigente")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (error || !data || data.length === 0) {
+    return null;
+  }
+
+  const download = data[0];
+
+  return {
+    id: download.id,
+    company_id: download.company_id,
+    form29_id: download.form29_id,
+    sii_folio: download.sii_folio,
+    sii_id_interno: download.sii_id_interno,
+    period_year: download.period_year,
+    period_month: download.period_month,
+    period_display: download.period_display,
+    contributor_rut: download.contributor_rut,
+    submission_date: download.submission_date,
+    status: download.status,
+    amount_cents: download.amount_cents,
+    pdf_storage_url: download.pdf_storage_url,
+    pdf_download_status: download.pdf_download_status,
+    pdf_download_error: download.pdf_download_error,
+    pdf_downloaded_at: download.pdf_downloaded_at,
+    extra_data: download.extra_data as Record<string, any> | null,
+    created_at: download.created_at,
+    updated_at: download.updated_at,
+  };
 }
