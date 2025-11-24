@@ -80,6 +80,52 @@ class MessagesAPI(BaseAPI):
             timeout=60,  # Longer timeout for media processing
         )
 
+    async def send_template(
+        self,
+        phone_number: str,
+        template_name: str,
+        template_params: Optional[dict[str, Any] | list[str]] = None,
+        template_language: str = "es",
+        whatsapp_config_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """
+        Send a WhatsApp template message to a phone number.
+
+        This can start a new conversation or send to an existing one.
+        Templates must be pre-approved by WhatsApp.
+
+        Args:
+            phone_number: Phone number to send to (E.164 format)
+            template_name: Name of approved template
+            template_params: Template parameters (positional list or named dict)
+            template_language: Language code (default: es)
+            whatsapp_config_id: Optional WhatsApp config ID to send from
+
+        Returns:
+            Message creation response
+        """
+        # Build conversation selector
+        conversation_selector: dict[str, Any] = {"phone_number": phone_number}
+
+        # Build payload
+        payload: dict[str, Any] = {
+            "conversation_selector": conversation_selector,
+            "template_name": template_name,
+            "template_language": template_language,
+        }
+
+        if template_params:
+            payload["template_params"] = template_params
+
+        if whatsapp_config_id:
+            payload["whatsapp_config_id"] = whatsapp_config_id
+
+        return await self._make_request(
+            method="POST",
+            endpoint="whatsapp_messages/send_template",
+            data=payload,
+        )
+
     async def send_interactive(
         self,
         conversation_id: str,

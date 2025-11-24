@@ -28,7 +28,7 @@ router = APIRouter()
 def get_phone_auth_service() -> PhoneAuthService:
     """Dependency to get PhoneAuthService instance."""
     supabase = get_supabase_client()
-    return PhoneAuthService(supabase)
+    return PhoneAuthService(supabase.client)
 
 
 @router.post(
