@@ -1,28 +1,21 @@
 /**
- * Type definitions for SII Auth Edge Function
+ * Type definitions for SII Onboarding Edge Function
  */
 
-export interface SIIAuthRequest {
+export interface SIIOnboardRequest {
   rut: string;
-  password: string;
+  contribuyente_info: ContribuyenteInfo;
+  encrypted_password: string;
+  cookies?: any[];
 }
 
-export interface SIIAuthResponse {
+export interface SIIOnboardResponse {
   success: boolean;
   company_id?: string;
   session_id?: string;
   needs_setup: boolean;
   message?: string;
   error?: string;
-}
-
-export interface SIILoginResponse {
-  success: boolean;
-  message: string;
-  session_active: boolean;
-  cookies?: any[];
-  contribuyente_info?: ContribuyenteInfo;
-  encrypted_password?: string;
 }
 
 export interface ContribuyenteInfo {

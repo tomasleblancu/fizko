@@ -31,5 +31,5 @@ enable_confirmations = false
 [functions.iva-summary]
 verify_jwt = true
 
-[functions.sii-auth]
+[functions.sii-onboard]
 verify_jwt = true

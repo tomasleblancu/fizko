@@ -1,14 +1,15 @@
 /**
- * SII Authentication Edge Function
+ * SII Onboarding Edge Function
  *
- * Handles complete SII authentication and company onboarding flow:
- * 1. Normalize RUT
- * 2. Authenticate with SII backend (FastAPI)
- * 3. Create or update company with SII data
- * 4. Save encrypted SII credentials
- * 5. Launch document sync tasks (for new companies only)
- * 6. Create user-company session
- * 7. Check if initial setup is needed
+ * Processes company onboarding after SII authentication:
+ * 1. Create or update company with SII data
+ * 2. Save encrypted SII credentials
+ * 3. Launch document sync tasks (for new companies only)
+ * 4. Create user-company session
+ * 5. Check if initial setup is needed
+ *
+ * Note: SII authentication is done by the backend (Selenium scraping).
+ * This function receives the auth result and processes the onboarding.
  */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -16,13 +17,12 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // Import types
 import type {
-  SIIAuthRequest,
-  SIIAuthResponse,
-  SIILoginResponse,
+  SIIOnboardRequest,
+  SIIOnboardResponse,
 } from "./types.ts";
 
 // Import helpers
-import { normalizeRUT, extractRutBody, extractDV } from "./helpers.ts";
+import { normalizeRUT } from "./helpers.ts";
 
 // Import company functions
 import {
@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ success: false, error: "No autenticado" }),
+        JSON.stringify({ success: false, error: "No autenticado", needs_setup: false }),
         {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
 
     if (userError || !user) {
       return new Response(
-        JSON.stringify({ success: false, error: "No autenticado" }),
+        JSON.stringify({ success: false, error: "No autenticado", needs_setup: false }),
         {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -96,16 +96,22 @@ Deno.serve(async (req: Request) => {
     const userId = user.id;
     const userEmail = user.email!;
 
-    console.log(`[SII Auth] Starting authentication for user: ${userId}`);
+    console.log(`[SII Onboard] Starting onboarding for user: ${userId}`);
 
-    // Parse request body
-    const { rut, password }: SIIAuthRequest = await req.json();
+    // Parse request body - receive data from backend SII login
+    const {
+      rut,
+      contribuyente_info,
+      encrypted_password,
+      cookies,
+    }: SIIOnboardRequest = await req.json();
 
-    if (!rut || !password) {
+    if (!rut || !contribuyente_info || !encrypted_password) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "RUT y contraseña son requeridos",
+          error: "RUT, contribuyente_info y encrypted_password son requeridos",
+          needs_setup: false,
         }),
         {
           status: 400,
@@ -114,106 +120,55 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 1. Normalize RUT
+    // Normalize RUT
     const normalizedRut = normalizeRUT(rut);
-    const rutBody = extractRutBody(rut);
-    const dv = extractDV(rut);
+    console.log(`[SII Onboard] Processing RUT: ${normalizedRut}`);
 
-    console.log(`[SII Auth] Normalized RUT: ${normalizedRut}`);
-
-    // 2. Authenticate with SII backend
-    console.log("[SII Auth] Calling backend SII login");
-    const siiResponse = await fetch(`${backendUrl}/api/sii/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        rut: rutBody,
-        dv: dv,
-        password: password,
-      }),
-    });
-
-    if (!siiResponse.ok) {
-      const errorText = await siiResponse.text();
-      console.error("[SII Auth] Backend error:", errorText);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Error al autenticar con SII",
-          needs_setup: false,
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    const siiData: SIILoginResponse = await siiResponse.json();
-
-    if (!siiData.success) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: siiData.message || "Error al autenticar con SII",
-          needs_setup: false,
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    console.log("[SII Auth] SII authentication successful");
-
-    // 3. Create or update company
+    // 1. Create or update company
     const { company, isNew } = await upsertCompany(
       supabase,
       normalizedRut,
-      siiData.contribuyente_info!
+      contribuyente_info
     );
 
     console.log(
-      `[SII Auth] Company ${isNew ? "created" : "updated"}: ${company.id}`
+      `[SII Onboard] Company ${isNew ? "created" : "updated"}: ${company.id}`
     );
 
-    // 4. Save encrypted SII credentials
+    // 2. Save encrypted SII credentials
     await saveCompanyCredentials(
       supabase,
       company.id,
-      siiData.encrypted_password!
+      encrypted_password
     );
 
-    // 5. Launch document sync tasks (only for new companies)
+    // 3. Launch document sync tasks (only for new companies)
     if (isNew) {
       await launchDocumentSyncTasks(backendUrl, company.id);
     }
 
-    // 6. Create or update session
+    // 4. Create or update session
     const session = await createOrUpdateSession(
       supabase,
       userId,
       company.id,
-      siiData.cookies || [],
+      cookies || [],
       userEmail
     );
 
-    // 7. Check if company needs initial setup
+    // 5. Check if company needs initial setup
     const needsSetup = await checkNeedsSetup(supabase, company.id);
 
-    console.log(`[SII Auth] Setup required: ${needsSetup}`);
+    console.log(`[SII Onboard] Setup required: ${needsSetup}`);
 
-    const response: SIIAuthResponse = {
+    const response: SIIOnboardResponse = {
       success: true,
       company_id: company.id,
       session_id: session.id,
       needs_setup: needsSetup,
       message: isNew
         ? "Empresa creada exitosamente"
-        : "Autenticación exitosa",
+        : "Onboarding completado",
     };
 
     return new Response(JSON.stringify(response), {
@@ -221,7 +176,7 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("[SII Auth] Unexpected error:", error);
+    console.error("[SII Onboard] Unexpected error:", error);
     return new Response(
       JSON.stringify({
         success: false,
