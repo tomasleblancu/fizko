@@ -14,19 +14,20 @@ CREATE TABLE IF NOT EXISTS phone_verification_codes (
 );
 
 -- Index for fast lookup by phone number
-CREATE INDEX idx_phone_verification_codes_phone ON phone_verification_codes(phone_number);
+CREATE INDEX IF NOT EXISTS idx_phone_verification_codes_phone ON phone_verification_codes(phone_number);
 
 -- Index for cleanup of expired codes
-CREATE INDEX idx_phone_verification_codes_expires ON phone_verification_codes(expires_at);
+CREATE INDEX IF NOT EXISTS idx_phone_verification_codes_expires ON phone_verification_codes(expires_at);
 
 -- Index for active (non-verified, non-expired) codes
-CREATE INDEX idx_phone_verification_codes_active ON phone_verification_codes(phone_number, verified_at, expires_at)
+CREATE INDEX IF NOT EXISTS idx_phone_verification_codes_active ON phone_verification_codes(phone_number, verified_at, expires_at)
 WHERE verified_at IS NULL;
 
 -- RLS Policies (restrictive - only backend should access)
 ALTER TABLE phone_verification_codes ENABLE ROW LEVEL SECURITY;
 
 -- Only service role can access verification codes
+DROP POLICY IF EXISTS "Service role can manage verification codes" ON phone_verification_codes;
 CREATE POLICY "Service role can manage verification codes"
 ON phone_verification_codes
 FOR ALL
