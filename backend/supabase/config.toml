@@ -33,3 +33,6 @@ verify_jwt = true
 
 [functions.sii-onboard]
 verify_jwt = true
+
+[functions.company-setup]
+verify_jwt = true
