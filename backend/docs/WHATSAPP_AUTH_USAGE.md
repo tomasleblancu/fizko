@@ -1,7 +1,7 @@
 ```javascript
 // 1. Request Verification Code
 async function requestVerificationCode(phoneNumber) {
-  const response = await fetch('http://localhost:8089/api/auth/phone/request-code', {
+  const response = await fetch('http://localhost:8000/api/auth/phone/request-code', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -29,7 +29,7 @@ async function requestVerificationCode(phoneNumber) {
 
 // 2. Verify Code
 async function verifyCode(phoneNumber, code) {
-  const response = await fetch('http://localhost:8089/api/auth/phone/verify-code', {
+  const response = await fetch('http://localhost:8000/api/auth/phone/verify-code', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -70,7 +70,7 @@ async function verifyCode(phoneNumber, code) {
 async function makeAuthenticatedRequest(endpoint) {
   const token = localStorage.getItem('access_token');
 
-  const response = await fetch(`http://localhost:8089${endpoint}`, {
+  const response = await fetch(`http://localhost:8000${endpoint}`, {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -104,7 +104,7 @@ export function LoginWithPhone() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8089/api/auth/phone/request-code', {
+      const response = await fetch('http://localhost:8000/api/auth/phone/request-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone_number: phoneNumber })
@@ -132,7 +132,7 @@ export function LoginWithPhone() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:8089/api/auth/phone/verify-code', {
+      const response = await fetch('http://localhost:8000/api/auth/phone/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -246,7 +246,7 @@ export function LoginWithPhone() {
 
 ```bash
 # Solicitar código
-curl -X POST "http://localhost:8089/api/auth/phone/request-code" \
+curl -X POST "http://localhost:8000/api/auth/phone/request-code" \
   -H "Content-Type: application/json" \
   -d '{
     "phone_number": "+56975389973"
@@ -265,7 +265,7 @@ curl -X POST "http://localhost:8089/api/auth/phone/request-code" \
 
 ```bash
 # Verificar código
-curl -X POST "http://localhost:8089/api/auth/phone/verify-code" \
+curl -X POST "http://localhost:8000/api/auth/phone/verify-code" \
   -H "Content-Type: application/json" \
   -d '{
     "phone_number": "+56975389973",
@@ -298,7 +298,7 @@ curl -X POST "http://localhost:8089/api/auth/phone/verify-code" \
 # Usar token en request autenticado
 TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 
-curl "http://localhost:8089/api/whatsapp/send/to-phone" \
+curl "http://localhost:8000/api/whatsapp/send/to-phone" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -364,7 +364,7 @@ cd backend
 ./dev.sh
 
 # En otra terminal, verificar endpoints
-curl http://localhost:8089/
+curl http://localhost:8000/
 
 # Debe retornar:
 # {
@@ -383,13 +383,13 @@ curl http://localhost:8089/
 ```bash
 # 1. Asegúrate de tener conversación activa con tu número de prueba
 # 2. Request code
-curl -X POST "http://localhost:8089/api/auth/phone/request-code" \
+curl -X POST "http://localhost:8000/api/auth/phone/request-code" \
   -H "Content-Type: application/json" \
   -d '{"phone_number": "+56975389973"}'
 
 # 3. Revisa WhatsApp para obtener el código
 # 4. Verify code
-curl -X POST "http://localhost:8089/api/auth/phone/verify-code" \
+curl -X POST "http://localhost:8000/api/auth/phone/verify-code" \
   -H "Content-Type: application/json" \
   -d '{"phone_number": "+56975389973", "code": "CODIGO_RECIBIDO"}'
 

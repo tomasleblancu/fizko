@@ -99,11 +99,15 @@ class UserProfile(BaseModel):
 class VerifyCodeResponse(BaseModel):
     """Response after successful code verification."""
 
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int = 3600
-    refresh_token: Optional[str] = None
     user: UserProfile
+    email: str = Field(
+        ...,
+        description="Email for Supabase authentication (temporary email for phone-only users)",
+    )
+    password: str = Field(
+        ...,
+        description="One-time password for frontend to authenticate with Supabase",
+    )
 
 
 class VerifyCodeErrorResponse(BaseModel):

@@ -13,6 +13,15 @@ from ..core.subscription_responses import create_agent_block_response
 
 logger = logging.getLogger(__name__)
 
+# Agents that persist across messages (sticky agents)
+# Other agents (general_knowledge, tax_documents, monthly_taxes) always go through classifier
+STICKY_AGENTS = {
+    "expense_agent",
+    "feedback_agent",
+    "payroll_agent",
+    "settings_agent",
+}
+
 
 class HandoffMetadata(BaseModel):
     """Metadata captured when a handoff occurs."""
@@ -78,7 +87,7 @@ class HandoffFactory:
                 logger.info(
                     f"🔒 Handoff blocked: {config.agent_name} | Reason: {reason}"
                 )
-                # Return block response for supervisor to process
+                # Return block response for classifier to process
                 block_response = create_agent_block_response(config.agent_name)
                 return block_response
 
@@ -86,25 +95,35 @@ class HandoffFactory:
             agent = self.agents[config.agent_key]
             thread_id = ctx.context.request_context.get("thread_id", "unknown")
 
+            # Determine if agent is sticky
+            is_sticky = config.agent_key in STICKY_AGENTS
+            sticky_marker = "📌" if is_sticky else "🔄"
+
             logger.info(
-                f"{config.icon} [HANDOFF] Supervisor → {config.display_name} | "
+                f"{config.icon} [HANDOFF] Classifier → {config.display_name} {sticky_marker} | "
                 f"Reason: {reason} | "
+                f"Sticky: {is_sticky} | "
                 f"Thread: {thread_id[:12] if thread_id != 'unknown' else 'unknown'}... | "
                 f"Tools: {len(agent.tools)}"
             )
 
-            # Track active agent for persistence (if session manager available)
-            if self.session_manager:
+            # Track active agent ONLY if sticky (expense, feedback, payroll, settings)
+            # Non-sticky agents (general_knowledge, tax_documents, monthly_taxes) always go through classifier
+            if is_sticky and self.session_manager:
                 try:
                     if thread_id and thread_id != "unknown":
                         await self.session_manager.set_active_agent(
                             thread_id, config.agent_key
                         )
                         logger.info(
-                            f"📍 [HANDOFF] Tracking {config.agent_key} as active for thread"
+                            f"📍 [HANDOFF] Tracking {config.agent_key} as STICKY for thread"
                         )
                 except Exception as e:
                     logger.warning(f"⚠️ [HANDOFF] Failed to track active agent: {e}")
+            elif not is_sticky:
+                logger.info(
+                    f"🔄 [HANDOFF] {config.agent_key} is NON-STICKY - will return to classifier"
+                )
 
         # Create handoff
         return handoff(
@@ -112,60 +131,6 @@ class HandoffFactory:
             on_handoff=on_handoff,
             input_type=HandoffMetadata,
             tool_description_override=config.description,
-        )
-
-    def create_return_handoff(
-        self,
-        supervisor: Agent,
-        description: str | None = None,
-        enabled: bool = False
-    ) -> Any:
-        """
-        Create a return-to-supervisor handoff for specialized agents.
-
-        Args:
-            supervisor: The supervisor agent to return to
-            description: Optional custom description
-            enabled: Whether handoff is enabled (default False)
-
-        Returns:
-            Handoff object
-        """
-        async def on_return_to_supervisor(
-            ctx: RunContextWrapper, input_data: HandoffMetadata | None = None
-        ):
-            reason = input_data.reason if input_data else "Topic change"
-            thread_id = ctx.context.request_context.get("thread_id", "unknown")
-
-            logger.info(
-                f"🔄 [HANDOFF] Agent → Supervisor | "
-                f"Reason: {reason} | "
-                f"Thread: {thread_id[:12] if thread_id != 'unknown' else 'unknown'}..."
-            )
-
-            # Clear active agent (return to supervisor)
-            if self.session_manager:
-                try:
-                    if thread_id and thread_id != "unknown":
-                        await self.session_manager.clear_active_agent(thread_id)
-                        logger.info(f"🗑️ [HANDOFF] Cleared active agent, back to supervisor")
-                except Exception as e:
-                    logger.warning(f"⚠️ [HANDOFF] Failed to clear active agent: {e}")
-
-        default_description = (
-            "Return to main menu ONLY if user explicitly requests a completely different topic "
-            "(e.g., switching from documents to tax concepts, or vice versa). "
-            "Do NOT use for simple acknowledgments like 'thanks', 'ok', 'got it'. "
-            "Stay in current conversation for follow-up questions."
-        )
-
-        return handoff(
-            agent=supervisor,
-            on_handoff=on_return_to_supervisor,
-            input_type=HandoffMetadata,
-            tool_name_override="return_to_main_menu",
-            tool_description_override=description or default_description,
-            is_enabled=enabled,
         )
 
     @staticmethod

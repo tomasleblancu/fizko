@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Dict, List, Optional
 from uuid import UUID
 
-from agents import Runner, SQLiteSession
+from agents import Runner
 from openai import AsyncOpenAI
 
 from .core import FizkoContext
@@ -43,7 +43,7 @@ class AgentExecutionRequest:
 
     # Execution options
     max_turns: int = 10
-    channel: str = "unknown"  # "web", "whatsapp", etc.
+    channel: str = "unknown"  # "web", "expo", "whatsapp", etc.
 
 
 @dataclass
@@ -62,7 +62,7 @@ class AgentRunner:
     Generic agent runner that abstracts Agents SDK execution.
 
     This class provides a unified interface for executing agents regardless
-    of the channel (ChatKit web, WhatsApp, etc.). It handles:
+    of the channel (ChatKit web, Expo mobile, WhatsApp, etc.). It handles:
     - Multi-agent orchestration with supervisor and specialized agents
     - Session management
     - Context building
@@ -150,6 +150,14 @@ class AgentRunner:
                 max_turns=request.max_turns,
                 run_config=run_config,
             )
+
+            # Store usage data for AdvancedSQLiteSession tracking
+            if session:
+                try:
+                    await session.store_run_usage(result)
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to store run usage: {e}")
+
             return self._parse_result(result, request.thread_id)
 
     async def _get_agent(
@@ -288,11 +296,22 @@ class AgentRunner:
 
         return agent_input
 
-    def _create_session(self, thread_id: str) -> SQLiteSession:
+    def _create_session(self, thread_id: str):
         """
-        Create SQLite session for conversation history.
+        Create Advanced SQLite session for conversation history.
+
+        Uses AdvancedSQLiteSession for better conversation management:
+        - Natural message-by-message presentation
+        - Branch support (if needed later)
+        - Better usage tracking
         """
-        session = SQLiteSession(thread_id, self.session_file)
+        from agents.extensions.memory import AdvancedSQLiteSession
+
+        session = AdvancedSQLiteSession(
+            session_id=thread_id,
+            db_path=self.session_file,
+            create_tables=True
+        )
         return session
 
     def _parse_result(

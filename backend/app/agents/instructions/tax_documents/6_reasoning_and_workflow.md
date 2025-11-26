@@ -28,4 +28,4 @@ User Query
 - [ ] Does user want specific documents? → Use `get_documents()` with filters
 - [ ] Should I show F29 data? → Use F29 widgets
 - [ ] Is this about uploaded PDF? → Use FileSearchTool
-- [ ] Is this out of scope? → Use `return_to_supervisor()`
+- [ ] Is this out of scope? → Use politely decline

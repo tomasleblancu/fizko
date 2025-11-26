@@ -279,7 +279,7 @@ import requests
 from app.services.agents import AgentService
 
 # 1. Verificar credenciales SII
-verify_response = requests.post("http://localhost:8089/api/sii/verify", json={
+verify_response = requests.post("http://localhost:8000/api/sii/verify", json={
     "rut": "77794858",
     "dv": "k",
     "password": "mi_password"

@@ -59,7 +59,7 @@ Crear `frontend/.env`:
 
 ```bash
 # Backend API
-VITE_BACKEND_URL=http://localhost:8089
+VITE_BACKEND_URL=http://localhost:8000
 
 # Supabase (ya existentes)
 VITE_SUPABASE_URL=https://xxx.supabase.co
@@ -166,7 +166,7 @@ import type {
   StoredAuth,
 } from '../types';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8089';
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 // ============================================================================
 // Phone Auth API Client
@@ -1006,7 +1006,7 @@ Crear `src/shared/lib/axios.ts`:
 import axios from 'axios';
 import { AuthStorage } from '@/features/auth/services/phoneAuthService';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8089';
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -1132,7 +1132,7 @@ export const router = createBrowserRouter([
 ### Request Code
 
 ```http
-POST http://localhost:8089/api/auth/phone/request-code
+POST http://localhost:8000/api/auth/phone/request-code
 Content-Type: application/json
 
 {
@@ -1153,7 +1153,7 @@ Content-Type: application/json
 ### Verify Code
 
 ```http
-POST http://localhost:8089/api/auth/phone/verify-code
+POST http://localhost:8000/api/auth/phone/verify-code
 Content-Type: application/json
 
 {
@@ -1181,7 +1181,7 @@ Content-Type: application/json
 ### Use Token in Request
 
 ```http
-GET http://localhost:8089/api/whatsapp/send/to-phone
+GET http://localhost:8000/api/whatsapp/send/to-phone
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 Content-Type: application/json
 

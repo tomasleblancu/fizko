@@ -55,6 +55,13 @@ class PhoneAuthService:
         """
         self.supabase = supabase
 
+        # Create a non-admin client for creating user sessions
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_anon_key = os.getenv("SUPABASE_ANON_KEY")
+        if not supabase_url or not supabase_anon_key:
+            raise ValueError("SUPABASE_URL and SUPABASE_ANON_KEY must be set")
+        self.supabase_anon = Client(supabase_url, supabase_anon_key)
+
         # Initialize Kapso client for WhatsApp templates
         kapso_api_key = os.getenv("KAPSO_API_TOKEN")
         if not kapso_api_key:
@@ -182,82 +189,23 @@ class PhoneAuthService:
 
         logger.info(f"Verification code generated for {phone_number}")
 
-        # ============================================================================
-        # TEMPORARY DEVELOPMENT BYPASS - REMOVE IN PRODUCTION!
-        # ============================================================================
-        # TODO: Replace this with proper WhatsApp template implementation
-        # This bypass sends ALL verification codes to a single test number
-        # for development purposes only.
-        #
-        # Normal flow should use:
-        #   await self.kapso.messages.send_template(...)
-        # ============================================================================
-        TEST_PHONE_NUMBER = "56975389973"
-        logger.warning(
-            f"⚠️  USING DEVELOPMENT BYPASS: Sending code to {TEST_PHONE_NUMBER} "
-            f"instead of {phone_number}"
-        )
-
+        # Send verification code via WhatsApp template
         try:
-            # Find active conversation for test number
-            conversations_response = await self.kapso.conversations.list(limit=50)
+            # Get Phone Number ID from env
+            phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+            if not phone_number_id:
+                raise ValueError("WHATSAPP_PHONE_NUMBER_ID environment variable is required")
 
-            # Normalize test phone for comparison
-            normalized_test = TEST_PHONE_NUMBER.lstrip("+")
-
-            # Handle different response formats from Kapso API
-            conversations = (
-                conversations_response.get("data")
-                or conversations_response.get("nodes")
-                or conversations_response.get("conversations")
-                or conversations_response.get("items")
-                or []
+            # Send template via Kapso Templates API with named parameters
+            await self.kapso.templates.send_with_params(
+                phone_number=phone_number,
+                template_name=self.verification_template_name,
+                phone_number_id=phone_number_id,
+                template_params={"codigo": code},  # Named parameter
+                template_language=self.verification_template_language,
             )
 
-            logger.info(f"🔍 Searching for test number {normalized_test} in {len(conversations)} conversations")
-
-            conversation_id = None
-            for conv in conversations:
-                # Get phone number directly from conversation (not from nested contact)
-                conv_phone = conv.get("phone_number", "").lstrip("+")
-                conv_status = conv.get("status", "")
-
-                logger.debug(f"  - Checking conversation: phone={conv_phone}, status={conv_status}")
-
-                if conv_phone == normalized_test and conv_status == "active":
-                    conversation_id = conv["id"]
-                    logger.info(f"✅ Found active conversation: {conversation_id} for {normalized_test}")
-                    break
-
-            if not conversation_id:
-                logger.error(
-                    f"❌ No active conversation found for {normalized_test}. "
-                    f"Searched {len(conversations)} conversations."
-                )
-                raise ValueError(
-                    f"No active conversation found with test number {TEST_PHONE_NUMBER}. "
-                    "Please send a message to the bot first."
-                )
-
-            # Send verification code to test conversation
-            message = (
-                f"⚠️  *[DEV BYPASS - TEST ONLY]* ⚠️\n\n"
-                f"🔐 *Código de Verificación Fizko*\n\n"
-                f"👤 Usuario solicitante: `{phone_number}`\n"
-                f"🔑 Código: *{code}*\n\n"
-                f"⏰ Expira en {self.code_expiry_minutes} minutos\n\n"
-                f"_Este es un mensaje de desarrollo. En producción, el código se enviará al usuario real._"
-            )
-
-            await self.kapso.messages.send_text(
-                conversation_id=conversation_id,
-                message=message,
-            )
-
-            logger.warning(
-                f"⚠️  [DEV BYPASS] Verification code sent to TEST NUMBER {TEST_PHONE_NUMBER} "
-                f"for user {phone_number}. CODE: {code}"
-            )
+            logger.info(f"✅ Verification code sent to {phone_number} via WhatsApp template")
 
         except Exception as e:
             logger.error(f"Failed to send verification code via WhatsApp: {e}")
@@ -337,15 +285,13 @@ class PhoneAuthService:
 
         logger.info(f"✅ Code verified successfully for {phone_number}")
 
-        # Create or get user (returns dict, not object)
-        user, access_token, refresh_token = await self._create_or_get_user(phone_number)
+        # Create or get user (returns user_dict, email, one_time_password)
+        user, email, one_time_password = await self._create_or_get_user(phone_number)
 
         return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "expires_in": 3600,
-            "refresh_token": refresh_token,
-            "user": user,  # user is already a dict with id, phone, email, created_at
+            "user": user,  # user dict with id, phone, email, created_at
+            "email": email,  # Email for Supabase auth
+            "password": one_time_password,  # One-time password for frontend to use ONCE
         }
 
     async def _check_rate_limit(self, phone_number: str) -> None:
@@ -382,91 +328,112 @@ class PhoneAuthService:
         Returns:
             Tuple of (user, access_token, refresh_token)
         """
-        # Check if user exists in profiles table
-        profile_response = self.supabase.table("profiles").select("*").eq(
-            "phone", phone_number
-        ).execute()
+        # Check if user exists in auth.users by phone
+        # Normalize phone number (Supabase stores without + prefix)
+        normalized_phone = phone_number.lstrip('+')
 
-        if profile_response.data:
-            # User exists - generate magic link to get valid tokens
-            profile = profile_response.data[0]
-            user_id = str(profile["id"])
-            email = profile.get("email")
+        page = 1
+        existing_user = None
 
-            logger.info(f"✅ Existing user found: {user_id} ({phone_number})")
+        logger.info(f"🔍 Searching for user with phone: {phone_number} (normalized: {normalized_phone})")
 
-            # Generate magic link using Supabase Admin API
-            # This creates a valid session in Supabase's database
-            # We need to provide an email for the magic link
-            temp_email = email if email else f"{phone_number.replace('+', '')}@fizko.temp"
+        while True:
+            users_response = self.supabase.auth.admin.list_users(page=page, per_page=1000)
 
-            try:
-                link_response = self.supabase.auth.admin.generate_link({
-                    "type": "magiclink",
-                    "email": temp_email,
-                    "options": {
-                        "redirect_to": "http://localhost:3000",  # Not used, but required
-                    }
-                })
+            logger.info(f"📋 Response type: {type(users_response)}")
 
-                # Extract tokens from the response
-                # The response contains: action_link, email_otp, hashed_token, verification_type
-                # We need to parse the action_link to get the tokens
-                action_link = link_response.action_link
+            # Access the users list from response (handle different response formats)
+            users = []
+            if hasattr(users_response, 'users'):
+                users = users_response.users
+                logger.info(f"✅ Found {len(users)} users")
+            elif isinstance(users_response, list):
+                users = users_response
+                logger.info(f"✅ Response is list with {len(users)} users")
+            elif isinstance(users_response, dict) and 'users' in users_response:
+                users = users_response['users']
+                logger.info(f"✅ Found {len(users)} users in dict")
 
-                # Extract token from URL
-                import urllib.parse
-                parsed_url = urllib.parse.urlparse(action_link)
-                query_params = urllib.parse.parse_qs(parsed_url.query)
-                token_hash = query_params.get('token', [None])[0]
+            # Find user with matching phone (compare normalized versions)
+            for idx, user in enumerate(users):
+                user_phone = getattr(user, 'phone', None)
+                # Normalize for comparison
+                normalized_user_phone = user_phone.lstrip('+') if user_phone else None
+                logger.info(f"👤 User {idx}: phone={user_phone}, match={normalized_user_phone == normalized_phone}")
+                if normalized_user_phone == normalized_phone:
+                    existing_user = user
+                    logger.info(f"✅ MATCH FOUND!")
+                    break
 
-                if not token_hash:
-                    raise ValueError("Failed to extract token from magic link")
+            # If found or no more pages, stop
+            if existing_user or len(users) < 1000:
+                break
 
-                # Use the token to create a session and get proper tokens
-                verify_response = self.supabase.auth.verify_otp({
-                    "type": "magiclink",
-                    "token_hash": token_hash,
-                    "email": temp_email,
-                })
+            page += 1
 
-                access_token = verify_response.session.access_token
-                refresh_token = verify_response.session.refresh_token
+        if not existing_user:
+            logger.warning(f"⚠️ No existing user found")
 
-                # Return user dict with tokens
-                user_dict = {
-                    "id": user_id,
-                    "phone": phone_number,
-                    "email": email,
-                    "created_at": profile.get("created_at"),
+        if existing_user:
+            # User exists - return one-time password for frontend auth
+            user_id = str(existing_user.id)
+            email = getattr(existing_user, 'email', None)
+            created_at = getattr(existing_user, 'created_at', None)
+
+            logger.info(f"✅ Existing user found: {user_id} (phone: {normalized_phone})")
+
+            # Use temporary email if user doesn't have one
+            temp_email = email if email else f"{normalized_phone}@fizko.temp"
+
+            # Generate one-time password for frontend to use
+            one_time_password = secrets.token_urlsafe(32)
+
+            # Update user with one-time password (admin API)
+            logger.info(f"🔄 Updating user {user_id} with one-time password and confirming email...")
+            update_response = self.supabase.auth.admin.update_user_by_id(
+                user_id,
+                {
+                    "password": one_time_password,
+                    "email_confirm": True,  # Explicitly confirm email
                 }
+            )
 
-                return (user_dict, access_token, refresh_token)
+            # Log the updated user state
+            updated_user = update_response.user if hasattr(update_response, 'user') else None
+            if updated_user:
+                email_confirmed = getattr(updated_user, 'email_confirmed_at', None)
+                logger.info(f"✅ User updated - email_confirmed_at: {email_confirmed}")
+            else:
+                logger.warning(f"⚠️ Update response has no user object")
 
-            except Exception as e:
-                logger.error(f"Error generating session for existing user: {e}")
-                # Fallback to manual JWT generation if magic link fails
-                access_token, refresh_token = self._generate_jwt_tokens(user_id, phone_number, email)
+            logger.info(f"🔐 Updated user {user_id} with one-time password for frontend auth")
 
-                user_dict = {
-                    "id": user_id,
-                    "phone": phone_number,
-                    "email": email,
-                    "created_at": profile.get("created_at"),
-                }
+            # Return user dict with one-time credentials for frontend
+            user_dict = {
+                "id": user_id,
+                "phone": normalized_phone,
+                "email": email,
+                "created_at": created_at,
+            }
 
-                return (user_dict, access_token, refresh_token)
+            # Return credentials for frontend to authenticate directly
+            return (user_dict, temp_email, one_time_password)
 
+        # Create new user if not found
         else:
             # Create new user
             try:
-                # Use temporary email for new user (required for magic link)
-                temp_email = f"{phone_number.replace('+', '')}@fizko.temp"
+                # Use temporary email (required for password auth)
+                temp_email = f"{normalized_phone}@fizko.temp"
 
-                # Create in Supabase Auth
+                # Generate one-time password for frontend to use
+                one_time_password = secrets.token_urlsafe(32)
+
+                # Create in Supabase Auth with phone, temporary email, and password
                 auth_response = self.supabase.auth.admin.create_user({
-                    "phone": phone_number,
+                    "phone": normalized_phone,
                     "email": temp_email,
+                    "password": one_time_password,
                     "phone_confirmed": True,
                     "email_confirmed": True,  # Mark temp email as confirmed
                     "user_metadata": {
@@ -477,67 +444,37 @@ class PhoneAuthService:
 
                 user_id = str(auth_response.user.id)
                 email = auth_response.user.email
+                created_at = auth_response.user.created_at
 
-                # Create profile (triggers should handle this, but we'll be explicit)
-                self.supabase.table("profiles").insert({
+                logger.info(f"✅ New user created: {user_id} (phone: {normalized_phone})")
+
+                # Explicitly confirm email (in case Supabase config overrides the flag)
+                logger.info(f"🔄 Explicitly confirming email for new user {user_id}...")
+                confirm_response = self.supabase.auth.admin.update_user_by_id(
+                    user_id,
+                    {
+                        "email_confirm": True,
+                    }
+                )
+
+                # Log confirmation status
+                confirmed_user = confirm_response.user if hasattr(confirm_response, 'user') else None
+                if confirmed_user:
+                    email_confirmed = getattr(confirmed_user, 'email_confirmed_at', None)
+                    logger.info(f"✅ Email confirmed - email_confirmed_at: {email_confirmed}")
+                else:
+                    logger.warning(f"⚠️ Confirmation response has no user object")
+
+                # Return user dict with one-time credentials for frontend
+                user_dict = {
                     "id": user_id,
-                    "phone": phone_number,
-                }).execute()
+                    "phone": normalized_phone,
+                    "email": email,
+                    "created_at": created_at,
+                }
 
-                logger.info(f"✅ New user created: {user_id} ({phone_number})")
-
-                # Generate magic link to create a valid session
-                try:
-                    link_response = self.supabase.auth.admin.generate_link({
-                        "type": "magiclink",
-                        "email": temp_email,
-                        "options": {
-                            "redirect_to": "http://localhost:3000",  # Not used, but required
-                        }
-                    })
-
-                    # Extract token from URL
-                    import urllib.parse
-                    parsed_url = urllib.parse.urlparse(link_response.action_link)
-                    query_params = urllib.parse.parse_qs(parsed_url.query)
-                    token_hash = query_params.get('token', [None])[0]
-
-                    if not token_hash:
-                        raise ValueError("Failed to extract token from magic link")
-
-                    # Use the token to create a session and get proper tokens
-                    verify_response = self.supabase.auth.verify_otp({
-                        "type": "magiclink",
-                        "token_hash": token_hash,
-                        "email": temp_email,
-                    })
-
-                    access_token = verify_response.session.access_token
-                    refresh_token = verify_response.session.refresh_token
-
-                    # Return user dict with tokens
-                    user_dict = {
-                        "id": user_id,
-                        "phone": phone_number,
-                        "email": email,
-                        "created_at": auth_response.user.created_at,
-                    }
-
-                    return (user_dict, access_token, refresh_token)
-
-                except Exception as e:
-                    logger.error(f"Error generating session for new user: {e}")
-                    # Fallback to manual JWT generation if magic link fails
-                    access_token, refresh_token = self._generate_jwt_tokens(user_id, phone_number, email)
-
-                    user_dict = {
-                        "id": user_id,
-                        "phone": phone_number,
-                        "email": email,
-                        "created_at": auth_response.user.created_at,
-                    }
-
-                    return (user_dict, access_token, refresh_token)
+                # Return credentials for frontend to authenticate directly
+                return (user_dict, temp_email, one_time_password)
 
             except Exception as e:
                 logger.error(f"Error creating new user: {e}")

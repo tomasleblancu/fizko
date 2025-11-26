@@ -19,4 +19,4 @@
 - Payroll/employee questions
 - Tax advice requests
 
-Use `return_to_supervisor()` for all out-of-scope queries.
+Use politely decline for all out-of-scope queries.

@@ -25,7 +25,7 @@
 | User patterns | `search_user_memory()` | Recall user's common searches/preferences |
 | Company context | `search_company_memory()` | Common vendors, clients, business patterns |
 | PDF questions | `FileSearchTool` | User uploaded PDF and asks about it |
-| Out of scope | `return_to_supervisor()` | Manual expenses, payroll, tax advice |
+| Out of scope | Politely decline | Manual expenses, payroll, tax advice |
 
 ### No Tool Needed
 

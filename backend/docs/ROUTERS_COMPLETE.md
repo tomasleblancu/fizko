@@ -134,7 +134,7 @@ app/routers/chat/
 ### Ejemplo 1: Chat Básico
 
 ```bash
-curl -X POST http://localhost:8089/api/chat \
+curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "¿Qué es el IVA?",
@@ -146,12 +146,12 @@ curl -X POST http://localhost:8089/api/chat \
 
 ```bash
 # 1. Verificar SII
-curl -X POST http://localhost:8089/api/sii/verify \
+curl -X POST http://localhost:8000/api/sii/verify \
   -H "Content-Type: application/json" \
   -d '{"rut": "77794858", "dv": "k", "password": "******"}'
 
 # 2. Chat con contexto
-curl -X POST http://localhost:8089/api/chat/sii \
+curl -X POST http://localhost:8000/api/chat/sii \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Dame un resumen de mi empresa",
@@ -164,15 +164,15 @@ curl -X POST http://localhost:8089/api/chat/sii \
 
 ```bash
 # Crear conversación
-curl -X POST http://localhost:8089/api/conversations \
+curl -X POST http://localhost:8000/api/conversations \
   -H "Content-Type: application/json" \
   -d '{"user_id": "user_123", "title": "Consultas"}'
 
 # Listar conversaciones
-curl http://localhost:8089/api/conversations?user_id=user_123
+curl http://localhost:8000/api/conversations?user_id=user_123
 
 # Agregar mensaje
-curl -X POST http://localhost:8089/api/conversations/{id}/messages \
+curl -X POST http://localhost:8000/api/conversations/{id}/messages \
   -H "Content-Type: application/json" \
   -d '{"role": "user", "content": "Hola"}'
 ```
@@ -196,13 +196,13 @@ Después de iniciar el servidor (`./start.sh`):
 
 ```bash
 # Chat Agent
-curl http://localhost:8089/api/chat/health
+curl http://localhost:8000/api/chat/health
 
 # Conversations
-curl http://localhost:8089/api/conversations/stats/summary
+curl http://localhost:8000/api/conversations/stats/summary
 
 # Root
-curl http://localhost:8089/
+curl http://localhost:8000/
 # {
 #   "service": "SII Integration Service",
 #   "features": {

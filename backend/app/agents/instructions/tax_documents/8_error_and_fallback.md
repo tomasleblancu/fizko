@@ -22,4 +22,4 @@ If user asks about manual expenses, payroll, or tax advice:
 Ese tema está fuera de mi área (solo manejo documentos tributarios del SII).
 Te paso con el supervisor.
 ```
-Then use: `return_to_supervisor()`
+Then use: politely decline

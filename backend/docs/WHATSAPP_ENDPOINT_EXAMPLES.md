@@ -67,7 +67,7 @@ Authorization: Bearer <your-jwt-token>
 TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 
 # Enviar mensaje
-curl -X POST "http://localhost:8089/api/whatsapp/send/to-phone" \
+curl -X POST "http://localhost:8000/api/whatsapp/send/to-phone" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -82,7 +82,7 @@ curl -X POST "http://localhost:8089/api/whatsapp/send/to-phone" \
 import requests
 
 # URL del backend
-BASE_URL = "http://localhost:8089"
+BASE_URL = "http://localhost:8000"
 TOKEN = "your-jwt-token"
 
 # Enviar mensaje
@@ -118,7 +118,7 @@ async def send_whatsapp_message(phone: str, message: str):
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "http://localhost:8089/api/whatsapp/send/to-phone",
+            "http://localhost:8000/api/whatsapp/send/to-phone",
             headers={
                 "Authorization": f"Bearer {TOKEN}",
                 "Content-Type": "application/json",
@@ -163,7 +163,7 @@ async function sendWhatsAppMessage(
   token: string
 ): Promise<MessageResponse> {
   const response = await fetch(
-    "http://localhost:8089/api/whatsapp/send/to-phone",
+    "http://localhost:8000/api/whatsapp/send/to-phone",
     {
       method: "POST",
       headers: {
@@ -306,7 +306,7 @@ Después de 24 horas, debes usar templates aprobados.
 
 2. **Enviar Mensaje**:
    ```
-   POST http://localhost:8089/api/whatsapp/send/to-phone
+   POST http://localhost:8000/api/whatsapp/send/to-phone
 
    Headers:
    - Authorization: Bearer <token>
@@ -330,7 +330,7 @@ import sys
 
 def test_send_to_phone():
     # Configuración
-    BASE_URL = "http://localhost:8089"
+    BASE_URL = "http://localhost:8000"
     TOKEN = "your-jwt-token"  # Obtener de login
     PHONE = "+56975389973"    # Tu número de prueba
 

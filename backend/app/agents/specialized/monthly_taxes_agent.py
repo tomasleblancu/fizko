@@ -10,15 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.constants import SPECIALIZED_MODEL, REASONING_EFFORT
 from app.agents.instructions import MONTHLY_TAXES_INSTRUCTIONS
-from ..tools.widgets import (
-    show_f29_detail_widget,
-    show_f29_summary_widget,
-)
+
 from ..tools.memory import (
     search_user_memory,
     search_company_memory,
 )
-from ..tools.orchestration import return_to_supervisor
 
 
 def create_monthly_taxes_agent(
@@ -46,13 +42,11 @@ def create_monthly_taxes_agent(
 
     tools = [
         # F29 widget tools - visual display of F29 data
-        show_f29_summary_widget,  # Show F29 summary widget
-        show_f29_detail_widget,   # Show detailed F29 breakdown widget
+        # show_f29_summary_widget,  # Show F29 summary widget
+        # show_f29_detail_widget,   # Show detailed F29 breakdown widget
         # Memory tools - dual system for user and company memory (read-only)
         search_user_memory,       # Search personal user preferences and history
         search_company_memory,    # Search company-wide knowledge and settings
-        # Orchestration tools
-        return_to_supervisor,     # Return to supervisor and clear active agent
     ]
 
     # Add FileSearchTool if there are vector stores to search
