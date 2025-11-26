@@ -23,11 +23,11 @@ uv sync
 
 # Development server (PRODUCTION PARITY - recommended)
 ./dev.sh
-# Runs Gunicorn + 2 Uvicorn workers on port 8089
+# Runs Gunicorn + 2 Uvicorn workers on port 8000
 # Uses pgbouncer pooler (port 6543) for production-like DB connection
 
 # Alternative: Quick dev server (NOT production-like)
-uv run uvicorn app.main:app --reload --port 8089
+uv run uvicorn app.main:app --reload --port 8000
 
 # Run Celery worker
 .venv/bin/celery -A app.infrastructure.celery worker --loglevel=info
@@ -129,7 +129,7 @@ See [backend/scripts/seed/README.md](backend/scripts/seed/README.md) and [QUICKS
 - `PROD_SUPABASE_URL`, `PROD_SUPABASE_SERVICE_KEY` - Production Supabase credentials
 
 **Frontend** requires `.env` file with:
-- `VITE_BACKEND_URL` - Backend API URL (default: `http://localhost:8089`)
+- `VITE_BACKEND_URL` - Backend API URL (default: `http://localhost:8000`)
 - `VITE_CHATKIT_API_DOMAIN_KEY` - ChatKit domain key
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` - For auth
 

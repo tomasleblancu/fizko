@@ -43,7 +43,7 @@
 
 **`FileSearchTool`** - Search uploaded PDF documents (when available)
 
-**`return_to_supervisor()`** - Handoff to supervisor for out-of-scope queries
+**politely decline** - Handoff to supervisor for out-of-scope queries
 
 ## DATA SOURCES
 

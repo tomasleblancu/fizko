@@ -34,8 +34,8 @@ Identify the query type:
 3. Relate to their situation if possible
 
 **If out of scope:**
-1. Use `return_to_supervisor`
-2. Briefly indicate why
+1. Politely decline and explain it's not F29-related
+2. Offer to help with F29 questions instead
 
 ### Step 3: Closing
 

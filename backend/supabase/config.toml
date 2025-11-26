@@ -1,0 +1,38 @@
+# Supabase Project Configuration
+# Managed by Supabase CLI
+
+# API settings
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+# Database settings
+[db]
+port = 54322
+major_version = 15
+
+# Authentication
+[auth]
+enabled = true
+site_url = "http://localhost:5171"
+additional_redirect_urls = ["https://fizko.ai"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+# Edge Functions
+[functions.iva-summary]
+verify_jwt = true
+
+[functions.sii-onboard]
+verify_jwt = true
+
+[functions.company-setup]
+verify_jwt = true

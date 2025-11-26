@@ -278,7 +278,7 @@ Solo para desarrollo/testing.
 import requests
 
 # Chat básico
-response = requests.post("http://localhost:8089/api/chat", json={
+response = requests.post("http://localhost:8000/api/chat", json={
     "message": "¿Qué es el IVA?",
     "user_id": "user_123"
 })
@@ -291,7 +291,7 @@ print(response.json()["response"])
 
 ```python
 # 1. Verificar credenciales SII
-verify_response = requests.post("http://localhost:8089/api/sii/verify", json={
+verify_response = requests.post("http://localhost:8000/api/sii/verify", json={
     "rut": "77794858",
     "dv": "k",
     "password": "******"
@@ -300,7 +300,7 @@ verify_response = requests.post("http://localhost:8089/api/sii/verify", json={
 contribuyente_info = verify_response.json()["contribuyente_info"]
 
 # 2. Chat con contexto SII
-chat_response = requests.post("http://localhost:8089/api/chat/sii", json={
+chat_response = requests.post("http://localhost:8000/api/chat/sii", json={
     "message": "Dame un resumen de mi empresa",
     "rut": "77794858-k",
     "contribuyente_info": contribuyente_info
@@ -313,12 +313,12 @@ print(chat_response.json()["response"])
 
 ```python
 # Obtener datos SII
-compras = requests.post("http://localhost:8089/api/sii/compras", ...)
-ventas = requests.post("http://localhost:8089/api/sii/ventas", ...)
-f29 = requests.post("http://localhost:8089/api/sii/f29", ...)
+compras = requests.post("http://localhost:8000/api/sii/compras", ...)
+ventas = requests.post("http://localhost:8000/api/sii/ventas", ...)
+f29 = requests.post("http://localhost:8000/api/sii/f29", ...)
 
 # Chat con contexto completo
-response = requests.post("http://localhost:8089/api/chat", json={
+response = requests.post("http://localhost:8000/api/chat", json={
     "message": "Dame un análisis tributario completo",
     "user_id": "user_123",
     "company_id": "77794858-k",
@@ -333,7 +333,7 @@ response = requests.post("http://localhost:8089/api/chat", json={
 
 ```python
 # Crear conversación
-conv_response = requests.post("http://localhost:8089/api/conversations", json={
+conv_response = requests.post("http://localhost:8000/api/conversations", json={
     "user_id": "user_123",
     "company_id": "77794858-k",
     "title": "Consultas de Enero"
@@ -342,26 +342,26 @@ conv_response = requests.post("http://localhost:8089/api/conversations", json={
 conv_id = conv_response.json()["data"]["id"]
 
 # Agregar mensaje de usuario
-requests.post(f"http://localhost:8089/api/conversations/{conv_id}/messages", json={
+requests.post(f"http://localhost:8000/api/conversations/{conv_id}/messages", json={
     "role": "user",
     "content": "¿Qué es el IVA?"
 })
 
 # Ejecutar agente
-chat_response = requests.post("http://localhost:8089/api/chat", json={
+chat_response = requests.post("http://localhost:8000/api/chat", json={
     "message": "¿Qué es el IVA?",
     "user_id": "user_123",
     "thread_id": conv_id
 })
 
 # Agregar respuesta del agente
-requests.post(f"http://localhost:8089/api/conversations/{conv_id}/messages", json={
+requests.post(f"http://localhost:8000/api/conversations/{conv_id}/messages", json={
     "role": "assistant",
     "content": chat_response.json()["response"]
 })
 
 # Listar mensajes
-messages = requests.get(f"http://localhost:8089/api/conversations/{conv_id}/messages")
+messages = requests.get(f"http://localhost:8000/api/conversations/{conv_id}/messages")
 ```
 
 ## 🔗 Integración con main.py
@@ -461,17 +461,17 @@ python3 -m py_compile app/routers/chat/__init__.py
 
 # En otra terminal:
 # Test chat
-curl -X POST http://localhost:8089/api/chat \
+curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "¿Qué es el IVA?", "user_id": "test"}'
 
 # Test conversations
-curl -X POST http://localhost:8089/api/conversations \
+curl -X POST http://localhost:8000/api/conversations \
   -H "Content-Type: application/json" \
   -d '{"user_id": "test", "title": "Test conversation"}'
 
 # Test health
-curl http://localhost:8089/api/chat/health
+curl http://localhost:8000/api/chat/health
 ```
 
 ## 🎉 Resumen

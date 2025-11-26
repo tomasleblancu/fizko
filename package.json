@@ -6,7 +6,7 @@
   "scripts": {
     "start": "concurrently --kill-others-on-fail --names backend,frontend \"npm run backend\" \"npm run frontend\"",
     "frontend": "npm --prefix frontend install && npm --prefix frontend run dev",
-    "backend": "uv sync --directory backend && uv run --directory backend python -m uvicorn app.main:app --reload --port 8089",
+    "backend": "uv sync --directory backend && uv run --directory backend python -m uvicorn app.main:app --reload --port 8000",
     "impor-ai": "npm --prefix impor-ai start",
     "build": "npm --prefix frontend install && npm --prefix frontend run build",
     "postinstall": "cd frontend && npm install"

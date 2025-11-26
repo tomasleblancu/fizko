@@ -1,9 +1,9 @@
 """
 Chat routers module - Simplified for Backend V2.
 
-Provides stateless chat, ChatKit integration, and in-memory conversation management.
+Provides ChatKit integration, in-memory conversation management, and Expo chat.
 """
 
-from . import agent, chatkit, conversations
+from . import chatkit, conversations, chat
 
-__all__ = ["agent", "chatkit", "conversations"]
+__all__ = ["chatkit", "conversations", "chat"]

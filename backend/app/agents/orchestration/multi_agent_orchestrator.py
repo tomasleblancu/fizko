@@ -22,19 +22,28 @@ class MultiAgentOrchestrator:
     Orchestrator for the multi-agent Fizko system.
 
     This class manages:
-    - Creation of all agents (Supervisor + specialized agents)
+    - Creation of all agents (Classifier + specialized agents)
     - Handoff configuration between agents
     - Agent lifecycle and state management
     - Agent persistence across conversation turns
 
     Architecture:
-        Supervisor (gpt-4o-mini) → General Knowledge (gpt-5-nano)
-                                 → Tax Documents (gpt-5-nano)
-                                 → F29 (gpt-5-nano)
-                                 → Payroll (gpt-5-nano)
-                                 → Settings (gpt-5-nano)
-                                 → Expense (gpt-5-nano)
-                                 → Feedback (gpt-5-nano)
+        User Query → Classifier (gpt-4o-mini) → Analyzes → Classifies → Handoff
+                                                                           ↓
+                     Specialized Agents (gpt-5-nano) ← ← ← ← ← ← ← ← ← ← ┘
+                       - General Knowledge (NON-STICKY)
+                       - Tax Documents (NON-STICKY)
+                       - Monthly Taxes F29 (NON-STICKY)
+                       - Payroll (STICKY)
+                       - Settings (STICKY)
+                       - Expense (STICKY)
+                       - Feedback (STICKY)
+
+    The Classifier is NOT conversational - it only routes queries to specialists.
+
+    Sticky vs Non-Sticky:
+    - STICKY: Persists across messages (expense, feedback, payroll, settings)
+    - NON-STICKY: Always returns to classifier (general_knowledge, tax_documents, monthly_taxes)
     """
 
     def __init__(
@@ -85,7 +94,6 @@ class MultiAgentOrchestrator:
 
         # Configure handoffs
         self._configure_supervisor_handoffs()
-        self._configure_bidirectional_handoffs()
 
         total_init_time = time.time() - init_start
         agent_count = len(self.agents)
@@ -95,8 +103,8 @@ class MultiAgentOrchestrator:
         )
 
     def _configure_supervisor_handoffs(self):
-        """Configure handoffs for the Supervisor Agent with subscription validation."""
-        supervisor = self.agents["supervisor_agent"]
+        """Configure handoffs for the Classifier Agent with subscription validation."""
+        classifier = self.agents["supervisor_agent"]  # Keep key name for compatibility
 
         # Create handoff factory with session manager for persistence
         handoff_factory = HandoffFactory(self.agents, self.session_manager)
@@ -111,47 +119,15 @@ class MultiAgentOrchestrator:
             if handoff_obj:
                 handoffs_list.append(handoff_obj)
 
-        supervisor.handoffs = handoffs_list
-        logger.debug(f"Configured {len(handoffs_list)} handoffs for supervisor")
-
-    def _configure_bidirectional_handoffs(self):
-        """
-        Configure bidirectional handoffs - allow specialized agents to return to supervisor.
-
-        This enables agents to hand back control if the user changes topic completely.
-        Currently disabled by default to prevent unnecessary handoffs.
-        """
-        supervisor = self.agents["supervisor_agent"]
-        handoff_factory = HandoffFactory(self.agents, self.session_manager)
-
-        # Add return-to-supervisor handoff to each specialized agent (only if created)
-        specialized_agent_keys = [
-            "general_knowledge_agent",
-            "tax_documents_agent",
-            "monthly_taxes_agent",
-            "payroll_agent",
-            "settings_agent",
-            "expense_agent",
-            "feedback_agent"
-        ]
-
-        for agent_key in specialized_agent_keys:
-            if agent_key not in self.agents:
-                continue
-
-            agent = self.agents[agent_key]
-            return_handoff = handoff_factory.create_return_handoff(
-                supervisor=supervisor,
-                enabled=False  # Disabled to prevent unnecessary handoffs
-            )
-            agent.handoffs = [return_handoff]
+        classifier.handoffs = handoffs_list
+        logger.debug(f"Configured {len(handoffs_list)} handoffs for classifier")
 
     def get_agent(self, agent_name: str) -> Agent | None:
         """Get a specific agent by name."""
         return self.agents.get(agent_name)
 
     def get_supervisor_agent(self) -> Agent:
-        """Get the Supervisor Agent (entry point)."""
+        """Get the Classifier Agent (entry point for classification and routing)."""
         return self.agents["supervisor_agent"]
 
     def list_agents(self) -> list[str]:
@@ -232,8 +208,21 @@ async def create_multi_agent_orchestrator(
         Configured MultiAgentOrchestrator instance with only allowed agents
     """
     # Validate subscription access using validator
-    validator = SubscriptionValidator(db)
-    available_agents = await validator.get_available_agents(company_id)
+    # For channels without DB (expo), allow all agents
+    if db is None:
+        logger.info(f"⚠️  No DB provided (channel={channel}), allowing all agents")
+        available_agents = [
+            "general_knowledge",
+            "tax_documents",
+            "f29",
+            "payroll",
+            "settings",
+            "expense",
+            "feedback"
+        ]
+    else:
+        validator = SubscriptionValidator(db)
+        available_agents = await validator.get_available_agents(company_id)
 
     return MultiAgentOrchestrator(
         db=db,

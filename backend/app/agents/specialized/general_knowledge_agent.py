@@ -12,15 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.constants import SPECIALIZED_MODEL, REASONING_EFFORT
 from app.agents.instructions import GENERAL_KNOWLEDGE_INSTRUCTIONS
-from ..tools.widgets import (
-    show_f29_detail_widget,
-    show_f29_summary_widget,
-)
+
 from ..tools.memory import (
     search_user_memory,
     search_company_memory,
 )
-from ..tools.orchestration import return_to_supervisor
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +49,13 @@ def create_general_knowledge_agent(
 
     tools = [
         # F29 widget tools - available to all plans
-        show_f29_detail_widget,  # Show detailed F29 breakdown widget
-        show_f29_summary_widget,  # Show F29 summary widget
+        # show_f29_detail_widget,  # Show detailed F29 breakdown widget
+        # show_f29_summary_widget,  # Show F29 summary widget
         # Memory tools - dual system for user and company memory (read-only)
         search_user_memory,      # Search personal user preferences and history
         search_company_memory,   # Search company-wide knowledge and settings
         # Orchestration tools
-        return_to_supervisor,    # Return to supervisor and clear active agent
+        # return_to_supervisor,    # Return to supervisor and clear active agent
     ]
 
     # Build vector stores list: SII FAQ (always) + user PDFs (from parameter)

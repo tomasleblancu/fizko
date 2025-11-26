@@ -1,4 +1,4 @@
-"""Supervisor Agent - Routes user queries to specialized agents (Stub for Backend V2)."""
+"""Classifier Agent - Classifies user queries and routes to specialized agents."""
 
 from __future__ import annotations
 
@@ -10,32 +10,9 @@ from agents.model_settings import ModelSettings, Reasoning
 from openai import AsyncOpenAI
 
 from app.config.constants import SUPERVISOR_MODEL
+from app.agents.instructions import SUPERVISOR_INSTRUCTIONS
 
 logger = logging.getLogger(__name__)
-
-
-# Simplified supervisor instructions for backend-v2
-SUPERVISOR_INSTRUCTIONS = """
-Eres un supervisor que analiza consultas de usuarios y las dirige al agente especializado apropiado.
-
-IMPORTANTE: Tu única tarea es ANALIZAR la intención del usuario y TRANSFERIR inmediatamente al agente correcto.
-NO generes respuestas de texto - solo llama a funciones de handoff.
-
-Agentes disponibles:
-- general_knowledge: Preguntas generales sobre impuestos, contabilidad, leyes chilenas
-- tax_documents: Consultas sobre facturas, boletas, DTEs, documentos tributarios
-- f29: Preguntas sobre Formulario 29, impuestos mensuales
-- payroll: Consultas sobre nómina, sueldos, trabajadores
-- settings: Configuración de cuenta, notificaciones
-- expense: Gestión de gastos
-- feedback: Comentarios y sugerencias
-
-REGLAS:
-1. Analiza la consulta del usuario
-2. Identifica el agente más apropiado
-3. Transfiere INMEDIATAMENTE usando handoff
-4. NO generes texto adicional
-"""
 
 
 def create_supervisor_agent(
@@ -43,14 +20,19 @@ def create_supervisor_agent(
     openai_client: AsyncOpenAI = None,
 ) -> Agent:
     """
-    Create the Supervisor Agent that routes to specialized agents (simplified for backend-v2).
+    Create the Classifier Agent (entry point for multi-agent system).
 
-    The Supervisor Agent:
-    1. Analyzes user intent (using gpt-4o-mini for speed)
-    2. Routes IMMEDIATELY to the appropriate specialized agent
-    3. Does NOT generate text responses - only function calls (handoffs)
+    The Classifier Agent:
+    1. Analyzes user query (intent, domain, context, specificity)
+    2. Classifies into ONE category (general_knowledge, tax_documents, f29, etc.)
+    3. Calls handoff function to transfer to specialized agent
 
-    This is a pure router agent - it delegates all actual work to specialists.
+    This is a PURE CLASSIFIER - it does NOT answer questions, only routes them.
+
+    Architecture:
+        User Query → Classifier → Analyze → Classify → Call handoff
+                                                         ↓
+                                    Specialized Agent ← Handoff
 
     Args:
         db: Stub parameter for compatibility (not used in backend-v2)
@@ -58,10 +40,10 @@ def create_supervisor_agent(
     """
 
     agent = Agent(
-        name="supervisor_agent",
-        model=SUPERVISOR_MODEL,  # gpt-4o-mini (fast routing)
+        name="supervisor_agent",  # Keep name for compatibility
+        model=SUPERVISOR_MODEL,  # gpt-4o-mini (fast classification)
         instructions=SUPERVISOR_INSTRUCTIONS,
-        tools=[],  # No tools in simplified version
+        tools=[],  # No tools - only handoffs
         # No guardrails in backend-v2 simplified version
     )
 

@@ -9,11 +9,9 @@
 [Additional context if needed, max 3-4 paragraphs total]
 ```
 
-### Real Data Request (transfer)
+### Real Data Request (politely decline)
 ```
-Para consultar datos específicos de tus documentos, te transferiré al agente de documentos tributarios. ¿Te parece bien?
-
-[Then call return_to_supervisor()]
+No tengo acceso a tus [documentos/facturas/F29] específicos. Puedo explicarte conceptos o ayudarte a interpretar datos si los compartes conmigo. ¿Hay algo conceptual que pueda aclararte?
 ```
 
 ### F29 Explanation (with widget)

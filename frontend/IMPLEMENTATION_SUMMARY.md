@@ -221,11 +221,11 @@ console.log('Cache stats:', stats);
 Asegúrate de tener en `.env.local`:
 ```bash
 OPENAI_API_KEY=sk-...              # ✅ Copiado desde backend
-NEXT_PUBLIC_BACKEND_URL=http://localhost:8089  # ✅ Backend FastAPI
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000  # ✅ Backend FastAPI
 ```
 
 ### Requisitos
-- Backend FastAPI debe estar corriendo en `http://localhost:8089`
+- Backend FastAPI debe estar corriendo en `http://localhost:8000`
 - OpenAI API Key debe ser válida
 - Node.js 18+ requerido
 

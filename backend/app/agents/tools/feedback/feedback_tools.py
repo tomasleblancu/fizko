@@ -111,7 +111,15 @@ async def submit_feedback(
     if not user_id:
         return {"error": "Usuario no autenticado"}
 
+    # Normalize user_id - convert "anonymous" or "unknown" to None
+    if user_id in ("anonymous", "unknown"):
+        return {"error": "Usuario no autenticado - no se puede enviar feedback como anónimo"}
+
     company_id = ctx.context.request_context.get("company_id")
+    # Normalize company_id - convert "anonymous" or "unknown" to None
+    if company_id in ("anonymous", "unknown", ""):
+        company_id = None
+
     thread_id = ctx.context.request_context.get("thread_id")
     channel = ctx.context.request_context.get("channel", "chatkit")
 
@@ -147,7 +155,7 @@ async def submit_feedback(
         # Create feedback
         new_feedback = await supabase.feedback.create(
             profile_id=user_id,
-            company_id=company_id if company_id else None,
+            company_id=company_id,  # Already normalized to None if anonymous
             category=category,
             priority=priority,
             title=title,
@@ -250,6 +258,10 @@ async def update_feedback(
     user_id = ctx.context.request_context.get("user_id")
     if not user_id:
         return {"error": "Usuario no autenticado"}
+
+    # Normalize user_id - convert "anonymous" or "unknown" to None
+    if user_id in ("anonymous", "unknown"):
+        return {"error": "Usuario no autenticado - no se puede actualizar feedback como anónimo"}
 
     try:
         supabase = get_supabase()

@@ -20,7 +20,7 @@ backend-v2/
 ## 🐳 Servicios
 
 ### 1. Backend (FastAPI)
-- **Puerto**: 8089
+- **Puerto**: 8000
 - **Imagen**: Python 3.11 con Chromium + ChromeDriver
 - **Hot-reload**: Activado en modo desarrollo
 - **Health check**: `GET /health`
@@ -40,7 +40,7 @@ docker-compose up
 ```
 
 Esto inicia:
-- **Backend**: http://localhost:8089
+- **Backend**: http://localhost:8000
 - **ngrok dashboard**: http://localhost:4040
 
 ### Iniciar solo backend
@@ -175,7 +175,7 @@ FROM python:3.11
 
 ### Backend
 ```bash
-curl http://localhost:8089/health
+curl http://localhost:8000/health
 # {"status": "healthy"}
 ```
 
@@ -201,7 +201,7 @@ docker-compose ps
 
 3. Ver URL pública:
    - En el dashboard verás la URL: `https://xxxx-xx-xx-xxx-xxx.sa.ngrok.io`
-   - Esta URL apunta a tu backend local (puerto 8089)
+   - Esta URL apunta a tu backend local (puerto 8000)
 
 ### Usar URL Pública
 
@@ -304,7 +304,7 @@ Para producción, modificar:
 ```bash
 # Cambiar puerto en docker-compose.yml
 ports:
-  - "9000:8089"  # Usar puerto 9000 en host
+  - "9000:8000"  # Usar puerto 9000 en host
 ```
 
 ### Chromium no funciona
@@ -399,7 +399,7 @@ jobs:
         run: |
           docker-compose up -d backend
           sleep 10
-          curl -f http://localhost:8089/health
+          curl -f http://localhost:8000/health
 ```
 
 ## ✅ Checklist de Deployment
@@ -407,7 +407,7 @@ jobs:
 - [ ] `.env` configurado con credenciales
 - [ ] `NGROK_AUTHTOKEN` agregado (si se usa ngrok)
 - [ ] Tests pasando: `docker-compose run backend test`
-- [ ] Health check OK: `curl localhost:8089/health`
+- [ ] Health check OK: `curl localhost:8000/health`
 - [ ] Logs sin errores: `docker-compose logs`
 - [ ] ngrok funcionando: http://localhost:4040
 

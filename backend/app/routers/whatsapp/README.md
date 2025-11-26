@@ -284,7 +284,7 @@ Para probar localmente:
 
 4. Probar endpoint de webhook (ejemplo con curl):
    ```bash
-   curl -X POST http://localhost:8089/api/whatsapp/webhook \
+   curl -X POST http://localhost:8000/api/whatsapp/webhook \
      -H "Content-Type: application/json" \
      -H "X-Webhook-Signature: dummy" \
      -H "X-Webhook-Batch: false" \

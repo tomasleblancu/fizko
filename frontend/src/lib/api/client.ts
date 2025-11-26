@@ -5,7 +5,7 @@
  * including authentication, error handling, and request/response formatting.
  */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8089';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 export interface ApiClientConfig {
   headers?: Record<string, string>;

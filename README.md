@@ -27,8 +27,8 @@ npm run dev
 
 **URLs:**
 - 🌐 Frontend: http://localhost:5171
-- 🔧 Backend API: http://localhost:8089
-- 📚 API Docs: http://localhost:8089/docs
+- 🔧 Backend API: http://localhost:8000
+- 📚 API Docs: http://localhost:8000/docs
 
 ## 📦 Deploy en Producción
 

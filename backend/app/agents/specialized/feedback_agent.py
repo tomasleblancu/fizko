@@ -20,7 +20,6 @@ from app.agents.tools.memory import (
     search_user_memory,
     search_company_memory,
 )
-from app.agents.tools.orchestration import return_to_supervisor
 
 
 def create_feedback_agent(
@@ -65,8 +64,6 @@ def create_feedback_agent(
         # Memory tools - dual system for user and company memory (read-only)
         search_user_memory,   # Search personal user preferences and history
         search_company_memory,# Search company-wide knowledge and settings
-        # Orchestration tools
-        return_to_supervisor, # Return to supervisor and clear active agent
     ]
 
     # Build agent kwargs

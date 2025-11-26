@@ -98,7 +98,7 @@ cd backend
 ./dev.sh
 ```
 
-Verifica que el backend esté en: `http://localhost:8089`
+Verifica que el backend esté en: `http://localhost:8000`
 
 ### OpenAI API Key válida
 Verifica que `OPENAI_API_KEY` en `.env.local` sea válida.
@@ -129,7 +129,7 @@ Ver [CHATKIT_AGENTS_SDK.md](./CHATKIT_AGENTS_SDK.md) para:
 **Solución**: Verificar que `.env.local` tenga `OPENAI_API_KEY`.
 
 ### Error: "Failed to fetch"
-**Solución**: Verificar que el backend esté corriendo en `http://localhost:8089`.
+**Solución**: Verificar que el backend esté corriendo en `http://localhost:8000`.
 
 ### El agente no responde
 **Solución**: Verificar logs en la terminal del servidor Next.js.

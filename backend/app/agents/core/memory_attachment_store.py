@@ -47,7 +47,7 @@ class MemoryAttachmentStore(AttachmentStore):
     def __init__(self):
         """Initialize memory attachment store."""
         self._attachments: Dict[str, Attachment] = {}
-        self.backend_url = os.getenv("BACKEND_URL", "http://localhost:8089")
+        self.backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
         logger.info("📎 MemoryAttachmentStore initialized")
 
     async def create_attachment(

@@ -91,7 +91,7 @@ Crear `.env.local` basado en `.env.example`:
 OPENAI_API_KEY=sk-your-api-key-here
 
 # Backend API URL
-NEXT_PUBLIC_BACKEND_URL=http://localhost:8089
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 
 # Supabase (opcional, para auth)
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
