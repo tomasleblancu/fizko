@@ -40,7 +40,8 @@ def _load_modular_instruction(agent_name: str) -> str:
 
 
 # Load all agent instructions using modular structure
-SUPERVISOR_INSTRUCTIONS = _load_modular_instruction("supervisor")
+CLASSIFIER_INSTRUCTIONS = _load_modular_instruction("classifier")  # NEW: Simplified classifier
+SUPERVISOR_INSTRUCTIONS = _load_modular_instruction("supervisor")  # DEPRECATED: Old handoff-based supervisor
 GENERAL_KNOWLEDGE_INSTRUCTIONS = _load_modular_instruction("general_knowledge")
 TAX_DOCUMENTS_INSTRUCTIONS = _load_modular_instruction("tax_documents")
 MONTHLY_TAXES_INSTRUCTIONS = _load_modular_instruction("monthly_taxes")
@@ -50,6 +51,7 @@ FEEDBACK_INSTRUCTIONS = _load_modular_instruction("feedback")
 SETTINGS_INSTRUCTIONS = _load_modular_instruction("settings")
 
 __all__ = [
+    "CLASSIFIER_INSTRUCTIONS",
     "SUPERVISOR_INSTRUCTIONS",
     "GENERAL_KNOWLEDGE_INSTRUCTIONS",
     "TAX_DOCUMENTS_INSTRUCTIONS",
