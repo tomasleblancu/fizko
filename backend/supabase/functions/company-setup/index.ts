@@ -109,6 +109,7 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log(`[Company Setup] Processing company: ${company_id}`);
+    console.log(`[Company Setup] User ID: ${userId}`);
 
     // Verify user has access to this company
     const { data: session, error: sessionError } = await supabase
@@ -118,7 +119,30 @@ Deno.serve(async (req: Request) => {
       .eq("company_id", company_id)
       .maybeSingle();
 
-    if (sessionError || !session) {
+    console.log(`[Company Setup] Session query result:`, {
+      session,
+      sessionError,
+      hasSession: !!session,
+    });
+
+    if (sessionError) {
+      console.error(`[Company Setup] Session query error:`, sessionError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Error al verificar sesión: ${sessionError.message}`,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (!session) {
+      console.warn(
+        `[Company Setup] No session found for user ${userId} and company ${company_id}`
+      );
       return new Response(
         JSON.stringify({
           success: false,

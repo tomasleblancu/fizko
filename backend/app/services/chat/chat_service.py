@@ -249,8 +249,8 @@ Pregunta del usuario: {message}"""
 
             supabase = get_supabase_client()
 
-            # Query company_tax_info (Python Supabase uses .from_() not .table())
-            response = supabase.from_("company_tax_info").select("*").eq("company_id", company_id).single().execute()
+            # Query company_tax_info
+            response = supabase.table("company_tax_info").select("*").eq("company_id", company_id).single().execute()
 
             if response.data:
                 company_info = response.data
