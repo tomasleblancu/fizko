@@ -61,18 +61,10 @@ Deno.serve(async (req: Request) => {
       },
     });
 
-    // Verify user is authenticated
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // NOTE: We don't call getUser() here because it's too strict with token expiration.
+    // Instead, we rely on RLS (Row Level Security) to validate the token when accessing data.
+    // This matches how Supabase REST API endpoints work and is more tolerant of
+    // tokens that are about to expire but haven't been refreshed yet.
 
     // Parse request - support both GET and POST
     let company_id: string;

@@ -1,3 +1,16 @@
+import { redirect } from "next/navigation";
+
+// Redirect root to admin panel
+// Landing page code kept in standby below
+export default function RootPage() {
+  redirect("/admin");
+}
+
+/* ============================================
+ * LANDING PAGE (STANDBY)
+ * Original landing page kept for future use
+ * ============================================
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -55,3 +68,5 @@ export default function Landing() {
     </main>
   );
 }
+
+*/

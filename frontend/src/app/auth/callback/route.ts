@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     // Create response first so cookies can be set on it
-    const response = NextResponse.redirect(`${origin}${next || '/dashboard'}`);
+    const response = NextResponse.redirect(`${origin}${next || '/admin'}`);
 
     // Create Supabase client with proper cookie handling
     const supabase = createServerClient(

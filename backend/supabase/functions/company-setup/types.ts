@@ -69,6 +69,6 @@ export interface CompanyEvent {
   id: string;
   company_id: string;
   event_template_id: string;
-  is_enabled: boolean;
+  is_active: boolean;
   created_at: string;
 }

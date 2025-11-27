@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createBrowserClient } from "@supabase/ssr";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Building2, Search, Users, Activity } from "lucide-react";
+import { Building2, Search, Users, Activity, LogOut } from "lucide-react";
 import type { CompanyWithStats } from "@/services/admin/companies.service";
 
 export default function AdminPage() {
@@ -14,6 +15,11 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+  );
 
   useEffect(() => {
     fetchCompanies();
@@ -36,6 +42,15 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      router.push("/auth/login");
+    } catch (err) {
+      console.error("Error al cerrar sesión:", err);
     }
   };
 
@@ -101,9 +116,19 @@ export default function AdminPage() {
                 </p>
               </div>
             </div>
-            <Badge variant="outline" className="text-sm">
-              {companies.length} {companies.length === 1 ? "empresa" : "empresas"}
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="text-sm">
+                {companies.length} {companies.length === 1 ? "empresa" : "empresas"}
+              </Badge>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                aria-label="Cerrar sesión"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Cerrar sesión</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

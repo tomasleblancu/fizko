@@ -93,7 +93,7 @@ export async function initializeCompanyCalendar(
   const companyEventsToInsert = templatesToCreate.map(template => ({
     company_id: companyId,
     event_template_id: template.id,
-    is_enabled: true,
+    is_active: true,
   }));
 
   const { data: createdEvents, error: insertError } = await supabase

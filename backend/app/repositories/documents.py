@@ -296,7 +296,7 @@ class DocumentsRepository(BaseRepository):
                 )
 
                 if rut:
-                    query = query.eq("receiver_rut", rut)
+                    query = query.eq("recipient_rut", rut)
                 if folio:
                     query = query.eq("folio", folio)
                 if start_date:
