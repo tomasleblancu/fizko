@@ -5,11 +5,11 @@ import { useEffect, useState, useRef } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { Bell, Sun, Home, Building2, UsersRound, FileText, Settings, X } from "lucide-react";
 import { Header, type TabType } from "@/components/layout/Header";
-import { DashboardView } from "@/components/features/dashboard/DashboardView";
-import { ContactsView } from "@/components/features/dashboard/ContactsView";
-import { PersonnelView } from "@/components/features/dashboard/PersonnelView";
-import { FormsView } from "@/components/features/dashboard/FormsView";
-import { SettingsView } from "@/components/features/dashboard/SettingsView";
+import { DashboardView } from "@/components/_standby/dashboard/DashboardView";
+import { ContactsView } from "@/components/_standby/dashboard/ContactsView";
+import { PersonnelView } from "@/components/_standby/dashboard/PersonnelView";
+import { FormsView } from "@/components/_standby/dashboard/FormsView";
+import { SettingsView } from "@/components/_standby/dashboard/SettingsView";
 import { ChatKitPanel } from "@/components/chat/chatkit-panel";
 import { useUserSessions } from "@/hooks/useUserSessions";
 

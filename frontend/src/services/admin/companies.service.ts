@@ -89,8 +89,7 @@ export class AdminCompaniesService {
           user_id,
           is_active,
           last_accessed_at,
-          created_at,
-          profiles(email, name, lastname)
+          created_at
         )
       `)
       .eq('id', companyId)
@@ -103,6 +102,23 @@ export class AdminCompaniesService {
       console.error('[AdminCompaniesService] Error fetching company:', error)
       throw new Error(`Failed to fetch company: ${error.message}`)
     }
+
+    // Fetch profiles separately for each unique user_id
+    const userIds = [...new Set(company.sessions?.map((s: any) => s.user_id) || [])]
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, email, name, lastname')
+      .in('id', userIds)
+
+    if (profilesError) {
+      console.error('[AdminCompaniesService] Error fetching profiles:', profilesError)
+      // Continue without profiles data
+    }
+
+    // Create a map of profiles by id
+    const profilesMap = new Map(
+      (profiles || []).map(p => [p.id, p])
+    )
 
     // Get unique users
     const uniqueUserIds = new Set(
@@ -117,18 +133,21 @@ export class AdminCompaniesService {
     }, null)
 
     // Transform sessions to match UserSession interface
-    const sessions: UserSession[] = (company.sessions || []).map((s: any) => ({
-      id: s.id,
-      user_id: s.user_id,
-      is_active: s.is_active,
-      last_accessed_at: s.last_accessed_at,
-      created_at: s.created_at,
-      profile: {
-        email: s.profiles?.email || '',
-        name: s.profiles?.name || null,
-        lastname: s.profiles?.lastname || null,
+    const sessions: UserSession[] = (company.sessions || []).map((s: any) => {
+      const profile = profilesMap.get(s.user_id)
+      return {
+        id: s.id,
+        user_id: s.user_id,
+        is_active: s.is_active,
+        last_accessed_at: s.last_accessed_at,
+        created_at: s.created_at,
+        profile: {
+          email: profile?.email || '',
+          name: profile?.name || null,
+          lastname: profile?.lastname || null,
+        }
       }
-    }))
+    })
 
     return {
       id: company.id,

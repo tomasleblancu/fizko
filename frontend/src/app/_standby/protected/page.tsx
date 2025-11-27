@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { InfoIcon } from "lucide-react";
-import { FetchDataSteps } from "@/components/tutorial/fetch-data-steps";
+import { FetchDataSteps } from "@/components/_standby/tutorial/fetch-data-steps";
 import { Suspense } from "react";
 
 async function UserDetails() {

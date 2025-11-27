@@ -24,7 +24,7 @@ export default function CompanyDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<"overview" | "users">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "sync">("overview");
 
   useEffect(() => {
     if (companyId) {
@@ -105,6 +105,16 @@ export default function CompanyDetailPage() {
               Vista General
             </button>
             <button
+              onClick={() => setActiveTab("sync")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === "sync"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Sincronización
+            </button>
+            <button
               onClick={() => setActiveTab("users")}
               className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === "users"
@@ -128,17 +138,19 @@ export default function CompanyDetailPage() {
             {/* Stats */}
             <CompanyStats company={company} />
 
-            {/* Grid for Actions, Contact, and Dates */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Actions */}
-              <CompanySyncActions companyId={companyId} />
-
+            {/* Grid for Contact and Dates */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Contact Information */}
               <CompanyContactInfo company={company} />
 
               {/* Dates */}
               <CompanyDates company={company} />
             </div>
+          </div>
+        ) : activeTab === "sync" ? (
+          /* Sync Tab */
+          <div className="space-y-6">
+            <CompanySyncActions companyId={companyId} />
           </div>
         ) : (
           /* Users Tab */
