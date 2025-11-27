@@ -249,16 +249,26 @@ Pregunta del usuario: {message}"""
 
             supabase = get_supabase_client()
 
-            # Query company_tax_info
-            response = supabase.table("company_tax_info").select("*").eq("company_id", company_id).single().execute()
+            # Query company using the repository
+            company = await supabase.companies.get_by_id(company_id, include_tax_info=True)
 
-            if response.data:
-                company_info = response.data
-                logger.info(f"✅ Loaded company info | RUT: {company_info.get('rut', 'N/A')}")
-                return company_info
-            else:
-                logger.warning(f"⚠️ No company info found for company_id: {company_id}")
+            if not company:
+                logger.warning(f"⚠️ No company found for company_id: {company_id}")
                 return {}
+
+            # Combine company info from both tables
+            company_info = {
+                "rut": company.get("rut"),
+                "business_name": company.get("business_name"),
+                "trade_name": company.get("trade_name"),
+            }
+
+            # Add tax info if available
+            if tax_info := company.get("company_tax_info"):
+                company_info.update(tax_info)
+
+            logger.info(f"✅ Loaded company info | RUT: {company_info.get('rut', 'N/A')}")
+            return company_info
 
         except Exception as e:
             logger.warning(f"⚠️ Failed to load company info: {e}")

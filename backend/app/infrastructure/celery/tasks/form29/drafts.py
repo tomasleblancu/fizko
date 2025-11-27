@@ -133,6 +133,130 @@ def generate_f29_drafts_all_companies(
 
 @celery_app.task(
     bind=True,
+    name="form29.fetch_sii_proposal",
+    max_retries=2,
+    default_retry_delay=60,
+)
+def fetch_sii_proposal_for_draft(
+    self,
+    form29_id: str,
+    company_rut: str,
+    company_sii_password: str
+) -> Dict[str, Any]:
+    """
+    Fetch and update SII proposal for a Form29 draft.
+
+    This task obtains the pre-calculated F29 proposal from the SII portal
+    and updates the form29 draft with the proposal data.
+
+    Args:
+        form29_id: Form29 UUID
+        company_rut: Company RUT for SII authentication
+        company_sii_password: Company SII password (encrypted or plain)
+
+    Returns:
+        Dict with result:
+        {
+            "success": bool,
+            "form29_id": str,
+            "has_proposal": bool,
+            "codigos_propuestos": int,  # Number of proposed codes
+            "codigos_complementar": int,  # Number of codes to complement manually
+            "error": str (optional),
+            "execution_time_seconds": float
+        }
+
+    Example:
+        # Fetch SII proposal for a draft
+        fetch_sii_proposal_for_draft.delay(
+            form29_id="uuid-here",
+            company_rut="12345678-9",
+            company_sii_password="encrypted_password"
+        )
+    """
+    import asyncio
+    from app.config.supabase import get_supabase_client
+    from app.services.form29_draft_service import Form29DraftService
+
+    start_time = datetime.utcnow()
+
+    try:
+        logger.info(
+            f"📊 [CELERY TASK] Fetching SII proposal for Form29 {form29_id}"
+        )
+
+        # Get Supabase client and service
+        supabase = get_supabase_client()
+        service = Form29DraftService(supabase)
+
+        # Run async service method synchronously
+        async def _fetch():
+            return await service.fetch_and_update_sii_proposal(
+                form29_id=form29_id,
+                company_rut=company_rut,
+                company_sii_password=company_sii_password
+            )
+
+        updated_draft = asyncio.run(_fetch())
+
+        execution_time = (datetime.utcnow() - start_time).total_seconds()
+
+        if not updated_draft:
+            logger.warning(
+                f"⚠️ [CELERY TASK] Failed to fetch SII proposal for Form29 {form29_id}"
+            )
+            return {
+                "success": False,
+                "form29_id": form29_id,
+                "has_proposal": False,
+                "error": "Failed to fetch or update proposal",
+                "execution_time_seconds": execution_time
+            }
+
+        # Extract proposal info
+        proposal = updated_draft.get("sii_proposal", {})
+        has_proposal = bool(proposal)
+        codigos_propuestos = len(proposal.get("data", {}).get("listCodPropuestos", []))
+        codigos_complementar = len(proposal.get("data", {}).get("listCodComplementar", []))
+
+        logger.info(
+            f"✅ [CELERY TASK] SII proposal fetched for Form29 {form29_id}: "
+            f"códigos_propuestos={codigos_propuestos}, "
+            f"códigos_complementar={codigos_complementar}, "
+            f"time={execution_time:.2f}s"
+        )
+
+        return {
+            "success": True,
+            "form29_id": form29_id,
+            "has_proposal": has_proposal,
+            "codigos_propuestos": codigos_propuestos,
+            "codigos_complementar": codigos_complementar,
+            "execution_time_seconds": execution_time
+        }
+
+    except Exception as e:
+        execution_time = (datetime.utcnow() - start_time).total_seconds()
+        logger.error(
+            f"❌ [CELERY TASK] Error fetching SII proposal for Form29 {form29_id}: {e}",
+            exc_info=True
+        )
+
+        # Retry on certain errors
+        if "authentication" in str(e).lower() or "login" in str(e).lower():
+            raise self.retry(exc=e)
+
+        return {
+            "success": False,
+            "form29_id": form29_id,
+            "has_proposal": False,
+            "error": str(e),
+            "execution_time_seconds": execution_time
+        }
+
+
+@celery_app.task(
+    bind=True,
     name="form29.generate_draft_for_company",
     max_retries=2,
     default_retry_delay=60,

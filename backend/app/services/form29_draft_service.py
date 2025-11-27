@@ -7,7 +7,7 @@ from tax documents, providing the foundation for monthly IVA declarations.
 
 import logging
 from datetime import datetime, date
-from typing import Any
+from typing import Any, Optional
 from decimal import Decimal
 
 logger = logging.getLogger(__name__)
@@ -461,3 +461,100 @@ class Form29DraftService:
             )
 
         return is_valid, errors
+
+    async def fetch_and_update_sii_proposal(
+        self,
+        form29_id: str,
+        company_rut: str,
+        company_sii_password: str
+    ) -> Optional[dict[str, Any]]:
+        """
+        Fetch SII proposal for a Form29 draft and update the sii_proposal field.
+
+        This method:
+        1. Gets the Form29 draft from database
+        2. Creates a SII client and logs in (synchronous operation)
+        3. Fetches the SII proposal (pre-calculated values from SII)
+        4. Updates the draft with the proposal
+
+        Args:
+            form29_id: Form29 UUID
+            company_rut: Company RUT for SII authentication
+            company_sii_password: Company SII password (will be decrypted if encrypted)
+
+        Returns:
+            Updated Form29 draft with sii_proposal, or None on error
+
+        Example:
+            >>> draft = await service.fetch_and_update_sii_proposal(
+            ...     form29_id="uuid-here",
+            ...     company_rut="12345678-9",
+            ...     company_sii_password="secret"
+            ... )
+            >>> proposal = draft.get("sii_proposal")
+            >>> codigos = proposal["data"]["listCodPropuestos"]
+        """
+        try:
+            # Get the draft
+            draft = await self.f29_repo.get_form_by_id(form29_id)
+            if not draft:
+                logger.error(f"Form29 draft not found: {form29_id}")
+                return None
+
+            period_year = draft.get("period_year")
+            period_month = draft.get("period_month")
+            periodo = f"{period_year}{period_month:02d}"
+
+            logger.info(
+                f"📊 Fetching SII proposal for Form29 {form29_id}, "
+                f"period {period_year}-{period_month:02d}"
+            )
+
+            # Import SIIClient here to avoid circular imports
+            from app.integrations.sii.client import SIIClient
+
+            # Create SII client and get proposal
+            # Note: SIIClient is synchronous, using context manager
+            with SIIClient(
+                tax_id=company_rut,
+                password=company_sii_password
+            ) as client:
+                # Login to SII (synchronous)
+                client.login()
+
+                # Get the proposal (synchronous)
+                proposal = client.get_propuesta_f29(periodo)
+
+                if not proposal:
+                    logger.warning(
+                        f"No SII proposal available for period {periodo}"
+                    )
+                    return draft
+
+                # Extract relevant info for logging
+                codigos_propuestos = proposal.get("data", {}).get("listCodPropuestos", [])
+                codigos_complementar = proposal.get("data", {}).get("listCodComplementar", [])
+
+                logger.info(
+                    f"✅ SII proposal retrieved: {len(codigos_propuestos)} códigos propuestos, "
+                    f"{len(codigos_complementar)} códigos a complementar"
+                )
+
+            # Update the draft with the proposal (async)
+            updated_draft = await self.f29_repo.update_draft(
+                form29_id,
+                sii_proposal=proposal
+            )
+
+            logger.info(
+                f"✅ Updated Form29 {form29_id} with SII proposal"
+            )
+
+            return updated_draft
+
+        except Exception as e:
+            logger.error(
+                f"❌ Error fetching SII proposal for Form29 {form29_id}: {e}",
+                exc_info=True
+            )
+            return None
