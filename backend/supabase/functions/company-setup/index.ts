@@ -113,7 +113,7 @@ Deno.serve(async (req: Request) => {
 
     // Verify user has access to this company
     const { data: session, error: sessionError } = await supabase
-      .from("user_company_sessions")
+      .from("sessions")
       .select("id")
       .eq("user_id", userId)
       .eq("company_id", company_id)
