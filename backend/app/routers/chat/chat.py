@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_user
@@ -59,6 +59,16 @@ class ChatResponse(BaseModel):
     response: str = Field(..., description="Assistant response")
     thread_id: str = Field(..., description="Thread ID")
     metadata: dict = Field(default_factory=dict, description="Response metadata")
+
+
+class UploadResponse(BaseModel):
+    """Response model for file upload endpoint."""
+
+    success: bool = Field(..., description="Upload success status")
+    attachment_id: str = Field(..., description="Unique attachment identifier")
+    filename: str = Field(..., description="Original filename")
+    mime_type: str = Field(..., description="File MIME type")
+    size: int = Field(..., description="File size in bytes")
 
 
 # ============================================================================

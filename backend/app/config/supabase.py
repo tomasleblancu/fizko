@@ -48,7 +48,7 @@ class SupabaseClient:
     def __init__(self):
         """Initialize Supabase client and repositories from environment variables."""
         try:
-            from supabase import create_client
+            from supabase import create_client, ClientOptions
 
             supabase_url = os.getenv("SUPABASE_URL")
             supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_ANON_KEY")
@@ -59,7 +59,15 @@ class SupabaseClient:
                     "must be set in environment variables"
                 )
 
-            self._client: Client = create_client(supabase_url, supabase_key)
+            # Configure client options with explicit headers
+            options = ClientOptions(
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                }
+            )
+
+            self._client: Client = create_client(supabase_url, supabase_key, options=options)
 
             # Initialize repositories (lazy loaded on first access)
             self._calendar_repo: CalendarRepository | None = None

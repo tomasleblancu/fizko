@@ -1,0 +1,202 @@
+{
+  "data": {
+    "tipopropuesta": 44,
+    "tipopropuestadescrip": null,
+    "listCondiciones": [
+      {
+        "idCondicion": "NP02",
+        "descriCondicion": ""
+      }
+    ],
+    "listCodPropuestos": [
+      {
+        "codigo": "502",
+        "valor": "1545"
+      },
+      {
+        "codigo": "503",
+        "valor": "1"
+      },
+      {
+        "codigo": "111",
+        "valor": "41589"
+      },
+      {
+        "codigo": "110",
+        "valor": "3"
+      },
+      {
+        "codigo": "759",
+        "valor": "613914"
+      },
+      {
+        "codigo": "758",
+        "valor": "166"
+      },
+      {
+        "codigo": "511",
+        "valor": "1064999"
+      },
+      {
+        "codigo": "520",
+        "valor": "1092780"
+      },
+      {
+        "codigo": "519",
+        "valor": "8"
+      },
+      {
+        "codigo": "528",
+        "valor": "28505"
+      },
+      {
+        "codigo": "527",
+        "valor": "3"
+      },
+      {
+        "codigo": "532",
+        "valor": "724"
+      },
+      {
+        "codigo": "531",
+        "valor": "1"
+      },
+      {
+        "codigo": "504",
+        "valor": "1726728"
+      },
+      {
+        "codigo": "151",
+        "valor": "16959"
+      },
+      {
+        "codigo": "563",
+        "valor": "3458147"
+      },
+      {
+        "codigo": "115",
+        "valor": "0.125"
+      }
+    ],
+    "listGlosasProp": [
+      {
+        "nombre": "LiquidaciÃ³n y/o LiquidaciÃ³n Factura",
+        "descripcion": "Registras operaciones de  LiquidaciÃ³n y/o LiquidaciÃ³n Factura en el periodo a declarar, por lo tanto, debes complementar el cÃ³digo [501] si corresponde."
+      }
+    ],
+    "complementoDetalleDTE": true,
+    "anotacion": false,
+    "listCodBase": [
+      {
+        "codigo": "01",
+        "valor": "COMERCIAL ATAL SPA"
+      },
+      {
+        "codigo": "03",
+        "valor": "77794858K"
+      },
+      {
+        "codigo": "06",
+        "valor": "CLUB DE CAMPO 172 ED 4 DP 302 QUILLAY Bloque:302 DP:Dept, VITACURA"
+      },
+      {
+        "codigo": "08",
+        "valor": "VITACURA"
+      },
+      {
+        "codigo": "15",
+        "valor": "202510"
+      }
+    ],
+    "documentosDelGiro": true,
+    "listCodAdministrativos": [
+      {
+        "codigo": "9064",
+        "valor": "1545"
+      },
+      {
+        "codigo": "9067",
+        "valor": "1"
+      },
+      {
+        "codigo": "9087",
+        "valor": "613914"
+      },
+      {
+        "codigo": "9089",
+        "valor": "166"
+      },
+      {
+        "codigo": "9114",
+        "valor": "1064999"
+      },
+      {
+        "codigo": "9132",
+        "valor": "1092780"
+      },
+      {
+        "codigo": "9137",
+        "valor": "8"
+      },
+      {
+        "codigo": "9172",
+        "valor": "28505"
+      },
+      {
+        "codigo": "9175",
+        "valor": "3"
+      },
+      {
+        "codigo": "9178",
+        "valor": "724"
+      },
+      {
+        "codigo": "9181",
+        "valor": "1"
+      },
+      {
+        "codigo": "9004",
+        "valor": "1197561"
+      },
+      {
+        "codigo": "9192",
+        "valor": "41589"
+      },
+      {
+        "codigo": "9193",
+        "valor": "3"
+      },
+      {
+        "codigo": "9186",
+        "valor": "16959"
+      }
+    ],
+    "estado": 0,
+    "descripcionEstado": null,
+    "listCodComplementar": [
+      500,
+      501
+    ],
+    "crrp": false,
+    "codigosPrimitiva": null,
+    "resultadoCalculoPP29": {
+      "estado": 0,
+      "glosaError": null,
+      "traza": "|llama a verificarPostergacion  RUT[77794858-K] Periodo[202510]|Anotaciones [[]]|anotacionesTGI [false]|NOTI [true]|anotacionesNoDeclanteResp [false]|A14D1 [true]|A14TT [false]|Resultado resultadoPP29 [true] anularPP29 [false] actualizaAtributo [S]|PP29[true]|Crea TOKEN|Finaliza..."
+    },
+    "ppmo": null,
+    "vectores": null,
+    "actividadesEco": null,
+    "inicioActividades": null,
+    "trabIndependiente": false,
+    "tieneAnotaciones": false
+  },
+  "metaData": {
+    "conversationId": "27EF931AA057",
+    "transactionId": "62b4b3d3-9c77-46ec-8a87-92ae308dc531",
+    "namespace": "cl.sii.sdi.lob.iva.propuestaf29.data.api.interfaces.FacadeAdapterService/getDeclaracionConCondicionesYTipoPropuesta",
+    "info": null,
+    "errors": null,
+    "page": null
+  }
+}

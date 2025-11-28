@@ -181,7 +181,8 @@ class Form29DraftService:
         period_year: int,
         period_month: int,
         created_by_user_id: str | None = None,
-        auto_calculate: bool = True
+        auto_calculate: bool = True,
+        fetch_sii_proposal: bool = True
     ) -> tuple[dict[str, Any] | None, bool]:
         """
         Create a Form29 draft for a specific period.
@@ -192,6 +193,7 @@ class Form29DraftService:
             period_month: Month (1-12)
             created_by_user_id: Optional user ID who created the draft
             auto_calculate: Whether to calculate values from tax documents
+            fetch_sii_proposal: Whether to fetch SII proposal after creating draft (default: True)
 
         Returns:
             Tuple of (Form29 draft dict, is_new: bool)
@@ -239,6 +241,48 @@ class Form29DraftService:
                 f"period {period_year}-{period_month:02d} "
                 f"(revision {form29.get('revision_number')})"
             )
+
+            # Fetch SII proposal if requested
+            if fetch_sii_proposal:
+                try:
+                    # Get company credentials
+                    company_response = (
+                        self.supabase.client
+                        .table("companies")
+                        .select("rut, sii_password")
+                        .eq("id", company_id)
+                        .maybe_single()
+                        .execute()
+                    )
+
+                    company_data = company_response.data if hasattr(company_response, 'data') else None
+
+                    if company_data and company_data.get("rut") and company_data.get("sii_password"):
+                        logger.info(
+                            f"📊 Fetching SII proposal for Form29 draft {form29.get('id')}"
+                        )
+
+                        # Fetch and update SII proposal
+                        updated_form29 = await self.fetch_and_update_sii_proposal(
+                            form29_id=form29.get("id"),
+                            company_rut=company_data["rut"],
+                            company_sii_password=company_data["sii_password"]
+                        )
+
+                        if updated_form29:
+                            form29 = updated_form29
+                    else:
+                        logger.warning(
+                            f"⚠️ Cannot fetch SII proposal: Company {company_id} missing RUT or SII password"
+                        )
+
+                except Exception as e:
+                    logger.error(
+                        f"❌ Error fetching SII proposal for Form29 draft: {e}",
+                        exc_info=True
+                    )
+                    # Continue without SII proposal - don't fail the draft creation
+
             return form29, True
 
         return None, False
@@ -247,7 +291,8 @@ class Form29DraftService:
         self,
         period_year: int,
         period_month: int,
-        auto_calculate: bool = True
+        auto_calculate: bool = True,
+        fetch_sii_proposal: bool = True
     ) -> dict[str, Any]:
         """
         Create Form29 drafts for all active companies for a specific period.
@@ -258,6 +303,7 @@ class Form29DraftService:
             period_year: Year
             period_month: Month (1-12)
             auto_calculate: Whether to calculate values from tax documents
+            fetch_sii_proposal: Whether to fetch SII proposal for each draft (default: True)
 
         Returns:
             Dictionary with summary statistics
@@ -318,7 +364,8 @@ class Form29DraftService:
                         period_year=period_year,
                         period_month=period_month,
                         created_by_user_id=None,  # System-generated
-                        auto_calculate=auto_calculate
+                        auto_calculate=auto_calculate,
+                        fetch_sii_proposal=fetch_sii_proposal
                     )
 
                     if is_new:
@@ -510,14 +557,24 @@ class Form29DraftService:
                 f"period {period_year}-{period_month:02d}"
             )
 
-            # Import SIIClient here to avoid circular imports
+            # Import dependencies
             from app.integrations.sii.client import SIIClient
+            from app.utils.encryption import decrypt_password
+
+            # Decrypt SII password (stored encrypted in database)
+            try:
+                decrypted_password = decrypt_password(company_sii_password)
+            except Exception as e:
+                logger.error(
+                    f"❌ Failed to decrypt SII password for Form29 {form29_id}: {e}"
+                )
+                return None
 
             # Create SII client and get proposal
             # Note: SIIClient is synchronous, using context manager
             with SIIClient(
                 tax_id=company_rut,
-                password=company_sii_password
+                password=decrypted_password
             ) as client:
                 # Login to SII (synchronous)
                 client.login()

@@ -73,9 +73,13 @@ class BaseRepository:
         Returns:
             List of data dicts (empty list if no data)
         """
-        data = self._extract_data(response, operation)
-        if data is None:
+        if hasattr(response, 'data'):
+            data = response.data
+            if data is None:
+                return []
+            if isinstance(data, list):
+                return data
+            return [data]
+        else:
+            logger.warning(f"Unexpected response format in {operation}: {type(response)}")
             return []
-        if isinstance(data, list):
-            return data
-        return [data]

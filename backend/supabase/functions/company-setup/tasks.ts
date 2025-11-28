@@ -36,7 +36,14 @@ export async function launchSyncTask(
 /**
  * Launch calendar sync task for a company
  *
- * This generates concrete calendar_events from company_events (event templates)
+ * This will:
+ * 1. Auto-initialize company_events (if none exist) using internal business logic
+ *    - Mandatory templates are always enabled
+ *    - Additional templates determined by company settings (has_formal_employees, etc.)
+ * 2. Generate concrete calendar_events from company_events
+ *
+ * @param backendUrl - Backend API URL
+ * @param companyId - Company UUID
  */
 export async function launchCalendarSyncTask(
   backendUrl: string,

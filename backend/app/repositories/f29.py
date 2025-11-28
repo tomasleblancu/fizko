@@ -26,7 +26,7 @@ class F29Repository(BaseRepository):
         try:
             response = (
                 self._client
-                .table("f29_forms")
+                .table("form29")
                 .select("*")
                 .eq("id", form_id)
                 .maybe_single()
@@ -57,7 +57,7 @@ class F29Repository(BaseRepository):
         try:
             query = (
                 self._client
-                .table("f29_forms")
+                .table("form29")
                 .select("*")
                 .eq("company_id", company_id)
             )
@@ -95,7 +95,7 @@ class F29Repository(BaseRepository):
         try:
             response = (
                 self._client
-                .table("f29_forms")
+                .table("form29")
                 .select("*")
                 .eq("company_id", company_id)
                 .eq("period", period)
@@ -127,7 +127,7 @@ class F29Repository(BaseRepository):
         try:
             response = (
                 self._client
-                .table("f29_forms")
+                .table("form29")
                 .select("*")
                 .eq("company_id", company_id)
                 .order("period", desc=True)
@@ -156,7 +156,7 @@ class F29Repository(BaseRepository):
         try:
             query = (
                 self._client
-                .table("f29_forms")
+                .table("form29")
                 .select("*")
                 .eq("status", "pending")
             )
@@ -188,7 +188,7 @@ class F29Repository(BaseRepository):
         try:
             query = (
                 self._client
-                .table("f29_forms")
+                .table("form29")
                 .select("*")
                 .eq("status", "overdue")
             )
@@ -220,7 +220,7 @@ class F29Repository(BaseRepository):
         try:
             response = (
                 self._client
-                .table("f29_forms")
+                .table("form29")
                 .select("*")
                 .eq("company_id", company_id)
                 .eq("status", "paid")

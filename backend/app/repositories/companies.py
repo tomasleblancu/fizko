@@ -45,6 +45,32 @@ class CompaniesRepository(BaseRepository):
             self._log_error("get_by_id", e, company_id=company_id)
             return None
 
+    async def get_company_settings(
+        self, company_id: str
+    ) -> dict[str, Any] | None:
+        """
+        Get company settings for a company.
+
+        Args:
+            company_id: Company UUID
+
+        Returns:
+            Company settings dict or None if not found
+        """
+        try:
+            response = (
+                self._client
+                .table("company_settings")
+                .select("*")
+                .eq("company_id", company_id)
+                .maybe_single()
+                .execute()
+            )
+            return self._extract_data(response, "get_company_settings")
+        except Exception as e:
+            self._log_error("get_company_settings", e, company_id=company_id)
+            return None
+
     async def get_by_rut(self, rut: str) -> dict[str, Any] | None:
         """
         Get a company by RUT.
