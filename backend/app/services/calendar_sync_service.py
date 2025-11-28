@@ -98,46 +98,48 @@ class CalendarSyncService:
         company_name = company.get('business_name', 'Unknown')
         logger.info(f"📅 [Calendar Sync] Syncing calendar for: {company_name}")
 
-        # 2. Check if company_events exist, initialize if needed
-        active_company_events = await self.calendar_repo.get_active_company_events(company_id)
-
+        # 2. Always ensure company_events are initialized (adds missing mandatory templates)
         initialized = False
         company_events_created = 0
 
+        if auto_initialize:
+            logger.info(
+                f"🔧 [Calendar Sync] Ensuring company_events are up-to-date..."
+            )
+
+            # Get company settings to inform template selection logic
+            company_settings = await self.companies_repo.get_company_settings(company_id)
+
+            # Initialize company_events (idempotent - only creates missing ones)
+            init_result = await self.initialize_company_events(
+                company_id=company_id,
+                company_settings=company_settings
+            )
+
+            company_events_created = init_result.get('company_events_created', 0)
+            if company_events_created > 0:
+                initialized = True
+                logger.info(
+                    f"✅ [Calendar Sync] Added {company_events_created} new company_events"
+                )
+            else:
+                logger.info(
+                    f"✅ [Calendar Sync] All company_events already up-to-date"
+                )
+
+        # 3. Get active company_events
+        active_company_events = await self.calendar_repo.get_active_company_events(company_id)
+
         if not active_company_events:
             if auto_initialize:
-                logger.info(
-                    f"🔧 [Calendar Sync] No company_events found, auto-initializing..."
+                raise ValueError(
+                    "No se pudieron inicializar company_events para esta empresa."
                 )
-
-                # Get company settings to inform template selection logic
-                company_settings = await self.companies_repo.get_company_settings(company_id)
-
-                # Initialize company_events using internal business logic
-                init_result = await self.initialize_company_events(
-                    company_id=company_id,
-                    company_settings=company_settings
-                )
-
-                initialized = True
-                company_events_created = init_result.get('company_events_created', 0)
-
-                logger.info(
-                    f"✅ [Calendar Sync] Auto-initialized {company_events_created} company_events"
-                )
-
-                # Re-fetch active company_events after initialization
-                active_company_events = await self.calendar_repo.get_active_company_events(company_id)
             else:
                 raise ValueError(
                     "No hay eventos activos configurados para esta empresa. "
                     "Primero activa eventos en company_events."
                 )
-
-        if not active_company_events:
-            raise ValueError(
-                "No se pudieron inicializar company_events para esta empresa."
-            )
 
         logger.info(
             f"📋 [Calendar Sync] Found {len(active_company_events)} active company_events: "

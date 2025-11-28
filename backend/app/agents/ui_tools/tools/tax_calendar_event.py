@@ -77,26 +77,86 @@ El usuario está viendo los detalles de una obligación tributaria específica (
                     error="No se especificó el ID del evento tributario",
                 )
 
+            # Load event from Supabase with template and tasks
+            event = await context.supabase.calendar.get_event_by_id(
+                event_id=str(event_id),
+                include_template=True,
+                include_tasks=True,
+                include_history=False
+            )
+
+            if not event:
+                return UIToolResult(
+                    success=False,
+                    context_text="",
+                    error=f"No se encontró el evento con ID: {event_id}",
+                )
+
+            # Extract event data
+            template = event.get("event_templates", {})
+            template_name = template.get("name", "Obligación tributaria")
+            template_code = template.get("code", "unknown")
+            template_description = template.get("description", "")
+
+            due_date = event.get("due_date", "")
+            period_start = event.get("period_start", "")
+            period_end = event.get("period_end", "")
+            status = event.get("status", "pending")
+
+            # Status translations
+            status_map = {
+                "pending": "⏳ Pendiente",
+                "in_progress": "🔄 En progreso",
+                "completed": "✅ Completada",
+                "overdue": "⚠️ Vencida",
+                "cancelled": "❌ Cancelada"
+            }
+            status_text = status_map.get(status, status)
+
+            # Tasks if available
+            tasks = event.get("event_tasks", [])
+            tasks_text = ""
+            if tasks:
+                tasks_text = "\n\n### 📋 Tareas relacionadas:\n"
+                for idx, task in enumerate(tasks[:5], 1):  # Limit to 5 tasks
+                    task_title = task.get("title", "Sin título")
+                    task_status = task.get("status", "pending")
+                    task_emoji = "✅" if task_status == "completed" else "⬜"
+                    tasks_text += f"{idx}. {task_emoji} {task_title}\n"
+
             # Format context text for agent
             context_text = f"""
-## 📅 CONTEXTO: Obligación Tributaria
+## 📅 CONTEXTO: {template_name}
 
-**El usuario está viendo los detalles de una obligación tributaria del calendario.**
+**El usuario está viendo los detalles de esta obligación tributaria específica.**
 
-### 💡 INSTRUCCIONES:
-- El usuario seleccionó un evento específico del calendario tributario
-- Enfócate en el estado actual y próximos pasos para esta obligación
-- Si pregunta cómo cumplir, explica los pasos generales según el tipo de obligación
-- Responde de forma breve y directa
+### 📊 Información del evento:
+- **Tipo**: {template_name} ({template_code})
+- **Estado**: {status_text}
+- **Fecha de vencimiento**: {due_date}
+- **Periodo tributario**: {period_start} al {period_end}
 
-**NOTA:** La información completa del evento se cargará desde Supabase cuando esté disponible.
-"""
+{f"**Descripción**: {template_description}" if template_description else ""}
+{tasks_text}
+
+### 💡 INSTRUCCIONES PARA EL AGENTE:
+- **NO llames herramientas adicionales** para buscar este evento - toda la información ya está arriba
+- Enfócate en el estado actual y próximos pasos para esta obligación específica
+- Si pregunta cómo cumplir, explica los pasos generales según el tipo de obligación ({template_code})
+- Responde de forma **breve y directa**
+- Si el estado es "completada", confirma que ya fue cumplida
+- Si el estado es "vencida", menciona que está fuera de plazo y sugiere regularizar
+- Si el estado es "pendiente", indica los pasos para cumplirla antes del vencimiento
+""".strip()
 
             return UIToolResult(
                 success=True,
                 context_text=context_text,
                 metadata={
                     "event_id": str(event_id),
+                    "template_code": template_code,
+                    "status": status,
+                    "due_date": due_date,
                 },
             )
 
