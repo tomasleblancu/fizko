@@ -76,6 +76,118 @@ class UploadResponse(BaseModel):
 # ============================================================================
 
 
+@router.post("/chat/upload", response_model=UploadResponse)
+async def upload_file(
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+) -> UploadResponse:
+    """
+    Upload file endpoint for chat attachments.
+
+    Accepts a file upload and returns an attachment_id that can be referenced
+    in subsequent chat requests.
+
+    **Example (JavaScript/React Native):**
+    ```javascript
+    const formData = new FormData();
+    formData.append('file', {
+      uri: fileUri,
+      type: 'image/jpeg',
+      name: 'photo.jpg'
+    });
+
+    const response = await fetch('/api/chat/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+
+    const data = await response.json();
+    console.log('Attachment ID:', data.attachment_id);
+
+    // Use attachment_id in chat request
+    await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        message: "Analiza esta imagen",
+        metadata: {
+          attachments: [data.attachment_id]
+        }
+      })
+    });
+    ```
+
+    Args:
+        file: File upload (multipart/form-data)
+        user: Authenticated user data (from JWT token)
+
+    Returns:
+        UploadResponse with attachment_id and file metadata
+    """
+    # Extract user_id from JWT token
+    user_id = user.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User ID not found in token"
+        )
+
+    try:
+        # Read file content
+        file_content = await file.read()
+
+        # Validate file size (max 10MB)
+        max_size = 10 * 1024 * 1024  # 10MB
+        if len(file_content) > max_size:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File size exceeds maximum allowed size of {max_size / 1024 / 1024}MB"
+            )
+
+        # Generate attachment ID
+        from app.agents.core.memory_attachment_store import (
+            generate_attachment_id,
+            store_attachment_content,
+        )
+
+        attachment_id = generate_attachment_id("chat")
+
+        # Store file content in memory
+        store_attachment_content(attachment_id, file_content)
+
+        logger.info(
+            f"📎 File uploaded | "
+            f"user={user_id[:8]} | "
+            f"attachment_id={attachment_id} | "
+            f"filename={file.filename} | "
+            f"size={len(file_content)} bytes | "
+            f"mime_type={file.content_type}"
+        )
+
+        return UploadResponse(
+            success=True,
+            attachment_id=attachment_id,
+            filename=file.filename or "unknown",
+            mime_type=file.content_type or "application/octet-stream",
+            size=len(file_content),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ File upload error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading file: {str(e)}",
+        )
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
@@ -86,7 +198,7 @@ async def chat(
 
     Returns complete agent response after execution finishes.
 
-    **Example (JavaScript/React Native):**
+    **Example 1: Simple text message**
     ```javascript
     const response = await fetch('/api/chat', {
       method: 'POST',
@@ -103,6 +215,41 @@ async def chat(
 
     const data = await response.json();
     console.log(data.response);
+    ```
+
+    **Example 2: Message with image attachment**
+    ```javascript
+    // First, upload the file
+    const formData = new FormData();
+    formData.append('file', {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: 'receipt.jpg'
+    });
+
+    const uploadRes = await fetch('/api/chat/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    });
+    const { attachment_id } = await uploadRes.json();
+
+    // Then send message with attachment reference
+    const chatRes = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        message: "¿Qué información puedes extraer de este documento?",
+        thread_id: "thread_123",
+        company_id: "company_456",
+        metadata: {
+          attachments: [attachment_id]
+        }
+      })
+    });
     ```
 
     Args:

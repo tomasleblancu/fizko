@@ -7,10 +7,11 @@ NOW USES: AgentRunnerV2 with classification-based routing (NO handoffs).
 """
 from __future__ import annotations
 
+import base64
 import logging
 import os
 import time
-from typing import Dict, Any
+from typing import Dict, Any, List
 from uuid import UUID
 
 from openai import AsyncOpenAI
@@ -45,6 +46,115 @@ class ChatService:
 
         # Cache for orchestrators (by thread_id)
         self._orchestrator_cache: Dict[str, Any] = {}
+
+    def _process_attachments(
+        self,
+        attachment_ids: List[str],
+        metadata: Dict[str, Any] | None = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Process attachment IDs and convert to content parts for the agent.
+
+        Args:
+            attachment_ids: List of attachment IDs to process
+            metadata: Optional metadata containing attachment info
+
+        Returns:
+            List of content parts (input_text or input_image)
+        """
+        from app.agents.core.memory_attachment_store import (
+            get_attachment_content,
+            _attachment_storage
+        )
+
+        content_parts = []
+
+        for attachment_id in attachment_ids:
+            try:
+                # Get base64 content from memory store
+                base64_content = get_attachment_content(attachment_id)
+
+                # Also try to get raw bytes for metadata
+                raw_bytes = _attachment_storage.get(attachment_id)
+
+                if not base64_content and not raw_bytes:
+                    logger.warning(f"⚠️ Attachment content not found: {attachment_id}")
+                    content_parts.append({
+                        "type": "input_text",
+                        "text": f"[Archivo adjunto no disponible: {attachment_id}]"
+                    })
+                    continue
+
+                # Try to determine MIME type from metadata or bytes
+                mime_type = "application/octet-stream"
+                filename = "unknown"
+
+                # Check if metadata contains attachment info
+                if metadata and "attachment_metadata" in metadata:
+                    att_meta = metadata["attachment_metadata"].get(attachment_id, {})
+                    mime_type = att_meta.get("mime_type", mime_type)
+                    filename = att_meta.get("filename", filename)
+                elif raw_bytes:
+                    # Try to guess MIME type from magic bytes
+                    if raw_bytes[:2] == b'\xff\xd8':
+                        mime_type = "image/jpeg"
+                    elif raw_bytes[:8] == b'\x89PNG\r\n\x1a\n':
+                        mime_type = "image/png"
+                    elif raw_bytes[:4] == b'GIF8':
+                        mime_type = "image/gif"
+                    elif raw_bytes[:4] == b'%PDF':
+                        mime_type = "application/pdf"
+
+                # Handle images
+                if mime_type.startswith("image/"):
+                    if not base64_content and raw_bytes:
+                        # Convert raw bytes to base64
+                        base64_content = base64.b64encode(raw_bytes).decode('utf-8')
+
+                    if base64_content:
+                        # Clean base64 content
+                        base64_content = base64_content.strip().replace('\n', '').replace('\r', '').replace(' ', '')
+
+                        # Validate base64
+                        try:
+                            decoded = base64.b64decode(base64_content)
+                            logger.info(f"✅ Valid image attachment: {filename} ({len(decoded)} bytes)")
+                        except Exception as e:
+                            logger.error(f"❌ Invalid base64 for {attachment_id}: {e}")
+                            content_parts.append({
+                                "type": "input_text",
+                                "text": f"[Imagen con formato inválido: {filename}]"
+                            })
+                            continue
+
+                        # Create data URL
+                        data_url = f"data:{mime_type};base64,{base64_content}"
+                        content_parts.append({
+                            "type": "input_image",
+                            "image_url": data_url
+                        })
+                        logger.info(f"📸 Added image to content: {filename}")
+                    else:
+                        content_parts.append({
+                            "type": "input_text",
+                            "text": f"[Imagen no disponible: {filename}]"
+                        })
+                else:
+                    # Non-image files
+                    content_parts.append({
+                        "type": "input_text",
+                        "text": f"[Archivo adjunto: {filename} ({mime_type})]"
+                    })
+                    logger.info(f"📄 Added file reference: {filename}")
+
+            except Exception as e:
+                logger.error(f"❌ Error processing attachment {attachment_id}: {e}", exc_info=True)
+                content_parts.append({
+                    "type": "input_text",
+                    "text": f"[Error procesando archivo adjunto: {attachment_id}]"
+                })
+
+        return content_parts
 
     async def execute(
         self,
@@ -114,16 +224,60 @@ class ChatService:
                 elif ui_tool_result and not ui_tool_result.success:
                     logger.warning(f"⚠️ Context loading failed: {ui_tool_result.error}")
 
-            # Format context
-            if ui_context_text:
-                full_message = f"""📋 CONTEXTO DE INTERFAZ (UI Context):
+            # Process attachments if present in metadata
+            attachment_content_parts = []
+            attachment_ids = []
+
+            if metadata and "attachments" in metadata:
+                attachment_ids = metadata["attachments"]
+                if isinstance(attachment_ids, list) and attachment_ids:
+                    logger.info(f"📎 Processing {len(attachment_ids)} attachment(s)")
+                    attachment_content_parts = self._process_attachments(
+                        attachment_ids=attachment_ids,
+                        metadata=metadata
+                    )
+
+            # Format message (convert to content_parts if we have attachments)
+            if attachment_content_parts:
+                # Build content_parts: [text, image1, image2, ...]
+                content_parts = []
+
+                # Add UI context if present
+                if ui_context_text:
+                    content_parts.append({
+                        "type": "input_text",
+                        "text": f"""📋 CONTEXTO DE INTERFAZ (UI Context):
+{ui_context_text}
+
+---"""
+                    })
+
+                # Add user message
+                content_parts.append({
+                    "type": "input_text",
+                    "text": message
+                })
+
+                # Add attachment content parts
+                content_parts.extend(attachment_content_parts)
+
+                full_message = content_parts
+
+                logger.info(
+                    f"📦 Built message with {len(content_parts)} content parts "
+                    f"({len([p for p in content_parts if p['type'] == 'input_image'])} images)"
+                )
+            else:
+                # No attachments - use simple text format
+                if ui_context_text:
+                    full_message = f"""📋 CONTEXTO DE INTERFAZ (UI Context):
 {ui_context_text}
 
 ---
 
 Pregunta del usuario: {message}"""
-            else:
-                full_message = message
+                else:
+                    full_message = message
 
             # Load company info if company_id is provided
             company_info_dict = {}
@@ -136,7 +290,7 @@ Pregunta del usuario: {message}"""
                 company_id=company_id or "unknown",
                 thread_id=thread_id,
                 message=full_message,
-                attachments=None,
+                attachments=None,  # Content parts include images directly
                 ui_context=ui_context_text if ui_context_text else None,
                 company_info=company_info_dict,  # Load from Supabase
                 metadata=metadata or {},

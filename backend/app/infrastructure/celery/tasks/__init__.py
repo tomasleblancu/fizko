@@ -17,6 +17,9 @@ Structure:
     ├── calendar/            # Calendar-related tasks
     │   ├── __init__.py
     │   └── events.py        # Calendar event generation
+    ├── notifications/       # Notification tasks
+    │   ├── __init__.py
+    │   └── reminders.py     # F29 reminders and push notifications
     └── memory/              # Memory-related tasks
         ├── __init__.py
         └── load.py          # Memory loading from existing data
@@ -28,11 +31,13 @@ Import your task modules here to ensure they're discovered by Celery.
 from . import sii
 from . import form29
 from . import calendar
+from . import notifications
 from . import memory
 
 __all__ = [
     "sii",
     "form29",
     "calendar",
+    "notifications",
     "memory",
 ]
