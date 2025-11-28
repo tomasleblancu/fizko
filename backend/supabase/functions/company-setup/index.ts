@@ -22,7 +22,6 @@ import type {
 
 // Import operations
 import { saveCompanySettings } from "./settings.ts";
-import { initializeCompanyCalendar } from "./calendar.ts";
 
 // Import task functions
 import { launchCalendarSyncTask } from "./tasks.ts";
@@ -171,25 +170,18 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[Company Setup] Settings saved: ${savedSettings.id}`);
 
-    // 2. Initialize calendar
-    const companyEvents = await initializeCompanyCalendar(
-      supabase,
-      company_id,
-      selected_template_ids
-    );
+    // 2. Launch calendar sync task (will auto-initialize company_events and generate calendar_events)
+    //    Template selection is handled by internal business logic based on company settings
+    await launchCalendarSyncTask(backendUrl, company_id);
 
     console.log(
-      `[Company Setup] Calendar initialized with ${companyEvents.length} events`
+      `[Company Setup] Calendar sync task launched for company: ${company_id}`
     );
-
-    // 3. Launch calendar sync task to generate concrete events
-    await launchCalendarSyncTask(backendUrl, company_id);
 
     const response: CompanySetupResponse = {
       success: true,
       settings_id: savedSettings.id,
-      company_events_created: companyEvents.length,
-      message: "Setup completado exitosamente",
+      message: "Setup completado exitosamente. El calendario se está inicializando en segundo plano.",
     };
 
     return new Response(JSON.stringify(response), {

@@ -25,10 +25,13 @@ def sync_company_calendar(
     Celery task to synchronize calendar events for a specific company.
 
     This task:
-    1. Gets active company_events for the company
-    2. For each company_event, generates missing calendar_events
-    3. Updates event statuses (first event -> in_progress, rest -> pending)
-    4. Is idempotent - can be run multiple times without duplicating events
+    1. Auto-initializes company_events if none exist
+       - Uses internal business logic to determine which templates to activate
+       - Based on company settings (has_formal_employees, etc.)
+    2. Gets active company_events for the company
+    3. For each company_event, generates missing calendar_events
+    4. Updates event statuses (first event -> in_progress, rest -> pending)
+    5. Is idempotent - can be run multiple times without duplicating events
 
     Args:
         company_id: UUID of the company (str format)
@@ -39,6 +42,8 @@ def sync_company_calendar(
             "success": bool,
             "company_id": str,
             "company_name": str,
+            "initialized": bool,  # True if company_events were created
+            "company_events_created": int,  # Number of company_events created
             "active_company_events": list[str],  # event codes
             "created_events": list[str],  # labels
             "updated_events": list[str],

@@ -29,7 +29,6 @@ export interface CompanySetupRequest {
 export interface CompanySetupResponse {
   success: boolean;
   settings_id?: string;
-  company_events_created?: number;
   message?: string;
   error?: string;
 }

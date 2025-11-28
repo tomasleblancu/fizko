@@ -72,6 +72,117 @@ class CalendarRepository(BaseRepository):
             self._log_error("get_company_event_by_id", e, company_event_id=company_event_id)
             return None
 
+    async def get_mandatory_event_templates(self) -> list[dict[str, Any]]:
+        """
+        Get all mandatory event templates (is_mandatory = true).
+
+        Returns:
+            List of mandatory event templates
+        """
+        try:
+            response = (
+                self._client
+                .table('event_templates')
+                .select('*')
+                .eq('is_mandatory', True)
+                .execute()
+            )
+            return self._extract_data_list(response, "get_mandatory_event_templates")
+        except Exception as e:
+            self._log_error("get_mandatory_event_templates", e)
+            return []
+
+    async def get_event_templates_by_ids(self, template_ids: list[str]) -> list[dict[str, Any]]:
+        """
+        Get event templates by IDs.
+
+        Args:
+            template_ids: List of template UUIDs
+
+        Returns:
+            List of event templates
+        """
+        try:
+            response = (
+                self._client
+                .table('event_templates')
+                .select('*')
+                .in_('id', template_ids)
+                .execute()
+            )
+            return self._extract_data_list(response, "get_event_templates_by_ids")
+        except Exception as e:
+            self._log_error("get_event_templates_by_ids", e, template_ids=template_ids)
+            return []
+
+    async def get_existing_company_events_by_company(
+        self,
+        company_id: str
+    ) -> list[dict[str, Any]]:
+        """
+        Get all company_events for a company (to check for duplicates).
+
+        Args:
+            company_id: UUID of the company
+
+        Returns:
+            List of company_events
+        """
+        try:
+            response = (
+                self._client
+                .table('company_events')
+                .select('*')
+                .eq('company_id', company_id)
+                .execute()
+            )
+            return self._extract_data_list(response, "get_existing_company_events_by_company")
+        except Exception as e:
+            self._log_error("get_existing_company_events_by_company", e, company_id=company_id)
+            return []
+
+    async def create_company_event(
+        self,
+        company_id: str,
+        event_template_id: str,
+        is_active: bool = True
+    ) -> dict[str, Any] | None:
+        """
+        Create a new company_event to link a company with an event template.
+
+        Args:
+            company_id: UUID of the company
+            event_template_id: UUID of the event template
+            is_active: Whether the event is active (default: True)
+
+        Returns:
+            Created company_event dict or None on error
+        """
+        try:
+            event_data = {
+                'company_id': company_id,
+                'event_template_id': event_template_id,
+                'is_active': is_active
+            }
+
+            response = (
+                self._client
+                .table('company_events')
+                .insert(event_data)
+                .execute()
+            )
+
+            data = self._extract_data_list(response, "create_company_event")
+            return data[0] if data else None
+        except Exception as e:
+            self._log_error(
+                "create_company_event",
+                e,
+                company_id=company_id,
+                event_template_id=event_template_id
+            )
+            return None
+
     # ============================================================================
     # CALENDAR_EVENTS - Generation & Sync
     # ============================================================================

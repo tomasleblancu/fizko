@@ -46,7 +46,8 @@ class CalendarSyncService:
 
     async def sync_company_calendar(
         self,
-        company_id: str
+        company_id: str,
+        auto_initialize: bool = True
     ) -> Dict[str, Any]:
         """
         Synchronize calendar events for a specific company.
@@ -55,15 +56,18 @@ class CalendarSyncService:
 
         Flow:
         1. Verify company exists
-        2. Get active company_events (is_active=true)
-        3. For each company_event:
+        2. (Optional) Auto-initialize company_events if none exist
+           - Uses internal business logic to determine which templates to activate
+        3. Get active company_events (is_active=true)
+        4. For each company_event:
            - Get existing calendar_events
            - Generate missing events for next periods
            - Update event statuses
-        4. Return summary
+        5. Return summary
 
         Args:
             company_id: UUID of the company (str format)
+            auto_initialize: Whether to auto-initialize company_events if none exist (default: True)
 
         Returns:
             Dict with sync results:
@@ -71,6 +75,8 @@ class CalendarSyncService:
                 "success": bool,
                 "company_id": str,
                 "company_name": str,
+                "initialized": bool,  # True if company_events were created
+                "company_events_created": int,  # Number of company_events created (if initialized)
                 "active_company_events": list[str],  # event template codes
                 "created_events": list[str],  # labels like "f29:2025-01"
                 "updated_events": list[str],
@@ -80,7 +86,7 @@ class CalendarSyncService:
             }
 
         Raises:
-            ValueError: If company not found or no active events
+            ValueError: If company not found or no active events (and auto_initialize=False)
         """
         logger.info(f"🔄 [Calendar Sync] Starting sync for company {company_id}")
 
@@ -92,13 +98,45 @@ class CalendarSyncService:
         company_name = company.get('business_name', 'Unknown')
         logger.info(f"📅 [Calendar Sync] Syncing calendar for: {company_name}")
 
-        # 2. Get active company_events
+        # 2. Check if company_events exist, initialize if needed
         active_company_events = await self.calendar_repo.get_active_company_events(company_id)
+
+        initialized = False
+        company_events_created = 0
+
+        if not active_company_events:
+            if auto_initialize:
+                logger.info(
+                    f"🔧 [Calendar Sync] No company_events found, auto-initializing..."
+                )
+
+                # Get company settings to inform template selection logic
+                company_settings = await self.companies_repo.get_company_settings(company_id)
+
+                # Initialize company_events using internal business logic
+                init_result = await self.initialize_company_events(
+                    company_id=company_id,
+                    company_settings=company_settings
+                )
+
+                initialized = True
+                company_events_created = init_result.get('company_events_created', 0)
+
+                logger.info(
+                    f"✅ [Calendar Sync] Auto-initialized {company_events_created} company_events"
+                )
+
+                # Re-fetch active company_events after initialization
+                active_company_events = await self.calendar_repo.get_active_company_events(company_id)
+            else:
+                raise ValueError(
+                    "No hay eventos activos configurados para esta empresa. "
+                    "Primero activa eventos en company_events."
+                )
 
         if not active_company_events:
             raise ValueError(
-                "No hay eventos activos configurados para esta empresa. "
-                "Primero activa eventos en company_events."
+                "No se pudieron inicializar company_events para esta empresa."
             )
 
         logger.info(
@@ -113,17 +151,21 @@ class CalendarSyncService:
         )
 
         # 4. Build result
-        message = self._build_sync_message(created_events, updated_events)
+        message = self._build_sync_message(created_events, updated_events, initialized, company_events_created)
 
         logger.info(
             f"✅ [Calendar Sync] Completed for {company_id}: "
-            f"{len(created_events)} created, {len(updated_events)} updated"
+            f"initialized={initialized}, "
+            f"company_events_created={company_events_created}, "
+            f"{len(created_events)} calendar_events created, {len(updated_events)} updated"
         )
 
         return {
             "success": True,
             "company_id": company_id,
             "company_name": company_name,
+            "initialized": initialized,
+            "company_events_created": company_events_created,
             "active_company_events": [ce['event_template']['code'] for ce in active_company_events],
             "created_events": created_events,
             "updated_events": updated_events,
@@ -208,9 +250,193 @@ class CalendarSyncService:
             "results": results
         }
 
+    async def initialize_company_events(
+        self,
+        company_id: str,
+        company_settings: Dict[str, Any] | None = None
+    ) -> Dict[str, Any]:
+        """
+        Initialize company_events for a company during onboarding.
+
+        This creates company_events for:
+        1. All mandatory event templates (is_mandatory = true)
+        2. Additional templates determined by internal business logic
+
+        This method is idempotent - can be run multiple times without duplicating events.
+
+        Args:
+            company_id: UUID of the company
+            company_settings: Optional company settings dict to inform template selection logic
+
+        Returns:
+            Dict with initialization results:
+            {
+                "success": bool,
+                "company_id": str,
+                "company_events_created": int,
+                "template_codes": list[str],  # codes of created templates
+                "message": str
+            }
+
+        Raises:
+            ValueError: If company not found
+        """
+        logger.info(f"📋 [Calendar Init] Initializing company_events for company {company_id}")
+
+        # 1. Verify company exists
+        company = await self.companies_repo.get_by_id(company_id, include_tax_info=False)
+        if not company:
+            raise ValueError(f"Company {company_id} not found")
+
+        company_name = company.get('business_name', 'Unknown')
+        logger.info(f"📅 [Calendar Init] Initializing for: {company_name}")
+
+        # 2. Get mandatory event templates
+        mandatory_templates = await self.calendar_repo.get_mandatory_event_templates()
+        logger.info(
+            f"📋 [Calendar Init] Found {len(mandatory_templates)} mandatory templates: "
+            f"{[t['code'] for t in mandatory_templates]}"
+        )
+
+        # 3. Determine additional templates based on company settings
+        additional_template_ids = await self._determine_additional_templates(
+            company_id=company_id,
+            company_settings=company_settings
+        )
+
+        additional_templates = []
+        if additional_template_ids:
+            additional_templates = await self.calendar_repo.get_event_templates_by_ids(
+                additional_template_ids
+            )
+            logger.info(
+                f"📋 [Calendar Init] Auto-selected {len(additional_templates)} additional templates: "
+                f"{[t['code'] for t in additional_templates]}"
+            )
+
+        # 4. Combine and deduplicate templates
+        all_templates = mandatory_templates + additional_templates
+        unique_templates = {t['id']: t for t in all_templates}.values()
+
+        logger.info(
+            f"📋 [Calendar Init] Creating company_events for {len(unique_templates)} unique templates"
+        )
+
+        # 5. Check which company_events already exist
+        existing_company_events = await self.calendar_repo.get_existing_company_events_by_company(
+            company_id
+        )
+        existing_template_ids = {ce['event_template_id'] for ce in existing_company_events}
+
+        logger.info(
+            f"📋 [Calendar Init] Found {len(existing_template_ids)} existing company_events"
+        )
+
+        # 6. Filter out templates that already have company_events
+        templates_to_create = [
+            t for t in unique_templates
+            if t['id'] not in existing_template_ids
+        ]
+
+        if len(templates_to_create) == 0:
+            logger.info("✅ [Calendar Init] All templates already have company_events")
+            return {
+                "success": True,
+                "company_id": company_id,
+                "company_events_created": 0,
+                "template_codes": [],
+                "message": "No new company_events needed (all templates already configured)"
+            }
+
+        logger.info(
+            f"📋 [Calendar Init] Creating {len(templates_to_create)} new company_events"
+        )
+
+        # 7. Create company_events
+        created_codes = []
+        for template in templates_to_create:
+            created_event = await self.calendar_repo.create_company_event(
+                company_id=company_id,
+                event_template_id=template['id'],
+                is_active=True
+            )
+
+            if created_event:
+                created_codes.append(template['code'])
+                logger.debug(f"  ✅ Created company_event for template: {template['code']}")
+            else:
+                logger.warning(f"  ⚠️  Failed to create company_event for template: {template['code']}")
+
+        logger.info(
+            f"✅ [Calendar Init] Completed for {company_id}: "
+            f"{len(created_codes)} company_events created"
+        )
+
+        return {
+            "success": True,
+            "company_id": company_id,
+            "company_events_created": len(created_codes),
+            "template_codes": created_codes,
+            "message": f"{len(created_codes)} company_events created successfully"
+        }
+
     # ============================================================================
     # PRIVATE METHODS
     # ============================================================================
+
+    async def _determine_additional_templates(
+        self,
+        company_id: str,
+        company_settings: Dict[str, Any] | None = None
+    ) -> List[str]:
+        """
+        Determine which additional (non-mandatory) event templates should be activated
+        for a company based on their settings and business characteristics.
+
+        This method contains the business logic to automatically enable optional templates
+        based on company configuration (e.g., has_formal_employees → enable Previred).
+
+        Args:
+            company_id: UUID of the company
+            company_settings: Optional company settings dict (from company_settings table)
+
+        Returns:
+            List of event template IDs to activate (in addition to mandatory templates)
+
+        Business rules (to be implemented):
+        - If has_formal_employees=True → Enable previred_payment template
+        - If has_lease_contracts=True → Enable lease_payment template
+        - If has_imports=True → Enable import_declaration template
+        - If has_exports=True → Enable export_declaration template
+        - etc.
+        """
+        logger.debug(f"🔍 [Template Selection] Determining additional templates for company {company_id}")
+
+        additional_template_ids: List[str] = []
+
+        # TODO: Implement business logic here
+        # For now, return empty list (no additional templates beyond mandatory)
+
+        # Example implementation (commented out):
+        # if company_settings:
+        #     if company_settings.get('has_formal_employees'):
+        #         previred_template = await self.calendar_repo.get_event_template_by_code('previred_payment')
+        #         if previred_template:
+        #             additional_template_ids.append(previred_template['id'])
+        #
+        #     if company_settings.get('has_lease_contracts'):
+        #         lease_template = await self.calendar_repo.get_event_template_by_code('lease_payment')
+        #         if lease_template:
+        #             additional_template_ids.append(lease_template['id'])
+        #
+        #     # Add more rules as needed...
+
+        logger.debug(
+            f"🔍 [Template Selection] Selected {len(additional_template_ids)} additional templates "
+            f"for company {company_id}"
+        )
+
+        return additional_template_ids
 
     async def _sync_all_company_events(
         self,
@@ -521,7 +747,9 @@ class CalendarSyncService:
     def _build_sync_message(
         self,
         created_events: List[str],
-        updated_events: List[str]
+        updated_events: List[str],
+        initialized: bool = False,
+        company_events_created: int = 0
     ) -> str:
         """
         Build descriptive sync message.
@@ -529,11 +757,16 @@ class CalendarSyncService:
         Args:
             created_events: List of created event labels
             updated_events: List of updated event labels
+            initialized: Whether company_events were initialized
+            company_events_created: Number of company_events created during initialization
 
         Returns:
             Human-readable sync message
         """
         messages = []
+
+        if initialized and company_events_created > 0:
+            messages.append(f"{company_events_created} plantillas activadas")
 
         if created_events:
             messages.append(f"{len(created_events)} eventos creados")
